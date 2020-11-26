@@ -1,0 +1,1757 @@
+<!DOCTYPE HTML>
+<html lang="zh-CN">
+
+
+<head>
+    <meta charset="utf-8">
+    <meta name="keywords" content="C++菱形继承内存布局分析, kiba, zen, amor, kibazen, kibaamor, 木叶, 木叶禅">
+    <meta name="description" content="一个普通游戏程序员的博客">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <meta name="renderer" content="webkit|ie-stand|ie-comp">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="format-detection" content="telephone=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <!-- Global site tag (gtag.js) - Google Analytics -->
+
+
+    <title>C++菱形继承内存布局分析 | 木叶禅</title>
+    <link rel="icon" type="image/png" href="/favicon.png">
+
+    <link rel="stylesheet" type="text/css" href="/libs/awesome/css/all.css">
+    <link rel="stylesheet" type="text/css" href="/libs/materialize/materialize.min.css">
+    <link rel="stylesheet" type="text/css" href="/libs/aos/aos.css">
+    <link rel="stylesheet" type="text/css" href="/libs/animate/animate.min.css">
+    <link rel="stylesheet" type="text/css" href="/libs/lightGallery/css/lightgallery.min.css">
+    <link rel="stylesheet" type="text/css" href="/css/matery.css">
+    <link rel="stylesheet" type="text/css" href="/css/my.css">
+
+    <script src="/libs/jquery/jquery.min.js"></script>
+
+<meta name="generator" content="Hexo 5.2.0">
+<style>.github-emoji { position: relative; display: inline-block; width: 1.2em; min-height: 1.2em; overflow: hidden; vertical-align: top; color: transparent; }  .github-emoji > span { position: relative; z-index: 10; }  .github-emoji img, .github-emoji .fancybox { margin: 0 !important; padding: 0 !important; border: none !important; outline: none !important; text-decoration: none !important; user-select: none !important; cursor: auto !important; }  .github-emoji img { height: 1.2em !important; width: 1.2em !important; position: absolute !important; left: 50% !important; top: 50% !important; transform: translate(-50%, -50%) !important; user-select: none !important; cursor: auto !important; } .github-emoji-fallback { color: inherit; } .github-emoji-fallback img { opacity: 0 !important; }</style>
+<link rel="alternate" href="/atom.xml" title="木叶禅" type="application/atom+xml">
+<link rel="stylesheet" href="/css/prism-tomorrow.css" type="text/css">
+<link rel="stylesheet" href="/css/prism-line-numbers.css" type="text/css"></head>
+
+
+
+
+<body>
+    <header class="navbar-fixed">
+    <nav id="headNav" class="bg-color nav-transparent">
+        <div id="navContainer" class="nav-wrapper container">
+            <div class="brand-logo">
+                <a href="/" class="waves-effect waves-light">
+                    
+                    <img src="https://cdn.jsdelivr.net/gh/KibaAmor/PicStored/medias/logo.png" class="logo-img" alt="LOGO">
+                    
+                    <span class="logo-span">木叶禅</span>
+                </a>
+            </div>
+            
+
+<a href="#" data-target="mobile-nav" class="sidenav-trigger button-collapse"><i class="fas fa-bars"></i></a>
+<ul class="right nav-menu">
+  
+  <li class="hide-on-med-and-down nav-item">
+    
+    <a href="/" class="waves-effect waves-light">
+      
+      <i class="fas fa-home" style="zoom: 0.6;"></i>
+      
+      <span>首页</span>
+    </a>
+    
+  </li>
+  
+  <li class="hide-on-med-and-down nav-item">
+    
+    <a href="/readings/" class="waves-effect waves-light">
+      
+      <i class="fas fa-book" style="zoom: 0.6;"></i>
+      
+      <span>阅读</span>
+    </a>
+    
+  </li>
+  
+  <li class="hide-on-med-and-down nav-item">
+    
+    <a href="/softwares/" class="waves-effect waves-light">
+      
+      <i class="fas fa-toolbox" style="zoom: 0.6;"></i>
+      
+      <span>软件</span>
+    </a>
+    
+  </li>
+  
+  <li class="hide-on-med-and-down nav-item">
+    
+    <a href="/categories/" class="waves-effect waves-light">
+      
+      <i class="fas fa-bookmark" style="zoom: 0.6;"></i>
+      
+      <span>分类</span>
+    </a>
+    
+  </li>
+  
+  <li class="hide-on-med-and-down nav-item">
+    
+    <a href="/tags/" class="waves-effect waves-light">
+      
+      <i class="fas fa-tags" style="zoom: 0.6;"></i>
+      
+      <span>标签</span>
+    </a>
+    
+  </li>
+  
+  <li class="hide-on-med-and-down nav-item">
+    
+    <a href="/about/" class="waves-effect waves-light">
+      
+      <i class="fas fa-user-circle" style="zoom: 0.6;"></i>
+      
+      <span>关于</span>
+    </a>
+    
+  </li>
+  
+  <li class="hide-on-med-and-down nav-item">
+    
+    <a href="/contact/" class="waves-effect waves-light">
+      
+      <i class="fas fa-comments" style="zoom: 0.6;"></i>
+      
+      <span>留言板</span>
+    </a>
+    
+  </li>
+  
+  <li>
+    <a href="#searchModal" class="modal-trigger waves-effect waves-light">
+      <i id="searchIcon" class="fas fa-search" title="搜索" style="zoom: 0.85;"></i>
+    </a>
+  </li>
+</ul>
+
+
+<div id="mobile-nav" class="side-nav sidenav">
+
+    <div class="mobile-head bg-color">
+        
+        <img src="https://cdn.jsdelivr.net/gh/KibaAmor/PicStored/medias/logo.png" class="logo-img circle responsive-img">
+        
+        <div class="logo-name">木叶禅</div>
+        <div class="logo-desc">
+            
+            一个普通游戏程序员的博客
+            
+        </div>
+    </div>
+
+    
+
+    <ul class="menu-list mobile-menu-list">
+        
+        <li class="m-nav-item">
+	  
+		<a href="/" class="waves-effect waves-light">
+			
+			    <i class="fa-fw fas fa-home"></i>
+			
+			首页
+		</a>
+          
+        </li>
+        
+        <li class="m-nav-item">
+	  
+		<a href="/readings/" class="waves-effect waves-light">
+			
+			    <i class="fa-fw fas fa-book"></i>
+			
+			阅读
+		</a>
+          
+        </li>
+        
+        <li class="m-nav-item">
+	  
+		<a href="/softwares/" class="waves-effect waves-light">
+			
+			    <i class="fa-fw fas fa-toolbox"></i>
+			
+			软件
+		</a>
+          
+        </li>
+        
+        <li class="m-nav-item">
+	  
+		<a href="/categories/" class="waves-effect waves-light">
+			
+			    <i class="fa-fw fas fa-bookmark"></i>
+			
+			分类
+		</a>
+          
+        </li>
+        
+        <li class="m-nav-item">
+	  
+		<a href="/tags/" class="waves-effect waves-light">
+			
+			    <i class="fa-fw fas fa-tags"></i>
+			
+			标签
+		</a>
+          
+        </li>
+        
+        <li class="m-nav-item">
+	  
+		<a href="/about/" class="waves-effect waves-light">
+			
+			    <i class="fa-fw fas fa-user-circle"></i>
+			
+			关于
+		</a>
+          
+        </li>
+        
+        <li class="m-nav-item">
+	  
+		<a href="/contact/" class="waves-effect waves-light">
+			
+			    <i class="fa-fw fas fa-comments"></i>
+			
+			留言板
+		</a>
+          
+        </li>
+        
+        
+    </ul>
+</div>
+
+
+        </div>
+
+        
+    </nav>
+
+</header>
+
+    
+<script src="/libs/cryptojs/crypto-js.min.js"></script>
+<script>
+    (function() {
+        let pwd = '';
+        if (pwd && pwd.length > 0) {
+            if (pwd !== CryptoJS.SHA256(prompt('请输入访问本文章的密码')).toString(CryptoJS.enc.Hex)) {
+                alert('密码错误，将返回主页！');
+                location.href = '/';
+            }
+        }
+    })();
+</script>
+
+
+
+
+<div class="bg-cover pd-header post-cover" style="background-image: url('https://cdn.jsdelivr.net/gh/KibaAmor/PicStored/medias/featureimages/18.jpg')">
+    <div class="container" style="right: 0px;left: 0px;">
+        <div class="row">
+            <div class="col s12 m12 l12">
+                <div class="brand">
+                    <h1 class="description center-align post-title">C++菱形继承内存布局分析</h1>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+
+
+<main class="post-container content">
+
+    
+    <link rel="stylesheet" href="/libs/tocbot/tocbot.css">
+<style>
+    #articleContent h1::before,
+    #articleContent h2::before,
+    #articleContent h3::before,
+    #articleContent h4::before,
+    #articleContent h5::before,
+    #articleContent h6::before {
+        display: block;
+        content: " ";
+        height: 100px;
+        margin-top: -100px;
+        visibility: hidden;
+    }
+
+    #articleContent :focus {
+        outline: none;
+    }
+
+    .toc-fixed {
+        position: fixed;
+        top: 64px;
+    }
+
+    .toc-widget {
+        width: 345px;
+        padding-left: 20px;
+    }
+
+    .toc-widget .toc-title {
+        padding: 35px 0 15px 17px;
+        font-size: 1.5rem;
+        font-weight: bold;
+        line-height: 1.5rem;
+    }
+
+    .toc-widget ol {
+        padding: 0;
+        list-style: none;
+    }
+
+    #toc-content {
+        height: calc(100vh - 250px);
+        overflow: auto;
+    }
+
+    #toc-content ol {
+        padding-left: 10px;
+    }
+
+    #toc-content ol li {
+        padding-left: 10px;
+    }
+
+    #toc-content .toc-link:hover {
+        color: #42b983;
+        font-weight: 700;
+        text-decoration: underline;
+    }
+
+    #toc-content .toc-link::before {
+        background-color: transparent;
+        max-height: 25px;
+
+        position: absolute;
+        right: 23.5vw;
+        display: block;
+    }
+
+    #toc-content .is-active-link {
+        color: #42b983;
+    }
+
+    #floating-toc-btn {
+        position: fixed;
+        right: 15px;
+        bottom: 76px;
+        padding-top: 15px;
+        margin-bottom: 0;
+        z-index: 998;
+    }
+
+    #floating-toc-btn .btn-floating {
+        width: 48px;
+        height: 48px;
+    }
+
+    #floating-toc-btn .btn-floating i {
+        line-height: 48px;
+        font-size: 1.4rem;
+    }
+</style>
+<div class="row">
+    <div id="main-content" class="col s12 m12 l9">
+        <!-- 文章内容详情 -->
+<div id="artDetail">
+    <div class="card">
+        <div class="card-content article-info">
+            <div class="row tag-cate">
+                <div class="col s7">
+                    
+                    <div class="article-tag">
+                        
+                            <a href="/tags/CPP/">
+                                <span class="chip bg-color">CPP</span>
+                            </a>
+                        
+                            <a href="/tags/%E9%80%86%E5%90%91%E5%B7%A5%E7%A8%8B/">
+                                <span class="chip bg-color">逆向工程</span>
+                            </a>
+                        
+                    </div>
+                    
+                </div>
+                <div class="col s5 right-align">
+                    
+                    <div class="post-cate">
+                        <i class="fas fa-bookmark fa-fw icon-category"></i>
+                        
+                            <a href="/categories/%E7%BC%96%E7%A8%8B%E8%AF%AD%E8%A8%80/" class="post-category">
+                                编程语言
+                            </a>
+                        
+                    </div>
+                    
+                </div>
+            </div>
+
+            <div class="post-info">
+                
+                <div class="post-date info-break-policy">
+                    <i class="far fa-calendar-minus fa-fw"></i>发布日期:&nbsp;&nbsp;
+                    2020-05-10
+                </div>
+                
+
+                
+                <div class="post-date info-break-policy">
+                    <i class="far fa-calendar-check fa-fw"></i>更新日期:&nbsp;&nbsp;
+                    2020-11-26
+                </div>
+                
+
+                
+                <div class="info-break-policy">
+                    <i class="far fa-file-word fa-fw"></i>文章字数:&nbsp;&nbsp;
+                    1.1k
+                </div>
+                
+
+                
+                <div class="info-break-policy">
+                    <i class="far fa-clock fa-fw"></i>阅读时长:&nbsp;&nbsp;
+                    6 分
+                </div>
+                
+
+                
+                    <div id="busuanzi_container_page_pv" class="info-break-policy">
+                        <i class="far fa-eye fa-fw"></i>阅读次数:&nbsp;&nbsp;
+                        <span id="busuanzi_value_page_pv"></span>
+                    </div>
+				
+            </div>
+        </div>
+        <hr class="clearfix">
+        <div class="card-content article-card-content">
+            <div id="articleContent">
+                <h2 id="一、编译环境"><a href="#一、编译环境" class="headerlink" title="一、编译环境"></a>一、编译环境</h2><ul>
+<li>Visual Studio 2017</li>
+<li>G++ (Ubuntu 7.5.0-3ubuntu1~18.04) 7.5.0</li>
+<li>Clang++ 6.0.0-1ubuntu2</li>
+</ul>
+<hr>
+<h2 id="二、非虚继承"><a href="#二、非虚继承" class="headerlink" title="二、非虚继承"></a>二、非虚继承</h2><h3 id="1-测试代码"><a href="#1-测试代码" class="headerlink" title="1. 测试代码"></a>1. 测试代码</h3><pre class="line-numbers language-lang-cpp"><code class="language-lang-cpp">// filename: nonvirtual.cpp
+#include <cstdio>
+
+struct A
+{
+    virtual void FA() {}
+    long long a = 0x1111111111111111LL;
+};
+
+struct B : A
+{
+    virtual void FB() {}
+    long long b = 0x2222222222222222LL;
+};
+
+struct C : A
+{
+    virtual void FC() {}
+    long long c = 0x3333333333333333LL;
+};
+
+struct D : B, C
+{
+    virtual void FD() {}
+    long long d = 0x4444444444444444LL;
+};
+
+int main(int argc, char** argv)
+{
+    A a;
+    B b;
+    C c;
+    D d;
+
+    printf("sizeof(void*) = %zu\n", sizeof(void*));
+    printf("sizeof(a) = %zu, &a = %p\n", sizeof(a), &a);
+    printf("sizeof(b) = %zu, &b = %p\n", sizeof(b), &b);
+    printf("sizeof(c) = %zu, &c = %p\n", sizeof(c), &c);
+    printf("sizeof(d) = %zu, &d = %p\n", sizeof(d), &d);
+
+    return 0;
+}
+<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<h3 id="2-编译方式"><a href="#2-编译方式" class="headerlink" title="2. 编译方式"></a>2. 编译方式</h3><ul>
+<li>vs2017</li>
+</ul>
+<blockquote>
+<p>Debug x64</p>
+</blockquote>
+<ul>
+<li>G++</li>
+</ul>
+<blockquote>
+<p>g++ -std=c++11 -ggdb -o gcc-nv.out nonvirtual.cpp</p>
+</blockquote>
+<ul>
+<li>Clang++</li>
+</ul>
+<blockquote>
+<p>clang++ -std=c++11 -ggdb -o clang-nv.out nonvirtual.cpp</p>
+</blockquote>
+<h3 id="3-执行结果"><a href="#3-执行结果" class="headerlink" title="3. 执行结果"></a>3. 执行结果</h3><p><strong>3个编译环境下执行的结果都类似的。</strong></p>
+<h4 id="VS2017"><a href="#VS2017" class="headerlink" title="VS2017"></a>VS2017</h4><ul>
+<li>执行结果</li>
+</ul>
+<pre class="line-numbers language-lang-bash"><code class="language-lang-bash">sizeof(void*) = 8
+sizeof(a) = 16, &a = 000000204193F818
+sizeof(b) = 24, &b = 000000204193F848
+sizeof(c) = 24, &c = 000000204193F878
+sizeof(d) = 56, &d = 000000204193F8A8
+<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<ul>
+<li>类D的内存DUMP</li>
+</ul>
+<pre class="line-numbers language-lang-bash"><code class="language-lang-bash">0x000000204193F8A8  00007ff7c032b1e8 1111111111111111 2222222222222222 00007ff7c032ae18 1111111111111111 3333333333333333
+0x000000204193F8D8  4444444444444444
+
+0x00007FF7C032B1E8  00007ff7c0321302 00007ff7c03211b8 00007ff7c032105a
+
+0x00007FF7C032AE18  00007ff7c0321302 00007ff7c03212e4
+<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<h4 id="G"><a href="#G" class="headerlink" title="G++"></a>G++</h4><ul>
+<li>执行结果</li>
+</ul>
+<pre class="line-numbers language-lang-bash"><code class="language-lang-bash">sizeof(void*) = 8
+sizeof(a) = 16, &a = 0x7fffffffe350
+sizeof(b) = 24, &b = 0x7fffffffe360
+sizeof(c) = 24, &c = 0x7fffffffe380
+sizeof(d) = 56, &d = 0x7fffffffe3a0
+<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<ul>
+<li>类D的内存DUMP</li>
+</ul>
+<pre class="line-numbers language-lang-bash"><code class="language-lang-bash">(gdb) x /7a &d
+0x7fffffffe3a0: 0x555555755ca8 <_ZTV1D+16>      0x1111111111111111
+0x7fffffffe3b0: 0x2222222222222222      0x555555755cd0 <_ZTV1D+56>
+0x7fffffffe3c0: 0x1111111111111111      0x3333333333333333
+0x7fffffffe3d0: 0x4444444444444444
+(gdb) x /3a 0x555555755ca8
+0x555555755ca8 <_ZTV1D+16>:     0x555555554b96 <A::FA()>        0x555555554ba2 <B::FB()>
+0x555555755cb8 <_ZTV1D+32>:     0x555555554bba <D::FD()>
+(gdb) x /2a 0x555555755cd0
+0x555555755cd0 <_ZTV1D+56>:     0x555555554b96 <A::FA()>        0x555555554bae <C::FC()>
+<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<h4 id="Clang"><a href="#Clang" class="headerlink" title="Clang++"></a>Clang++</h4><ul>
+<li>执行结果</li>
+</ul>
+<pre class="line-numbers language-lang-bash"><code class="language-lang-bash">sizeof(void*) = 8
+sizeof(a) = 16, &a = 0x7fffffffe3c0
+sizeof(b) = 24, &b = 0x7fffffffe3a8
+sizeof(c) = 24, &c = 0x7fffffffe390
+sizeof(d) = 56, &d = 0x7fffffffe358
+<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<ul>
+<li>类D的内存DUMP</li>
+</ul>
+<pre class="line-numbers language-lang-bash"><code class="language-lang-bash">(gdb) x /7a &d
+0x7fffffffe358: 0x400a88 <_ZTV1D+16>    0x1111111111111111
+0x7fffffffe368: 0x2222222222222222      0x400ab0 <_ZTV1D+56>
+0x7fffffffe378: 0x1111111111111111      0x3333333333333333
+0x7fffffffe388: 0x4444444444444444
+(gdb) x /3a 0x400a88
+0x400a88 <_ZTV1D+16>:   0x400880 <A::FA()>      0x400890 <B::FB()>
+0x400a98 <_ZTV1D+32>:   0x4008b0 <D::FD()>
+(gdb) x /2a 0x400ab0
+0x400ab0 <_ZTV1D+56>:   0x400880 <A::FA()>      0x4008a0 <C::FC()>
+<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<h3 id="4-类D的内存布局"><a href="#4-类D的内存布局" class="headerlink" title="4. 类D的内存布局"></a>4. 类D的内存布局</h3><pre class="line-numbers language-lang-text"><code class="language-lang-text">         D
++----------------+
+|                |
+| +------------+ |
+| |            | |      +---------+
+| | +--------+ | |      |         |
+| | | A.vptr+---------->+ A::FA() |
+| | | A::a   | | |      | B::FB() |
+| | +--------+ | |      | D::FD() |
+| |   B::b     | |      |         |
+| +------------+ |      +---------+
+|                |
+| +------------+ |
+| |            | |      +---------+
+| | +--------+ | |      |         |
+| | | A.vptr+---------->+ A::FA() |
+| | | A::a   | | |      | C::FC() |
+| | +--------+ | |      |         |
+| |   C::c     | |      +---------+
+| +------------+ |
+|                |
+|     D::d       |
+|                |
++----------------+
+<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<hr>
+<h2 id="三、虚继承"><a href="#三、虚继承" class="headerlink" title="三、虚继承"></a>三、虚继承</h2><h3 id="1-测试代码-1"><a href="#1-测试代码-1" class="headerlink" title="1. 测试代码"></a>1. 测试代码</h3><p>与<a href="#二、非虚继承">非虚拟继承</a>的测试代码类似，只是将非虚拟继承改成了虚拟继承。</p>
+<pre class="line-numbers language-lang-cpp"><code class="language-lang-cpp">// filename: virtual.cpp
+#include <cstdio>
+
+struct A
+{
+    virtual void FA() {}
+    long long a = 0x1111111111111111LL;
+};
+
+struct B : virtual public A
+{
+    virtual void FB() {}
+    long long b = 0x2222222222222222LL;
+};
+
+struct C : virtual public A
+{
+    virtual void FC() {}
+    long long c = 0x3333333333333333LL;
+};
+
+struct D : B, C
+{
+    virtual void FD() {}
+    long long d = 0x4444444444444444LL;
+};
+
+int main(int argc, char** argv)
+{
+    A a;
+    B b;
+    C c;
+    D d;
+
+    auto pba = dynamic_cast<A*>(&b);
+    auto pda = dynamic_cast<A*>(&d);
+    auto pdb = dynamic_cast<B*>(&d);
+
+    printf("sizeof(void*) = %zu\n", sizeof(void*));
+    printf("sizeof(a) = %zu, &a = %p\n", sizeof(a), &a);
+    printf("sizeof(b) = %zu, &b = %p\n", sizeof(b), &b);
+    printf("sizeof(c) = %zu, &c = %p\n", sizeof(c), &c);
+    printf("sizeof(d) = %zu, &d = %p\n", sizeof(d), &d);
+
+    return 0;
+}
+<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<h3 id="2-编译方式-1"><a href="#2-编译方式-1" class="headerlink" title="2. 编译方式"></a>2. 编译方式</h3><ul>
+<li>vs2017</li>
+</ul>
+<blockquote>
+<p>Debug x64</p>
+</blockquote>
+<ul>
+<li>G++</li>
+</ul>
+<blockquote>
+<p>g++ -std=c++11 -ggdb -o gcc-v.out virtual.cpp</p>
+</blockquote>
+<ul>
+<li>Clang++</li>
+</ul>
+<blockquote>
+<p>clang++ -std=c++11 -ggdb -o clang-v.out virtual.cpp</p>
+</blockquote>
+<h3 id="3-执行结果-1"><a href="#3-执行结果-1" class="headerlink" title="3. 执行结果"></a>3. 执行结果</h3><p><strong>VS2017的执行结果与G++和Clang++不同。</strong></p>
+<h4 id="VS2017-1"><a href="#VS2017-1" class="headerlink" title="VS2017"></a>VS2017</h4><ul>
+<li>执行结果</li>
+</ul>
+<pre class="line-numbers language-lang-bash"><code class="language-lang-bash">sizeof(void*) = 8
+sizeof(a) = 16, &a = 00000002F65FF658
+sizeof(b) = 40, &b = 00000002F65FF688
+sizeof(c) = 40, &c = 00000002F65FF6C8
+sizeof(d) = 72, &d = 00000002F65FF710
+<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<h5 id="对类B的分析"><a href="#对类B的分析" class="headerlink" title="对类B的分析"></a>对类B的分析</h5><ul>
+<li>类B的内存DUMP</li>
+</ul>
+<pre class="line-numbers language-lang-bash"><code class="language-lang-bash">0x00000002F65FF688  00007ff6cd4eadb0 00007ff6cd4eb1e0 2222222222222222 00007ff6cd4eadc8 1111111111111111
+
+0x00007FF6CD4EADB0  00007ff6cd4e11b8 <B::FB()>
+
+0x00007FF6CD4EB1E0  fffffff8 00000010
+
+0x00007FF6CD4EADC8  00007ff6cd4e1302 <A::FA()>
+<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<ul>
+<li>类B的内存分布</li>
+</ul>
+<pre class="line-numbers language-lang-text"><code class="language-lang-text">                        B
+                 +--------------+
+                 |              |
++---------+      | +----------+ |
+| B::FB() +<--------+B.vptr   | |      +--------------------+
++---------+      | | B.offset+-------->+ offset2ptr    = -8 |
+                 | | B::b     | |      | offset2A.vptr = 16 |
+                 | +----------+ |      +--------------------+
+                 |              |
++---------+      | +----------+ |
+| A::FA() +<--------+A.vptr   | |
++---------+      | | A::a     | |
+                 | +----------+ |
+                 |              |
+                 +--------------+
+<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<h5 id="对类D的分析"><a href="#对类D的分析" class="headerlink" title="对类D的分析"></a>对类D的分析</h5><ul>
+<li>类D的内存DUMP</li>
+</ul>
+<pre class="line-numbers language-lang-bash"><code class="language-lang-bash">0x00000002F65FF710  00007ff6cd4eb098 00007ff6cd4eac10 2222222222222222 00007ff6cd4eae70 00007ff6cd4eac18 3333333333333333
+0x00000002F65FF740  4444444444444444 00007ff6cd4eae90 1111111111111111
+
+0x00007FF6CD4EB098  00007ff6cd4e11b8 <B::FB()> 00007ff6cd4e105a <D::FD()>
+
+0x00007FF6CD4EAC10  fffffff8 00000030 fffffff8 00000018
+
+0x00007FF6CD4EAE70  00007ff6cd4e12e4 <C::FC()>
+
+0x00007FF6CD4EAC18  fffffff8 00000018
+
+0x00007FF6CD4EAE90  00007ff6cd4e1302 <A::FA()>
+<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<ul>
+<li>类D的内存布局</li>
+</ul>
+<blockquote>
+<p>tips: offset中，offset2ptr的数据是没使用的。</p>
+</blockquote>
+<pre class="line-numbers language-lang-text"><code class="language-lang-text">                        D
+                 +--------------+
+                 |              |
++---------+      | +----------+ |
+| B::FB() +<--------+B.vptr   | |      +--------------------+
+| D::FD() |      | | B.offset+-------->+ offset2ptr    = -8 |
++---------+      | | B::b     | |      | offset2A.vptr = 48 |
+                 | +----------+ |      | offset2vptr   = -8 |
+                 |              |      | offset2C.vptr = 24 |
++---------+      | +----------+ |      +--------------------+
+| C::FC() +<--------+C.vptr   | |      +--------------------+
++---------+      | | C.offset+-------->+ offset2vptr   = -8 |
+                 | | C::c     | |      | offset2A.vptr = 24 |
+                 | +----------+ |      +--------------------+
+                 |              |
+                 |   D::d       |
+                 |              |
++---------+      | +----------+ |
+| A::FA() +<--------+A.vptr   | |
++---------+      | | A::a     | |
+                 | +----------+ |
+                 |              |
+                 +--------------+
+<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<h4 id="G-1"><a href="#G-1" class="headerlink" title="G++"></a>G++</h4><ul>
+<li>执行结果</li>
+</ul>
+<pre class="line-numbers language-lang-bash"><code class="language-lang-bash">sizeof(void*) = 8
+sizeof(a) = 16, &a = 0x7fffffffe360
+sizeof(b) = 32, &b = 0x7fffffffe370
+sizeof(c) = 32, &c = 0x7fffffffe390
+sizeof(d) = 56, &d = 0x7fffffffe3b0
+<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<h5 id="对类B的分析-1"><a href="#对类B的分析-1" class="headerlink" title="对类B的分析"></a>对类B的分析</h5><ul>
+<li>类B的内存DUMP</li>
+</ul>
+<pre class="line-numbers language-lang-text"><code class="language-lang-text">>>> x /4a &b
+0x7fffffffe370: 0x555555755cc8 <_ZTV1B+24>      0x2222222222222222
+0x7fffffffe380: 0x555555755ce8 <_ZTV1B+56>      0x1111111111111111
+>>> x /1a 0x555555755cc8
+0x555555755cc8 <_ZTV1B+24>:     0x555555554dc4 <B::FB()>
+>>> x /1a 0x555555755ce8
+0x555555755ce8 <_ZTV1B+56>:     0x555555554db8 <A::FA()>
+<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<ul>
+<li>类B的内存布局</li>
+</ul>
+<pre class="line-numbers language-lang-text"><code class="language-lang-text">       B
++------------+
+|            |
+| +--------+ |     +---------+
+| | B.vptr+------->+ B::FB() |
+| | B::b   | |     +---------+
+| +--------+ |
+| +--------| |     +---------+
+| | A.vptr+------->+ A::FA() |
+| | A::a   | |     +---------+
+| +--------+ |
+|            |
++------------+
+<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<h5 id="对类D的分析-1"><a href="#对类D的分析-1" class="headerlink" title="对类D的分析"></a>对类D的分析</h5><ul>
+<li>类D的内存DUMP</li>
+</ul>
+<pre class="line-numbers language-lang-text"><code class="language-lang-text">>>> x /7a &d
+0x7fffffffe3b0: 0x555555755b58 <_ZTV1D+24>      0x2222222222222222
+0x7fffffffe3c0: 0x555555755b80 <_ZTV1D+64>      0x3333333333333333
+0x7fffffffe3d0: 0x4444444444444444      0x555555755ba0 <_ZTV1D+96>
+0x7fffffffe3e0: 0x1111111111111111
+>>> x /2a 0x555555755b58
+0x555555755b58 <_ZTV1D+24>:     0x555555554dc4 <B::FB()>        0x555555554ddc <D::FD()>
+>>> x /1a 0x555555755b80
+0x555555755b80 <_ZTV1D+64>:     0x555555554dd0 <C::FC()>
+>>> x /1a 0x555555755ba0
+0x555555755ba0 <_ZTV1D+96>:     0x555555554db8 <A::FA()>
+<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<ul>
+<li>类D的内存布局</li>
+</ul>
+<pre class="line-numbers language-lang-text"><code class="language-lang-text">         D
++----------------+
+|                |
+| +------------+ |
+| |            | |
+| | +--------+ | |      +---------+
+| | | B.vptr+---------->+ B::FB() |
+| | | B::b   | | |      | D::FD() |
+| | +--------+ | |      +---------+
+| | +--------| | |      +---------+
+| | | C.vptr+---------->+ C::FC() |
+| | | C::c   | | |      +---------+
+| | +--------+ | |
+| |            | |
+| +------------+ |
+|                |
+|     D::d       |
+|                |
+|   +--------+   |      +---------+
+|   | A.vptr+---------->+ A::FA() |
+|   | A::a   |   |      +---------+
+|   +--------+   |
+|                |
++----------------+
+<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<h4 id="Clang-1"><a href="#Clang-1" class="headerlink" title="Clang++"></a>Clang++</h4><p>Clang++的结果和G++的一样。</p>
+<ul>
+<li>执行结果</li>
+</ul>
+<pre class="line-numbers language-lang-bash"><code class="language-lang-bash">sizeof(void*) = 8
+sizeof(a) = 16, &a = 0x7fffffffe3c0
+sizeof(b) = 32, &b = 0x7fffffffe3a0
+sizeof(c) = 32, &c = 0x7fffffffe380
+sizeof(d) = 56, &d = 0x7fffffffe348
+<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<h5 id="对类B的分析-2"><a href="#对类B的分析-2" class="headerlink" title="对类B的分析"></a>对类B的分析</h5><ul>
+<li>类B的内存DUMP</li>
+</ul>
+<pre class="line-numbers language-lang-text"><code class="language-lang-text">>>> x /4a &b
+0x7fffffffe3a0: 0x400b60 <_ZTV1B+24>    0x2222222222222222
+0x7fffffffe3b0: 0x400b80 <_ZTV1B+56>    0x1111111111111111
+>>> x /1a 0x400b60
+0x400b60 <_ZTV1B+24>:   0x400960 <B::FB()>
+>>> x /1a 0x400b80
+0x400b80 <_ZTV1B+56>:   0x400950 <A::FA()>
+<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<ul>
+<li>类B的内存布局</li>
+</ul>
+<pre class="line-numbers language-lang-text"><code class="language-lang-text">       B
++------------+
+|            |
+| +--------+ |     +---------+
+| | B.vptr+------->+ B::FB() |
+| | B::b   | |     +---------+
+| +--------+ |
+| +--------| |     +---------+
+| | A.vptr+------->+ A::FA() |
+| | A::a   | |     +---------+
+| +--------+ |
+|            |
++------------+
+<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<h5 id="对类D的分析-2"><a href="#对类D的分析-2" class="headerlink" title="对类D的分析"></a>对类D的分析</h5><ul>
+<li>类D的内存DUMP</li>
+</ul>
+<pre class="line-numbers language-lang-text"><code class="language-lang-text">>>> x /7a &d
+0x7fffffffe348: 0x400c60 <_ZTV1D+24>    0x2222222222222222
+0x7fffffffe358: 0x400c88 <_ZTV1D+64>    0x3333333333333333
+0x7fffffffe368: 0x4444444444444444      0x400ca8 <_ZTV1D+96>
+0x7fffffffe378: 0x1111111111111111
+>>> x /2a 0x400c60
+0x400c60 <_ZTV1D+24>:   0x400960 <B::FB()>      0x400a00 <D::FD()>
+>>> x /1a 0x400c88
+0x400c88 <_ZTV1D+64>:   0x400970 <C::FC()>
+>>> x /1a 0x400ca8
+0x400ca8 <_ZTV1D+96>:   0x400950 <A::FA()>
+<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<ul>
+<li>类D的内存布局</li>
+</ul>
+<pre class="line-numbers language-lang-text"><code class="language-lang-text">         D
++----------------+
+|                |
+| +------------+ |
+| |            | |
+| | +--------+ | |      +---------+
+| | | B.vptr+---------->+ B::FB() |
+| | | B::b   | | |      | D::FD() |
+| | +--------+ | |      +---------+
+| | +--------| | |      +---------+
+| | | C.vptr+---------->+ C::FC() |
+| | | C::c   | | |      +---------+
+| | +--------+ | |
+| |            | |
+| +------------+ |
+|                |
+|     D::d       |
+|                |
+|   +--------+   |      +---------+
+|   | A.vptr+---------->+ A::FA() |
+|   | A::a   |   |      +---------+
+|   +--------+   |
+|                |
++----------------+
+<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<hr>
+<h2 id="四、分析结论"><a href="#四、分析结论" class="headerlink" title="四、分析结论"></a>四、分析结论</h2><h3 id="1-菱形非虚继承时-VS2017-、-G-7-5-和-Clang-6-编译生成的类的内存布局相同"><a href="#1-菱形非虚继承时-VS2017-、-G-7-5-和-Clang-6-编译生成的类的内存布局相同" class="headerlink" title="1. 菱形非虚继承时 VS2017 、 G++ 7.5 和 Clang++ 6 编译生成的类的内存布局相同"></a>1. 菱形非虚继承时 VS2017 、 G++ 7.5 和 Clang++ 6 编译生成的类的内存布局相同</h3><pre class="line-numbers language-lang-text"><code class="language-lang-text">+----------------+
+|                |
+| +------------+ |
+| |            | |      +---------+
+| | +--------+ | |      |         |
+| | | A.vptr+---------->+ A::FA() |
+| | | A::a   | | |      | B::FB() |
+| | +--------+ | |      | D::FD() |
+| |   B::b     | |      |         |
+| +------------+ |      +---------+
+|                |
+| +------------+ |
+| |            | |      +---------+
+| | +--------+ | |      |         |
+| | | A.vptr+---------->+ A::FA() |
+| | | A::a   | | |      | C::FC() |
+| | +--------+ | |      |         |
+| |   C::c     | |      +---------+
+| +------------+ |
+|                |
+|     D::d       |
+|                |
++----------------+
+<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<h3 id="2-菱形虚拟继承时-VS2017-编译生成类的内存布局与-G-7-5-和-Clang-6-的结果不同"><a href="#2-菱形虚拟继承时-VS2017-编译生成类的内存布局与-G-7-5-和-Clang-6-的结果不同" class="headerlink" title="2. 菱形虚拟继承时 VS2017 编译生成类的内存布局与 G++ 7.5 和 Clang++ 6 的结果不同"></a>2. 菱形虚拟继承时 VS2017 编译生成类的内存布局与 G++ 7.5 和 Clang++ 6 的结果不同</h3><ul>
+<li>VS2017生成的类的内存布局：</li>
+</ul>
+<pre class="line-numbers language-lang-text"><code class="language-lang-text">                        D
+                 +--------------+
+                 |              |
++---------+      | +----------+ |
+| B::FB() +<--------+B.vptr   | |      +--------------------+
+| D::FD() |      | | B.offset+-------->+ offset2ptr    = -8 |
++---------+      | | B::b     | |      | offset2A.vptr = 48 |
+                 | +----------+ |      | offset2vptr   = -8 |
+                 |              |      | offset2C.vptr = 24 |
++---------+      | +----------+ |      +--------------------+
+| C::FC() +<--------+C.vptr   | |      +--------------------+
++---------+      | | C.offset+-------->+ offset2vptr   = -8 |
+                 | | C::c     | |      | offset2A.vptr = 24 |
+                 | +----------+ |      +--------------------+
+                 |              |
+                 |   D::d       |
+                 |              |
++---------+      | +----------+ |
+| A::FA() +<--------+A.vptr   | |
++---------+      | | A::a     | |
+                 | +----------+ |
+                 |              |
+                 +--------------+
+<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<ul>
+<li>G++ 7.5 和 Clang++ 6 生成的类的内存布局相同：</li>
+</ul>
+<pre class="line-numbers language-lang-text"><code class="language-lang-text">         D
++----------------+
+|                |
+| +------------+ |
+| |            | |
+| | +--------+ | |      +---------+
+| | | B.vptr+---------->+ B::FB() |
+| | | B::b   | | |      | D::FD() |
+| | +--------+ | |      +---------+
+| | +--------| | |      +---------+
+| | | C.vptr+---------->+ C::FC() |
+| | | C::c   | | |      +---------+
+| | +--------+ | |
+| |            | |
+| +------------+ |
+|                |
+|     D::d       |
+|                |
+|   +--------+   |      +---------+
+|   | A.vptr+---------->+ A::FA() |
+|   | A::a   |   |      +---------+
+|   +--------+   |
+|                |
++----------------+
+<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+
+            </div>
+            <hr/>
+
+            
+
+    <div class="reprint" id="reprint-statement">
+        
+            <div class="reprint__author">
+                <span class="reprint-meta" style="font-weight: bold;">
+                    <i class="fas fa-user">
+                        文章作者:
+                    </i>
+                </span>
+                <span class="reprint-info">
+                    <a href="https://kibazen.cn" rel="external nofollow noreferrer">Kiba Amor</a>
+                </span>
+            </div>
+            <div class="reprint__type">
+                <span class="reprint-meta" style="font-weight: bold;">
+                    <i class="fas fa-link">
+                        文章链接:
+                    </i>
+                    </span>
+                <span class="reprint-info">
+                    <a href="https://kibazen.cn/c-ling-xing-ji-cheng-nei-cun-bu-ju-fen-xi/">https://kibazen.cn/c-ling-xing-ji-cheng-nei-cun-bu-ju-fen-xi/</a>
+                </span>
+            </div>
+            <div class="reprint__notice">
+                <span class="reprint-meta" style="font-weight: bold;">
+                    <i class="fas fa-copyright">
+                        版权声明:
+                    </i>
+                </span>
+                <span class="reprint-info">
+                    本博客所有文章除特別声明外，均采用
+                    <a href="https://creativecommons.org/licenses/by-nc-nd/4.0/deed.zh" rel="external nofollow noreferrer" target="_blank">CC BY-NC-ND 4.0</a>
+                    许可协议。转载请注明来源
+                    <a href="https://kibazen.cn" target="_blank">Kiba Amor</a>
+                    !
+                </span>
+            </div>
+        
+    </div>
+
+    <script async defer>
+      document.addEventListener("copy", function (e) {
+        let toastHTML = '<span>复制成功，请遵循本文的转载规则</span><button class="btn-flat toast-action" onclick="navToReprintStatement()" style="font-size: smaller">查看</a>';
+        M.toast({html: toastHTML})
+      });
+
+      function navToReprintStatement() {
+        $("html, body").animate({scrollTop: $("#reprint-statement").offset().top - 80}, 800);
+      }
+    </script>
+
+
+
+            <div class="tag_share" style="display: block;">
+                <div class="post-meta__tag-list" style="display: inline-block;">
+                    
+                        <div class="article-tag">
+                            
+                                <a href="/tags/CPP/">
+                                    <span class="chip bg-color">CPP</span>
+                                </a>
+                            
+                                <a href="/tags/%E9%80%86%E5%90%91%E5%B7%A5%E7%A8%8B/">
+                                    <span class="chip bg-color">逆向工程</span>
+                                </a>
+                            
+                        </div>
+                    
+                </div>
+                <div class="post_share" style="zoom: 80%; width: fit-content; display: inline-block; float: right; margin: -0.15rem 0;">
+                    <link rel="stylesheet" type="text/css" href="/libs/share/css/share.min.css">
+<div id="article-share">
+
+    
+    <div class="social-share" data-sites="qq,wechat,weibo,douban" data-wechat-qrcode-helper="<p>微信扫一扫即可分享！</p>"></div>
+    <script src="/libs/share/js/social-share.min.js"></script>
+    
+
+    
+
+</div>
+
+                </div>
+            </div>
+            
+        </div>
+    </div>
+
+    
+
+    
+
+    
+
+    
+
+    
+        <style>
+    .valine-card {
+        margin: 1.5rem auto;
+    }
+
+    .valine-card .card-content {
+        padding: 20px 20px 5px 20px;
+    }
+
+    #vcomments textarea {
+        box-sizing: border-box;
+        background: url("/medias/comment_bg.png") 100% 100% no-repeat;
+    }
+
+    #vcomments p {
+        margin: 2px 2px 10px;
+        font-size: 1.05rem;
+        line-height: 1.78rem;
+    }
+
+    #vcomments blockquote p {
+        text-indent: 0.2rem;
+    }
+
+    #vcomments a {
+        padding: 0 2px;
+        color: #4cbf30;
+        font-weight: 500;
+        text-decoration: none;
+    }
+
+    #vcomments img {
+        max-width: 100%;
+        height: auto;
+        cursor: pointer;
+    }
+
+    #vcomments ol li {
+        list-style-type: decimal;
+    }
+
+    #vcomments ol,
+    ul {
+        display: block;
+        padding-left: 2em;
+        word-spacing: 0.05rem;
+    }
+
+    #vcomments ul li,
+    ol li {
+        display: list-item;
+        line-height: 1.8rem;
+        font-size: 1rem;
+    }
+
+    #vcomments ul li {
+        list-style-type: disc;
+    }
+
+    #vcomments ul ul li {
+        list-style-type: circle;
+    }
+
+    #vcomments table, th, td {
+        padding: 12px 13px;
+        border: 1px solid #dfe2e5;
+    }
+
+    #vcomments table, th, td {
+        border: 0;
+    }
+
+    table tr:nth-child(2n), thead {
+        background-color: #fafafa;
+    }
+
+    #vcomments table th {
+        background-color: #f2f2f2;
+        min-width: 80px;
+    }
+
+    #vcomments table td {
+        min-width: 80px;
+    }
+
+    #vcomments h1 {
+        font-size: 1.85rem;
+        font-weight: bold;
+        line-height: 2.2rem;
+    }
+
+    #vcomments h2 {
+        font-size: 1.65rem;
+        font-weight: bold;
+        line-height: 1.9rem;
+    }
+
+    #vcomments h3 {
+        font-size: 1.45rem;
+        font-weight: bold;
+        line-height: 1.7rem;
+    }
+
+    #vcomments h4 {
+        font-size: 1.25rem;
+        font-weight: bold;
+        line-height: 1.5rem;
+    }
+
+    #vcomments h5 {
+        font-size: 1.1rem;
+        font-weight: bold;
+        line-height: 1.4rem;
+    }
+
+    #vcomments h6 {
+        font-size: 1rem;
+        line-height: 1.3rem;
+    }
+
+    #vcomments p {
+        font-size: 1rem;
+        line-height: 1.5rem;
+    }
+
+    #vcomments hr {
+        margin: 12px 0;
+        border: 0;
+        border-top: 1px solid #ccc;
+    }
+
+    #vcomments blockquote {
+        margin: 15px 0;
+        border-left: 5px solid #42b983;
+        padding: 1rem 0.8rem 0.3rem 0.8rem;
+        color: #666;
+        background-color: rgba(66, 185, 131, .1);
+    }
+
+    #vcomments pre {
+        font-family: monospace, monospace;
+        padding: 1.2em;
+        margin: .5em 0;
+        background: #272822;
+        overflow: auto;
+        border-radius: 0.3em;
+        tab-size: 4;
+    }
+
+    #vcomments code {
+        font-family: monospace, monospace;
+        padding: 1px 3px;
+        font-size: 0.92rem;
+        color: #e96900;
+        background-color: #f8f8f8;
+        border-radius: 2px;
+    }
+
+    #vcomments pre code {
+        font-family: monospace, monospace;
+        padding: 0;
+        color: #e8eaf6;
+        background-color: #272822;
+    }
+
+    #vcomments pre[class*="language-"] {
+        padding: 1.2em;
+        margin: .5em 0;
+    }
+
+    #vcomments code[class*="language-"],
+    pre[class*="language-"] {
+        color: #e8eaf6;
+    }
+
+    #vcomments [type="checkbox"]:not(:checked), [type="checkbox"]:checked {
+        position: inherit;
+        margin-left: -1.3rem;
+        margin-right: 0.4rem;
+        margin-top: -1px;
+        vertical-align: middle;
+        left: unset;
+        visibility: visible;
+    }
+
+    #vcomments b,
+    strong {
+        font-weight: bold;
+    }
+
+    #vcomments dfn {
+        font-style: italic;
+    }
+
+    #vcomments small {
+        font-size: 85%;
+    }
+
+    #vcomments cite {
+        font-style: normal;
+    }
+
+    #vcomments mark {
+        background-color: #fcf8e3;
+        padding: .2em;
+    }
+
+    #vcomments table, th, td {
+        padding: 12px 13px;
+        border: 1px solid #dfe2e5;
+    }
+
+    table tr:nth-child(2n), thead {
+        background-color: #fafafa;
+    }
+
+    #vcomments table th {
+        background-color: #f2f2f2;
+        min-width: 80px;
+    }
+
+    #vcomments table td {
+        min-width: 80px;
+    }
+
+    #vcomments [type="checkbox"]:not(:checked), [type="checkbox"]:checked {
+        position: inherit;
+        margin-left: -1.3rem;
+        margin-right: 0.4rem;
+        margin-top: -1px;
+        vertical-align: middle;
+        left: unset;
+        visibility: visible;
+    }
+</style>
+
+<div class="card valine-card" data-aos="fade-up">
+    <div class="comment_headling" style="font-size: 20px; font-weight: 700; position: relative; padding-left: 20px; top: 15px; padding-bottom: 5px;">
+        <i class="fas fa-comments fa-fw" aria-hidden="true"></i>
+        <span>评论</span>
+    </div>
+    <div id="vcomments" class="card-content" style="display: grid">
+    </div>
+</div>
+
+<script src="/libs/valine/av-min.js"></script>
+<script src="/libs/valine/Valine.min.js"></script>
+<script>
+    new Valine({
+        el: '#vcomments',
+        appId: '7XFdKhJIAAFSXSnxbxnw1jdg-gzGzoHsz',
+        appKey: 'XkszI1jMxWGeoaiSywP5RLdQ',
+        notify: 'false' === 'true',
+        verify: 'false' === 'true',
+        visitor: 'true' === 'true',
+        avatar: 'mm',
+        pageSize: '10',
+        lang: 'zh-cn',
+        placeholder: 'Yesterday is history. Tomorrow is a mystery. Today is a gift. That&#39;s why it is called the present.'
+    });
+</script>
+
+    
+
+    
+
+    
+
+    
+
+<article id="prenext-posts" class="prev-next articles">
+    <div class="row article-row">
+        
+        <div class="article col s12 m6" data-aos="fade-up">
+            <div class="article-badge left-badge text-color">
+                <i class="fas fa-chevron-left"></i>&nbsp;上一篇</div>
+            <div class="card">
+                <a href="/shen-du-tan-suo-c-dui-xiang-mo-xing-du-shu-bi-ji/">
+                    <div class="card-image">
+                        
+                        
+                        <img src="https://cdn.jsdelivr.net/gh/KibaAmor/PicStored/medias/featureimages/18.jpg" class="responsive-img" alt="《深度探索C++对象模型》读书笔记">
+                        
+                        <span class="card-title">《深度探索C++对象模型》读书笔记</span>
+                    </div>
+                </a>
+                <div class="card-content article-content">
+                    <div class="summary block-with-text">
+                        
+                            
+                        
+                    </div>
+                    <div class="publish-info">
+                        <span class="publish-date">
+                            <i class="far fa-clock fa-fw icon-date"></i>2020-05-10
+                        </span>
+                        <span class="publish-author">
+                            
+                            <i class="fas fa-bookmark fa-fw icon-category"></i>
+                            
+                            <a href="/categories/%E8%AF%BB%E4%B9%A6%E7%AC%94%E8%AE%B0/" class="post-category">
+                                    读书笔记
+                                </a>
+                            
+                            
+                        </span>
+                    </div>
+                </div>
+                
+                <div class="card-action article-tags">
+                    
+                    <a href="/tags/CPP/">
+                        <span class="chip bg-color">CPP</span>
+                    </a>
+                    
+                </div>
+                
+            </div>
+        </div>
+        
+        
+        <div class="article col s12 m6" data-aos="fade-up">
+            <div class="article-badge right-badge text-color">
+                下一篇&nbsp;<i class="fas fa-chevron-right"></i>
+            </div>
+            <div class="card">
+                <a href="/zuo-er-ting-feng-xue-xi-bi-ji/">
+                    <div class="card-image">
+                        
+                        
+                        <img src="https://cdn.jsdelivr.net/gh/KibaAmor/PicStored/medias/featureimages/16.jpg" class="responsive-img" alt="《左耳听风》学习笔记">
+                        
+                        <span class="card-title">《左耳听风》学习笔记</span>
+                    </div>
+                </a>
+                <div class="card-content article-content">
+                    <div class="summary block-with-text">
+                        
+                            
+                        
+                    </div>
+                    <div class="publish-info">
+                            <span class="publish-date">
+                                <i class="far fa-clock fa-fw icon-date"></i>2020-05-07
+                            </span>
+                        <span class="publish-author">
+                            
+                            <i class="fas fa-bookmark fa-fw icon-category"></i>
+                            
+                            <a href="/categories/%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0/" class="post-category">
+                                    学习笔记
+                                </a>
+                            
+                            
+                        </span>
+                    </div>
+                </div>
+                
+                <div class="card-action article-tags">
+                    
+                    <a href="/tags/%E8%81%8C%E4%B8%9A%E8%A7%84%E5%88%92/">
+                        <span class="chip bg-color">职业规划</span>
+                    </a>
+                    
+                </div>
+                
+            </div>
+        </div>
+        
+    </div>
+</article>
+
+</div>
+
+
+<script>
+    $('#articleContent').on('copy', function (e) {
+        // IE8 or earlier browser is 'undefined'
+        if (typeof window.getSelection === 'undefined') return;
+
+        var selection = window.getSelection();
+        // if the selection is short let's not annoy our users.
+        if (('' + selection).length < Number.parseInt('120')) {
+            return;
+        }
+
+        // create a div outside of the visible area and fill it with the selected text.
+        var bodyElement = document.getElementsByTagName('body')[0];
+        var newdiv = document.createElement('div');
+        newdiv.style.position = 'absolute';
+        newdiv.style.left = '-99999px';
+        bodyElement.appendChild(newdiv);
+        newdiv.appendChild(selection.getRangeAt(0).cloneContents());
+
+        // we need a <pre> tag workaround.
+        // otherwise the text inside "pre" loses all the line breaks!
+        if (selection.getRangeAt(0).commonAncestorContainer.nodeName === 'PRE') {
+            newdiv.innerHTML = "<pre>" + newdiv.innerHTML + "</pre>";
+        }
+
+        var url = document.location.href;
+        newdiv.innerHTML += '<br />'
+            + '来源: 木叶禅<br />'
+            + '文章作者: Kiba Amor<br />'
+            + '文章链接: <a href="' + url + '">' + url + '</a><br />'
+            + '本文章著作权归作者木叶禅所有，任何形式的转载都请注明出处。';
+
+        selection.selectAllChildren(newdiv);
+        window.setTimeout(function () {bodyElement.removeChild(newdiv);}, 200);
+    });
+</script>
+
+
+<!-- 代码块功能依赖 -->
+<script type="text/javascript" src="/libs/codeBlock/codeBlockFuction.js"></script>
+
+<!-- 代码语言 -->
+
+
+<!-- 代码块复制 -->
+
+<script type="text/javascript" src="/libs/codeBlock/codeCopy.js"></script>
+
+
+<!-- 代码块收缩 -->
+
+<script type="text/javascript" src="/libs/codeBlock/codeShrink.js"></script>
+
+
+<!-- 代码块折行 -->
+
+<style type="text/css">
+code[class*="language-"], pre[class*="language-"] { white-space: pre !important; }
+</style>
+
+
+    </div>
+    <div id="toc-aside" class="expanded col l3 hide-on-med-and-down">
+        <div class="toc-widget card" style="background-color: white;">
+            <div class="toc-title"><i class="far fa-list-alt"></i>&nbsp;&nbsp;目录</div>
+            <div id="toc-content"></div>
+        </div>
+    </div>
+</div>
+
+<!-- TOC 悬浮按钮. -->
+
+
+<script src="/libs/tocbot/tocbot.min.js"></script>
+<script>
+    $(function () {
+        tocbot.init({
+            tocSelector: '#toc-content',
+            contentSelector: '#articleContent',
+            headingsOffset: -($(window).height() * 0.4 - 45),
+            collapseDepth: Number('0'),
+            headingSelector: 'h2, h3, h4'
+        });
+
+        // modify the toc link href to support Chinese.
+        let i = 0;
+        let tocHeading = 'toc-heading-';
+        $('#toc-content a').each(function () {
+            $(this).attr('href', '#' + tocHeading + (++i));
+        });
+
+        // modify the heading title id to support Chinese.
+        i = 0;
+        $('#articleContent').children('h2, h3, h4').each(function () {
+            $(this).attr('id', tocHeading + (++i));
+        });
+
+        // Set scroll toc fixed.
+        let tocHeight = parseInt($(window).height() * 0.4 - 64);
+        let $tocWidget = $('.toc-widget');
+        $(window).scroll(function () {
+            let scroll = $(window).scrollTop();
+            /* add post toc fixed. */
+            if (scroll > tocHeight) {
+                $tocWidget.addClass('toc-fixed');
+            } else {
+                $tocWidget.removeClass('toc-fixed');
+            }
+        });
+
+        
+    });
+</script>
+
+    
+
+</main>
+
+
+
+
+    <footer class="page-footer bg-color">
+    
+    <div class="container row center-align" style="margin-bottom: 0px !important;">
+        <div class="col s12 m8 l8 copy-right">
+            Copyright&nbsp;&copy;
+            
+                <span id="year">2019-2020</span>
+            
+            <span id="year">2019</span>
+            <a href="/about" target="_blank">Kiba Amor</a>
+            |&nbsp;Powered by&nbsp;<a href="https://hexo.io/" target="_blank">Hexo</a>
+            |&nbsp;Theme&nbsp;<a href="https://github.com/blinkfox/hexo-theme-matery" target="_blank">Matery</a>
+            <br>
+            
+            &nbsp;<i class="fas fa-chart-area"></i>&nbsp;站点总字数:&nbsp;<span
+                class="white-color">62.1k</span>&nbsp;字
+            
+            
+            
+            
+            
+            
+            <span id="busuanzi_container_site_pv">
+                |&nbsp;<i class="far fa-eye"></i>&nbsp;总访问量:&nbsp;<span id="busuanzi_value_site_pv"
+                    class="white-color"></span>&nbsp;次
+            </span>
+            
+            
+            <span id="busuanzi_container_site_uv">
+                |&nbsp;<i class="fas fa-users"></i>&nbsp;总访问人数:&nbsp;<span id="busuanzi_value_site_uv"
+                    class="white-color"></span>&nbsp;人
+            </span>
+            
+            <br>
+            
+            <br>
+            
+            <span id="icp"><img src="/medias/icp.png" style="vertical-align: text-bottom;" />
+                <a href="http://www.beian.miit.gov.cn" target="_blank">蜀ICP备15008376号-2</a>
+            </span>
+            
+        </div>
+        <div class="col s12 m4 l4 social-link social-statis">
+    <a href="https://github.com/kibaamor" class="tooltipped" target="_blank" data-tooltip="访问我的GitHub" data-position="top" data-delay="50">
+        <i class="fab fa-github"></i>
+    </a>
+
+
+
+
+
+
+
+
+
+    <a href="tencent://AddContact/?fromId=50&fromSubId=1&subcmd=all&uin=562236616" class="tooltipped" target="_blank" data-tooltip="QQ联系我: 562236616" data-position="top" data-delay="50">
+        <i class="fab fa-qq"></i>
+    </a>
+
+
+
+
+
+    <a href="https://www.zhihu.com/people/kibaamor" class="tooltipped" target="_blank" data-tooltip="关注我的知乎: https://www.zhihu.com/people/kibaamor" data-position="top" data-delay="50">
+        <i class="fab fa-zhihu1">知</i>
+    </a>
+
+
+
+    <a href="/atom.xml" class="tooltipped" target="_blank" data-tooltip="RSS 订阅" data-position="top" data-delay="50">
+        <i class="fas fa-rss"></i>
+    </a>
+
+</div>
+    </div>
+</footer>
+
+<div class="progress-bar"></div>
+
+
+    <!-- 搜索遮罩框 -->
+<div id="searchModal" class="modal">
+    <div class="modal-content">
+        <div class="search-header">
+            <span class="title"><i class="fas fa-search"></i>&nbsp;&nbsp;搜索</span>
+            <input type="search" id="searchInput" name="s" placeholder="请输入搜索的关键字"
+                   class="search-input">
+        </div>
+        <div id="searchResult"></div>
+    </div>
+</div>
+
+<script src="/js/search.js"></script>
+<script type="text/javascript">
+$(function () {
+    searchFunc('/search.xml', 'searchInput', 'searchResult');
+});
+</script>
+
+    <!-- 回到顶部按钮 -->
+<div id="backTop" class="top-scroll">
+    <a class="btn-floating btn-large waves-effect waves-light" href="#!">
+        <i class="fas fa-arrow-up"></i>
+    </a>
+</div>
+
+
+    <script src="/libs/materialize/materialize.min.js"></script>
+    <script src="/libs/masonry/masonry.pkgd.min.js"></script>
+    <script src="/libs/aos/aos.js"></script>
+    <script src="/libs/scrollprogress/scrollProgress.min.js"></script>
+    <script src="/libs/lightGallery/js/lightgallery-all.min.js"></script>
+    <script src="/js/matery.js"></script>
+
+    <!-- Baidu Analytics -->
+
+    <!-- Baidu Push -->
+
+<script>
+    (function () {
+        var bp = document.createElement('script');
+        var curProtocol = window.location.protocol.split(':')[0];
+        if (curProtocol === 'https') {
+            bp.src = 'https://zz.bdstatic.com/linksubmit/push.js';
+        } else {
+            bp.src = 'http://push.zhanzhang.baidu.com/push.js';
+        }
+        var s = document.getElementsByTagName("script")[0];
+        s.parentNode.insertBefore(bp, s);
+    })();
+</script>
+
+    
+    
+    <script async src="/libs/others/busuanzi.pure.mini.js"></script>
+    
+
+    
+
+    
+
+	
+    
+
+    
+
+    
+
+    
+    <script src="/libs/instantpage/instantpage.js" type="module"></script>
+    
+
+</body>
+
+</html>
