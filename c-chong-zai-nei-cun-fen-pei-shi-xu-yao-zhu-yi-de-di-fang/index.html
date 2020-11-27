@@ -3,7 +3,7 @@
 
 
 <head>
-    <!-- hexo-inject:begin --><!-- hexo-inject:end --><meta charset="utf-8">
+    <meta charset="utf-8">
     <meta name="keywords" content="C++重载内存分配时需要注意的地方, kiba, zen, amor, kibazen, kibaamor, 木叶, 木叶禅">
     <meta name="description" content="一个普通游戏程序员的博客">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
@@ -26,14 +26,15 @@
     <link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/libs/lightGallery/css/lightgallery.min.css">
     <link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/css/matery.css">
     <link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/css/my.css">
+    <link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/npm/prismjs@1.22.0/themes/prism-tomorrow.css">
+    <link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/npm/prismjs@1.22.0/plugins/line-numbers/prism-line-numbers.css">
 
     <script src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/libs/jquery/jquery.min.js"></script>
 
 <meta name="generator" content="Hexo 5.2.0">
 <style>.github-emoji { position: relative; display: inline-block; width: 1.2em; min-height: 1.2em; overflow: hidden; vertical-align: top; color: transparent; }  .github-emoji > span { position: relative; z-index: 10; }  .github-emoji img, .github-emoji .fancybox { margin: 0 !important; padding: 0 !important; border: none !important; outline: none !important; text-decoration: none !important; user-select: none !important; cursor: auto !important; }  .github-emoji img { height: 1.2em !important; width: 1.2em !important; position: absolute !important; left: 50% !important; top: 50% !important; transform: translate(-50%, -50%) !important; user-select: none !important; cursor: auto !important; } .github-emoji-fallback { color: inherit; } .github-emoji-fallback img { opacity: 0 !important; }</style>
-<link rel="alternate" href="/atom.xml" title="木叶禅" type="application/atom+xml"><!-- hexo-inject:begin --><!-- hexo-inject:end -->
-<link rel="stylesheet" href="/css/prism-tomorrow.css" type="text/css">
-<link rel="stylesheet" href="/css/prism-line-numbers.css" type="text/css"></head>
+<link rel="alternate" href="/atom.xml" title="木叶禅" type="application/atom+xml">
+</head>
 
 
 
@@ -49,7 +50,7 @@
 
 
 <body>
-    <!-- hexo-inject:begin --><!-- hexo-inject:end --><header class="navbar-fixed">
+    <header class="navbar-fixed">
     <nav id="headNav" class="bg-color nav-transparent">
         <div id="navContainer" class="nav-wrapper container">
             <div class="brand-logo">
@@ -434,7 +435,7 @@
                 
                 <div class="info-break-policy">
                     <i class="far fa-file-word fa-fw"></i>文章字数:&nbsp;&nbsp;
-                    422
+                    433
                 </div>
                 
 
@@ -456,90 +457,85 @@
         <hr class="clearfix">
         <div class="card-content article-card-content">
             <div id="articleContent">
-                <h2 id="一、测试代码"><a href="#一、测试代码" class="headerlink" title="一、测试代码"></a>一、测试代码</h2><pre class="line-numbers language-lang-cpp"><code class="language-lang-cpp">#include <stdio.h>
-#include <malloc.h>
-#include <new>
+                <h2 id="一、测试代码"><a href="#一、测试代码" class="headerlink" title="一、测试代码"></a>一、测试代码</h2><pre class="line-numbers language-cpp" data-language="cpp"><code class="language-cpp"><span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;stdio.h&gt;</span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;malloc.h&gt;</span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;new&gt;</span></span>
 
-//#define VF
-//#define FLAG
+<span class="token comment">//#define VF</span>
+<span class="token comment">//#define FLAG</span>
 
-class MemObj
-{
-public:
-    #ifdef VF
-    virtual ~MemObj(void) {}
-    #endif // VF
+<span class="token keyword">class</span> <span class="token class-name">MemObj</span>
+<span class="token punctuation">{</span>
+<span class="token keyword">public</span><span class="token operator">:</span>
+    <span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">ifdef</span> <span class="token expression">VF</span></span>
+    <span class="token keyword">virtual</span> <span class="token operator">~</span><span class="token function">MemObj</span><span class="token punctuation">(</span><span class="token keyword">void</span><span class="token punctuation">)</span> <span class="token punctuation">{</span><span class="token punctuation">}</span>
+    <span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">endif</span> <span class="token comment">// VF</span></span>
 
-    static void* operator new(size_t stSize)
-    {
-        printf("operator new(size_t) %dn", stSize);
-        return malloc(stSize);
-    }
+    <span class="token keyword">static</span> <span class="token keyword">void</span><span class="token operator">*</span> <span class="token keyword">operator</span> <span class="token keyword">new</span><span class="token punctuation">(</span>size_t stSize<span class="token punctuation">)</span>
+    <span class="token punctuation">{</span>
+        <span class="token function">printf</span><span class="token punctuation">(</span><span class="token string">"operator new(size_t) %dn"</span><span class="token punctuation">,</span> stSize<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token keyword">return</span> <span class="token function">malloc</span><span class="token punctuation">(</span>stSize<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
 
-    #ifdef FLAG
-    static void operator delete(void* pMemory)
-    {
-        printf("operator delete(void*)n");
-        free(pMemory);
-    }
-    #endif
+    <span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">ifdef</span> <span class="token expression">FLAG</span></span>
+    <span class="token keyword">static</span> <span class="token keyword">void</span> <span class="token keyword">operator</span> <span class="token keyword">delete</span><span class="token punctuation">(</span><span class="token keyword">void</span><span class="token operator">*</span> pMemory<span class="token punctuation">)</span>
+    <span class="token punctuation">{</span>
+        <span class="token function">printf</span><span class="token punctuation">(</span><span class="token string">"operator delete(void*)n"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token function">free</span><span class="token punctuation">(</span>pMemory<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+    <span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">endif</span></span>
 
-    static void operator delete(void* pMemory, size_t stSize)
-    {
-        printf("operator delete(void*, size_t) %dn", stSize);
-        free(pMemory);
-    }
-};
+    <span class="token keyword">static</span> <span class="token keyword">void</span> <span class="token keyword">operator</span> <span class="token keyword">delete</span><span class="token punctuation">(</span><span class="token keyword">void</span><span class="token operator">*</span> pMemory<span class="token punctuation">,</span> size_t stSize<span class="token punctuation">)</span>
+    <span class="token punctuation">{</span>
+        <span class="token function">printf</span><span class="token punctuation">(</span><span class="token string">"operator delete(void*, size_t) %dn"</span><span class="token punctuation">,</span> stSize<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token function">free</span><span class="token punctuation">(</span>pMemory<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+<span class="token punctuation">}</span><span class="token punctuation">;</span>
 
-class Test : public MemObj
-{
-private:
-    int m_nValue;
-};
+<span class="token keyword">class</span> <span class="token class-name">Test</span> <span class="token operator">:</span> <span class="token base-clause"><span class="token keyword">public</span> <span class="token class-name">MemObj</span></span>
+<span class="token punctuation">{</span>
+<span class="token keyword">private</span><span class="token operator">:</span>
+    <span class="token keyword">int</span> m_nValue<span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span class="token punctuation">;</span>
 
-int main(int argc, char** argv)
-{
-    MemObj* pObj = new MemObj();
-    delete pObj;
+<span class="token keyword">int</span> <span class="token function">main</span><span class="token punctuation">(</span><span class="token keyword">int</span> argc<span class="token punctuation">,</span> <span class="token keyword">char</span><span class="token operator">*</span><span class="token operator">*</span> argv<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    MemObj<span class="token operator">*</span> pObj <span class="token operator">=</span> <span class="token keyword">new</span> <span class="token function">MemObj</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">delete</span> pObj<span class="token punctuation">;</span>
 
-    Test* pTest = new Test();
-    delete pTest;
+    Test<span class="token operator">*</span> pTest <span class="token operator">=</span> <span class="token keyword">new</span> <span class="token function">Test</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">delete</span> pTest<span class="token punctuation">;</span>
 
-    pObj = new Test();
-    delete pObj;
+    pObj <span class="token operator">=</span> <span class="token keyword">new</span> <span class="token function">Test</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">delete</span> pObj<span class="token punctuation">;</span>
 
-    return 0;
-}
-<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+    <span class="token keyword">return</span> <span class="token number">0</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
 <h2 id="二、测试"><a href="#二、测试" class="headerlink" title="二、测试"></a>二、测试</h2><p>通过控制宏VF和宏FLAG的定义与否来查看各个情况下代码运行的结果。</p>
-<h3 id="测试1：不定义宏VF和FLAG"><a href="#测试1：不定义宏VF和FLAG" class="headerlink" title="测试1：不定义宏VF和FLAG"></a>测试1：不定义宏VF和FLAG</h3><pre class="line-numbers language-lang-text"><code class="language-lang-text">operator new(size_t) 1
+<h3 id="测试1：不定义宏VF和FLAG"><a href="#测试1：不定义宏VF和FLAG" class="headerlink" title="测试1：不定义宏VF和FLAG"></a>测试1：不定义宏VF和FLAG</h3><pre class="line-numbers language-text" data-language="text"><code class="language-text">operator new(size_t) 1
 operator delete(void*, size_t) 1
 operator new(size_t) 4
 operator delete(void*, size_t) 1
 operator new(size_t) 4
-operator delete(void*, size_t) 1
-<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
-<h3 id="测试2：定义宏FLAG但不定义宏VF"><a href="#测试2：定义宏FLAG但不定义宏VF" class="headerlink" title="测试2：定义宏FLAG但不定义宏VF"></a>测试2：定义宏FLAG但不定义宏VF</h3><pre class="line-numbers language-lang-text"><code class="language-lang-text">operator new(size_t) 1
+operator delete(void*, size_t) 1<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<h3 id="测试2：定义宏FLAG但不定义宏VF"><a href="#测试2：定义宏FLAG但不定义宏VF" class="headerlink" title="测试2：定义宏FLAG但不定义宏VF"></a>测试2：定义宏FLAG但不定义宏VF</h3><pre class="line-numbers language-text" data-language="text"><code class="language-text">operator new(size_t) 1
 operator delete(void*)
 operator new(size_t) 4
 operator delete(void*)
 operator new(size_t) 4
-operator delete(void*)
-<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
-<h3 id="测试3：定义宏VF但不定义宏FLAG"><a href="#测试3：定义宏VF但不定义宏FLAG" class="headerlink" title="测试3：定义宏VF但不定义宏FLAG"></a>测试3：定义宏VF但不定义宏FLAG</h3><pre class="line-numbers language-lang-text"><code class="language-lang-text">operator new(size_t) 4
+operator delete(void*)<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<h3 id="测试3：定义宏VF但不定义宏FLAG"><a href="#测试3：定义宏VF但不定义宏FLAG" class="headerlink" title="测试3：定义宏VF但不定义宏FLAG"></a>测试3：定义宏VF但不定义宏FLAG</h3><pre class="line-numbers language-text" data-language="text"><code class="language-text">operator new(size_t) 4
 operator delete(void*, size_t) 4
 operator new(size_t) 8
 operator delete(void*, size_t) 8
 operator new(size_t) 8
-operator delete(void*, size_t) 8
-<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
-<h3 id="测试4：同时定义宏VF和FLAG"><a href="#测试4：同时定义宏VF和FLAG" class="headerlink" title="测试4：同时定义宏VF和FLAG"></a>测试4：同时定义宏VF和FLAG</h3><pre class="line-numbers language-lang-text"><code class="language-lang-text">operator new(size_t) 4
+operator delete(void*, size_t) 8<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<h3 id="测试4：同时定义宏VF和FLAG"><a href="#测试4：同时定义宏VF和FLAG" class="headerlink" title="测试4：同时定义宏VF和FLAG"></a>测试4：同时定义宏VF和FLAG</h3><pre class="line-numbers language-text" data-language="text"><code class="language-text">operator new(size_t) 4
 operator delete(void*)
 operator new(size_t) 8
 operator delete(void*)
 operator new(size_t) 8
-operator delete(void*)
-<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+operator delete(void*)<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
 <h2 id="三、结果分析"><a href="#三、结果分析" class="headerlink" title="三、结果分析"></a>三、结果分析</h2><h3 id="1-对比测试1和测试2"><a href="#1-对比测试1和测试2" class="headerlink" title="1. 对比测试1和测试2"></a>1. 对比测试1和测试2</h3><p>重载了operator new(size_t stSize)后，在删除的时候：</p>
 <ol>
 <li>如果没有定义<code>void operator delete(void* pMemory)，那么会调用void operator delete(void* pMemory, size_t stSize)</code>；</li>
@@ -1082,6 +1078,10 @@ operator delete(void*)
 
 <!-- 代码块折行 -->
 
+<style type="text/css">
+code[class*="language-"], pre[class*="language-"] { white-space: pre !important; }
+</style>
+
 
     </div>
     <div id="toc-aside" class="expanded col l3 hide-on-med-and-down">
@@ -1199,7 +1199,7 @@ operator delete(void*)
             <br>
             
             &nbsp;<i class="fas fa-chart-area"></i>&nbsp;站点总字数:&nbsp;<span
-                class="white-color">62.1k</span>&nbsp;字
+                class="white-color">65.6k</span>&nbsp;字
             
             
             
@@ -1333,7 +1333,7 @@ $(function () {
     
 
     
-    <script src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/libs/instantpage/instantpage.js" type="module"></script><!-- hexo-inject:begin --><!-- hexo-inject:end -->
+    <script src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/libs/instantpage/instantpage.js" type="module"></script>
     
 
 </body>
