@@ -32,8 +32,7 @@
 <meta name="generator" content="Hexo 5.2.0">
 <style>.github-emoji { position: relative; display: inline-block; width: 1.2em; min-height: 1.2em; overflow: hidden; vertical-align: top; color: transparent; }  .github-emoji > span { position: relative; z-index: 10; }  .github-emoji img, .github-emoji .fancybox { margin: 0 !important; padding: 0 !important; border: none !important; outline: none !important; text-decoration: none !important; user-select: none !important; cursor: auto !important; }  .github-emoji img { height: 1.2em !important; width: 1.2em !important; position: absolute !important; left: 50% !important; top: 50% !important; transform: translate(-50%, -50%) !important; user-select: none !important; cursor: auto !important; } .github-emoji-fallback { color: inherit; } .github-emoji-fallback img { opacity: 0 !important; }</style>
 <link rel="alternate" href="/atom.xml" title="木叶禅" type="application/atom+xml">
-<link rel="stylesheet" href="/css/prism-tomorrow.css" type="text/css">
-<link rel="stylesheet" href="/css/prism-line-numbers.css" type="text/css"></head>
+</head>
 
 
 
@@ -431,7 +430,7 @@
                 
                 <div class="post-date info-break-policy">
                     <i class="far fa-calendar-check fa-fw"></i>更新日期:&nbsp;&nbsp;
-                    2020-11-26
+                    2020-11-27
                 </div>
                 
 
@@ -462,217 +461,215 @@
             <div id="articleContent">
                 <p>在Win32下，FS段寄存器指向当前的TEB结构，在TEB编译0x30处是PEB指针，通过这个指针即可获得PED的地址。</p>
 <p>实现方法：</p>
-<pre class="line-numbers language-lang-c"><code class="language-lang-c">__asm
-{
-    mov eax, fs:[0x30]
-    mov PED, eax
-}
-<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c">__asm
+<span class="token punctuation">{</span>
+    mov eax<span class="token punctuation">,</span> fs<span class="token operator">:</span><span class="token punctuation">[</span><span class="token number">0x30</span><span class="token punctuation">]</span>
+    mov PED<span class="token punctuation">,</span> eax
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span></span></code></pre>
 <p>TEB和PEB的结构如下：</p>
-<pre class="line-numbers language-lang-c"><code class="language-lang-c">#define PEB_BASE (0x7ffdf000)
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">define</span> <span class="token expression"><span class="token function">PEB_BASE</span> <span class="token punctuation">(</span><span class="token number">0x7ffdf000</span><span class="token punctuation">)</span></span></span>
 
-typedef struct _NT_TIB
-{                                           // Size: 01C
-    struct _EXCEPTION_REGISTRATION_RECORD *ExceptionList; // 000
-    PVOID StackBase;                        // 004
-    PVOID StackLimit;                       // 008
-    PVOID SubSystemTib;                     // 00C
-    union                                   // 010
-    {
-        PVOID FiberData;
-        ULONG Version;
-    };
-    PVOID ArbitraryUserPointer;             // 014
-    struct _NT_TIB *Self;                   // 018
-} NT_TIB, *PNT_TIB;
+<span class="token keyword">typedef</span> <span class="token keyword">struct</span> <span class="token class-name">_NT_TIB</span>
+<span class="token punctuation">{</span>                                           <span class="token comment">// Size: 01C</span>
+    <span class="token keyword">struct</span> <span class="token class-name">_EXCEPTION_REGISTRATION_RECORD</span> <span class="token operator">*</span>ExceptionList<span class="token punctuation">;</span> <span class="token comment">// 000</span>
+    PVOID StackBase<span class="token punctuation">;</span>                        <span class="token comment">// 004</span>
+    PVOID StackLimit<span class="token punctuation">;</span>                       <span class="token comment">// 008</span>
+    PVOID SubSystemTib<span class="token punctuation">;</span>                     <span class="token comment">// 00C</span>
+    <span class="token keyword">union</span>                                   <span class="token comment">// 010</span>
+    <span class="token punctuation">{</span>
+        PVOID FiberData<span class="token punctuation">;</span>
+        ULONG Version<span class="token punctuation">;</span>
+    <span class="token punctuation">}</span><span class="token punctuation">;</span>
+    PVOID ArbitraryUserPointer<span class="token punctuation">;</span>             <span class="token comment">// 014</span>
+    <span class="token keyword">struct</span> <span class="token class-name">_NT_TIB</span> <span class="token operator">*</span>Self<span class="token punctuation">;</span>                   <span class="token comment">// 018</span>
+<span class="token punctuation">}</span> NT_TIB<span class="token punctuation">,</span> <span class="token operator">*</span>PNT_TIB<span class="token punctuation">;</span>
 
-typedef struct _TEB
-{                                           // Size:  FBC
-    NT_TIB Tib;                             // 000
-    PVOID EnvironmentPointer;               // 01C
-    CLIENT_ID Cid;                          // 020
-    PVOID ActiveRpcHandle;                  // 028
-    PVOID ThreadLocalStoragePointer;        // 02C
-    struct _PEB *ProcessEnvironmentBlock;   // 030
-    ULONG LastErrorValue;                   // 034
-    ULONG CountOfOwnedCriticalSections;     // 038
-    PVOID CsrClientThread;                  // 03C
-    struct _W32THREAD* Win32ThreadInfo;     // 040
-    ULONG User32Reserved[0x1A];             // 044
-    ULONG UserReserved[5];                  // 0AC
-    PVOID WOW32Reserved;                    // 0C0
-    LCID CurrentLocale;                     // 0C4
-    ULONG FpSoftwareStatusRegister;         // 0C8
-    PVOID SystemReserved1[0x36];            // 0CC
-    LONG ExceptionCode;                     // 1A4
-    struct _ACTIVATION_CONTEXT_STACK *ActivationContextStackPointer; // 1A8
-    UCHAR SpareBytes1[0x28];                // 1AC
-    GDI_TEB_BATCH GdiTebBatch;              // 1D4
-    CLIENT_ID RealClientId;                 // 6B4
-    PVOID GdiCachedProcessHandle;           // 6BC
-    ULONG GdiClientPID;                     // 6C0
-    ULONG GdiClientTID;                     // 6C4
-    PVOID GdiThreadLocalInfo;               // 6C8
-    ULONG Win32ClientInfo[62];              // 6CC
-    PVOID glDispatchTable[0xE9];            // 7C4
-    ULONG glReserved1[0x1D];                // B68
-    PVOID glReserved2;                      // BDC
-    PVOID glSectionInfo;                    // BE0
-    PVOID glSection;                        // BE4
-    PVOID glTable;                          // BE8
-    PVOID glCurrentRC;                      // BEC
-    PVOID glContext;                        // BF0
-    NTSTATUS LastStatusValue;               // BF4
-    UNICODE_STRING StaticUnicodeString;     // BF8
-    WCHAR StaticUnicodeBuffer[0x105];       // C00
-    PVOID DeallocationStack;                // E0C
-    PVOID TlsSlots[0x40];                   // E10
-    LIST_ENTRY TlsLinks;                    // F10
-    PVOID Vdm;                              // F18
-    PVOID ReservedForNtRpc;                 // F1C
-    PVOID DbgSsReserved[0x2];               // F20
-    ULONG HardErrorDisabled;                // F28
-    PVOID Instrumentation[14];              // F2C
-    PVOID SubProcessTag;                    // F64
-    PVOID EtwTraceData;                     // F68
-    PVOID WinSockData;                      // F6C
-    ULONG GdiBatchCount;                    // F70
-    BOOLEAN InDbgPrint;                     // F74
-    BOOLEAN FreeStackOnTermination;         // F75
-    BOOLEAN HasFiberData;                   // F76
-    UCHAR IdealProcessor;                   // F77
-    ULONG GuaranteedStackBytes;             // F78
-    PVOID ReservedForPerf;                  // F7C
-    PVOID ReservedForOle;                   // F80
-    ULONG WaitingOnLoaderLock;              // F84
-    ULONG SparePointer1;                    // F88
-    ULONG SoftPatchPtr1;                    // F8C
-    ULONG SoftPatchPtr2;                    // F90
-    PVOID *TlsExpansionSlots;               // F94
-    ULONG ImpersionationLocale;             // F98
-    ULONG IsImpersonating;                  // F9C
-    PVOID NlsCache;                         // FA0
-    PVOID pShimData;                        // FA4
-    ULONG HeapVirualAffinity;               // FA8
-    PVOID CurrentTransactionHandle;         // FAC
-    PTEB_ACTIVE_FRAME ActiveFrame;          // FB0
-    PVOID FlsData;                          // FB4
-    UCHAR SafeThunkCall;                    // FB8
-    UCHAR BooleanSpare[3];                  // FB9
-} TEB, *PTEB;
+<span class="token keyword">typedef</span> <span class="token keyword">struct</span> <span class="token class-name">_TEB</span>
+<span class="token punctuation">{</span>                                           <span class="token comment">// Size:  FBC</span>
+    NT_TIB Tib<span class="token punctuation">;</span>                             <span class="token comment">// 000</span>
+    PVOID EnvironmentPointer<span class="token punctuation">;</span>               <span class="token comment">// 01C</span>
+    CLIENT_ID Cid<span class="token punctuation">;</span>                          <span class="token comment">// 020</span>
+    PVOID ActiveRpcHandle<span class="token punctuation">;</span>                  <span class="token comment">// 028</span>
+    PVOID ThreadLocalStoragePointer<span class="token punctuation">;</span>        <span class="token comment">// 02C</span>
+    <span class="token keyword">struct</span> <span class="token class-name">_PEB</span> <span class="token operator">*</span>ProcessEnvironmentBlock<span class="token punctuation">;</span>   <span class="token comment">// 030</span>
+    ULONG LastErrorValue<span class="token punctuation">;</span>                   <span class="token comment">// 034</span>
+    ULONG CountOfOwnedCriticalSections<span class="token punctuation">;</span>     <span class="token comment">// 038</span>
+    PVOID CsrClientThread<span class="token punctuation">;</span>                  <span class="token comment">// 03C</span>
+    <span class="token keyword">struct</span> <span class="token class-name">_W32THREAD</span><span class="token operator">*</span> Win32ThreadInfo<span class="token punctuation">;</span>     <span class="token comment">// 040</span>
+    ULONG User32Reserved<span class="token punctuation">[</span><span class="token number">0x1A</span><span class="token punctuation">]</span><span class="token punctuation">;</span>             <span class="token comment">// 044</span>
+    ULONG UserReserved<span class="token punctuation">[</span><span class="token number">5</span><span class="token punctuation">]</span><span class="token punctuation">;</span>                  <span class="token comment">// 0AC</span>
+    PVOID WOW32Reserved<span class="token punctuation">;</span>                    <span class="token comment">// 0C0</span>
+    LCID CurrentLocale<span class="token punctuation">;</span>                     <span class="token comment">// 0C4</span>
+    ULONG FpSoftwareStatusRegister<span class="token punctuation">;</span>         <span class="token comment">// 0C8</span>
+    PVOID SystemReserved1<span class="token punctuation">[</span><span class="token number">0x36</span><span class="token punctuation">]</span><span class="token punctuation">;</span>            <span class="token comment">// 0CC</span>
+    LONG ExceptionCode<span class="token punctuation">;</span>                     <span class="token comment">// 1A4</span>
+    <span class="token keyword">struct</span> <span class="token class-name">_ACTIVATION_CONTEXT_STACK</span> <span class="token operator">*</span>ActivationContextStackPointer<span class="token punctuation">;</span> <span class="token comment">// 1A8</span>
+    UCHAR SpareBytes1<span class="token punctuation">[</span><span class="token number">0x28</span><span class="token punctuation">]</span><span class="token punctuation">;</span>                <span class="token comment">// 1AC</span>
+    GDI_TEB_BATCH GdiTebBatch<span class="token punctuation">;</span>              <span class="token comment">// 1D4</span>
+    CLIENT_ID RealClientId<span class="token punctuation">;</span>                 <span class="token comment">// 6B4</span>
+    PVOID GdiCachedProcessHandle<span class="token punctuation">;</span>           <span class="token comment">// 6BC</span>
+    ULONG GdiClientPID<span class="token punctuation">;</span>                     <span class="token comment">// 6C0</span>
+    ULONG GdiClientTID<span class="token punctuation">;</span>                     <span class="token comment">// 6C4</span>
+    PVOID GdiThreadLocalInfo<span class="token punctuation">;</span>               <span class="token comment">// 6C8</span>
+    ULONG Win32ClientInfo<span class="token punctuation">[</span><span class="token number">62</span><span class="token punctuation">]</span><span class="token punctuation">;</span>              <span class="token comment">// 6CC</span>
+    PVOID glDispatchTable<span class="token punctuation">[</span><span class="token number">0xE9</span><span class="token punctuation">]</span><span class="token punctuation">;</span>            <span class="token comment">// 7C4</span>
+    ULONG glReserved1<span class="token punctuation">[</span><span class="token number">0x1D</span><span class="token punctuation">]</span><span class="token punctuation">;</span>                <span class="token comment">// B68</span>
+    PVOID glReserved2<span class="token punctuation">;</span>                      <span class="token comment">// BDC</span>
+    PVOID glSectionInfo<span class="token punctuation">;</span>                    <span class="token comment">// BE0</span>
+    PVOID glSection<span class="token punctuation">;</span>                        <span class="token comment">// BE4</span>
+    PVOID glTable<span class="token punctuation">;</span>                          <span class="token comment">// BE8</span>
+    PVOID glCurrentRC<span class="token punctuation">;</span>                      <span class="token comment">// BEC</span>
+    PVOID glContext<span class="token punctuation">;</span>                        <span class="token comment">// BF0</span>
+    NTSTATUS LastStatusValue<span class="token punctuation">;</span>               <span class="token comment">// BF4</span>
+    UNICODE_STRING StaticUnicodeString<span class="token punctuation">;</span>     <span class="token comment">// BF8</span>
+    WCHAR StaticUnicodeBuffer<span class="token punctuation">[</span><span class="token number">0x105</span><span class="token punctuation">]</span><span class="token punctuation">;</span>       <span class="token comment">// C00</span>
+    PVOID DeallocationStack<span class="token punctuation">;</span>                <span class="token comment">// E0C</span>
+    PVOID TlsSlots<span class="token punctuation">[</span><span class="token number">0x40</span><span class="token punctuation">]</span><span class="token punctuation">;</span>                   <span class="token comment">// E10</span>
+    LIST_ENTRY TlsLinks<span class="token punctuation">;</span>                    <span class="token comment">// F10</span>
+    PVOID Vdm<span class="token punctuation">;</span>                              <span class="token comment">// F18</span>
+    PVOID ReservedForNtRpc<span class="token punctuation">;</span>                 <span class="token comment">// F1C</span>
+    PVOID DbgSsReserved<span class="token punctuation">[</span><span class="token number">0x2</span><span class="token punctuation">]</span><span class="token punctuation">;</span>               <span class="token comment">// F20</span>
+    ULONG HardErrorDisabled<span class="token punctuation">;</span>                <span class="token comment">// F28</span>
+    PVOID Instrumentation<span class="token punctuation">[</span><span class="token number">14</span><span class="token punctuation">]</span><span class="token punctuation">;</span>              <span class="token comment">// F2C</span>
+    PVOID SubProcessTag<span class="token punctuation">;</span>                    <span class="token comment">// F64</span>
+    PVOID EtwTraceData<span class="token punctuation">;</span>                     <span class="token comment">// F68</span>
+    PVOID WinSockData<span class="token punctuation">;</span>                      <span class="token comment">// F6C</span>
+    ULONG GdiBatchCount<span class="token punctuation">;</span>                    <span class="token comment">// F70</span>
+    BOOLEAN InDbgPrint<span class="token punctuation">;</span>                     <span class="token comment">// F74</span>
+    BOOLEAN FreeStackOnTermination<span class="token punctuation">;</span>         <span class="token comment">// F75</span>
+    BOOLEAN HasFiberData<span class="token punctuation">;</span>                   <span class="token comment">// F76</span>
+    UCHAR IdealProcessor<span class="token punctuation">;</span>                   <span class="token comment">// F77</span>
+    ULONG GuaranteedStackBytes<span class="token punctuation">;</span>             <span class="token comment">// F78</span>
+    PVOID ReservedForPerf<span class="token punctuation">;</span>                  <span class="token comment">// F7C</span>
+    PVOID ReservedForOle<span class="token punctuation">;</span>                   <span class="token comment">// F80</span>
+    ULONG WaitingOnLoaderLock<span class="token punctuation">;</span>              <span class="token comment">// F84</span>
+    ULONG SparePointer1<span class="token punctuation">;</span>                    <span class="token comment">// F88</span>
+    ULONG SoftPatchPtr1<span class="token punctuation">;</span>                    <span class="token comment">// F8C</span>
+    ULONG SoftPatchPtr2<span class="token punctuation">;</span>                    <span class="token comment">// F90</span>
+    PVOID <span class="token operator">*</span>TlsExpansionSlots<span class="token punctuation">;</span>               <span class="token comment">// F94</span>
+    ULONG ImpersionationLocale<span class="token punctuation">;</span>             <span class="token comment">// F98</span>
+    ULONG IsImpersonating<span class="token punctuation">;</span>                  <span class="token comment">// F9C</span>
+    PVOID NlsCache<span class="token punctuation">;</span>                         <span class="token comment">// FA0</span>
+    PVOID pShimData<span class="token punctuation">;</span>                        <span class="token comment">// FA4</span>
+    ULONG HeapVirualAffinity<span class="token punctuation">;</span>               <span class="token comment">// FA8</span>
+    PVOID CurrentTransactionHandle<span class="token punctuation">;</span>         <span class="token comment">// FAC</span>
+    PTEB_ACTIVE_FRAME ActiveFrame<span class="token punctuation">;</span>          <span class="token comment">// FB0</span>
+    PVOID FlsData<span class="token punctuation">;</span>                          <span class="token comment">// FB4</span>
+    UCHAR SafeThunkCall<span class="token punctuation">;</span>                    <span class="token comment">// FB8</span>
+    UCHAR BooleanSpare<span class="token punctuation">[</span><span class="token number">3</span><span class="token punctuation">]</span><span class="token punctuation">;</span>                  <span class="token comment">// FB9</span>
+<span class="token punctuation">}</span> TEB<span class="token punctuation">,</span> <span class="token operator">*</span>PTEB<span class="token punctuation">;</span>
 
-typedef struct _LIST_ENTRY
-{                                           // Size: 008
-    struct _LIST_ENTRY *Flink;              // 000 从前到后
-    struct _LIST_ENTRY *Blink;              // 004 从后到前
-} LIST_ENTRY, *PLIST_ENTRY;
+<span class="token keyword">typedef</span> <span class="token keyword">struct</span> <span class="token class-name">_LIST_ENTRY</span>
+<span class="token punctuation">{</span>                                           <span class="token comment">// Size: 008</span>
+    <span class="token keyword">struct</span> <span class="token class-name">_LIST_ENTRY</span> <span class="token operator">*</span>Flink<span class="token punctuation">;</span>              <span class="token comment">// 000 从前到后</span>
+    <span class="token keyword">struct</span> <span class="token class-name">_LIST_ENTRY</span> <span class="token operator">*</span>Blink<span class="token punctuation">;</span>              <span class="token comment">// 004 从后到前</span>
+<span class="token punctuation">}</span> LIST_ENTRY<span class="token punctuation">,</span> <span class="token operator">*</span>PLIST_ENTRY<span class="token punctuation">;</span>
 
-typedef struct _PER_LDR_DATA
-{                                           // Size: 0024
-    ULONG Length;                           // 000
-    BOOLEAN Initialize;                     // 004
-    PVOID SsHandle;                         // 008
-    LIST_ENTRY InLoadOrderModuleList;       // 00C
-    LIST_ENTRY InMemoryOrderModuleList;     // 014
-    LIST_ENTRY InInitializationOrderModuleList; // 01C
-} PER_LDR_DATA, *PPER_LDR_DATA;
+<span class="token keyword">typedef</span> <span class="token keyword">struct</span> <span class="token class-name">_PER_LDR_DATA</span>
+<span class="token punctuation">{</span>                                           <span class="token comment">// Size: 0024</span>
+    ULONG Length<span class="token punctuation">;</span>                           <span class="token comment">// 000</span>
+    BOOLEAN Initialize<span class="token punctuation">;</span>                     <span class="token comment">// 004</span>
+    PVOID SsHandle<span class="token punctuation">;</span>                         <span class="token comment">// 008</span>
+    LIST_ENTRY InLoadOrderModuleList<span class="token punctuation">;</span>       <span class="token comment">// 00C</span>
+    LIST_ENTRY InMemoryOrderModuleList<span class="token punctuation">;</span>     <span class="token comment">// 014</span>
+    LIST_ENTRY InInitializationOrderModuleList<span class="token punctuation">;</span> <span class="token comment">// 01C</span>
+<span class="token punctuation">}</span> PER_LDR_DATA<span class="token punctuation">,</span> <span class="token operator">*</span>PPER_LDR_DATA<span class="token punctuation">;</span>
 
-typedef struct _UNICODE_STRING
-{                                           // Size: 008
-  USHORT  Length;                           // 000 占用的内存字节数，个数*2；
-  USHORT  MaximumLength;                    // 002
-  PWSTR  Buffer;                            // 004
-} UNICODE_STRING ,*PUNICODE_STRING;
+<span class="token keyword">typedef</span> <span class="token keyword">struct</span> <span class="token class-name">_UNICODE_STRING</span>
+<span class="token punctuation">{</span>                                           <span class="token comment">// Size: 008</span>
+  USHORT  Length<span class="token punctuation">;</span>                           <span class="token comment">// 000 占用的内存字节数，个数*2；</span>
+  USHORT  MaximumLength<span class="token punctuation">;</span>                    <span class="token comment">// 002</span>
+  PWSTR  Buffer<span class="token punctuation">;</span>                            <span class="token comment">// 004</span>
+<span class="token punctuation">}</span> UNICODE_STRING <span class="token punctuation">,</span><span class="token operator">*</span>PUNICODE_STRING<span class="token punctuation">;</span>
 
-typedef struct _LDR_DATA_TABLE_ENTRY
-{                                           // Size: 050
-     LIST_ENTRY InLoadOrderLinks;           // 000 LIST_ENTRY里的Flink和Blink其实是指向LDR_MODULE结构，即LDR_DATA_TABLE_ENTRY
-     LIST_ENTRY InMemoryOrderLinks;         // 008 同上
-     LIST_ENTRY InInitializationOrderLinks; // 010 同上
-     PVOID DllBase;                         // 018
-     PVOID EntryPoint;                      // 01C
-     ULONG SizeOfImage;                     // 020
-     UNICODE_STRING FullDllName;            // 024
-     UNICODE_STRING BaseDllName;            // 02C
-     ULONG Flags;                           // 034
-     WORD LoadCount;                        // 038
-     WORD TlsIndex;                         // 03A
-     union                                  // 03C
-     {
-          LIST_ENTRY HashLinks;             // 03C
-          struct
-          {
-               PVOID SectionPointer;        // 03C
-               ULONG CheckSum;              // 040
-          };
-     };
-     union
-     {
-          ULONG TimeDateStamp;              // 044
-          PVOID LoadedImports;              // 044
-     };
-     _ACTIVATION_CONTEXT * EntryPointActivationContext; // 048
-     PVOID PatchInformation;                // 04C
-} LDR_DATA_TABLE_ENTRY, *PLDR_DATA_TABLE_ENTRY;
+<span class="token keyword">typedef</span> <span class="token keyword">struct</span> <span class="token class-name">_LDR_DATA_TABLE_ENTRY</span>
+<span class="token punctuation">{</span>                                           <span class="token comment">// Size: 050</span>
+     LIST_ENTRY InLoadOrderLinks<span class="token punctuation">;</span>           <span class="token comment">// 000 LIST_ENTRY里的Flink和Blink其实是指向LDR_MODULE结构，即LDR_DATA_TABLE_ENTRY</span>
+     LIST_ENTRY InMemoryOrderLinks<span class="token punctuation">;</span>         <span class="token comment">// 008 同上</span>
+     LIST_ENTRY InInitializationOrderLinks<span class="token punctuation">;</span> <span class="token comment">// 010 同上</span>
+     PVOID DllBase<span class="token punctuation">;</span>                         <span class="token comment">// 018</span>
+     PVOID EntryPoint<span class="token punctuation">;</span>                      <span class="token comment">// 01C</span>
+     ULONG SizeOfImage<span class="token punctuation">;</span>                     <span class="token comment">// 020</span>
+     UNICODE_STRING FullDllName<span class="token punctuation">;</span>            <span class="token comment">// 024</span>
+     UNICODE_STRING BaseDllName<span class="token punctuation">;</span>            <span class="token comment">// 02C</span>
+     ULONG Flags<span class="token punctuation">;</span>                           <span class="token comment">// 034</span>
+     WORD LoadCount<span class="token punctuation">;</span>                        <span class="token comment">// 038</span>
+     WORD TlsIndex<span class="token punctuation">;</span>                         <span class="token comment">// 03A</span>
+     <span class="token keyword">union</span>                                  <span class="token comment">// 03C</span>
+     <span class="token punctuation">{</span>
+          LIST_ENTRY HashLinks<span class="token punctuation">;</span>             <span class="token comment">// 03C</span>
+          <span class="token keyword">struct</span>
+          <span class="token punctuation">{</span>
+               PVOID SectionPointer<span class="token punctuation">;</span>        <span class="token comment">// 03C</span>
+               ULONG CheckSum<span class="token punctuation">;</span>              <span class="token comment">// 040</span>
+          <span class="token punctuation">}</span><span class="token punctuation">;</span>
+     <span class="token punctuation">}</span><span class="token punctuation">;</span>
+     <span class="token keyword">union</span>
+     <span class="token punctuation">{</span>
+          ULONG TimeDateStamp<span class="token punctuation">;</span>              <span class="token comment">// 044</span>
+          PVOID LoadedImports<span class="token punctuation">;</span>              <span class="token comment">// 044</span>
+     <span class="token punctuation">}</span><span class="token punctuation">;</span>
+     _ACTIVATION_CONTEXT <span class="token operator">*</span> EntryPointActivationContext<span class="token punctuation">;</span> <span class="token comment">// 048</span>
+     PVOID PatchInformation<span class="token punctuation">;</span>                <span class="token comment">// 04C</span>
+<span class="token punctuation">}</span> LDR_DATA_TABLE_ENTRY<span class="token punctuation">,</span> <span class="token operator">*</span>PLDR_DATA_TABLE_ENTRY<span class="token punctuation">;</span>
 
-typedef struct _PEB
-{                                           // Size: 1D8
-    UCHAR InheritedAddressSpace;            // 000
-    UCHAR ReadImageFileExecOptions;         // 001
-    UCHAR BeingDebugged;                    // 002
-    UCHAR SpareBool;                        // 003 Allocation size
-    HANDLE Mutant;                          // 004
-    HINSTANCE ImageBaseAddress;             // 008
-    struct _PER_LDR_DATA *Ldr;              // 00C
-    strcut _RTL_USER_PPROCESS_PARAMETERS *ProcessParameters; // 010
-    ULONG SubSystemData;                    // 014
-    HANDLE DefaultHeap;                     // 018
-    KSPIN_LOCK FastPebLock;                 // 01C
-    ULONG FastPebLockRoutine;               // 020
-    ULONG FastPebUnlockRoutine;             // 024
-    ULONG EnvironmentUpdateCount;           // 028
-    ULONG KernelCallbackTable;              // 02C
-    LARGE_INTEGER SystemReserved;           // 030
-    struct _PER_FREE_BLOCK *FreeList;       // 038
-    ULONG TlsExpansionCounter;              // 03C
-    ULONG TlsBitmap;                        // 040
-    LARGE_INTEGER TlsBitmapBits;            // 044
-    ULONG ReadOnlySharedMemoryBase;         // 04C
-    ULONG ReadOnlySharedMemoryHeap;         // 050
-    ULONG ReadOnlyStaticServerData;         // 054
-    ULONG AnsiCodePageData;                 // 058
-    ULONG OemCodePageData;                  // 05C
-    ULONG UnicodeCaseTableData;             // 060
-    ULONG NumberOfProcessors;               // 064
-    LARGE_INTEGER NtGlobalFlag;             // 068 Address of a local copy
-    LARGE_INTEGER CriticalSectionTimeout;   // 070
-    ULONG HeapSegmentReserve;               // 078
-    ULONG HeapSegmentCommit;                // 07C
-    ULONG HeapDeCommitTotalFreeThreshold;   // 080
-    ULONG HeapDeCommitFreeBlockThreshold;   // 084
-    ULONG NumberOfHeaps;                    // 088
-    ULONG MaximumNumberOfHeaps;             // 08C
-    ULONG ProcessHeaps;                     // 090
-    ULONG GdiSharedHandleTable;             // 094
-    ULONG ProcessStarterHelper;             // 098
-    ULONG GdiDCAttributeList;               // 09C
-    KSPIN_LOCK LoaderLock;                  // 0A0
-    ULONG OSMajorVersion;                   // 0A4
-    ULONG OSMinorVersion;                   // 0A8
-    USHORT OSBuildNumber;                   // 0AC
-    USHORT OSCSDVersion;                    // 0AE
-    ULONG OSPlatformId;                     // 0B0
-    ULONG ImageSubsystem;                   // 0B4
-    ULONG ImageSubsystemMajorVersion;       // 0B8
-    ULONG ImageSubsystemMinorVersion;       // 0BC
-    ULONG ImageProcessAffinityMask;         // 0C0
-    ULONG GdiHandleBuffer[0x22];            // 0C4
-    ULONG PostProcessInitRoutine;           // 14C
-    ULONG TlsExpansionBitmap;               // 150
-    UCHAR TlsExpansionBitmapBits[0x80];     // 154
-    ULONG SessionId;                        // 1D4
-} PEB, *PPEB;
-<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<span class="token keyword">typedef</span> <span class="token keyword">struct</span> <span class="token class-name">_PEB</span>
+<span class="token punctuation">{</span>                                           <span class="token comment">// Size: 1D8</span>
+    UCHAR InheritedAddressSpace<span class="token punctuation">;</span>            <span class="token comment">// 000</span>
+    UCHAR ReadImageFileExecOptions<span class="token punctuation">;</span>         <span class="token comment">// 001</span>
+    UCHAR BeingDebugged<span class="token punctuation">;</span>                    <span class="token comment">// 002</span>
+    UCHAR SpareBool<span class="token punctuation">;</span>                        <span class="token comment">// 003 Allocation size</span>
+    HANDLE Mutant<span class="token punctuation">;</span>                          <span class="token comment">// 004</span>
+    HINSTANCE ImageBaseAddress<span class="token punctuation">;</span>             <span class="token comment">// 008</span>
+    <span class="token keyword">struct</span> <span class="token class-name">_PER_LDR_DATA</span> <span class="token operator">*</span>Ldr<span class="token punctuation">;</span>              <span class="token comment">// 00C</span>
+    strcut _RTL_USER_PPROCESS_PARAMETERS <span class="token operator">*</span>ProcessParameters<span class="token punctuation">;</span> <span class="token comment">// 010</span>
+    ULONG SubSystemData<span class="token punctuation">;</span>                    <span class="token comment">// 014</span>
+    HANDLE DefaultHeap<span class="token punctuation">;</span>                     <span class="token comment">// 018</span>
+    KSPIN_LOCK FastPebLock<span class="token punctuation">;</span>                 <span class="token comment">// 01C</span>
+    ULONG FastPebLockRoutine<span class="token punctuation">;</span>               <span class="token comment">// 020</span>
+    ULONG FastPebUnlockRoutine<span class="token punctuation">;</span>             <span class="token comment">// 024</span>
+    ULONG EnvironmentUpdateCount<span class="token punctuation">;</span>           <span class="token comment">// 028</span>
+    ULONG KernelCallbackTable<span class="token punctuation">;</span>              <span class="token comment">// 02C</span>
+    LARGE_INTEGER SystemReserved<span class="token punctuation">;</span>           <span class="token comment">// 030</span>
+    <span class="token keyword">struct</span> <span class="token class-name">_PER_FREE_BLOCK</span> <span class="token operator">*</span>FreeList<span class="token punctuation">;</span>       <span class="token comment">// 038</span>
+    ULONG TlsExpansionCounter<span class="token punctuation">;</span>              <span class="token comment">// 03C</span>
+    ULONG TlsBitmap<span class="token punctuation">;</span>                        <span class="token comment">// 040</span>
+    LARGE_INTEGER TlsBitmapBits<span class="token punctuation">;</span>            <span class="token comment">// 044</span>
+    ULONG ReadOnlySharedMemoryBase<span class="token punctuation">;</span>         <span class="token comment">// 04C</span>
+    ULONG ReadOnlySharedMemoryHeap<span class="token punctuation">;</span>         <span class="token comment">// 050</span>
+    ULONG ReadOnlyStaticServerData<span class="token punctuation">;</span>         <span class="token comment">// 054</span>
+    ULONG AnsiCodePageData<span class="token punctuation">;</span>                 <span class="token comment">// 058</span>
+    ULONG OemCodePageData<span class="token punctuation">;</span>                  <span class="token comment">// 05C</span>
+    ULONG UnicodeCaseTableData<span class="token punctuation">;</span>             <span class="token comment">// 060</span>
+    ULONG NumberOfProcessors<span class="token punctuation">;</span>               <span class="token comment">// 064</span>
+    LARGE_INTEGER NtGlobalFlag<span class="token punctuation">;</span>             <span class="token comment">// 068 Address of a local copy</span>
+    LARGE_INTEGER CriticalSectionTimeout<span class="token punctuation">;</span>   <span class="token comment">// 070</span>
+    ULONG HeapSegmentReserve<span class="token punctuation">;</span>               <span class="token comment">// 078</span>
+    ULONG HeapSegmentCommit<span class="token punctuation">;</span>                <span class="token comment">// 07C</span>
+    ULONG HeapDeCommitTotalFreeThreshold<span class="token punctuation">;</span>   <span class="token comment">// 080</span>
+    ULONG HeapDeCommitFreeBlockThreshold<span class="token punctuation">;</span>   <span class="token comment">// 084</span>
+    ULONG NumberOfHeaps<span class="token punctuation">;</span>                    <span class="token comment">// 088</span>
+    ULONG MaximumNumberOfHeaps<span class="token punctuation">;</span>             <span class="token comment">// 08C</span>
+    ULONG ProcessHeaps<span class="token punctuation">;</span>                     <span class="token comment">// 090</span>
+    ULONG GdiSharedHandleTable<span class="token punctuation">;</span>             <span class="token comment">// 094</span>
+    ULONG ProcessStarterHelper<span class="token punctuation">;</span>             <span class="token comment">// 098</span>
+    ULONG GdiDCAttributeList<span class="token punctuation">;</span>               <span class="token comment">// 09C</span>
+    KSPIN_LOCK LoaderLock<span class="token punctuation">;</span>                  <span class="token comment">// 0A0</span>
+    ULONG OSMajorVersion<span class="token punctuation">;</span>                   <span class="token comment">// 0A4</span>
+    ULONG OSMinorVersion<span class="token punctuation">;</span>                   <span class="token comment">// 0A8</span>
+    USHORT OSBuildNumber<span class="token punctuation">;</span>                   <span class="token comment">// 0AC</span>
+    USHORT OSCSDVersion<span class="token punctuation">;</span>                    <span class="token comment">// 0AE</span>
+    ULONG OSPlatformId<span class="token punctuation">;</span>                     <span class="token comment">// 0B0</span>
+    ULONG ImageSubsystem<span class="token punctuation">;</span>                   <span class="token comment">// 0B4</span>
+    ULONG ImageSubsystemMajorVersion<span class="token punctuation">;</span>       <span class="token comment">// 0B8</span>
+    ULONG ImageSubsystemMinorVersion<span class="token punctuation">;</span>       <span class="token comment">// 0BC</span>
+    ULONG ImageProcessAffinityMask<span class="token punctuation">;</span>         <span class="token comment">// 0C0</span>
+    ULONG GdiHandleBuffer<span class="token punctuation">[</span><span class="token number">0x22</span><span class="token punctuation">]</span><span class="token punctuation">;</span>            <span class="token comment">// 0C4</span>
+    ULONG PostProcessInitRoutine<span class="token punctuation">;</span>           <span class="token comment">// 14C</span>
+    ULONG TlsExpansionBitmap<span class="token punctuation">;</span>               <span class="token comment">// 150</span>
+    UCHAR TlsExpansionBitmapBits<span class="token punctuation">[</span><span class="token number">0x80</span><span class="token punctuation">]</span><span class="token punctuation">;</span>     <span class="token comment">// 154</span>
+    ULONG SessionId<span class="token punctuation">;</span>                        <span class="token comment">// 1D4</span>
+<span class="token punctuation">}</span> PEB<span class="token punctuation">,</span> <span class="token operator">*</span>PPEB<span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
 
             </div>
             <hr/>
@@ -1329,7 +1326,7 @@ typedef struct _PEB
             <br>
             
             &nbsp;<i class="fas fa-chart-area"></i>&nbsp;站点总字数:&nbsp;<span
-                class="white-color">62.1k</span>&nbsp;字
+                class="white-color">65.6k</span>&nbsp;字
             
             
             

@@ -32,8 +32,7 @@
 <meta name="generator" content="Hexo 5.2.0">
 <style>.github-emoji { position: relative; display: inline-block; width: 1.2em; min-height: 1.2em; overflow: hidden; vertical-align: top; color: transparent; }  .github-emoji > span { position: relative; z-index: 10; }  .github-emoji img, .github-emoji .fancybox { margin: 0 !important; padding: 0 !important; border: none !important; outline: none !important; text-decoration: none !important; user-select: none !important; cursor: auto !important; }  .github-emoji img { height: 1.2em !important; width: 1.2em !important; position: absolute !important; left: 50% !important; top: 50% !important; transform: translate(-50%, -50%) !important; user-select: none !important; cursor: auto !important; } .github-emoji-fallback { color: inherit; } .github-emoji-fallback img { opacity: 0 !important; }</style>
 <link rel="alternate" href="/atom.xml" title="木叶禅" type="application/atom+xml">
-<link rel="stylesheet" href="/css/prism-tomorrow.css" type="text/css">
-<link rel="stylesheet" href="/css/prism-line-numbers.css" type="text/css"></head>
+</head>
 
 
 
@@ -427,14 +426,14 @@
                 
                 <div class="post-date info-break-policy">
                     <i class="far fa-calendar-check fa-fw"></i>更新日期:&nbsp;&nbsp;
-                    2020-11-26
+                    2020-11-27
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-file-word fa-fw"></i>文章字数:&nbsp;&nbsp;
-                    731
+                    734
                 </div>
                 
 
@@ -456,190 +455,189 @@
         <hr class="clearfix">
         <div class="card-content article-card-content">
             <div id="articleContent">
-                <pre class="line-numbers language-lang-bash"><code class="language-lang-bash">#!/bin/bash
-# Program:
-#   LZSH server log filter
-# History:
-#   2014/07/01  Kom     First release
-#   2014/07/03  Kom     Remote and multi-param support
-#   2014/07/18  Kom     Fix multi keyword bug
-#   2014/07/18  Kom     Continue exe even if some cmd failed
-#   2014/07/18  Kom     optimize
+                <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token shebang important">#!/bin/bash</span>
+<span class="token comment"># Program:</span>
+<span class="token comment">#   LZSH server log filter</span>
+<span class="token comment"># History:</span>
+<span class="token comment">#   2014/07/01  Kom     First release</span>
+<span class="token comment">#   2014/07/03  Kom     Remote and multi-param support</span>
+<span class="token comment">#   2014/07/18  Kom     Fix multi keyword bug</span>
+<span class="token comment">#   2014/07/18  Kom     Continue exe even if some cmd failed</span>
+<span class="token comment">#   2014/07/18  Kom     optimize</span>
 
 
-# Set PATH
-PATH=/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/bin:/usr/local/sbin:~/bin
-export PATH
+<span class="token comment"># Set PATH</span>
+<span class="token assign-left variable"><span class="token environment constant">PATH</span></span><span class="token operator">=</span>/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/bin:/usr/local/sbin:~/bin
+<span class="token builtin class-name">export</span> <span class="token environment constant">PATH</span>
 
 
-#Disable filename globbing
-set -f
+<span class="token comment">#Disable filename globbing</span>
+<span class="token builtin class-name">set</span> -f
 
 
-# Set script name variable
-SCRIPT=`basename ${BASH_SOURCE[0]}`
-SCRIPT_VER=20140718-1809
+<span class="token comment"># Set script name variable</span>
+<span class="token assign-left variable">SCRIPT</span><span class="token operator">=</span><span class="token variable"><span class="token variable">`</span><span class="token function">basename</span> $<span class="token punctuation">{</span><span class="token environment constant">BASH_SOURCE</span><span class="token punctuation">[</span><span class="token number">0</span><span class="token punctuation">]</span><span class="token punctuation">}</span><span class="token variable">`</span></span>
+<span class="token assign-left variable">SCRIPT_VER</span><span class="token operator">=</span><span class="token number">20140718</span>-1809
 
 
-# Initialize variables to default values
-IP=
-USER=
-TMPOUTPUT=
-declare -a KEYS
-declare -a INPUTS
-OUTPUT=
+<span class="token comment"># Initialize variables to default values</span>
+<span class="token assign-left variable">IP</span><span class="token operator">=</span>
+<span class="token assign-left variable"><span class="token environment constant">USER</span></span><span class="token operator">=</span>
+<span class="token assign-left variable">TMPOUTPUT</span><span class="token operator">=</span>
+<span class="token builtin class-name">declare</span> -a KEYS
+<span class="token builtin class-name">declare</span> -a INPUTS
+<span class="token assign-left variable">OUTPUT</span><span class="token operator">=</span>
 
 
-# Set fonts for help
-NORM=`tput sgr0`
-BOLD=`tput bold`
-REV=`tput smso`
+<span class="token comment"># Set fonts for help</span>
+<span class="token assign-left variable">NORM</span><span class="token operator">=</span><span class="token variable"><span class="token variable">`</span>tput sgr0<span class="token variable">`</span></span>
+<span class="token assign-left variable">BOLD</span><span class="token operator">=</span><span class="token variable"><span class="token variable">`</span>tput bold<span class="token variable">`</span></span>
+<span class="token assign-left variable">REV</span><span class="token operator">=</span><span class="token variable"><span class="token variable">`</span>tput smso<span class="token variable">`</span></span>
 
 
-# Help function
-function HELP
-{
-    echo -e \n"${BOLD}龙之守护数据过滤脚本${SCRIPT}${NORM}的帮助文档"
-    echo -e "${BOLD}版本：${SCRIPT_VER}${NORM}"\n
-    echo -e "${REV}用法:${NORM} ${BOLD}$SCRIPT 参数${NORM}"\n
-    echo "可选参数:"
-    echo "${REV}-a${NORM}  --输入文件所在的IP，为空表示本地（默认为空）"
-    echo "${REV}-u${NORM}  --访问输入文件所用的用户名，当文件在本地时不使用此参数"
-    echo "${REV}-k${NORM}  --用于过滤的关键字，此参数可以多个联合使用(例如：-k物品创建 -k强化石)"
-    echo "${REV}-i${NORM}  --输入文件的全路径，此参数可以多个联合使用(例如：-i/home/log/objscenesserver21.log.140701-* -i/home/log/objscenesserver40.log.140701-*)"
-    echo "${REV}-o${NORM}  --本地输出文件的全路径(例如：-o/local/lzsh.log)"
-    echo "${REV}-t${NORM}  --临时输出文件的全路径，当文件在本地时不使用此参数"
-    echo -e "${REV}-h${NORM}  --显示此帮助并退出"\n
-    echo -e "示例: "
-    echo -e "${BOLD}$SCRIPT -a127.0.0.1 -uUsername -k物品创建 -k强化石 -i/home/log/objscenesserver21.log.140701-* -o/local/lzsh.log -t/tmp/lzsh.log${NORM}"\n
-    exit 1
-}
+<span class="token comment"># Help function</span>
+<span class="token keyword">function</span> <span class="token function-name function">HELP</span>
+<span class="token punctuation">{</span>
+    <span class="token builtin class-name">echo</span> -e <span class="token punctuation">\</span>n<span class="token string">"<span class="token variable">${BOLD}</span>龙之守护数据过滤脚本<span class="token variable">${SCRIPT}</span><span class="token variable">${NORM}</span>的帮助文档"</span>
+    <span class="token builtin class-name">echo</span> -e <span class="token string">"<span class="token variable">${BOLD}</span>版本：<span class="token variable">${SCRIPT_VER}</span><span class="token variable">${NORM}</span>"</span><span class="token punctuation">\</span>n
+    <span class="token builtin class-name">echo</span> -e <span class="token string">"<span class="token variable">${REV}</span>用法:<span class="token variable">${NORM}</span> <span class="token variable">${BOLD}</span><span class="token variable">$SCRIPT</span> 参数<span class="token variable">${NORM}</span>"</span><span class="token punctuation">\</span>n
+    <span class="token builtin class-name">echo</span> <span class="token string">"可选参数:"</span>
+    <span class="token builtin class-name">echo</span> <span class="token string">"<span class="token variable">${REV}</span>-a<span class="token variable">${NORM}</span>  --输入文件所在的IP，为空表示本地（默认为空）"</span>
+    <span class="token builtin class-name">echo</span> <span class="token string">"<span class="token variable">${REV}</span>-u<span class="token variable">${NORM}</span>  --访问输入文件所用的用户名，当文件在本地时不使用此参数"</span>
+    <span class="token builtin class-name">echo</span> <span class="token string">"<span class="token variable">${REV}</span>-k<span class="token variable">${NORM}</span>  --用于过滤的关键字，此参数可以多个联合使用(例如：-k物品创建 -k强化石)"</span>
+    <span class="token builtin class-name">echo</span> <span class="token string">"<span class="token variable">${REV}</span>-i<span class="token variable">${NORM}</span>  --输入文件的全路径，此参数可以多个联合使用(例如：-i/home/log/objscenesserver21.log.140701-* -i/home/log/objscenesserver40.log.140701-*)"</span>
+    <span class="token builtin class-name">echo</span> <span class="token string">"<span class="token variable">${REV}</span>-o<span class="token variable">${NORM}</span>  --本地输出文件的全路径(例如：-o/local/lzsh.log)"</span>
+    <span class="token builtin class-name">echo</span> <span class="token string">"<span class="token variable">${REV}</span>-t<span class="token variable">${NORM}</span>  --临时输出文件的全路径，当文件在本地时不使用此参数"</span>
+    <span class="token builtin class-name">echo</span> -e <span class="token string">"<span class="token variable">${REV}</span>-h<span class="token variable">${NORM}</span>  --显示此帮助并退出"</span><span class="token punctuation">\</span>n
+    <span class="token builtin class-name">echo</span> -e <span class="token string">"示例: "</span>
+    <span class="token builtin class-name">echo</span> -e <span class="token string">"<span class="token variable">${BOLD}</span><span class="token variable">$SCRIPT</span> -a127.0.0.1 -uUsername -k物品创建 -k强化石 -i/home/log/objscenesserver21.log.140701-* -o/local/lzsh.log -t/tmp/lzsh.log<span class="token variable">${NORM}</span>"</span><span class="token punctuation">\</span>n
+    <span class="token builtin class-name">exit</span> <span class="token number">1</span>
+<span class="token punctuation">}</span>
 
 
-# Check the number of argument. If none are passed, print help and exit.
-if [ $# -eq 0 ]; then
+<span class="token comment"># Check the number of argument. If none are passed, print help and exit.</span>
+<span class="token keyword">if</span> <span class="token punctuation">[</span> <span class="token variable">$#</span> -eq <span class="token number">0</span> <span class="token punctuation">]</span><span class="token punctuation">;</span> <span class="token keyword">then</span>
     HELP
-else
-    echo "输入参数：${BOLD}$*${NORM}"
-fi
+<span class="token keyword">else</span>
+    <span class="token builtin class-name">echo</span> <span class="token string">"输入参数：<span class="token variable">${BOLD}</span><span class="token variable">$*</span><span class="token variable">${NORM}</span>"</span>
+<span class="token keyword">fi</span>
 
 
-while getopts :a:u:t:i:o:k:h FLAG; do
-    case $FLAG in
-        a)
-            IP=$OPTARG
-            ;;
-        u)
-            USER=$OPTARG
-            ;;
-        t)
-            TMPOUTPUT=$OPTARG
-            ;;
-        i)
-            INPUTS=(${INPUTS[@]} $OPTARG)
-            ;;
-        o)
-            OUTPUT=$OPTARG
-            ;;
-        k)
-            KEYS=(${KEYS[@]} $OPTARG)
-            ;;
-        h) # show help
+<span class="token keyword">while</span> <span class="token builtin class-name">getopts</span> :a:u:t:i:o:k:h FLAG<span class="token punctuation">;</span> <span class="token keyword">do</span>
+    <span class="token keyword">case</span> <span class="token variable">$FLAG</span> <span class="token keyword">in</span>
+        a<span class="token punctuation">)</span>
+            <span class="token assign-left variable">IP</span><span class="token operator">=</span><span class="token variable">$OPTARG</span>
+            <span class="token punctuation">;</span><span class="token punctuation">;</span>
+        u<span class="token punctuation">)</span>
+            <span class="token assign-left variable"><span class="token environment constant">USER</span></span><span class="token operator">=</span><span class="token variable">$OPTARG</span>
+            <span class="token punctuation">;</span><span class="token punctuation">;</span>
+        t<span class="token punctuation">)</span>
+            <span class="token assign-left variable">TMPOUTPUT</span><span class="token operator">=</span><span class="token variable">$OPTARG</span>
+            <span class="token punctuation">;</span><span class="token punctuation">;</span>
+        i<span class="token punctuation">)</span>
+            <span class="token assign-left variable">INPUTS</span><span class="token operator">=</span><span class="token punctuation">(</span><span class="token variable">${INPUTS<span class="token punctuation">[</span>@<span class="token punctuation">]</span>}</span> <span class="token variable">$OPTARG</span><span class="token punctuation">)</span>
+            <span class="token punctuation">;</span><span class="token punctuation">;</span>
+        o<span class="token punctuation">)</span>
+            <span class="token assign-left variable">OUTPUT</span><span class="token operator">=</span><span class="token variable">$OPTARG</span>
+            <span class="token punctuation">;</span><span class="token punctuation">;</span>
+        k<span class="token punctuation">)</span>
+            <span class="token assign-left variable">KEYS</span><span class="token operator">=</span><span class="token punctuation">(</span><span class="token variable">${KEYS<span class="token punctuation">[</span>@<span class="token punctuation">]</span>}</span> <span class="token variable">$OPTARG</span><span class="token punctuation">)</span>
+            <span class="token punctuation">;</span><span class="token punctuation">;</span>
+        h<span class="token punctuation">)</span> <span class="token comment"># show help</span>
             HELP
-            ;;
-        ?) # unrecognized option - show help
-            echo -e \n"非法参数：-${BOLD}$OPTARG${NORM}"
+            <span class="token punctuation">;</span><span class="token punctuation">;</span>
+        ?<span class="token punctuation">)</span> <span class="token comment"># unrecognized option - show help</span>
+            <span class="token builtin class-name">echo</span> -e <span class="token punctuation">\</span>n<span class="token string">"非法参数：-<span class="token variable">${BOLD}</span><span class="token variable">$OPTARG</span><span class="token variable">${NORM}</span>"</span>
             HELP
-            ;;
-    esac
-done
+            <span class="token punctuation">;</span><span class="token punctuation">;</span>
+    <span class="token keyword">esac</span>
+<span class="token keyword">done</span>
 
 
-shift $((OPTIND-1)) #  This tells getopts to move on to the next argument
+<span class="token builtin class-name">shift</span> <span class="token variable"><span class="token variable">$((</span>OPTIND<span class="token operator">-</span><span class="token number">1</span><span class="token variable">))</span></span> <span class="token comment">#  This tells getopts to move on to the next argument</span>
 
 
-#######################################################################
-# Parameters check
+<span class="token comment">#######################################################################</span>
+<span class="token comment"># Parameters check</span>
 
 
-if [ ${#KEYS} -eq 0 ]; then
-    echo "你必须指定至少一个${BOLD}关键字${NORM}"
-    exit -1
-else
-    echo "关键字：${BOLD}${KEYS[@]}${NORM}"
-fi
+<span class="token keyword">if</span> <span class="token punctuation">[</span> <span class="token variable">${<span class="token operator">#</span>KEYS}</span> -eq <span class="token number">0</span> <span class="token punctuation">]</span><span class="token punctuation">;</span> <span class="token keyword">then</span>
+    <span class="token builtin class-name">echo</span> <span class="token string">"你必须指定至少一个<span class="token variable">${BOLD}</span>关键字<span class="token variable">${NORM}</span>"</span>
+    <span class="token builtin class-name">exit</span> -1
+<span class="token keyword">else</span>
+    <span class="token builtin class-name">echo</span> <span class="token string">"关键字：<span class="token variable">${BOLD}</span><span class="token variable">${KEYS<span class="token punctuation">[</span>@<span class="token punctuation">]</span>}</span><span class="token variable">${NORM}</span>"</span>
+<span class="token keyword">fi</span>
 
 
-if [ ${#INPUTS} -eq 0 ]; then
-    echo "你必须指定至少一个${BOLD}输入文件${NORM}"
-    exit -1
-else
-    echo "输入文件：${BOLD}${INPUTS[@]}${NORM}"
-fi
+<span class="token keyword">if</span> <span class="token punctuation">[</span> <span class="token variable">${<span class="token operator">#</span>INPUTS}</span> -eq <span class="token number">0</span> <span class="token punctuation">]</span><span class="token punctuation">;</span> <span class="token keyword">then</span>
+    <span class="token builtin class-name">echo</span> <span class="token string">"你必须指定至少一个<span class="token variable">${BOLD}</span>输入文件<span class="token variable">${NORM}</span>"</span>
+    <span class="token builtin class-name">exit</span> -1
+<span class="token keyword">else</span>
+    <span class="token builtin class-name">echo</span> <span class="token string">"输入文件：<span class="token variable">${BOLD}</span><span class="token variable">${INPUTS<span class="token punctuation">[</span>@<span class="token punctuation">]</span>}</span><span class="token variable">${NORM}</span>"</span>
+<span class="token keyword">fi</span>
 
 
-if [ -z $OUTPUT ]; then
-    echo "你必须指定${BOLD}本地输出文件${NORM}"
-    exit -1
-fi
-echo "输出文件：${BOLD}${OUTPUT[@]}${NORM}"
+<span class="token keyword">if</span> <span class="token punctuation">[</span> -z <span class="token variable">$OUTPUT</span> <span class="token punctuation">]</span><span class="token punctuation">;</span> <span class="token keyword">then</span>
+    <span class="token builtin class-name">echo</span> <span class="token string">"你必须指定<span class="token variable">${BOLD}</span>本地输出文件<span class="token variable">${NORM}</span>"</span>
+    <span class="token builtin class-name">exit</span> -1
+<span class="token keyword">fi</span>
+<span class="token builtin class-name">echo</span> <span class="token string">"输出文件：<span class="token variable">${BOLD}</span><span class="token variable">${OUTPUT<span class="token punctuation">[</span>@<span class="token punctuation">]</span>}</span><span class="token variable">${NORM}</span>"</span>
 
 
-if [ ! -z $IP ]; then
-    if [ -z $USER ]; then
-        echo "必须指定用于访问${BOLD}${IP}${NORM}的${BOLD}用户名${NORM}"
-        exit -1
-    fi
-    if [ -z $TMPOUTPUT ]; then
-        echo "必须指定在${BOLD}${IP}${NORM}上的${BOLD}临时输出文件${NORM}"
-        exit -1
-    fi
-fi
+<span class="token keyword">if</span> <span class="token punctuation">[</span> <span class="token operator">!</span> -z <span class="token variable">$IP</span> <span class="token punctuation">]</span><span class="token punctuation">;</span> <span class="token keyword">then</span>
+    <span class="token keyword">if</span> <span class="token punctuation">[</span> -z <span class="token environment constant">$USER</span> <span class="token punctuation">]</span><span class="token punctuation">;</span> <span class="token keyword">then</span>
+        <span class="token builtin class-name">echo</span> <span class="token string">"必须指定用于访问<span class="token variable">${BOLD}</span><span class="token variable">${IP}</span><span class="token variable">${NORM}</span>的<span class="token variable">${BOLD}</span>用户名<span class="token variable">${NORM}</span>"</span>
+        <span class="token builtin class-name">exit</span> -1
+    <span class="token keyword">fi</span>
+    <span class="token keyword">if</span> <span class="token punctuation">[</span> -z <span class="token variable">$TMPOUTPUT</span> <span class="token punctuation">]</span><span class="token punctuation">;</span> <span class="token keyword">then</span>
+        <span class="token builtin class-name">echo</span> <span class="token string">"必须指定在<span class="token variable">${BOLD}</span><span class="token variable">${IP}</span><span class="token variable">${NORM}</span>上的<span class="token variable">${BOLD}</span>临时输出文件<span class="token variable">${NORM}</span>"</span>
+        <span class="token builtin class-name">exit</span> -1
+    <span class="token keyword">fi</span>
+<span class="token keyword">fi</span>
 
 
-#######################################################################
-# Work
+<span class="token comment">#######################################################################</span>
+<span class="token comment"># Work</span>
 
 
-TARGETOUTPUT=""
-if [ ! -z $IP ]; then
-    TARGETOUTPUT=$TMPOUTPUT
-else
-    TARGETOUTPUT=$OUTPUT
-fi
+<span class="token assign-left variable">TARGETOUTPUT</span><span class="token operator">=</span><span class="token string">""</span>
+<span class="token keyword">if</span> <span class="token punctuation">[</span> <span class="token operator">!</span> -z <span class="token variable">$IP</span> <span class="token punctuation">]</span><span class="token punctuation">;</span> <span class="token keyword">then</span>
+    <span class="token assign-left variable">TARGETOUTPUT</span><span class="token operator">=</span><span class="token variable">$TMPOUTPUT</span>
+<span class="token keyword">else</span>
+    <span class="token assign-left variable">TARGETOUTPUT</span><span class="token operator">=</span><span class="token variable">$OUTPUT</span>
+<span class="token keyword">fi</span>
 
 
-CMD=""
-for k in ${KEYS[@]}
-do
-    CMD=${CMD}"grep $k ${INPUTS[@]} >> $TARGETOUTPUT; "
-done
+<span class="token assign-left variable">CMD</span><span class="token operator">=</span><span class="token string">""</span>
+<span class="token keyword">for</span> <span class="token for-or-select variable">k</span> <span class="token keyword">in</span> <span class="token variable">${KEYS<span class="token punctuation">[</span>@<span class="token punctuation">]</span>}</span>
+<span class="token keyword">do</span>
+    <span class="token assign-left variable">CMD</span><span class="token operator">=</span><span class="token variable">${CMD}</span><span class="token string">"grep <span class="token variable">$k</span> <span class="token variable">${INPUTS<span class="token punctuation">[</span>@<span class="token punctuation">]</span>}</span> &gt;&gt; <span class="token variable">$TARGETOUTPUT</span>; "</span>
+<span class="token keyword">done</span>
 
 
-CMD="echo > $TARGETOUTPUT; $CMD"
+<span class="token assign-left variable">CMD</span><span class="token operator">=</span><span class="token string">"echo &gt; <span class="token variable">$TARGETOUTPUT</span>; <span class="token variable">$CMD</span>"</span>
 
 
-echo $CMD
+<span class="token builtin class-name">echo</span> <span class="token variable">$CMD</span>
 
 
-if [ ! -z $IP ]; then
-    echo -e \n"将要执行ssh命令："
-    echo "${BOLD}ssh $USER@$IP "$CMD"${NORM}"
-    sh -c "ssh $USER@$IP "$CMD""
+<span class="token keyword">if</span> <span class="token punctuation">[</span> <span class="token operator">!</span> -z <span class="token variable">$IP</span> <span class="token punctuation">]</span><span class="token punctuation">;</span> <span class="token keyword">then</span>
+    <span class="token builtin class-name">echo</span> -e <span class="token punctuation">\</span>n<span class="token string">"将要执行ssh命令："</span>
+    <span class="token builtin class-name">echo</span> <span class="token string">"<span class="token variable">${BOLD}</span>ssh <span class="token environment constant">$USER</span>@<span class="token variable">$IP</span> "</span><span class="token variable">$CMD</span><span class="token string">"<span class="token variable">${NORM}</span>"</span>
+    <span class="token function">sh</span> -c <span class="token string">"ssh <span class="token environment constant">$USER</span>@<span class="token variable">$IP</span> "</span><span class="token variable">$CMD</span><span class="token string">""</span>
 
 
-    echo -e \n"将要执行scp命令："
-    echo "${BOLD}scp $USER@$IP:$TMPOUTPUT $OUTPUT${NORM}"
-    sh -c "scp $USER@$IP:$TMPOUTPUT $OUTPUT"
-else
-    echo -e \n"将要执行命令："
-    echo "${BOLD}$CMD${NORM}"
-    sh -c "$CMD"
-fi
+    <span class="token builtin class-name">echo</span> -e <span class="token punctuation">\</span>n<span class="token string">"将要执行scp命令："</span>
+    <span class="token builtin class-name">echo</span> <span class="token string">"<span class="token variable">${BOLD}</span>scp <span class="token environment constant">$USER</span>@<span class="token variable">$IP</span>:<span class="token variable">$TMPOUTPUT</span> <span class="token variable">$OUTPUT</span><span class="token variable">${NORM}</span>"</span>
+    <span class="token function">sh</span> -c <span class="token string">"scp <span class="token environment constant">$USER</span>@<span class="token variable">$IP</span>:<span class="token variable">$TMPOUTPUT</span> <span class="token variable">$OUTPUT</span>"</span>
+<span class="token keyword">else</span>
+    <span class="token builtin class-name">echo</span> -e <span class="token punctuation">\</span>n<span class="token string">"将要执行命令："</span>
+    <span class="token builtin class-name">echo</span> <span class="token string">"<span class="token variable">${BOLD}</span><span class="token variable">$CMD</span><span class="token variable">${NORM}</span>"</span>
+    <span class="token function">sh</span> -c <span class="token string">"<span class="token variable">$CMD</span>"</span>
+<span class="token keyword">fi</span>
 
 
-exit 0
-<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<span class="token builtin class-name">exit</span> <span class="token number">0</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
 
             </div>
             <hr/>
@@ -1288,7 +1286,7 @@ exit 0
             <br>
             
             &nbsp;<i class="fas fa-chart-area"></i>&nbsp;站点总字数:&nbsp;<span
-                class="white-color">62.1k</span>&nbsp;字
+                class="white-color">65.6k</span>&nbsp;字
             
             
             
