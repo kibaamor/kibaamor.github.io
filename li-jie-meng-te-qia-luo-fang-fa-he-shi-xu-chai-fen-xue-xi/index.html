@@ -4,7 +4,7 @@
 
 <head>
     <meta charset="utf-8">
-    <meta name="keywords" content="C++重载内存分配时需要注意的地方, kiba, zen, amor, kibazen, kibaamor, 木叶, 木叶禅">
+    <meta name="keywords" content="理解蒙特卡洛方法和时序差分学习, kiba, zen, amor, kibazen, kibaamor, 木叶, 木叶禅">
     <meta name="description" content="一个普通游戏程序员的博客">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
@@ -16,7 +16,7 @@
     <!-- Global site tag (gtag.js) - Google Analytics -->
 
 
-    <title>C++重载内存分配时需要注意的地方 | 木叶禅</title>
+    <title>理解蒙特卡洛方法和时序差分学习 | 木叶禅</title>
     <link rel="icon" type="image/png" href="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/favicon.png">
 
     <link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/libs/awesome/css/all.css">
@@ -275,12 +275,12 @@
 
 
 
-<div class="bg-cover pd-header post-cover" style="background-image: url('https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/medias/featureimages/20.jpg')">
+<div class="bg-cover pd-header post-cover" style="background-image: url('https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/medias/featureimages/4.jpg')">
     <div class="container" style="right: 0px;left: 0px;">
         <div class="row">
             <div class="col s12 m12 l12">
                 <div class="brand">
-                    <h1 class="description center-align post-title">C++重载内存分配时需要注意的地方</h1>
+                    <h1 class="description center-align post-title">理解蒙特卡洛方法和时序差分学习</h1>
                 </div>
             </div>
         </div>
@@ -396,8 +396,12 @@
                     
                     <div class="article-tag">
                         
-                            <a href="/tags/CPP/">
-                                <span class="chip bg-color">CPP</span>
+                            <a href="/tags/%E8%92%99%E7%89%B9%E5%8D%A1%E6%B4%9B%E6%96%B9%E6%B3%95/">
+                                <span class="chip bg-color">蒙特卡洛方法</span>
+                            </a>
+                        
+                            <a href="/tags/%E6%97%B6%E5%BA%8F%E5%B7%AE%E5%88%86%E5%AD%A6%E4%B9%A0/">
+                                <span class="chip bg-color">时序差分学习</span>
                             </a>
                         
                     </div>
@@ -408,8 +412,8 @@
                     <div class="post-cate">
                         <i class="fas fa-bookmark fa-fw icon-category"></i>
                         
-                            <a href="/categories/%E7%BC%96%E7%A8%8B%E8%AF%AD%E8%A8%80/" class="post-category">
-                                编程语言
+                            <a href="/categories/%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0/" class="post-category">
+                                机器学习
                             </a>
                         
                     </div>
@@ -421,7 +425,7 @@
                 
                 <div class="post-date info-break-policy">
                     <i class="far fa-calendar-minus fa-fw"></i>发布日期:&nbsp;&nbsp;
-                    2015-04-22
+                    2020-12-16
                 </div>
                 
 
@@ -435,7 +439,7 @@
                 
                 <div class="info-break-policy">
                     <i class="far fa-file-word fa-fw"></i>文章字数:&nbsp;&nbsp;
-                    433
+                    813
                 </div>
                 
 
@@ -452,92 +456,50 @@
         <hr class="clearfix">
         <div class="card-content article-card-content">
             <div id="articleContent">
-                <h2 id="一、测试代码"><a href="#一、测试代码" class="headerlink" title="一、测试代码"></a>一、测试代码</h2><pre class="line-numbers language-cpp" data-language="cpp"><code class="language-cpp"><span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;stdio.h&gt;</span></span>
-<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;malloc.h&gt;</span></span>
-<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;new&gt;</span></span>
+                <p>学习机器学习时常常会用到蒙特卡洛方法和时序差分学习，所以对它们有一个直观的理解还是很重要的。本文通过举一个实际的例子来帮助理解。</p>
+<p>假如要训练一个预估开车从成都到北京需要耗时多久的模型（Model），那么如何训练呢？</p>
+<pre class="line-numbers language-flow" data-language="flow"><code class="language-flow">cd<span class="token operator">=&gt;</span>start<span class="token operator">:</span> 成都
+bj<span class="token operator">=&gt;</span>end<span class="token operator">:</span> 北京
 
-<span class="token comment">//#define VF</span>
-<span class="token comment">//#define FLAG</span>
-
-<span class="token keyword">class</span> <span class="token class-name">MemObj</span>
-<span class="token punctuation">{</span>
-<span class="token keyword">public</span><span class="token operator">:</span>
-    <span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">ifdef</span> <span class="token expression">VF</span></span>
-    <span class="token keyword">virtual</span> <span class="token operator">~</span><span class="token function">MemObj</span><span class="token punctuation">(</span><span class="token keyword">void</span><span class="token punctuation">)</span> <span class="token punctuation">{</span><span class="token punctuation">}</span>
-    <span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">endif</span> <span class="token comment">// VF</span></span>
-
-    <span class="token keyword">static</span> <span class="token keyword">void</span><span class="token operator">*</span> <span class="token keyword">operator</span> <span class="token keyword">new</span><span class="token punctuation">(</span>size_t stSize<span class="token punctuation">)</span>
-    <span class="token punctuation">{</span>
-        <span class="token function">printf</span><span class="token punctuation">(</span><span class="token string">"operator new(size_t) %dn"</span><span class="token punctuation">,</span> stSize<span class="token punctuation">)</span><span class="token punctuation">;</span>
-        <span class="token keyword">return</span> <span class="token function">malloc</span><span class="token punctuation">(</span>stSize<span class="token punctuation">)</span><span class="token punctuation">;</span>
-    <span class="token punctuation">}</span>
-
-    <span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">ifdef</span> <span class="token expression">FLAG</span></span>
-    <span class="token keyword">static</span> <span class="token keyword">void</span> <span class="token keyword">operator</span> <span class="token keyword">delete</span><span class="token punctuation">(</span><span class="token keyword">void</span><span class="token operator">*</span> pMemory<span class="token punctuation">)</span>
-    <span class="token punctuation">{</span>
-        <span class="token function">printf</span><span class="token punctuation">(</span><span class="token string">"operator delete(void*)n"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
-        <span class="token function">free</span><span class="token punctuation">(</span>pMemory<span class="token punctuation">)</span><span class="token punctuation">;</span>
-    <span class="token punctuation">}</span>
-    <span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">endif</span></span>
-
-    <span class="token keyword">static</span> <span class="token keyword">void</span> <span class="token keyword">operator</span> <span class="token keyword">delete</span><span class="token punctuation">(</span><span class="token keyword">void</span><span class="token operator">*</span> pMemory<span class="token punctuation">,</span> size_t stSize<span class="token punctuation">)</span>
-    <span class="token punctuation">{</span>
-        <span class="token function">printf</span><span class="token punctuation">(</span><span class="token string">"operator delete(void*, size_t) %dn"</span><span class="token punctuation">,</span> stSize<span class="token punctuation">)</span><span class="token punctuation">;</span>
-        <span class="token function">free</span><span class="token punctuation">(</span>pMemory<span class="token punctuation">)</span><span class="token punctuation">;</span>
-    <span class="token punctuation">}</span>
-<span class="token punctuation">}</span><span class="token punctuation">;</span>
-
-<span class="token keyword">class</span> <span class="token class-name">Test</span> <span class="token operator">:</span> <span class="token base-clause"><span class="token keyword">public</span> <span class="token class-name">MemObj</span></span>
-<span class="token punctuation">{</span>
-<span class="token keyword">private</span><span class="token operator">:</span>
-    <span class="token keyword">int</span> m_nValue<span class="token punctuation">;</span>
-<span class="token punctuation">}</span><span class="token punctuation">;</span>
-
-<span class="token keyword">int</span> <span class="token function">main</span><span class="token punctuation">(</span><span class="token keyword">int</span> argc<span class="token punctuation">,</span> <span class="token keyword">char</span><span class="token operator">*</span><span class="token operator">*</span> argv<span class="token punctuation">)</span>
-<span class="token punctuation">{</span>
-    MemObj<span class="token operator">*</span> pObj <span class="token operator">=</span> <span class="token keyword">new</span> <span class="token function">MemObj</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
-    <span class="token keyword">delete</span> pObj<span class="token punctuation">;</span>
-
-    Test<span class="token operator">*</span> pTest <span class="token operator">=</span> <span class="token keyword">new</span> <span class="token function">Test</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
-    <span class="token keyword">delete</span> pTest<span class="token punctuation">;</span>
-
-    pObj <span class="token operator">=</span> <span class="token keyword">new</span> <span class="token function">Test</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
-    <span class="token keyword">delete</span> pObj<span class="token punctuation">;</span>
-
-    <span class="token keyword">return</span> <span class="token number">0</span><span class="token punctuation">;</span>
-<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
-<h2 id="二、测试"><a href="#二、测试" class="headerlink" title="二、测试"></a>二、测试</h2><p>通过控制宏VF和宏FLAG的定义与否来查看各个情况下代码运行的结果。</p>
-<h3 id="测试1：不定义宏VF和FLAG"><a href="#测试1：不定义宏VF和FLAG" class="headerlink" title="测试1：不定义宏VF和FLAG"></a>测试1：不定义宏VF和FLAG</h3><pre class="line-numbers language-text" data-language="text"><code class="language-text">operator new(size_t) 1
-operator delete(void*, size_t) 1
-operator new(size_t) 4
-operator delete(void*, size_t) 1
-operator new(size_t) 4
-operator delete(void*, size_t) 1<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
-<h3 id="测试2：定义宏FLAG但不定义宏VF"><a href="#测试2：定义宏FLAG但不定义宏VF" class="headerlink" title="测试2：定义宏FLAG但不定义宏VF"></a>测试2：定义宏FLAG但不定义宏VF</h3><pre class="line-numbers language-text" data-language="text"><code class="language-text">operator new(size_t) 1
-operator delete(void*)
-operator new(size_t) 4
-operator delete(void*)
-operator new(size_t) 4
-operator delete(void*)<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
-<h3 id="测试3：定义宏VF但不定义宏FLAG"><a href="#测试3：定义宏VF但不定义宏FLAG" class="headerlink" title="测试3：定义宏VF但不定义宏FLAG"></a>测试3：定义宏VF但不定义宏FLAG</h3><pre class="line-numbers language-text" data-language="text"><code class="language-text">operator new(size_t) 4
-operator delete(void*, size_t) 4
-operator new(size_t) 8
-operator delete(void*, size_t) 8
-operator new(size_t) 8
-operator delete(void*, size_t) 8<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
-<h3 id="测试4：同时定义宏VF和FLAG"><a href="#测试4：同时定义宏VF和FLAG" class="headerlink" title="测试4：同时定义宏VF和FLAG"></a>测试4：同时定义宏VF和FLAG</h3><pre class="line-numbers language-text" data-language="text"><code class="language-text">operator new(size_t) 4
-operator delete(void*)
-operator new(size_t) 8
-operator delete(void*)
-operator new(size_t) 8
-operator delete(void*)<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
-<h2 id="三、结果分析"><a href="#三、结果分析" class="headerlink" title="三、结果分析"></a>三、结果分析</h2><h3 id="1-对比测试1和测试2"><a href="#1-对比测试1和测试2" class="headerlink" title="1. 对比测试1和测试2"></a>1. 对比测试1和测试2</h3><p>重载了operator new(size_t stSize)后，在删除的时候：</p>
+cd<span class="token operator">-</span><span class="token operator">&gt;</span>bj<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span></span></code></pre>
+<h2 id="1-蒙特卡洛方法（Monte-Carlo-method）"><a href="#1-蒙特卡洛方法（Monte-Carlo-method）" class="headerlink" title="1. 蒙特卡洛方法（Monte Carlo method）"></a>1. 蒙特卡洛方法（Monte Carlo method）</h2><p>最直观的方法，既然要预估开车从成都到北京需要耗时多久，那么可以直接记录开车从成都到北京所需要的时间。然后重复很多次，比如100次，把每次的耗时都给模型学习（至于模型具体怎么学习，又需要另外的算法了，比如：<a target="_blank" rel="noopener" href="https://en.wikipedia.org/wiki/Gradient_descent">梯度下降</a>），这样模型就能预估出一个比较准确的时间了。</p>
+<p>上面这种方法其实就是<a target="_blank" rel="noopener" href="https://en.wikipedia.org/wiki/Monte_Carlo_method">蒙特卡洛方法</a>。这种算法的特点如下：</p>
+<p>优点：</p>
+<ul>
+<li><strong>简单直接</strong>：要预估开车从成都到北京需要耗时多久，那直接做很多次，并记录经验，然后就能比较准确的训练了。</li>
+</ul>
+<p>缺点：</p>
+<ul>
+<li><strong>收集数据麻烦</strong>：直接尝试还是很麻烦的，代价太高。如果要训练一个预测手术成功率的模型，总不能拿人去试吧。</li>
+<li><strong>需要等到完整的一次过程后才能开始训练</strong>：开车到一半时是不能训练模型的，必须要到了目的地才能训练。如果路上车出了故障，那么之前开的路都白费了，代价也太高了。</li>
+</ul>
+<p>第一个缺点不好解决，但是第二个缺点还是有办法改善的，那就是使用<a href="#2-时序差分学习temporal-difference-learning">时序差分学习</a>。</p>
+<h2 id="2-时序差分学习（Temporal-Difference-Learning）"><a href="#2-时序差分学习（Temporal-Difference-Learning）" class="headerlink" title="2. 时序差分学习（Temporal Difference Learning）"></a>2. 时序差分学习（Temporal Difference Learning）</h2><p>时序差分学习的概念不是那么容易解释，但是可以通过更实际的例子来理解：</p>
 <ol>
-<li>如果没有定义<code>void operator delete(void* pMemory)，那么会调用void operator delete(void* pMemory, size_t stSize)</code>；</li>
-<li>如果定义了<code>void operator delete(void* pMemory)，不管是否定义void operator delete(void* pMemory, size_t stSize)都会调用void operator delete(void* pMemory)</code>。</li>
+<li><p>开始时模型预估开车从成都到北京需要花100个小时。</p>
+ <pre class="line-numbers language-flow" data-language="flow"><code class="language-flow">cd<span class="token operator">=&gt;</span>start<span class="token operator">:</span> 成都
+bj<span class="token operator">=&gt;</span>end<span class="token operator">:</span> 北京（模型预估需<span class="token number">100</span>小时）
+
+cd<span class="token operator">-</span><span class="token operator">&gt;</span>bj<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span></span></code></pre>
+</li>
+<li><p>实际开车从成都出发，实际花费了30个小时到西安，此时模型预估到北京还是60个小时。</p>
+ <pre class="line-numbers language-flow" data-language="flow"><code class="language-flow">cd<span class="token operator">=&gt;</span>start<span class="token operator">:</span> 成都
+xa<span class="token operator">=&gt;</span>end<span class="token operator">:</span> 西安（实际开车花费<span class="token number">30</span>小时）
+bj<span class="token operator">=&gt;</span>end<span class="token operator">:</span> 北京（模型预估还需<span class="token number">60</span>小时）
+
+cd<span class="token operator">-</span><span class="token operator">&gt;</span>xa<span class="token operator">-</span><span class="token operator">&gt;</span>bj<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+</li>
 </ol>
-<p>结论：<br>重载operator new(size_t)后，如果同时重载了operator delete(void<em>)，删除时候会调用operator delete(void</em>)，否则才会调用operator delete(void*, size_t)。</p>
-<h3 id="2-对比测试1和测试3"><a href="#2-对比测试1和测试3" class="headerlink" title="2. 对比测试1和测试3"></a>2. 对比测试1和测试3</h3><p>如果不将基类的析构函数定义为虚析构函数，会有内存泄漏。</p>
+<p>所以模型在开始时更准确的预估应该是：</p>
+<p>30个小时（成都到西安的<strong>实际时间</strong>）+ 60个小时（新的<strong>预估时间</strong>）= 90个小时</p>
+<p>在时序差分学习中，这个更准确的估计就叫做 <strong>TD target</strong> 。有了这个更准确预估后，就知道开始时的预估时间是多了还是少了，从而就能更新模型的参数让模型的预估越来越准确。这样就能够做到不做完整件事就开始训练模型了。</p>
+<p>而最初的预估时间和 <strong>TD target</strong> 的差值就是 <strong>TD error</strong>：</p>
+<p><strong>TD error</strong> = 100(开始时的预估耗时） - 90（<strong>TD error</strong>）</p>
+<p>时序差分学习的目标就是让 <strong>TD error</strong> 的值接近0。</p>
+<hr>
+<blockquote>
+<p>参考：<a target="_blank" rel="noopener" href="https://www.youtube.com/watch?v=jflq6vNcZyA&amp;t=1344s&amp;ab_channel=ShusenWang">价值学习 Value-Based Reinforcement Learningg</a></p>
+</blockquote>
 
             </div>
             <hr/>
@@ -563,7 +525,7 @@ operator delete(void*)<span aria-hidden="true" class="line-numbers-rows"><span><
                     </i>
                     </span>
                 <span class="reprint-info">
-                    <a href="https://kibazen.cn/c-chong-zai-nei-cun-fen-pei-shi-xu-yao-zhu-yi-de-di-fang/">https://kibazen.cn/c-chong-zai-nei-cun-fen-pei-shi-xu-yao-zhu-yi-de-di-fang/</a>
+                    <a href="https://kibazen.cn/li-jie-meng-te-qia-luo-fang-fa-he-shi-xu-chai-fen-xue-xi/">https://kibazen.cn/li-jie-meng-te-qia-luo-fang-fa-he-shi-xu-chai-fen-xue-xi/</a>
                 </span>
             </div>
             <div class="reprint__notice">
@@ -601,8 +563,12 @@ operator delete(void*)<span aria-hidden="true" class="line-numbers-rows"><span><
                     
                         <div class="article-tag">
                             
-                                <a href="/tags/CPP/">
-                                    <span class="chip bg-color">CPP</span>
+                                <a href="/tags/%E8%92%99%E7%89%B9%E5%8D%A1%E6%B4%9B%E6%96%B9%E6%B3%95/">
+                                    <span class="chip bg-color">蒙特卡洛方法</span>
+                                </a>
+                            
+                                <a href="/tags/%E6%97%B6%E5%BA%8F%E5%B7%AE%E5%88%86%E5%AD%A6%E4%B9%A0/">
+                                    <span class="chip bg-color">时序差分学习</span>
                                 </a>
                             
                         </div>
@@ -909,17 +875,18 @@ operator delete(void*)<span aria-hidden="true" class="line-numbers-rows"><span><
 <article id="prenext-posts" class="prev-next articles">
     <div class="row article-row">
         
-        <div class="article col s12 m6" data-aos="fade-up">
+        <div class="article col s12 m6" data-aos="fade-up" data-aos="fade-up">
             <div class="article-badge left-badge text-color">
-                <i class="fas fa-chevron-left"></i>&nbsp;上一篇</div>
+                <i class="far fa-dot-circle"></i>&nbsp;本篇
+            </div>
             <div class="card">
-                <a href="/win32-cheng-xu-fa-sheng-yi-chang-shi-chu-li-de-liu-cheng/">
+                <a href="/li-jie-meng-te-qia-luo-fang-fa-he-shi-xu-chai-fen-xue-xi/">
                     <div class="card-image">
                         
                         
-                        <img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/medias/featureimages/9.jpg" class="responsive-img" alt="Win32程序发生异常时处理的流程">
+                        <img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/medias/featureimages/4.jpg" class="responsive-img" alt="理解蒙特卡洛方法和时序差分学习">
                         
-                        <span class="card-title">Win32程序发生异常时处理的流程</span>
+                        <span class="card-title">理解蒙特卡洛方法和时序差分学习</span>
                     </div>
                 </a>
                 <div class="card-content article-content">
@@ -929,26 +896,31 @@ operator delete(void*)<span aria-hidden="true" class="line-numbers-rows"><span><
                         
                     </div>
                     <div class="publish-info">
-                        <span class="publish-date">
-                            <i class="far fa-clock fa-fw icon-date"></i>2015-04-22
-                        </span>
+                            <span class="publish-date">
+                                <i class="far fa-clock fa-fw icon-date"></i>2020-12-16
+                            </span>
                         <span class="publish-author">
                             
                             <i class="fas fa-bookmark fa-fw icon-category"></i>
                             
-                            <a href="/categories/Windows/" class="post-category">
-                                    Windows
+                            <a href="/categories/%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0/" class="post-category">
+                                    机器学习
                                 </a>
                             
                             
                         </span>
                     </div>
                 </div>
+
                 
                 <div class="card-action article-tags">
                     
-                    <a href="/tags/%E9%80%86%E5%90%91%E5%B7%A5%E7%A8%8B/">
-                        <span class="chip bg-color">逆向工程</span>
+                    <a href="/tags/%E8%92%99%E7%89%B9%E5%8D%A1%E6%B4%9B%E6%96%B9%E6%B3%95/">
+                        <span class="chip bg-color">蒙特卡洛方法</span>
+                    </a>
+                    
+                    <a href="/tags/%E6%97%B6%E5%BA%8F%E5%B7%AE%E5%88%86%E5%AD%A6%E4%B9%A0/">
+                        <span class="chip bg-color">时序差分学习</span>
                     </a>
                     
                 </div>
@@ -962,13 +934,13 @@ operator delete(void*)<span aria-hidden="true" class="line-numbers-rows"><span><
                 下一篇&nbsp;<i class="fas fa-chevron-right"></i>
             </div>
             <div class="card">
-                <a href="/win32-xia-fs-ji-cun-qi-teb-he-peb-xiang-jie/">
+                <a href="/li-jie-qiang-hua-xue-xi-zhong-de-ji-ben-gai-nian/">
                     <div class="card-image">
                         
                         
-                        <img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/medias/featureimages/21.jpg" class="responsive-img" alt="Win32下FS寄存器、TEB和PEB详解">
+                        <img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/medias/featureimages/23.jpg" class="responsive-img" alt="理解强化学习中的基本概念">
                         
-                        <span class="card-title">Win32下FS寄存器、TEB和PEB详解</span>
+                        <span class="card-title">理解强化学习中的基本概念</span>
                     </div>
                 </a>
                 <div class="card-content article-content">
@@ -979,14 +951,14 @@ operator delete(void*)<span aria-hidden="true" class="line-numbers-rows"><span><
                     </div>
                     <div class="publish-info">
                             <span class="publish-date">
-                                <i class="far fa-clock fa-fw icon-date"></i>2015-04-22
+                                <i class="far fa-clock fa-fw icon-date"></i>2020-12-16
                             </span>
                         <span class="publish-author">
                             
                             <i class="fas fa-bookmark fa-fw icon-category"></i>
                             
-                            <a href="/categories/Windows/" class="post-category">
-                                    Windows
+                            <a href="/categories/%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0/" class="post-category">
+                                    机器学习
                                 </a>
                             
                             
@@ -996,12 +968,24 @@ operator delete(void*)<span aria-hidden="true" class="line-numbers-rows"><span><
                 
                 <div class="card-action article-tags">
                     
-                    <a href="/tags/CPP/">
-                        <span class="chip bg-color">CPP</span>
+                    <a href="/tags/%E9%9A%8F%E6%9C%BA%E5%8F%98%E9%87%8F/">
+                        <span class="chip bg-color">随机变量</span>
                     </a>
                     
-                    <a href="/tags/%E9%80%86%E5%90%91%E5%B7%A5%E7%A8%8B/">
-                        <span class="chip bg-color">逆向工程</span>
+                    <a href="/tags/%E6%A6%82%E7%8E%87%E5%AF%86%E5%BA%A6%E5%87%BD%E6%95%B0/">
+                        <span class="chip bg-color">概率密度函数</span>
+                    </a>
+                    
+                    <a href="/tags/%E5%BC%BA%E5%8C%96%E5%AD%A6%E4%B9%A0%E6%A8%A1%E5%9E%8B/">
+                        <span class="chip bg-color">强化学习模型</span>
+                    </a>
+                    
+                    <a href="/tags/%E5%8A%A8%E4%BD%9C%E4%BB%B7%E5%80%BC%E5%87%BD%E6%95%B0/">
+                        <span class="chip bg-color">动作价值函数</span>
+                    </a>
+                    
+                    <a href="/tags/%E7%8A%B6%E6%80%81%E4%BB%B7%E5%80%BC%E5%87%BD%E6%95%B0/">
+                        <span class="chip bg-color">状态价值函数</span>
                     </a>
                     
                 </div>

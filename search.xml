@@ -4,6 +4,33 @@
   
     
     <entry>
+      <title>理解蒙特卡洛方法和时序差分学习</title>
+      <link href="li-jie-meng-te-qia-luo-fang-fa-he-shi-xu-chai-fen-xue-xi/"/>
+      <url>li-jie-meng-te-qia-luo-fang-fa-he-shi-xu-chai-fen-xue-xi/</url>
+      
+        <content type="html"><![CDATA[<p>学习机器学习时常常会用到蒙特卡洛方法和时序差分学习，所以对它们有一个直观的理解还是很重要的。本文通过举一个实际的例子来帮助理解。</p><p>假如要训练一个预估开车从成都到北京需要耗时多久的模型（Model），那么如何训练呢？</p><pre class="line-numbers language-flow" data-language="flow"><code class="language-flow">cd<span class="token operator">=&gt;</span>start<span class="token operator">:</span> 成都bj<span class="token operator">=&gt;</span>end<span class="token operator">:</span> 北京cd<span class="token operator">-</span><span class="token operator">&gt;</span>bj<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span></span></code></pre><h2 id="1-蒙特卡洛方法（Monte-Carlo-method）"><a href="#1-蒙特卡洛方法（Monte-Carlo-method）" class="headerlink" title="1. 蒙特卡洛方法（Monte Carlo method）"></a>1. 蒙特卡洛方法（Monte Carlo method）</h2><p>最直观的方法，既然要预估开车从成都到北京需要耗时多久，那么可以直接记录开车从成都到北京所需要的时间。然后重复很多次，比如100次，把每次的耗时都给模型学习（至于模型具体怎么学习，又需要另外的算法了，比如：<a href="https://en.wikipedia.org/wiki/Gradient_descent">梯度下降</a>），这样模型就能预估出一个比较准确的时间了。</p><p>上面这种方法其实就是<a href="https://en.wikipedia.org/wiki/Monte_Carlo_method">蒙特卡洛方法</a>。这种算法的特点如下：</p><p>优点：</p><ul><li><strong>简单直接</strong>：要预估开车从成都到北京需要耗时多久，那直接做很多次，并记录经验，然后就能比较准确的训练了。</li></ul><p>缺点：</p><ul><li><strong>收集数据麻烦</strong>：直接尝试还是很麻烦的，代价太高。如果要训练一个预测手术成功率的模型，总不能拿人去试吧。</li><li><strong>需要等到完整的一次过程后才能开始训练</strong>：开车到一半时是不能训练模型的，必须要到了目的地才能训练。如果路上车出了故障，那么之前开的路都白费了，代价也太高了。</li></ul><p>第一个缺点不好解决，但是第二个缺点还是有办法改善的，那就是使用<a href="#2-时序差分学习temporal-difference-learning">时序差分学习</a>。</p><h2 id="2-时序差分学习（Temporal-Difference-Learning）"><a href="#2-时序差分学习（Temporal-Difference-Learning）" class="headerlink" title="2. 时序差分学习（Temporal Difference Learning）"></a>2. 时序差分学习（Temporal Difference Learning）</h2><p>时序差分学习的概念不是那么容易解释，但是可以通过更实际的例子来理解：</p><ol><li><p>开始时模型预估开车从成都到北京需要花100个小时。</p> <pre class="line-numbers language-flow" data-language="flow"><code class="language-flow">cd<span class="token operator">=&gt;</span>start<span class="token operator">:</span> 成都bj<span class="token operator">=&gt;</span>end<span class="token operator">:</span> 北京（模型预估需<span class="token number">100</span>小时）cd<span class="token operator">-</span><span class="token operator">&gt;</span>bj<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span></span></code></pre></li><li><p>实际开车从成都出发，实际花费了30个小时到西安，此时模型预估到北京还是60个小时。</p> <pre class="line-numbers language-flow" data-language="flow"><code class="language-flow">cd<span class="token operator">=&gt;</span>start<span class="token operator">:</span> 成都xa<span class="token operator">=&gt;</span>end<span class="token operator">:</span> 西安（实际开车花费<span class="token number">30</span>小时）bj<span class="token operator">=&gt;</span>end<span class="token operator">:</span> 北京（模型预估还需<span class="token number">60</span>小时）cd<span class="token operator">-</span><span class="token operator">&gt;</span>xa<span class="token operator">-</span><span class="token operator">&gt;</span>bj<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span></span></code></pre></li></ol><p>所以模型在开始时更准确的预估应该是：</p><p>30个小时（成都到西安的<strong>实际时间</strong>）+ 60个小时（新的<strong>预估时间</strong>）= 90个小时</p><p>在时序差分学习中，这个更准确的估计就叫做 <strong>TD target</strong> 。有了这个更准确预估后，就知道开始时的预估时间是多了还是少了，从而就能更新模型的参数让模型的预估越来越准确。这样就能够做到不做完整件事就开始训练模型了。</p><p>而最初的预估时间和 <strong>TD target</strong> 的差值就是 <strong>TD error</strong>：</p><p><strong>TD error</strong> = 100(开始时的预估耗时） - 90（<strong>TD error</strong>）</p><p>时序差分学习的目标就是让 <strong>TD error</strong> 的值接近0。</p><hr><blockquote><p>参考：<a href="https://www.youtube.com/watch?v=jflq6vNcZyA&amp;t=1344s&amp;ab_channel=ShusenWang">价值学习 Value-Based Reinforcement Learningg</a></p></blockquote>]]></content>
+      
+      
+      <categories>
+          
+          <category> 机器学习 </category>
+          
+      </categories>
+      
+      
+        <tags>
+            
+            <tag> 蒙特卡洛方法 </tag>
+            
+            <tag> 时序差分学习 </tag>
+            
+        </tags>
+      
+    </entry>
+    
+    
+    
+    <entry>
       <title>理解强化学习中的基本概念</title>
       <link href="li-jie-qiang-hua-xue-xi-zhong-de-ji-ben-gai-nian/"/>
       <url>li-jie-qiang-hua-xue-xi-zhong-de-ji-ben-gai-nian/</url>
