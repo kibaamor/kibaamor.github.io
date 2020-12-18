@@ -26,8 +26,6 @@
     <link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/libs/lightGallery/css/lightgallery.min.css">
     <link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/css/matery.css">
     <link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/css/my.css">
-    <link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/npm/prismjs@1.22.0/themes/prism-tomorrow.css">
-    <link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/npm/prismjs@1.22.0/plugins/line-numbers/prism-line-numbers.css">
 
     <script src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/libs/jquery/jquery.min.js"></script>
 
@@ -335,7 +333,7 @@
     }
 
     #toc-content {
-        height: calc(100vh - 250px);
+        padding-bottom: 30px;
         overflow: auto;
     }
 
@@ -447,9 +445,22 @@
                 
 
                 
+                    <div id="busuanzi_container_page_pv" class="info-break-policy">
+                        <i class="far fa-eye fa-fw"></i>阅读次数:&nbsp;&nbsp;
+                        <span id="busuanzi_value_page_pv"></span>
+                    </div>
+				
             </div>
         </div>
         <hr class="clearfix">
+
+        
+        <!-- 是否加载使用自带的 prismjs. -->
+        <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/libs/prism/prism.css">
+        
+
+        
+
         <div class="card-content article-card-content">
             <div id="articleContent">
                 <h2 id="观点"><a href="#观点" class="headerlink" title="观点"></a>观点</h2><p><a target="_blank" rel="noopener" href="https://en.wikipedia.org/wiki/Robert_Kowalski">Robert Kowalski</a>在其论文<a target="_blank" rel="noopener" href="https://www.doc.ic.ac.uk/~rak/papers/algorithm%20=%20logic%20+%20control.pdf">Algorithm = Logic + Control</a>中指出：</p>
@@ -480,6 +491,7 @@
 <h2 id="结论"><a href="#结论" class="headerlink" title="结论"></a>结论</h2><p><a href="#观点">Robert Kowalski的观点</a>帮助我们能够更好的分解程序中的算法，将<code>做什么</code>和<code>怎么做</code>的代码分开，其实也是应用<a href="https://kibazen.cn/she-ji-mo-shi-du-shu-bi-ji/">设计模式</a>中<code>策略模式</code>的过程。</p>
 <p>我们都知道，程序是由算法和数据结构组成的（最开始由<a target="_blank" rel="noopener" href="https://en.wikipedia.org/wiki/Niklaus_Wirth">Niklaus Wirth</a>在其书<a target="_blank" rel="noopener" href="http://www.ethoberon.ethz.ch/WirthPubl/AD.pdf">Algorithms + Data Structures = Programs</a>提出），即<code>算法 + 数据结构 = 程序</code>，而<a href="#观点">Robert Kowalski的观点</a>则是将这个公式进一步的细化，从而让我们能够得出：<code>算法逻辑 + 算法控制 + 数据结构 = 程序</code>。</p>
 
+                
             </div>
             <hr/>
 
@@ -973,7 +985,7 @@
 
         // we need a <pre> tag workaround.
         // otherwise the text inside "pre" loses all the line breaks!
-        if (true) {
+        if (selection.getRangeAt(0).commonAncestorContainer.nodeName === 'PRE') {
             newdiv.innerHTML = "<pre>" + newdiv.innerHTML + "</pre>";
         }
 
@@ -1006,13 +1018,6 @@
 <!-- 代码块收缩 -->
 
 <script type="text/javascript" src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/libs/codeBlock/codeShrink.js"></script>
-
-
-<!-- 代码块折行 -->
-
-<style type="text/css">
-code[class*="language-"], pre[class*="language-"] { white-space: pre !important; }
-</style>
 
 
     </div>
@@ -1137,6 +1142,18 @@ code[class*="language-"], pre[class*="language-"] { white-space: pre !important;
             
             
             
+            
+            <span id="busuanzi_container_site_pv">
+                |&nbsp;<i class="far fa-eye"></i>&nbsp;总访问量:&nbsp;<span id="busuanzi_value_site_pv"
+                    class="white-color"></span>&nbsp;次
+            </span>
+            
+            
+            <span id="busuanzi_container_site_uv">
+                |&nbsp;<i class="fas fa-users"></i>&nbsp;总访问人数:&nbsp;<span id="busuanzi_value_site_uv"
+                    class="white-color"></span>&nbsp;人
+            </span>
+            
             <br>
             
             <br>
@@ -1146,7 +1163,7 @@ code[class*="language-"], pre[class*="language-"] { white-space: pre !important;
             </span>
             
         </div>
-        <div class="col s12 m4 l4 social-link ">
+        <div class="col s12 m4 l4 social-link social-statis">
     <a href="https://github.com/kibaamor" class="tooltipped" target="_blank" data-tooltip="访问我的GitHub" data-position="top" data-delay="50">
         <i class="fab fa-github"></i>
     </a>
@@ -1196,9 +1213,94 @@ code[class*="language-"], pre[class*="language-"] { white-space: pre !important;
     </div>
 </div>
 
-<script src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/js/search.js"></script>
 <script type="text/javascript">
 $(function () {
+    var searchFunc = function (path, search_id, content_id) {
+        'use strict';
+        $.ajax({
+            url: path,
+            dataType: "xml",
+            success: function (xmlResponse) {
+                // get the contents from search data
+                var datas = $("entry", xmlResponse).map(function () {
+                    return {
+                        title: $("title", this).text(),
+                        content: $("content", this).text(),
+                        url: $("url", this).text()
+                    };
+                }).get();
+                var $input = document.getElementById(search_id);
+                var $resultContent = document.getElementById(content_id);
+                $input.addEventListener('input', function () {
+                    var str = '<ul class=\"search-result-list\">';
+                    var keywords = this.value.trim().toLowerCase().split(/[\s\-]+/);
+                    $resultContent.innerHTML = "";
+                    if (this.value.trim().length <= 0) {
+                        return;
+                    }
+                    // perform local searching
+                    datas.forEach(function (data) {
+                        var isMatch = true;
+                        var data_title = data.title.trim().toLowerCase();
+                        var data_content = data.content.trim().replace(/<[^>]+>/g, "").toLowerCase();
+                        var data_url = data.url;
+                        data_url = data_url.indexOf('/') === 0 ? data.url : '/' + data_url;
+                        var index_title = -1;
+                        var index_content = -1;
+                        var first_occur = -1;
+                        // only match artiles with not empty titles and contents
+                        if (data_title !== '' && data_content !== '') {
+                            keywords.forEach(function (keyword, i) {
+                                index_title = data_title.indexOf(keyword);
+                                index_content = data_content.indexOf(keyword);
+                                if (index_title < 0 && index_content < 0) {
+                                    isMatch = false;
+                                } else {
+                                    if (index_content < 0) {
+                                        index_content = 0;
+                                    }
+                                    if (i === 0) {
+                                        first_occur = index_content;
+                                    }
+                                }
+                            });
+                        }
+                        // show search results
+                        if (isMatch) {
+                            str += "<li><a href='" + data_url + "' class='search-result-title'>" + data_title + "</a>";
+                            var content = data.content.trim().replace(/<[^>]+>/g, "");
+                            if (first_occur >= 0) {
+                                // cut out 100 characters
+                                var start = first_occur - 20;
+                                var end = first_occur + 80;
+                                if (start < 0) {
+                                    start = 0;
+                                }
+                                if (start === 0) {
+                                    end = 100;
+                                }
+                                if (end > content.length) {
+                                    end = content.length;
+                                }
+                                var match_content = content.substr(start, end);
+                                // highlight all keywords
+                                keywords.forEach(function (keyword) {
+                                    var regS = new RegExp(keyword, "gi");
+                                    match_content = match_content.replace(regS, "<em class=\"search-keyword\">" + keyword + "</em>");
+                                });
+
+                                str += "<p class=\"search-result\">" + match_content + "...</p>"
+                            }
+                            str += "</li>";
+                        }
+                    });
+                    str += "</ul>";
+                    $resultContent.innerHTML = str;
+                });
+            }
+        });
+    };
+
     searchFunc('/search.xml', 'searchInput', 'searchResult');
 });
 </script>
@@ -1237,6 +1339,8 @@ $(function () {
 </script>
 
     
+    
+    <script async src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/libs/others/busuanzi.pure.mini.js"></script>
     
 
     
