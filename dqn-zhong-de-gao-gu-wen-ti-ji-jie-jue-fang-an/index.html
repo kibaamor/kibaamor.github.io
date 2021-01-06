@@ -435,21 +435,21 @@
                 
                 <div class="post-date info-break-policy">
                     <i class="far fa-calendar-check fa-fw"></i>更新日期:&nbsp;&nbsp;
-                    2021-01-03
+                    2021-01-06
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-file-word fa-fw"></i>文章字数:&nbsp;&nbsp;
-                    1.7k
+                    2.4k
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-clock fa-fw"></i>阅读时长:&nbsp;&nbsp;
-                    6 分
+                    9 分
                 </div>
                 
 
@@ -479,7 +479,7 @@
 <p>在 DQN 中，数组 $A$ 相当于各个动作真实的 Q 值，因为我们并不知道这个真实值，所以用 DQN 来估算它们。而估算总会有误差，相当于引入了上面的数组 $B$ 。假设 DQN 对真实动作价值的估算是无偏的（无偏估计），即 DQN 对动作估算的 Q 值和真实的 Q 值的均值相同，这和上面的例子一样。最后 DQN 估算出各个动作的 Q 值的结果相当于上面例子的 $A+B$ ，均值依然保持不变，但是最大值却变大了，所以 DQN 中最大化操作可能得到的结果也是比真实 Q 值更大的值，即最大化的操作导致了 DQN 高估了 Q 值。</p>
 <h3 id="2-2-Bootstrapping-传播高估"><a href="#2-2-Bootstrapping-传播高估" class="headerlink" title="2.2 Bootstrapping 传播高估"></a>2.2 Bootstrapping 传播高估</h3><p>在上面分析到， <strong>TD target</strong> 中使用了 Q 网络在 $t+1$ 时刻的预估值，因为预估本身可能会导致高估真实的 Q 值，而让 DQN 在 $t$ 时刻的估计值 $Q(s_t)$ 尽量接近 <strong>TD target</strong> 则会将高估传播回 DQN，从而形成了一种正反馈。所以，一旦 DQN 中出现了高估，这种正反馈会让高估越来越严重。</p>
 <h2 id="四、高估导致的问题"><a href="#四、高估导致的问题" class="headerlink" title="四、高估导致的问题"></a>四、高估导致的问题</h2><p>对不同动作不同程度的高估会导致原本最优的动作变成不是最优的，原本最差的动作可能会变成最优的动作。</p>
-<p>假设某个状态下，两个动作真实的 Q 值分别是110和150，但是经过 DQN 高估后得到 Q 值分别是200和180。显然，经过高估后的各个动作的优劣完全变了样，原本最优的动作变成了最差的，最差的动作却成了最优的了。</p>
+<p>假设某个状态下，两个动作真实的 Q 值分别是110和150，但是经过 DQN 高估后得到 Q 值分别是200和180。显然，经过高估后的各个动作的优劣完全变了样：原本最优的动作变成了最差的，最差的动作却成了最优的了。</p>
 <p>因为各个状态下各个动作出现的概率总是不均匀的，越频繁出现的动作 DQN 对该动作的估算更新得也更频繁，估算中出现的高估则进一步加剧了这种情况。最后导致了 DQN 对各个状态下各个动作的高估程度不同。</p>
 <h2 id="五、解决方案"><a href="#五、解决方案" class="headerlink" title="五、解决方案"></a>五、解决方案</h2><h3 id="5-1-使用-target-network-避免-Bootstrapping"><a href="#5-1-使用-target-network-避免-Bootstrapping" class="headerlink" title="5.1 使用 target network 避免 Bootstrapping"></a>5.1 使用 target network 避免 Bootstrapping</h3><p>在 DQN 中新加一个名为 <strong>target network</strong> 的网络 $Q(s,a; \mathbf{w}^-)$ ，其结构和原始的 Q 网络 $Q(s,a; \mathbf{w})$ 相同，但是使用不同的网络参数 $\mathbf{w}^-$ 。</p>
 <p>两个网络的用处不同，原来的 Q 网络 $Q(s,a; \mathbf{w})$ 用来控制智能体和收集学习用的经验，而 <strong>target network</strong> 则用来计算 <strong>TD target</strong> 。</p>
@@ -502,27 +502,61 @@
 </ol>
 <h3 id="5-2-使用-Double-DQN-避免最大化导致的高估"><a href="#5-2-使用-Double-DQN-避免最大化导致的高估" class="headerlink" title="5.2 使用 Double DQN 避免最大化导致的高估"></a>5.2 使用 Double DQN 避免最大化导致的高估</h3><h4 id="5-2-1-原始的-DQN"><a href="#5-2-1-原始的-DQN" class="headerlink" title="5.2.1 原始的 DQN"></a>5.2.1 原始的 DQN</h4><p>其实 DQN 在计算 <strong>TD target</strong> 时，其中的 $\underset{a}{\operatorname{max}} Q(s_{t+1}, a; \mathbf{w})$ 可以分解成两步操作：</p>
 <ol>
-<li>使用 <strong>原来的 Q 网络</strong> 选择最优动作<script type="math/tex; mode=display">a^* = \underset{a}{\operatorname{argmax}} Q(s_{t+1},a; \mathbf{w})</script></li>
-<li><strong>同时</strong> 使用 <strong>原来的 Q 网络</strong> 预估动作的价值<script type="math/tex; mode=display">y_t = r_t + \gamma \cdot Q(s_{t+1}, a^*; \mathbf{w})</script></li>
+<li>使用 <strong>原来的 Q 网络</strong> 选择最优动作<script type="math/tex; mode=display">a_* = \underset{a}{\operatorname{argmax}} Q(s_{t+1},a; \mathbf{w})</script></li>
+<li><strong>同时</strong> 使用 <strong>原来的 Q 网络</strong> 预估动作的价值<script type="math/tex; mode=display">y_t = r_t + \gamma \cdot Q(s_{t+1}, a_*; \mathbf{w})</script></li>
 </ol>
 <p>这两步用的都是 <strong>原来的 Q 网络</strong> 来进行计算，这种方式的表现最差，训练出的网络会严重高估真实的动作价值。</p>
 <h4 id="5-2-2-使用了-target-network-的-DQN"><a href="#5-2-2-使用了-target-network-的-DQN" class="headerlink" title="5.2.2 使用了 target network 的 DQN"></a>5.2.2 使用了 <strong>target network</strong> 的 DQN</h4><p>使用了 <strong>target network</strong> 的 DQN 计算 <strong>TD target</strong> 时：</p>
 <ol>
-<li>使用 <strong>target network</strong> 选择最优动作<script type="math/tex; mode=display">a^* = \underset{a}{\operatorname{argmax}} Q(s_{t+1},a; \mathbf{w}^-)</script></li>
-<li><strong>同时</strong> 使用 <strong>target network</strong> 预估动作的价值<script type="math/tex; mode=display">y_t = r_t + \gamma \cdot Q(s_{t+1}, a^*; \mathbf{w}^-)</script></li>
+<li>使用 <strong>target network</strong> 选择最优动作<script type="math/tex; mode=display">a_* = \underset{a}{\operatorname{argmax}} Q(s_{t+1},a; \mathbf{w}^-)</script></li>
+<li><strong>同时</strong> 使用 <strong>target network</strong> 预估动作的价值<script type="math/tex; mode=display">y_t = r_t + \gamma \cdot Q(s_{t+1}, a_*; \mathbf{w}^-)</script></li>
 </ol>
 <p>这两步用的都是 <strong>target network</strong> 来进行计算，这种方式因避免了 Bootstrapping，所以表现会比原始的 DQN 好一些，但是训练出的网络依然会高估真实的动作价值。</p>
 <h4 id="5-2-3-Double-DQN"><a href="#5-2-3-Double-DQN" class="headerlink" title="5.2.3 Double DQN"></a>5.2.3 Double DQN</h4><p>而 Double DQN 则是对原始的 DQN 和使用了 <strong>target network</strong> 的 DQN 的一种改进：</p>
 <ol>
-<li>使用 <strong>原来的 Q 网络</strong> 选择最优动作<script type="math/tex; mode=display">a^* = \underset{a}{\operatorname{argmax}} Q(s_{t+1},a; \mathbf{w})</script></li>
-<li>使用 <strong>target network</strong> 预估动作的价值<script type="math/tex; mode=display">y_t = r_t + \gamma \cdot Q(s_{t+1}, a^*; \mathbf{w}^-)</script></li>
+<li>使用 <strong>原来的 Q 网络</strong> 选择最优动作<script type="math/tex; mode=display">a_* = \underset{a}{\operatorname{argmax}} Q(s_{t+1},a; \mathbf{w})</script></li>
+<li>使用 <strong>target network</strong> 预估动作的价值<script type="math/tex; mode=display">y_t = r_t + \gamma \cdot Q(s_{t+1}, a_*; \mathbf{w}^-)</script></li>
 </ol>
 <p>Double DQN 中使用 <strong>原来的 Q 网络</strong> 选择最优动作，另外使用了 <strong>target network</strong> 预估动作的价值。两步使用了不同了网络，虽然改动很少，但是却能进一步的缓解高估的问题（依然没有根除高估的问题）。</p>
 <p>对 <strong>target network</strong> 来说可以证明如下的等式是成立的：</p>
-<script type="math/tex; mode=display">Q(s_{t+1}, a^*; \mathbf{w}^-) \le \underset{a}{\operatorname{max}} Q(s_{t+1}, a; \mathbf{w}^-)</script><p>等式左边是 Double DQN 算出的，等式右边是 <strong>target network</strong> 算出的。上面的等式表面了 Double DQN 估算出的 Q 值总是不高于使用 <strong>target network</strong> 计算出 Q 值，所以缓解了高估的问题。</p>
-<hr>
+<script type="math/tex; mode=display">Q(s_{t+1}, a_*; \mathbf{w}^-) \le \underset{a}{\operatorname{max}} Q(s_{t+1}, a; \mathbf{w}^-)</script><p>等式左边是 Double DQN 算出的，等式右边是 <strong>target network</strong> 算出的。上面的等式表面了 Double DQN 估算出的 Q 值总是不高于使用 <strong>target network</strong> 计算出 Q 值，所以缓解了高估的问题。</p>
+<h3 id="5-3-使用-Dueling-Network-改进网络结构"><a href="#5-3-使用-Dueling-Network-改进网络结构" class="headerlink" title="5.3 使用 Dueling Network 改进网络结构"></a>5.3 使用 Dueling Network 改进网络结构</h3><p>Dueling Network 中使用到了优势函数的概念，这里先介绍一下优势函数。</p>
 <blockquote>
-<p>参考：<a target="_blank" rel="noopener" href="https://www.youtube.com/watch?v=X2-56QN79zc&amp;list=PLvOO0btloRntS5U8rQWT9mHFcUdYOUmIC&amp;index=2&amp;ab_channel=ShusenWang">高估问题、Target Network、Double DQN</a></p>
+<p>后面的推导，特别是关于优势函数的推导与原论文中的推导不同。</p>
+</blockquote>
+<h4 id="5-3-1-优势函数（Advantage-Function）"><a href="#5-3-1-优势函数（Advantage-Function）" class="headerlink" title="5.3.1 优势函数（Advantage Function）"></a>5.3.1 优势函数（Advantage Function）</h4><ol>
+<li><p>定义</p>
+<p> 定义优势函数为：</p>
+<script type="math/tex; mode=display">A_*(s,a) = Q_*(s,a) - V_*(s)</script><p> 其意义是：将 $V_<em>(s)$ 作为基准，在状态 $s$ 的情况下，执行动作 $a$ 的好坏。即动作 $a$ 相对 $V_</em>(s)$ 的优势。</p>
+</li>
+<li><p>性质</p>
+<p> 对优势函数等式的两边同时做基于动作 $a$ 的 $max$ 操作得到：</p>
+<script type="math/tex; mode=display">\underset{a}{max}A_*(s,a) = \underset{a}{max}Q_*(s,a) - V_*(s)</script><p> 根据贝尔曼最优方程（Bellman Optimality Equation）：</p>
+<script type="math/tex; mode=display">V_*(s) = \max_a Q_*(s,a)</script><p> 于是：</p>
+<script type="math/tex; mode=display">
+ \begin{aligned}
+ \underset{a}{max}A_*(s,a) & = \underset{a}{max}Q_*(s,a) - V_*(s) \\
+ & = \underset{a}{max}Q_*(s,a) - \underset{a}{max}Q_*(s,a) \\
+ & = 0
+ \end{aligned}</script><p> 即：</p>
+<script type="math/tex; mode=display">\underset{a}{max}A_*(s,a) = 0</script></li>
+<li><p>推导</p>
+<p> 变换一下优势函数定义的等式，可以得到下面的等式：</p>
+<script type="math/tex; mode=display">Q_*(s,a) = V_*(s) + A_*(s,a)</script><p> 同时根据优势函数的性质，可以在上面等式右边减去一个 $0$，得到等式：</p>
+<script type="math/tex; mode=display">Q_*(s,a) = V_*(s) + A_*(s,a) - \underset{a}{max}A_*(s,a) \tag{5.3.1}</script><p> 但是为什么要在等式的右边减去一个0呢？对比一下减去0前后的两个等式：</p>
+<script type="math/tex; mode=display">
+ \begin{aligned}
+ Q_*(s,a) & = V_*(s) + A_*(s,a) \\
+ Q_*(s,a) & = V_*(s) + A_*(s,a) - \underset{a}{max}A_*(s,a) \\
+ \end{aligned}</script><p> 发现，上面的公式有一个下面公式没有的 <strong>唯一解问题</strong> ：如果 $V_<em>(s)$ 的值整体加 $x$，而 $A_</em>(s,a)$ 的值整体减 $x$。上面的等式最后的值 $Q_*(s,a)$ 没变，但是下面等式最后的值增加了 $x$。 而没有唯一解在强化学习中就意味着难以训练出模型，所以下面一个等式才能应用到强化学习中。</p>
+</li>
+</ol>
+<h4 id="5-3-2-优势函数的应用"><a href="#5-3-2-优势函数的应用" class="headerlink" title="5.3.2 优势函数的应用"></a>5.3.2 优势函数的应用</h4><p>根据上面利用优势函数推导出的等式：</p>
+<script type="math/tex; mode=display">Q_*(s,a) = V_*(s) + A_*(s,a) - \underset{a}{max}A_*(s,a)</script><p>使用两个神经网络来分别近似 $V_<em>(s)$ 函数和 $A_</em>(s,a)$ 函数，进而就可以得到 $Q_*(s,a)$ 函数，这就是 Dueling Network。</p>
+<p><strong>在实际使用时，根据数学公式推导出的 Dueling Network 中对优势函数求最大化的操作，换成均值操作得到的效果更好更稳定，这种替换操作没有理论依据，但是实际效果更好。</strong></p>
+<script type="math/tex; mode=display">Q_*(s,a) = V_*(s) + A_*(s,a) - \underset{a}{mean}A_*(s,a)</script><hr>
+<blockquote>
+<p>参考：<a target="_blank" rel="noopener" href="https://www.youtube.com/watch?v=X2-56QN79zc&amp;list=PLvOO0btloRntS5U8rQWT9mHFcUdYOUmIC&amp;index=2&amp;ab_channel=ShusenWang">高估问题、Target Network、Double DQN</a><br>DQN 论文：<a target="_blank" rel="noopener" href="https://arxiv.org/abs/1312.5602">Playing Atari with Deep Reinforcement Learning</a><br>target network 论文：<a target="_blank" rel="noopener" href="https://web.stanford.edu/class/psych209/Readings/MnihEtAlHassibis15NatureControlDeepRL.pdf">Human-level control through deep reinforcement learning</a><br>Double DQN 论文：<a target="_blank" rel="noopener" href="https://arxiv.org/abs/1509.06461">Deep Reinforcement Learning with Double Q-learning</a><br>Dueling Network论文：<a target="_blank" rel="noopener" href="https://arxiv.org/abs/1511.06581">Dueling Network Architectures for Deep Reinforcement Learning</a></p>
 </blockquote>
 
                 
@@ -986,7 +1020,7 @@
             <br>
             
             &nbsp;<i class="fas fa-chart-area"></i>&nbsp;站点总字数:&nbsp;<span
-                class="white-color">72.6k</span>&nbsp;字
+                class="white-color">73.3k</span>&nbsp;字
             
             
             
