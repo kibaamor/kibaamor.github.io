@@ -537,29 +537,23 @@
 <li>计算策略梯度的近似值 $\mathbf{g}(a_t, {\theta}_t) = q_t \cdot \mathbf{d}_{\theta, t}$ 。</li>
 <li>更新策略网络 $\theta_{t+1} = \theta_t + \beta \cdot \mathbf{g}(a_t, \theta_t)$ 。</li>
 </ol>
-<p>在上面的步骤3中，计算 $q_t$ 的方式有两种：</p>
-<ol>
-<li><p>REINFORCE</p>
-<ul>
+<p>在上面的步骤3中，计算 $q_t$ 的方式有两种。</p>
+<h3 id="6-1-REINFORCE"><a href="#6-1-REINFORCE" class="headerlink" title="6.1 REINFORCE"></a>6.1 REINFORCE</h3><ul>
 <li>用策略网络 $\pi(\cdot | s_t; \theta_t)$ 控制 agent 从游戏开始到游戏结束玩一局完整的游戏，得到游戏轨迹 $s_1, a_1, r_1, s_2, a_2, r_2, \cdots , s_T, a_T, r_T$ 。</li>
 <li>计算所有时刻的折扣回报 $g_t = \sum_{k=t}^T \gamma^{k-t} r_k$ 。</li>
-<li><p>因为 $Q_\pi (s_t, a_t) = \mathbb{E}[G_t]$ ，所以可以使用折扣回报 $g_t$ 来近似 $Q_\pi (s_t, a_t)$ ，即 $q_t = g_t$ 。</p>
-<p>REINFORCE 算法的本质是使用观测到的 $g_t$ 来代替 $Q_{\pi}(s_t, a_t)$ 。</p>
-</li>
+<li>因为 $Q_\pi (s_t, a_t) = \mathbb{E}[G_t]$ ，所以可以使用折扣回报 $g_t$ 来近似 $Q_\pi (s_t, a_t)$ ，即 $q_t = g_t$ 。</li>
 </ul>
-</li>
-<li><p>使用神经网络来近似 $Q_{\pi}(s_t, a_t)$</p>
-<p> 这就是 Actor-Critic Method。</p>
-<p> 我们已经使用神经网络 $\pi(a|s; \theta)$ 来近似策略函数 $\pi({a|s})$，其中 $\theta$ 是神经网络的参数。同时，我们再使用神经网络 $q(s,a;\mathbf{w})$ 来近似价值函数 $Q_{\pi}(s, a)$，其中 $\mathbf{w}$ 是神经网络的参数。</p>
-<script type="math/tex; mode=display">V(s; \theta, \mathbf{w}) = \sum_a \pi(a | s; \theta) \cdot q_{\pi}(s, a; \mathbf{w})</script><p> 训练时，策略网络 $\pi(a|s; \theta)$ 相当于运动员（Actor），而价值网络 $q(s,a;\mathbf{w})$ 相当于裁判（Critic）：</p>
+<p>REINFORCE 算法的本质是使用观测到的 $g_t$ 来代替 $Q_{\pi}(s_t, a_t)$ 。</p>
+<h3 id="6-2-使用神经网络来近似-Q-pi-s-t-a-t"><a href="#6-2-使用神经网络来近似-Q-pi-s-t-a-t" class="headerlink" title="6.2 使用神经网络来近似 $Q_{\pi}(s_t, a_t)$"></a>6.2 使用神经网络来近似 $Q_{\pi}(s_t, a_t)$</h3><p>这就是 Actor-Critic Method。</p>
+<p>我们已经使用神经网络 $\pi(a|s; \theta)$ 来近似策略函数 $\pi({a|s})$，其中 $\theta$ 是神经网络的参数。同时，我们再使用神经网络 $q(s,a;\mathbf{w})$ 来近似价值函数 $Q_{\pi}(s, a)$，其中 $\mathbf{w}$ 是神经网络的参数。</p>
+<script type="math/tex; mode=display">V(s; \theta, \mathbf{w}) = \sum_a \pi(a | s; \theta) \cdot q_{\pi}(s, a; \mathbf{w})</script><p>训练时，策略网络 $\pi(a|s; \theta)$ 相当于运动员（Actor），而价值网络 $q(s,a;\mathbf{w})$ 相当于裁判（Critic）：</p>
 <ul>
 <li>训练 Actor 的目的是让 Critic 的打分尽可能的高，即更新策略网络 $\pi(a|s; \theta)$ 使状态价值 $V(s; \theta, \mathbf{w})$ 的值增加。 Actor 依靠 Critic 的打分来改进自己。</li>
 <li>而训练 Critic 的目的则是让它对 Actor 的打分更准确，即更新价值网络 $q_{\pi}(s, a; \mathbf{w})$ 以能够更好的估计未来奖励的总和。 Critic 依靠环境给与的奖励来改进自己。</li>
-<li><p>当 Critic 的打分比较准确且 Actor 的得分都比较高时，就能得到一个比较好的策略网络了。</p>
+<li>当 Critic 的打分比较准确且 Actor 的得分都比较高时，就能得到一个比较好的策略网络了。</li>
+</ul>
 <p>在推理时，只需要使用 Actor 来控制 agent 动作就可以了，推理时的不需要 Critic 。</p>
 <p>算法完整的训练流程如下：</p>
-</li>
-</ul>
 <ol>
 <li><p>从环境获得状态 $s_t$ 输入策略网络 $\pi(a|s; \theta)$ ，并从得到的动作概率 $\pi(a|s_t; \theta)$ 中抽样得到动作 $a_t$ 。</p>
 </li>
@@ -588,8 +582,6 @@
 <p>注意：实现中大多都使用第 5 步计算出来的 ${\delta}_t$ 来替代上面公式中的 $q_t$ 得到</p>
 <script type="math/tex; mode=display">\theta_{t+1} = \theta_t + \beta \cdot {\delta}_t \cdot \mathbf{d}_{\theta, t}</script><p>这两种方式都是对的，使用 $q_t$ 是标准算法，而使用 ${\delta}_t$ 则是 <strong>Policy Gradient with Baseline</strong> 。 使用了 Baseline 的方法不影响期望，但是降低了方差，能让算法收敛更快，所以效果更好。</p>
 </blockquote>
-</li>
-</ol>
 </li>
 </ol>
 <hr>
