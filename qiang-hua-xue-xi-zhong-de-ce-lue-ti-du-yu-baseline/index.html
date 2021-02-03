@@ -442,14 +442,14 @@
                 
                 <div class="info-break-policy">
                     <i class="far fa-file-word fa-fw"></i>文章字数:&nbsp;&nbsp;
-                    1.7k
+                    2.8k
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-clock fa-fw"></i>阅读时长:&nbsp;&nbsp;
-                    8 分
+                    13 分
                 </div>
                 
 
@@ -547,7 +547,77 @@
 <li><p>对于第1步中的每个时刻，重复第2-4步。</p>
 </li>
 </ol>
-<hr>
+<h2 id="三、Advantage-Actor-Critic（A2C）算法"><a href="#三、Advantage-Actor-Critic（A2C）算法" class="headerlink" title="三、Advantage Actor-Critic（A2C）算法"></a>三、Advantage Actor-Critic（A2C）算法</h2><blockquote>
+<p>把 baseline 用到 Actor-Critic Method 上得到的算法就是A2C算法。</p>
+</blockquote>
+<h3 id="3-1-神经网络"><a href="#3-1-神经网络" class="headerlink" title="3.1 神经网络"></a>3.1 神经网络</h3><ol>
+<li><p>策略网络（Actor）<br> 与原始的 Actor-Critic Method 中的策略网络（Actor）相同，依然是使用神经网络 $\pi(a|s; \theta)$ 来近似策略函数 $\pi({a|s})$，其中 $\theta$ 是神经网络的参数。</p>
+</li>
+<li><p>价值网络（Critic）<br> <strong>价值网络使用的是状态价值网络 $V_{\pi}(s)$ 而不是动作价值网络 $Q_{\pi}(s, a)$</strong>。使用神经网络 $v(s; \mathbf{w})$ 来近似策略函数 $V_{\pi}(s)$，其中 $\mathbf{w}$ 是神经网络的参数。</p>
+<blockquote>
+<p>动作价值网络 $Q_{\pi}(s, a)$ 依赖于状态 $s$ 和 动作 $a$ ，而状态价值网络 $V_{\pi}(s)$ 仅依赖于状态 $s$，不依赖于动作 $a$，所以状态价值网络 $V_{\pi}(s)$ 比动作价值网络 $Q_{\pi}(s, a)$ 更好训练。</p>
+</blockquote>
+</li>
+</ol>
+<h3 id="3-2-训练过程"><a href="#3-2-训练过程" class="headerlink" title="3.2 训练过程"></a>3.2 训练过程</h3><ol>
+<li>获取到一组 transition $(s_t, a_t, r_t, s_{t+1})$</li>
+<li>计算 <strong>TD target</strong><script type="math/tex; mode=display">y_t = r_t + \gamma \cdot v(s_{t+1}; \mathbf{w})</script></li>
+<li>计算 <strong>TD error</strong><script type="math/tex; mode=display">\delta_t = v(s_t; \mathbf{w}) - y_t</script></li>
+<li>更新策略网络的参数 $\theta$<script type="math/tex; mode=display">\theta \leftarrow \theta - \beta \cdot \delta_t \cdot \frac{\partial \log \pi(a_t | s_t; \theta)}{\partial \theta}</script></li>
+<li>更新价值网络的参数 $\mathbf{w}$<script type="math/tex; mode=display">\mathbf{w} \leftarrow \mathbf{w} - \alpha \cdot \delta_t \cdot \frac{\partial v(s_t; \mathbf{w})}{\partial \mathbf{w}}</script></li>
+</ol>
+<h3 id="3-3-算法推导"><a href="#3-3-算法推导" class="headerlink" title="3.3 算法推导"></a>3.3 算法推导</h3><h4 id="3-3-1-价值函数性质的推导"><a href="#3-3-1-价值函数性质的推导" class="headerlink" title="3.3.1 价值函数性质的推导"></a>3.3.1 价值函数性质的推导</h4><p>在<a href="https://kibazen.cn/qiang-hua-xue-xi-zhong-shi-xu-chai-fen-xue-xi/">强化学习中时序差分学习</a>推导出了公式：</p>
+<script type="math/tex; mode=display">Q_{\pi}(s_t, a_t) = \mathbb{E}[R_t + \gamma \cdot Q_{\pi}(S_{t+1}, A_{t+1})], \text{ for all }\pi</script><p>所以：</p>
+<script type="math/tex; mode=display">
+\begin{aligned}
+Q_{\pi}(s_t, a_t)
+& = \mathbb{E}[R_t + \gamma \cdot Q_{\pi}(S_{t+1}, A_{t+1})] \\
+& = \mathbb{E}_{S_{t+1}, A_{t+1}}[R_t + \gamma \cdot Q_{\pi}(S_{t+1}, A_{t+1})] \\
+& （R_t 与 A_{t+1} 无关） \\
+& = \mathbb{E}_{S_{t+1}} \left[ R_t + \gamma \cdot \mathbb{E}_{A_{t+1}}[Q_{\pi}(S_{t+1}, A_{t+1})] \right] \\
+& （状态价值函数的定义） \\
+& = \mathbb{E}_{S_{t+1}}[R_t + \gamma \cdot V_{\pi}(S_{t+1})] \\
+\end{aligned}</script><p>即：</p>
+<script type="math/tex; mode=display">Q_{\pi}(s_t, a_t) = \mathbb{E}_{S_{t+1}}[R_t + \gamma \cdot V_{\pi}(S_{t+1})] \tag{3.3.1a}</script><p>另，根据状态价值函数的定义：</p>
+<script type="math/tex; mode=display">
+\begin{aligned}
+V_{\pi}(s_t)
+& = \mathbb{E}_{A_t}[Q_{\pi}(s_t, A_t)] \\
+& （使用公式3.3.1a） \\
+& = \mathbb{E}_{A_t} \left[ \mathbb{E}_{S_{t+1}}[R_t + \gamma \cdot V_{\pi}(S_{t+1})] \right] \\
+& = \mathbb{E}_{A_t,S_{t+1}}[R_t + \gamma \cdot V_{\pi}(S_{t+1})] \\
+\end{aligned}</script><p>即：</p>
+<script type="math/tex; mode=display">V_{\pi}(s_t) = \mathbb{E}_{A_t,S_{t+1}}[R_t + \gamma \cdot V_{\pi}(S_{t+1})] \tag{3.3.1b}</script><h4 id="3-3-2-价值函数性质的蒙特卡洛近似"><a href="#3-3-2-价值函数性质的蒙特卡洛近似" class="headerlink" title="3.3.2 价值函数性质的蒙特卡洛近似"></a>3.3.2 价值函数性质的蒙特卡洛近似</h4><p>假设我们获取到一组 transition $(s_t, a_t, r_t, s_{t+1})$</p>
+<ol>
+<li><p><strong>公式3.3.1a</strong> 可以近似为</p>
+<script type="math/tex; mode=display">
+ \begin{aligned}
+ Q_{\pi}(s_t, a_t)
+ & = \mathbb{E}_{S_{t+1}}[R_t + \gamma \cdot V_{\pi}(S_{t+1})] \\
+ & \approx r_t + \gamma \cdot V_{\pi}(s_{t+1}) \tag{3.3.2a} \\
+ \end{aligned}</script><p> 后面会使用这个公式来近似策略梯度，A2C算法的关键也在于这个公式。</p>
+</li>
+<li><p><strong>公式3.3.1b</strong> 可以近似为</p>
+<script type="math/tex; mode=display">
+ \begin{aligned}
+ V_{\pi}(s_t)
+ & = \mathbb{E}_{A_t,S_{t+1}}[R_t + \gamma \cdot V_{\pi}(S_{t+1})] \\
+ & \approx r_t + \gamma \cdot V_{\pi}(s_{t+1}) \tag{3.3.2b} \\
+ \end{aligned}</script><p> 使用TD算法训练价值网络 $V_{\pi}(s_t)$ 时，<strong>TD target</strong> 就是由这个公式来的。</p>
+</li>
+</ol>
+<h4 id="3-3-3-训练策略网络的算法"><a href="#3-3-3-训练策略网络的算法" class="headerlink" title="3.3.3 训练策略网络的算法"></a>3.3.3 训练策略网络的算法</h4><p>本文前面定义了随机梯度 $g(a_t)$</p>
+<script type="math/tex; mode=display">g(a_t) = \frac{\partial \log \pi(a_t | s_t; \theta)}{\partial \theta} \cdot \left( Q_{\pi}(s_t, a_t) - V_{\pi}(s_t) \right)</script><blockquote>
+<p>$g(a_t)$ 中包含了 $Q_{\pi}(s_t, a_t) - V_{\pi}(s_t)$，而 $Q_{\pi}(s_t, a_t) - V_{\pi}(s_t)$ 正好是优势函数（Advantage function）的定义，所以算法名中包含了 Advantage 。</p>
+</blockquote>
+<p>结合 $g(a_t)$ 的定义和 <strong>公式3.3.2a</strong>，有：</p>
+<script type="math/tex; mode=display">g(a_t) \approx \frac{\partial \log \pi(a_t | s_t; \theta)}{\partial \theta} \cdot \left( r_t + \gamma \cdot V_{\pi}(s_{t+1}) - V_{\pi}(s_t) \right)</script><p>使用神经网络 $v(s;\mathbf{w})$ 近似状态价值函数 $V_{\pi}(s)$，得到：</p>
+<script type="math/tex; mode=display">g(a_t) \approx \frac{\partial \log \pi(a_t | s_t; \theta)}{\partial \theta} \cdot \left( r_t + \gamma \cdot v(s_{t+1};\mathbf{w}) - v(s_t;\mathbf{w}) \right)</script><p>将公式中的 $r_t + \gamma \cdot v(s_{t+1};\mathbf{w})$ 记作 $y_t$。</p>
+<blockquote>
+<p>$y_t$ 其实就是 <strong>TD target</strong>，后面更新价值网络时也会用到。</p>
+</blockquote>
+<p>既然计算出了近似的策略梯度，就可以使用梯度上升来训练策略网络了：</p>
+<script type="math/tex; mode=display">\theta \leftarrow \theta + \beta \cdot \frac{\partial \log \pi(a_t | s_t; \theta)}{\partial \theta} \cdot (y_t - v(s_t; \mathbf{w}))</script><h4 id="3-3-4-训练价值网络的算法"><a href="#3-3-4-训练价值网络的算法" class="headerlink" title="3.3.4 训练价值网络的算法"></a>3.3.4 训练价值网络的算法</h4><hr>
 <blockquote>
 <p>参考：<a target="_blank" rel="noopener" href="https://www.youtube.com/playlist?list=PLvOO0btloRnujjKTwoC5fOJxC7nmiQ4c4">策略梯度与baseline</a></p>
 </blockquote>
@@ -1021,7 +1091,7 @@
             <br>
             
             &nbsp;<i class="fas fa-chart-area"></i>&nbsp;站点总字数:&nbsp;<span
-                class="white-color">78.9k</span>&nbsp;字
+                class="white-color">79.9k</span>&nbsp;字
             
             
             
