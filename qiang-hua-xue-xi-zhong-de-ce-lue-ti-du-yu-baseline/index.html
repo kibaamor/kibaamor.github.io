@@ -435,21 +435,21 @@
                 
                 <div class="post-date info-break-policy">
                     <i class="far fa-calendar-check fa-fw"></i>更新日期:&nbsp;&nbsp;
-                    2021-02-03
+                    2021-02-04
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-file-word fa-fw"></i>文章字数:&nbsp;&nbsp;
-                    2.8k
+                    3.4k
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-clock fa-fw"></i>阅读时长:&nbsp;&nbsp;
-                    13 分
+                    16 分
                 </div>
                 
 
@@ -596,7 +596,7 @@ V_{\pi}(s_t)
 <script type="math/tex; mode=display">V_{\pi}(s_t) \approx r_t + \gamma \cdot V_{\pi}(s_{t+1}) \tag{3.3.2b}</script><p> 使用TD算法训练价值网络 $V_{\pi}(s_t)$ 时，<strong>TD target</strong> 就是由这个公式来的。</p>
 </li>
 </ol>
-<h4 id="3-3-3-训练策略网络的算法"><a href="#3-3-3-训练策略网络的算法" class="headerlink" title="3.3.3 训练策略网络的算法"></a>3.3.3 训练策略网络的算法</h4><p>本文前面定义了随机梯度 $g(a_t)$</p>
+<h4 id="3-3-3-训练策略网络"><a href="#3-3-3-训练策略网络" class="headerlink" title="3.3.3 训练策略网络"></a>3.3.3 训练策略网络</h4><p>本文前面定义了随机梯度 $g(a_t)$</p>
 <script type="math/tex; mode=display">g(a_t) = \frac{\partial \log \pi(a_t | s_t; \theta)}{\partial \theta} \cdot \left( Q_{\pi}(s_t, a_t) - V_{\pi}(s_t) \right)</script><blockquote>
 <p>$g(a_t)$ 中包含了 $Q_{\pi}(s_t, a_t) - V_{\pi}(s_t)$，而 $Q_{\pi}(s_t, a_t) - V_{\pi}(s_t)$ 正好是优势函数（Advantage function）的定义，所以算法名中包含了 Advantage 。</p>
 </blockquote>
@@ -607,7 +607,35 @@ V_{\pi}(s_t)
 <p>$y_t$ 其实就是 <strong>TD target</strong>，后面更新价值网络时也会用到。</p>
 </blockquote>
 <p>既然计算出了近似的策略梯度，就可以使用梯度上升来训练策略网络了：</p>
-<script type="math/tex; mode=display">\theta \leftarrow \theta + \beta \cdot \frac{\partial \log \pi(a_t | s_t; \theta)}{\partial \theta} \cdot (y_t - v(s_t; \mathbf{w}))</script><h4 id="3-3-4-训练价值网络的算法"><a href="#3-3-4-训练价值网络的算法" class="headerlink" title="3.3.4 训练价值网络的算法"></a>3.3.4 训练价值网络的算法</h4><hr>
+<script type="math/tex; mode=display">\theta \leftarrow \theta + \beta \cdot \frac{\partial \log \pi(a_t | s_t; \theta)}{\partial \theta} \cdot (y_t - v(s_t; \mathbf{w}))</script><h4 id="3-3-4-训练价值网络"><a href="#3-3-4-训练价值网络" class="headerlink" title="3.3.4 训练价值网络"></a>3.3.4 训练价值网络</h4><p>将 <strong>公式3.3.2b</strong> 中的 $V_{\pi}(S)$ 使用神经网络 $v(S; \mathbf{w})$ 近似，得到：</p>
+<script type="math/tex; mode=display">v(s_t; \mathbf{w}) \approx r_t + \gamma \cdot v(s_{t+1}; \mathbf{w})</script><p>将 $r_t + \gamma \cdot v(s_{t+1}; \mathbf{w})$ 记作 $y_t$。使用TD算法训练时， $y_t$ 其实就是 <strong>TD target</strong> 。</p>
+<p>所以 <strong>TD error</strong> 就是：</p>
+<script type="math/tex; mode=display">\delta_t = v(s_t; \mathbf{w}) - y_t</script><p>梯度：</p>
+<script type="math/tex; mode=display">\frac{\partial \delta_t ^2 / 2}{\partial \mathbf{w}} = \delta_t \cdot \frac{\partial v(s_t; \mathbf{w})}{\partial \mathbf{w}}</script><p>最后使用梯度下降方法来更新网络参数 $\mathbf{w}$：</p>
+<script type="math/tex; mode=display">\mathbf{w} \leftarrow \mathbf{w} - \alpha \cdot \delta_t \cdot \frac{\partial v(s_t; \mathbf{w})}{\partial \mathbf{w}}</script><h4 id="3-3-5-对算法的直观理解"><a href="#3-3-5-对算法的直观理解" class="headerlink" title="3.3.5 对算法的直观理解"></a>3.3.5 对算法的直观理解</h4><p>回顾对策略梯度的近似：</p>
+<script type="math/tex; mode=display">g(a_t) \approx \frac{\partial \log \pi(a_t | s_t; \theta)}{\partial \theta} \cdot \left( r_t + \gamma \cdot v(s_{t+1};\mathbf{w}) - v(s_t;\mathbf{w}) \right)</script><p>这个公式用来更新策略网络 $\pi(a|s; \theta)$。</p>
+<p>公式中的 $r_t + \gamma \cdot v(s_{t+1};\mathbf{w}) - v(s_t;\mathbf{w})$ 是状态价值网络 $v(s;\mathbf{w})$ 做出的评价。它评价了动作 $a_t$ 的好坏，可以指导策略网络 $\pi(a|s; \theta)$ 做改进，所以状态价值网络 $v(s;\mathbf{w})$ 被称为 Critic 。</p>
+<p>但是 $r_t + \gamma \cdot v(s_{t+1};\mathbf{w}) - v(s_t;\mathbf{w})$ 中并未包含动作 $a_t$，又是如何评价动作 $a_t$ 的好坏呢？</p>
+<ol>
+<li><p>$v(s_t;\mathbf{w})$ 是状态价值网络在 $t$ 时刻基于状态 $s_t$ 对状态 $s_t$ 的折扣回报 $\mathbb{E}[U_t | s_t]$ 的 <strong>预测值</strong>。预测值可以评价状态 $s_t$ 的好坏，状态 $s_t$ 越好，这个值就越大。</p>
+</li>
+<li><p>$r_t + \gamma \cdot v(s_{t+1};\mathbf{w})$ 是状态价值网络在 $t+1$ 时刻基于状态 $s_t$ 和状态 $s_{t+1}$ 对状态 $s_t$ 的折扣回报 $\mathbb{E}[U_t | s_t, s_{t+1}]$ 的 <strong>预测值</strong>。</p>
+</li>
+<li><p>$v(s_t;\mathbf{w})$ 和 $r_t + \gamma \cdot v(s_{t+1};\mathbf{w})$ 的 <strong>相同点</strong>：</p>
+<ul>
+<li>都是状态价值网络对状态 $s_t$ 的折扣回报的预估值。</li>
+<li>都能够评价状态 $s_t$ 的好坏。</li>
+</ul>
+</li>
+<li><p>$v(s_t;\mathbf{w})$ 和 $r_t + \gamma \cdot v(s_{t+1};\mathbf{w})$ 的 <strong>区别</strong>：</p>
+<ul>
+<li>$v(s_t;\mathbf{w})$ 是在 $t$ 时刻做出的预测，这个预测是在执行动作 $a_t$ 之前做出的，所以这个预测与动作 $a_t$ 无关。</li>
+<li>$r_t + \gamma \cdot v(s_{t+1};\mathbf{w})$ 是在 $t+1$ 时刻做出的预测，这个预测受动作 $a_t$ 的影响，动作 $a_t$ 越好，新的状态 $s_{t+1}$ 就越好，$r_t + \gamma \cdot v(s_{t+1};\mathbf{w})$ 的值也就越大。</li>
+<li>如果动作 $a_t$ 越好，$r_t + \gamma \cdot v(s_{t+1};\mathbf{w})$ 的值就比 $v(s_t;\mathbf{w})$ 更大，它们的差值就是正数，反之亦然。所以两者的差可以反映动作 $a_t$ 带来的优势，两者的差就叫做 Advantage 。</li>
+</ul>
+</li>
+</ol>
+<hr>
 <blockquote>
 <p>参考：<a target="_blank" rel="noopener" href="https://www.youtube.com/playlist?list=PLvOO0btloRnujjKTwoC5fOJxC7nmiQ4c4">策略梯度与baseline</a></p>
 </blockquote>
@@ -1081,7 +1109,7 @@ V_{\pi}(s_t)
             <br>
             
             &nbsp;<i class="fas fa-chart-area"></i>&nbsp;站点总字数:&nbsp;<span
-                class="white-color">79.9k</span>&nbsp;字
+                class="white-color">80.5k</span>&nbsp;字
             
             
             
