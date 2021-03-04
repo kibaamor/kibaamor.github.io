@@ -965,8 +965,19 @@
 <p><strong>排列而不排序</strong> 在布尔方式中，不按等级值降序排序返回的</p>
 </blockquote>
 </li>
-<li><p>全文本布尔操作符</p>
+<li><p>全文本搜索的使用说明</p>
+<ol>
+<li>在索引全文本数据时，短词被忽略且从索引中排除。短词定义为那些具有3个或3个以下字符的词（如果需要，这个数目可以更改）。</li>
+<li>MySQL带有一个内建的非用词（stopword）列表，这些词在索引全文本数据时总是被忽略。如果需要，可以覆盖这个列表。</li>
+<li>许多词出现的频率很高，搜索它们没有用处（返回太多的结果）。因此，MySQL规定了一条50%规则，如果一个词出现在50%以上的行中，则将它作为一个非用词忽略。50%规则不用于IN BOOLEANMODE。</li>
+<li>如果表中的行数少于3行，则全文本搜索不返回结果（因为每个词或者不出现，或者至少出现在50%的行中）。</li>
+<li>忽略词中的单引号。例如，don’t索引为dont。</li>
+<li>不具有词分隔符（包括日语和汉语）的语言不能恰当地返回全文本搜索结果。</li>
+<li><p>如前所述，仅在MyISAM数据库引擎中支持全文本搜索。</p>
+<pre class="line-numbers language-sql" data-language="sql"><code class="language-sql"><span class="token keyword">show</span> variables <span class="token operator">like</span> <span class="token string">'ft%'</span><span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre></li>
+</ol>
 </li>
+<li>全文本布尔操作符</li>
 </ol>
 <div class="table-container">
 <table>
@@ -1032,20 +1043,7 @@
 <span class="token keyword">SELECT</span> note_text
 <span class="token keyword">FROM</span> productnotes
 <span class="token keyword">WHERE</span> <span class="token keyword">MATCH</span><span class="token punctuation">(</span>note_text<span class="token punctuation">)</span> AGAINST<span class="token punctuation">(</span><span class="token string">'+rabbit +(&lt;bait)'</span> <span class="token operator">IN</span> <span class="token keyword">BOOLEAN</span> <span class="token keyword">MODE</span><span class="token punctuation">)</span><span class="token punctuation">;</span> <span class="token comment">/* 匹配词rabbit和bait，降低后者的等级 */</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
-<ol>
-<li><p>全文本搜索的使用说明</p>
-<ol>
-<li>在索引全文本数据时，短词被忽略且从索引中排除。短词定义为那些具有3个或3个以下字符的词（如果需要，这个数目可以更改）。</li>
-<li>MySQL带有一个内建的非用词（stopword）列表，这些词在索引全文本数据时总是被忽略。如果需要，可以覆盖这个列表。</li>
-<li>许多词出现的频率很高，搜索它们没有用处（返回太多的结果）。因此，MySQL规定了一条50%规则，如果一个词出现在50%以上的行中，则将它作为一个非用词忽略。50%规则不用于IN BOOLEANMODE。</li>
-<li>如果表中的行数少于3行，则全文本搜索不返回结果（因为每个词或者不出现，或者至少出现在50%的行中）。</li>
-<li>忽略词中的单引号。例如，don’t索引为dont。</li>
-<li>不具有词分隔符（包括日语和汉语）的语言不能恰当地返回全文本搜索结果。</li>
-<li><p>如前所述，仅在MyISAM数据库引擎中支持全文本搜索。</p>
-<pre class="line-numbers language-sql" data-language="sql"><code class="language-sql"><span class="token keyword">show</span> variables <span class="token operator">like</span> <span class="token string">'ft%'</span><span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
-<h2 id="第19章-插入数据"><a href="#第19章-插入数据" class="headerlink" title="第19章 插入数据"></a>第19章 插入数据</h2></li>
-</ol>
-</li>
+<h2 id="第19章-插入数据"><a href="#第19章-插入数据" class="headerlink" title="第19章 插入数据"></a>第19章 插入数据</h2><ol>
 <li><p>如果表的定义允许，则可以在INSERT操作中省略某些列：</p>
 <ol>
 <li>该列定义为允许NULL值（无值或空值）。</li>
@@ -1460,6 +1458,12 @@ BEFORE <span class="token keyword">UPDATE</span> <span class="token keyword">ON<
 <li>特定的存储过程。</li>
 </ol>
 </li>
+<li><p>更改密码</p>
+ <pre class="line-numbers language-sql" data-language="sql"><code class="language-sql"><span class="token keyword">SET</span> PASSWORD <span class="token keyword">FOR</span> kom <span class="token operator">=</span> PASSWORD<span class="token punctuation">(</span><span class="token string">'456'</span><span class="token punctuation">)</span><span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<blockquote>
+<p>不指定用户名时，SET PASSWORD更新当前登录用户的口令。<code>SET PASSWORD = PASSWORD('789')</code></p>
+</blockquote>
+</li>
 <li><p>权限列表</p>
 </li>
 </ol>
@@ -1587,14 +1591,6 @@ BEFORE <span class="token keyword">UPDATE</span> <span class="token keyword">ON<
 <p>在使用GRANT和REVOKE时，用户账号必须存在， 但对所涉及的对象没有这个要求。这允许管理员在创建数据库和表之前设计和实现安全措施。这样做的副作用是，当某个数据库或表被删除时（用DROP语 句），相关的访问权限仍然存在。而且，如果将来重新创建该 数据库或表，这些权限仍然起作用。</p>
 <p>可通过列出各权限并用逗号分隔， 将多条 GRANT语句串在一起<code>GRANT SELECT, INSERT ON crashcourse.* TO kom</code>。</p>
 </blockquote>
-<ol>
-<li><p>更改密码</p>
- <pre class="line-numbers language-sql" data-language="sql"><code class="language-sql"><span class="token keyword">SET</span> PASSWORD <span class="token keyword">FOR</span> kom <span class="token operator">=</span> PASSWORD<span class="token punctuation">(</span><span class="token string">'456'</span><span class="token punctuation">)</span><span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
-<blockquote>
-<p>不指定用户名时，SET PASSWORD更新当前登录用户的口令。<code>SET PASSWORD = PASSWORD('789')</code></p>
-</blockquote>
-</li>
-</ol>
 <h2 id="第29章-数据库维护"><a href="#第29章-数据库维护" class="headerlink" title="第29章 数据库维护"></a>第29章 数据库维护</h2><ol>
 <li><p>备份数据</p>
 <ol>
