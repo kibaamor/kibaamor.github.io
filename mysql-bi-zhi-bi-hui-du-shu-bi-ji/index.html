@@ -923,12 +923,12 @@
 <li><p>为了进行全文本搜索，必须索引被搜索的列。一般在创建表时使用FULLTEXT启用全文本搜索。</p>
  <pre class="line-numbers language-sql" data-language="sql"><code class="language-sql"><span class="token keyword">CREATE</span> <span class="token keyword">TABLE</span> productnotes
 <span class="token punctuation">(</span>
-     note_id     <span class="token keyword">INT</span>         <span class="token operator">NOT</span> <span class="token boolean">NULL</span> <span class="token keyword">AUTO_INCREMENT</span><span class="token punctuation">,</span>
-     prod_id     <span class="token keyword">CHAR</span><span class="token punctuation">(</span><span class="token number">10</span><span class="token punctuation">)</span>    <span class="token operator">NOT</span> <span class="token boolean">NULL</span><span class="token punctuation">,</span>
-     note_date   <span class="token keyword">DATETIME</span>    <span class="token operator">NOT</span> <span class="token boolean">NULL</span><span class="token punctuation">,</span>
-     note_text   <span class="token keyword">TEXT</span>        <span class="token boolean">NULL</span><span class="token punctuation">,</span>
-     <span class="token keyword">PRIMARY</span> <span class="token keyword">KEY</span><span class="token punctuation">(</span>note_id<span class="token punctuation">)</span><span class="token punctuation">,</span>
-     FULLTEXT<span class="token punctuation">(</span>note_text<span class="token punctuation">)</span>
+    note_id     <span class="token keyword">INT</span>         <span class="token operator">NOT</span> <span class="token boolean">NULL</span> <span class="token keyword">AUTO_INCREMENT</span><span class="token punctuation">,</span>
+    prod_id     <span class="token keyword">CHAR</span><span class="token punctuation">(</span><span class="token number">10</span><span class="token punctuation">)</span>    <span class="token operator">NOT</span> <span class="token boolean">NULL</span><span class="token punctuation">,</span>
+    note_date   <span class="token keyword">DATETIME</span>    <span class="token operator">NOT</span> <span class="token boolean">NULL</span><span class="token punctuation">,</span>
+    note_text   <span class="token keyword">TEXT</span>        <span class="token boolean">NULL</span><span class="token punctuation">,</span>
+    <span class="token keyword">PRIMARY</span> <span class="token keyword">KEY</span><span class="token punctuation">(</span>note_id<span class="token punctuation">)</span><span class="token punctuation">,</span>
+    FULLTEXT<span class="token punctuation">(</span>note_text<span class="token punctuation">)</span>
 <span class="token punctuation">)</span> <span class="token keyword">ENGINE</span><span class="token operator">=</span>MyISAM<span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
 <blockquote>
 <p>不要在导入数据时使用FULLTEXT。应该首先导入所有数据，然后再修改表，定义FULLTEXT。</p>
@@ -977,6 +977,26 @@
 <pre class="line-numbers language-sql" data-language="sql"><code class="language-sql"><span class="token keyword">show</span> variables <span class="token operator">like</span> <span class="token string">'ft%'</span><span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre></li>
 </ol>
 </li>
+<li><p>一些例子</p>
+ <pre class="line-numbers language-sql" data-language="sql"><code class="language-sql"><span class="token keyword">SELECT</span> note_text
+<span class="token keyword">FROM</span> productnotes
+<span class="token keyword">WHERE</span> <span class="token keyword">MATCH</span><span class="token punctuation">(</span>note_text<span class="token punctuation">)</span> AGAINST<span class="token punctuation">(</span><span class="token string">'+rabbit +bait'</span> <span class="token operator">IN</span> <span class="token keyword">BOOLEAN</span> <span class="token keyword">MODE</span><span class="token punctuation">)</span><span class="token punctuation">;</span> <span class="token comment">/* 匹配词rabbit和bait */</span>
+
+<span class="token keyword">SELECT</span> note_text
+<span class="token keyword">FROM</span> productnotes
+<span class="token keyword">WHERE</span> <span class="token keyword">MATCH</span><span class="token punctuation">(</span>note_text<span class="token punctuation">)</span> AGAINST<span class="token punctuation">(</span><span class="token string">'rabbit bait'</span> <span class="token operator">IN</span> <span class="token keyword">BOOLEAN</span> <span class="token keyword">MODE</span><span class="token punctuation">)</span><span class="token punctuation">;</span> <span class="token comment">/* 匹配词rabbit或bait */</span>
+
+<span class="token keyword">SELECT</span> note_text
+<span class="token keyword">FROM</span> productnotes
+<span class="token keyword">WHERE</span> <span class="token keyword">MATCH</span><span class="token punctuation">(</span>note_text<span class="token punctuation">)</span> AGAINST<span class="token punctuation">(</span><span class="token string">'"rabbit bait"'</span> <span class="token operator">IN</span> <span class="token keyword">BOOLEAN</span> <span class="token keyword">MODE</span><span class="token punctuation">)</span><span class="token punctuation">;</span> <span class="token comment">/* 匹配短语"rabbit bait" */</span>
+
+<span class="token keyword">SELECT</span> note_text
+<span class="token keyword">FROM</span> productnotes
+<span class="token keyword">WHERE</span> <span class="token keyword">MATCH</span><span class="token punctuation">(</span>note_text<span class="token punctuation">)</span> AGAINST<span class="token punctuation">(</span><span class="token string">'&gt;rabbit &lt;bait'</span> <span class="token operator">IN</span> <span class="token keyword">BOOLEAN</span> <span class="token keyword">MODE</span><span class="token punctuation">)</span><span class="token punctuation">;</span> <span class="token comment">/* 匹配词rabbit和bait，增加前者的等级，降低后者的等级 */</span>
+
+<span class="token keyword">SELECT</span> note_text
+<span class="token keyword">FROM</span> productnotes
+<span class="token keyword">WHERE</span> <span class="token keyword">MATCH</span><span class="token punctuation">(</span>note_text<span class="token punctuation">)</span> AGAINST<span class="token punctuation">(</span><span class="token string">'+rabbit +(&lt;bait)'</span> <span class="token operator">IN</span> <span class="token keyword">BOOLEAN</span> <span class="token keyword">MODE</span><span class="token punctuation">)</span><span class="token punctuation">;</span> <span class="token comment">/* 匹配词rabbit和bait，降低后者的等级 */</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre></li>
 <li>全文本布尔操作符</li>
 </ol>
 <div class="table-container">
@@ -1023,26 +1043,6 @@
 </tbody>
 </table>
 </div>
-<p>举例：</p>
-<pre class="line-numbers language-sql" data-language="sql"><code class="language-sql"><span class="token keyword">SELECT</span> note_text
-<span class="token keyword">FROM</span> productnotes
-<span class="token keyword">WHERE</span> <span class="token keyword">MATCH</span><span class="token punctuation">(</span>note_text<span class="token punctuation">)</span> AGAINST<span class="token punctuation">(</span><span class="token string">'+rabbit +bait'</span> <span class="token operator">IN</span> <span class="token keyword">BOOLEAN</span> <span class="token keyword">MODE</span><span class="token punctuation">)</span><span class="token punctuation">;</span> <span class="token comment">/* 匹配词rabbit和bait */</span>
-
-<span class="token keyword">SELECT</span> note_text
-<span class="token keyword">FROM</span> productnotes
-<span class="token keyword">WHERE</span> <span class="token keyword">MATCH</span><span class="token punctuation">(</span>note_text<span class="token punctuation">)</span> AGAINST<span class="token punctuation">(</span><span class="token string">'rabbit bait'</span> <span class="token operator">IN</span> <span class="token keyword">BOOLEAN</span> <span class="token keyword">MODE</span><span class="token punctuation">)</span><span class="token punctuation">;</span> <span class="token comment">/* 匹配词rabbit或bait */</span>
-
-<span class="token keyword">SELECT</span> note_text
-<span class="token keyword">FROM</span> productnotes
-<span class="token keyword">WHERE</span> <span class="token keyword">MATCH</span><span class="token punctuation">(</span>note_text<span class="token punctuation">)</span> AGAINST<span class="token punctuation">(</span><span class="token string">'"rabbit bait"'</span> <span class="token operator">IN</span> <span class="token keyword">BOOLEAN</span> <span class="token keyword">MODE</span><span class="token punctuation">)</span><span class="token punctuation">;</span> <span class="token comment">/* 匹配短语"rabbit bait" */</span>
-
-<span class="token keyword">SELECT</span> note_text
-<span class="token keyword">FROM</span> productnotes
-<span class="token keyword">WHERE</span> <span class="token keyword">MATCH</span><span class="token punctuation">(</span>note_text<span class="token punctuation">)</span> AGAINST<span class="token punctuation">(</span><span class="token string">'&gt;rabbit &lt;bait'</span> <span class="token operator">IN</span> <span class="token keyword">BOOLEAN</span> <span class="token keyword">MODE</span><span class="token punctuation">)</span><span class="token punctuation">;</span> <span class="token comment">/* 匹配词rabbit和bait，增加前者的等级，降低后者的等级 */</span>
-
-<span class="token keyword">SELECT</span> note_text
-<span class="token keyword">FROM</span> productnotes
-<span class="token keyword">WHERE</span> <span class="token keyword">MATCH</span><span class="token punctuation">(</span>note_text<span class="token punctuation">)</span> AGAINST<span class="token punctuation">(</span><span class="token string">'+rabbit +(&lt;bait)'</span> <span class="token operator">IN</span> <span class="token keyword">BOOLEAN</span> <span class="token keyword">MODE</span><span class="token punctuation">)</span><span class="token punctuation">;</span> <span class="token comment">/* 匹配词rabbit和bait，降低后者的等级 */</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
 <h2 id="第19章-插入数据"><a href="#第19章-插入数据" class="headerlink" title="第19章 插入数据"></a>第19章 插入数据</h2><ol>
 <li><p>如果表的定义允许，则可以在INSERT操作中省略某些列：</p>
 <ol>
@@ -1090,12 +1090,12 @@
 <li><p>一些例子：</p>
  <pre class="line-numbers language-sql" data-language="sql"><code class="language-sql"><span class="token keyword">CREATE</span> <span class="token keyword">TABLE</span> productnotes
 <span class="token punctuation">(</span>
-     note_id     <span class="token keyword">INT</span>         <span class="token operator">NOT</span> <span class="token boolean">NULL</span> <span class="token keyword">AUTO_INCREMENT</span><span class="token punctuation">,</span>
-     prod_id     <span class="token keyword">CHAR</span><span class="token punctuation">(</span><span class="token number">10</span><span class="token punctuation">)</span>    <span class="token operator">NOT</span> <span class="token boolean">NULL</span><span class="token punctuation">,</span>
-     note_date   <span class="token keyword">DATETIME</span>    <span class="token operator">NOT</span> <span class="token boolean">NULL</span><span class="token punctuation">,</span>
-     note_text   <span class="token keyword">TEXT</span>        <span class="token boolean">NULL</span><span class="token punctuation">,</span>
-     update_cnt  <span class="token keyword">INT</span>         <span class="token operator">NOT</span> <span class="token boolean">NULL</span> <span class="token keyword">DEFAULT</span> <span class="token number">0</span><span class="token punctuation">,</span>
-     <span class="token keyword">PRIMARY</span> <span class="token keyword">KEY</span><span class="token punctuation">(</span>note_id<span class="token punctuation">,</span> prod_id<span class="token punctuation">)</span><span class="token punctuation">,</span>
+    note_id     <span class="token keyword">INT</span>         <span class="token operator">NOT</span> <span class="token boolean">NULL</span> <span class="token keyword">AUTO_INCREMENT</span><span class="token punctuation">,</span>
+    prod_id     <span class="token keyword">CHAR</span><span class="token punctuation">(</span><span class="token number">10</span><span class="token punctuation">)</span>    <span class="token operator">NOT</span> <span class="token boolean">NULL</span><span class="token punctuation">,</span>
+    note_date   <span class="token keyword">DATETIME</span>    <span class="token operator">NOT</span> <span class="token boolean">NULL</span><span class="token punctuation">,</span>
+    note_text   <span class="token keyword">TEXT</span>        <span class="token boolean">NULL</span><span class="token punctuation">,</span>
+    update_cnt  <span class="token keyword">INT</span>         <span class="token operator">NOT</span> <span class="token boolean">NULL</span> <span class="token keyword">DEFAULT</span> <span class="token number">0</span><span class="token punctuation">,</span>
+    <span class="token keyword">PRIMARY</span> <span class="token keyword">KEY</span><span class="token punctuation">(</span>note_id<span class="token punctuation">,</span> prod_id<span class="token punctuation">)</span><span class="token punctuation">,</span>
 <span class="token punctuation">)</span> <span class="token keyword">ENGINE</span><span class="token operator">=</span>MyISAM<span class="token punctuation">;</span>
 
 <span class="token keyword">ALTER</span> <span class="token keyword">TABLE</span> Vendors
@@ -1159,28 +1159,28 @@
 <span class="token comment">--             ototal  = order total variable</span>
 
 <span class="token keyword">CREATE</span> <span class="token keyword">PROCEDURE</span> ordertotal<span class="token punctuation">(</span>
-  <span class="token operator">IN</span>  onumber <span class="token keyword">INT</span><span class="token punctuation">,</span>
-  <span class="token operator">IN</span>  taxable <span class="token keyword">BOOLEAN</span><span class="token punctuation">,</span>
-  <span class="token keyword">OUT</span> ototal <span class="token keyword">DECIMAL</span><span class="token punctuation">(</span><span class="token number">8</span><span class="token punctuation">,</span> <span class="token number">2</span><span class="token punctuation">)</span>
+    <span class="token operator">IN</span>  onumber <span class="token keyword">INT</span><span class="token punctuation">,</span>
+    <span class="token operator">IN</span>  taxable <span class="token keyword">BOOLEAN</span><span class="token punctuation">,</span>
+    <span class="token keyword">OUT</span> ototal <span class="token keyword">DECIMAL</span><span class="token punctuation">(</span><span class="token number">8</span><span class="token punctuation">,</span> <span class="token number">2</span><span class="token punctuation">)</span>
 <span class="token punctuation">)</span> <span class="token keyword">COMMENT</span> <span class="token string">'Obtain order total, optionally adding tax'</span>
 <span class="token keyword">BEGIN</span>
-  <span class="token comment">--Declare variable for total</span>
-  <span class="token keyword">DECLARE</span> total <span class="token keyword">DECIMAL</span><span class="token punctuation">(</span><span class="token number">8</span><span class="token punctuation">,</span> <span class="token number">2</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
-  <span class="token comment">--Declare tax percentage</span>
-  <span class="token keyword">DECLARE</span> taxrate <span class="token keyword">INT</span> <span class="token keyword">DEFAULT</span> <span class="token number">6</span><span class="token punctuation">;</span>
+    <span class="token comment">--Declare variable for total</span>
+    <span class="token keyword">DECLARE</span> total <span class="token keyword">DECIMAL</span><span class="token punctuation">(</span><span class="token number">8</span><span class="token punctuation">,</span> <span class="token number">2</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token comment">--Declare tax percentage</span>
+    <span class="token keyword">DECLARE</span> taxrate <span class="token keyword">INT</span> <span class="token keyword">DEFAULT</span> <span class="token number">6</span><span class="token punctuation">;</span>
 
-  <span class="token comment">--GET the order total</span>
-  <span class="token keyword">SELECT</span> <span class="token function">Sum</span><span class="token punctuation">(</span>item_price<span class="token operator">*</span>quantity<span class="token punctuation">)</span>
-  <span class="token keyword">FROM</span> orderitems
-  <span class="token keyword">WHERE</span> order_num <span class="token operator">=</span> onumber
-  <span class="token keyword">INTO</span> total<span class="token punctuation">;</span>
+    <span class="token comment">--GET the order total</span>
+    <span class="token keyword">SELECT</span> <span class="token function">Sum</span><span class="token punctuation">(</span>item_price<span class="token operator">*</span>quantity<span class="token punctuation">)</span>
+    <span class="token keyword">FROM</span> orderitems
+    <span class="token keyword">WHERE</span> order_num <span class="token operator">=</span> onumber
+    <span class="token keyword">INTO</span> total<span class="token punctuation">;</span>
 
-  <span class="token comment">--Is this taxable</span>
-  <span class="token keyword">IF</span> taxable <span class="token keyword">THEN</span>
-     <span class="token keyword">SELECT</span> total<span class="token operator">+</span><span class="token punctuation">(</span>total<span class="token operator">/</span><span class="token number">100</span><span class="token operator">*</span>taxrate<span class="token punctuation">)</span> <span class="token keyword">INTO</span> total<span class="token punctuation">;</span>
-  <span class="token keyword">END</span> <span class="token keyword">IF</span><span class="token punctuation">;</span>
+    <span class="token comment">--Is this taxable</span>
+    <span class="token keyword">IF</span> taxable <span class="token keyword">THEN</span>
+        <span class="token keyword">SELECT</span> total<span class="token operator">+</span><span class="token punctuation">(</span>total<span class="token operator">/</span><span class="token number">100</span><span class="token operator">*</span>taxrate<span class="token punctuation">)</span> <span class="token keyword">INTO</span> total<span class="token punctuation">;</span>
+    <span class="token keyword">END</span> <span class="token keyword">IF</span><span class="token punctuation">;</span>
 
-  <span class="token keyword">SELECT</span> total <span class="token keyword">INTO</span> ototal<span class="token punctuation">;</span>
+    <span class="token keyword">SELECT</span> total <span class="token keyword">INTO</span> ototal<span class="token punctuation">;</span>
 <span class="token keyword">END</span><span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
 <blockquote>
 <p>COMMENT的值会在<code>SHOW PROCEDURE STATUS</code>时显示出来。</p>
@@ -1213,44 +1213,44 @@
 <h2 id="第24章-使用游标"><a href="#第24章-使用游标" class="headerlink" title="第24章 使用游标"></a>第24章 使用游标</h2><pre class="line-numbers language-sql" data-language="sql"><code class="language-sql"><span class="token keyword">CREATE</span> <span class="token keyword">PROCEDURE</span> processorders <span class="token punctuation">(</span><span class="token punctuation">)</span>
 <span class="token keyword">BEGIN</span>
 
-     <span class="token comment">-- Declare local variables</span>
-     <span class="token keyword">DECLARE</span> done <span class="token keyword">TINYINT</span><span class="token punctuation">(</span><span class="token number">1</span><span class="token punctuation">)</span> <span class="token keyword">DEFAULT</span> <span class="token number">0</span><span class="token punctuation">;</span>
-     <span class="token keyword">DECLARE</span> o <span class="token keyword">INT</span><span class="token punctuation">;</span>
-     <span class="token keyword">DECLARE</span> t <span class="token keyword">DECIMAL</span><span class="token punctuation">(</span><span class="token number">8</span><span class="token punctuation">,</span><span class="token number">2</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token comment">-- Declare local variables</span>
+    <span class="token keyword">DECLARE</span> done <span class="token keyword">TINYINT</span><span class="token punctuation">(</span><span class="token number">1</span><span class="token punctuation">)</span> <span class="token keyword">DEFAULT</span> <span class="token number">0</span><span class="token punctuation">;</span>
+    <span class="token keyword">DECLARE</span> o <span class="token keyword">INT</span><span class="token punctuation">;</span>
+    <span class="token keyword">DECLARE</span> t <span class="token keyword">DECIMAL</span><span class="token punctuation">(</span><span class="token number">8</span><span class="token punctuation">,</span><span class="token number">2</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
 
-     <span class="token comment">-- Declare the cursor</span>
-     <span class="token keyword">DECLARE</span> ordernumbers <span class="token keyword">CURSOR</span> <span class="token keyword">FOR</span>
-     <span class="token keyword">SELECT</span> order_num <span class="token keyword">FROM</span> orders<span class="token punctuation">;</span>
+    <span class="token comment">-- Declare the cursor</span>
+    <span class="token keyword">DECLARE</span> ordernumbers <span class="token keyword">CURSOR</span> <span class="token keyword">FOR</span>
+    <span class="token keyword">SELECT</span> order_num <span class="token keyword">FROM</span> orders<span class="token punctuation">;</span>
 
-     <span class="token comment">-- Declare continue handler</span>
-     <span class="token keyword">DECLARE</span> <span class="token keyword">CONTINUE</span> <span class="token keyword">HANDLER</span> <span class="token keyword">FOR</span> SQLSTATE <span class="token string">'02000'</span> <span class="token keyword">SET</span> done<span class="token operator">=</span><span class="token number">1</span><span class="token punctuation">;</span>
+    <span class="token comment">-- Declare continue handler</span>
+    <span class="token keyword">DECLARE</span> <span class="token keyword">CONTINUE</span> <span class="token keyword">HANDLER</span> <span class="token keyword">FOR</span> SQLSTATE <span class="token string">'02000'</span> <span class="token keyword">SET</span> done<span class="token operator">=</span><span class="token number">1</span><span class="token punctuation">;</span>
 
-     <span class="token comment">-- Create a table to store the results</span>
-     <span class="token keyword">CREATE</span> <span class="token keyword">TABLE</span> <span class="token keyword">IF</span> <span class="token operator">NOT</span> <span class="token keyword">EXISTS</span> ordertotals<span class="token punctuation">(</span>
+    <span class="token comment">-- Create a table to store the results</span>
+    <span class="token keyword">CREATE</span> <span class="token keyword">TABLE</span> <span class="token keyword">IF</span> <span class="token operator">NOT</span> <span class="token keyword">EXISTS</span> ordertotals<span class="token punctuation">(</span>
         order_num <span class="token keyword">INT</span><span class="token punctuation">,</span>
         total <span class="token keyword">DECIMAL</span><span class="token punctuation">(</span><span class="token number">8</span><span class="token punctuation">,</span><span class="token number">2</span><span class="token punctuation">)</span>
-     <span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">)</span><span class="token punctuation">;</span>
 
-     <span class="token comment">-- Open the cursor</span>
-     <span class="token keyword">OPEN</span> ordernumbers<span class="token punctuation">;</span>
+    <span class="token comment">-- Open the cursor</span>
+    <span class="token keyword">OPEN</span> ordernumbers<span class="token punctuation">;</span>
 
-     <span class="token comment">-- Loop through all rows</span>
-     <span class="token keyword">REPEAT</span>
-          <span class="token comment">-- Get order number</span>
-          <span class="token keyword">FETCH</span> ordernumbers <span class="token keyword">INTO</span> o<span class="token punctuation">;</span>
+    <span class="token comment">-- Loop through all rows</span>
+    <span class="token keyword">REPEAT</span>
+        <span class="token comment">-- Get order number</span>
+        <span class="token keyword">FETCH</span> ordernumbers <span class="token keyword">INTO</span> o<span class="token punctuation">;</span>
 
-          <span class="token comment">-- Get the total for this order</span>
-          <span class="token keyword">CALL</span> ordertotalmye<span class="token punctuation">(</span>o<span class="token punctuation">,</span><span class="token number">1</span><span class="token punctuation">,</span>t<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token comment">-- Get the total for this order</span>
+        <span class="token keyword">CALL</span> ordertotalmye<span class="token punctuation">(</span>o<span class="token punctuation">,</span><span class="token number">1</span><span class="token punctuation">,</span>t<span class="token punctuation">)</span><span class="token punctuation">;</span>
 
-          <span class="token comment">-- Insert order and total into ordertotals</span>
-          <span class="token keyword">INSERT</span> <span class="token keyword">INTO</span> ordertotals<span class="token punctuation">(</span>order_num<span class="token punctuation">,</span>total<span class="token punctuation">)</span>
-          <span class="token keyword">VALUES</span><span class="token punctuation">(</span>o<span class="token punctuation">,</span>t<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token comment">-- Insert order and total into ordertotals</span>
+        <span class="token keyword">INSERT</span> <span class="token keyword">INTO</span> ordertotals<span class="token punctuation">(</span>order_num<span class="token punctuation">,</span>total<span class="token punctuation">)</span>
+        <span class="token keyword">VALUES</span><span class="token punctuation">(</span>o<span class="token punctuation">,</span>t<span class="token punctuation">)</span><span class="token punctuation">;</span>
 
-     <span class="token comment">-- End of loop</span>
-     UNTIL done <span class="token keyword">END</span> <span class="token keyword">REPEAT</span><span class="token punctuation">;</span>
+    <span class="token comment">-- End of loop</span>
+    UNTIL done <span class="token keyword">END</span> <span class="token keyword">REPEAT</span><span class="token punctuation">;</span>
 
-     <span class="token comment">-- Close the cursor</span>
-     <span class="token keyword">CLOSE</span> ordernumbers<span class="token punctuation">;</span>
+    <span class="token comment">-- Close the cursor</span>
+    <span class="token keyword">CLOSE</span> ordernumbers<span class="token punctuation">;</span>
 
 <span class="token keyword">END</span><span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
 <h2 id="第25章-使用触发器"><a href="#第25章-使用触发器" class="headerlink" title="第25章 使用触发器"></a>第25章 使用触发器</h2><ol>
@@ -1397,8 +1397,8 @@ BEFORE <span class="token keyword">UPDATE</span> <span class="token keyword">ON<
 <li><p>可以在创建数据库时，指定默认的字符集和校对。</p>
  <pre class="line-numbers language-sql" data-language="sql"><code class="language-sql"><span class="token keyword">CREATE</span> <span class="token keyword">TABLE</span> mytable
 <span class="token punctuation">(</span>
-      c1 <span class="token keyword">INT</span><span class="token punctuation">,</span>
-      c2 <span class="token keyword">VARCHAR</span><span class="token punctuation">(</span><span class="token number">10</span><span class="token punctuation">)</span>
+    c1 <span class="token keyword">INT</span><span class="token punctuation">,</span>
+    c2 <span class="token keyword">VARCHAR</span><span class="token punctuation">(</span><span class="token number">10</span><span class="token punctuation">)</span>
 <span class="token punctuation">)</span> <span class="token keyword">DEFAULT</span> <span class="token keyword">CHARACTER</span> <span class="token keyword">SET</span> hebrew
   <span class="token keyword">COLLATE</span> hebrew_general_ci<span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre></li>
 <li><p>一般，MySQL如下确定使用什么样的字符集和校对：</p>
@@ -1411,8 +1411,8 @@ BEFORE <span class="token keyword">UPDATE</span> <span class="token keyword">ON<
 <li><p>MySQL还允许对每个列设置：</p>
  <pre class="line-numbers language-sql" data-language="sql"><code class="language-sql"><span class="token keyword">CREATE</span> <span class="token keyword">TABLE</span> mytable
 <span class="token punctuation">(</span>
-      c1 <span class="token keyword">INT</span><span class="token punctuation">,</span>
-      c2 <span class="token keyword">VARCHAR</span><span class="token punctuation">(</span><span class="token number">10</span><span class="token punctuation">)</span> <span class="token keyword">CHARACTER</span> <span class="token keyword">SET</span> latin1 <span class="token keyword">COLLATE</span> latin1_general_ci
+    c1 <span class="token keyword">INT</span><span class="token punctuation">,</span>
+    c2 <span class="token keyword">VARCHAR</span><span class="token punctuation">(</span><span class="token number">10</span><span class="token punctuation">)</span> <span class="token keyword">CHARACTER</span> <span class="token keyword">SET</span> latin1 <span class="token keyword">COLLATE</span> latin1_general_ci
 <span class="token punctuation">)</span> <span class="token keyword">DEFAULT</span> <span class="token keyword">CHARACTER</span> <span class="token keyword">SET</span> hebrew
   <span class="token keyword">COLLATE</span> hebrew_general_ci<span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre></li>
 <li><p>校对在对用ORDER BY子句检索出来的数据排序时起重要 的作用。如果你需要用与创建表时不同的校对顺序排序特定的SELECT语 句，可以在SELECT语句自身中进行：</p>
@@ -1464,8 +1464,11 @@ BEFORE <span class="token keyword">UPDATE</span> <span class="token keyword">ON<
 <p>不指定用户名时，SET PASSWORD更新当前登录用户的口令。<code>SET PASSWORD = PASSWORD('789')</code></p>
 </blockquote>
 </li>
-<li><p>权限列表</p>
+<li><p>在使用GRANT和REVOKE时，用户账号必须存在，但对所涉及的对象没有这个要求。这允许管理员在创建数据库和表之前设计和实现安全措施。这样做的副作用是，当某个数据库或表被删除时（用DROP语 句），相关的访问权限仍然存在。而且，如果将来重新创建该 数据库或表，这些权限仍然起作用。</p>
 </li>
+<li><p>可通过列出各权限并用逗号分隔， 将多条GRANT语句串在一起。</p>
+<pre class="line-numbers language-mysql" data-language="mysql"><code class="language-mysql">GRANT SELECT, INSERT ON crashcourse.* TO kom<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre></li>
+<li>权限列表</li>
 </ol>
 <div class="table-container">
 <table>
@@ -1587,10 +1590,6 @@ BEFORE <span class="token keyword">UPDATE</span> <span class="token keyword">ON<
 </tbody>
 </table>
 </div>
-<blockquote>
-<p>在使用GRANT和REVOKE时，用户账号必须存在， 但对所涉及的对象没有这个要求。这允许管理员在创建数据库和表之前设计和实现安全措施。这样做的副作用是，当某个数据库或表被删除时（用DROP语 句），相关的访问权限仍然存在。而且，如果将来重新创建该 数据库或表，这些权限仍然起作用。</p>
-<p>可通过列出各权限并用逗号分隔， 将多条 GRANT语句串在一起<code>GRANT SELECT, INSERT ON crashcourse.* TO kom</code>。</p>
-</blockquote>
 <h2 id="第29章-数据库维护"><a href="#第29章-数据库维护" class="headerlink" title="第29章 数据库维护"></a>第29章 数据库维护</h2><ol>
 <li><p>备份数据</p>
 <ol>
@@ -1608,7 +1607,7 @@ BEFORE <span class="token keyword">UPDATE</span> <span class="token keyword">ON<
 <li><p>检查表键是否正确</p>
  <pre class="line-numbers language-sql" data-language="sql"><code class="language-sql"><span class="token keyword">ANALYZE</span> <span class="token keyword">TABLE</span> orders<span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre></li>
 <li><p>CHECK TABLE用来针对许多问题对表进行检查。在MyISAM表上还对索引进行检查。CHECK TABLE支持一系列的用于MyISAM表的方式。 CHANGED检查自最后一次检查以来改动过的表。EXTENDED执行最彻底的检查，FAST只检查未正常关闭的表，MEDIUM检查所有被删 除的链接并进行键检验，QUICK只进行快速扫描。</p>
-<pre class="line-numbers language-sql" data-language="sql"><code class="language-sql"><span class="token keyword">CHECK</span> <span class="token keyword">TABLE</span> orders<span class="token punctuation">,</span> orderitems FAST <span class="token keyword">QUICK</span><span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+ <pre class="line-numbers language-sql" data-language="sql"><code class="language-sql"><span class="token keyword">CHECK</span> <span class="token keyword">TABLE</span> orders<span class="token punctuation">,</span> orderitems FAST <span class="token keyword">QUICK</span><span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
 <blockquote>
 <p>如果 MyISAM 表访问产生不正确和不一致的结果， 可能需要用 REPAIR TABLE来修复相应的表。这条语句不应该经常使用，如果 需要经常使用，可能会有更大的问题要解决。</p>
 <p>如果从一个表中删除大量数据，应该使用OPTIMIZE TABLE来收回所用的空间，从而优化表的性能。</p>
