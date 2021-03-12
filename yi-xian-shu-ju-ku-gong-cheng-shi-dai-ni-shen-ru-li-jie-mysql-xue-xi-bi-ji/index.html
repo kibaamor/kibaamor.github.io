@@ -1182,7 +1182,7 @@ MISSING_BYTES_BEYOND_MAX_MEM_SIZE: 0	--该字段表示分析过程丢弃的文�
 <p>查看图中的执行计划，type 为 ALL，key 字段结果为 NULL，因此知道该 SQL 是没走索引的全表扫描。</p>
 <p>原因：对条件字段做函数操作走不了索引。</p>
 <h4 id="1-2-对条件字段做函数操作不走索引的原因"><a href="#1-2-对条件字段做函数操作不走索引的原因" class="headerlink" title="1.2 对条件字段做函数操作不走索引的原因"></a>1.2 对条件字段做函数操作不走索引的原因</h4><p>该例中 c 字段普通索引的 B+ 索引树如下：</p>
-<p><img src="C:\Users\kibaa\Desktop\c字段普通索引的B+索引树.png" alt="图片描述"></p>
+<p><img src="/images/《一线数据库工程师带你深入理解MySQL》学习笔记/c字段普通索引的B+索引树.png" alt="图片描述"></p>
 <p>根据上面结构可以看到，索引树中存储的是列的实际值和主键值。如果拿 ‘2019-05-21’ 去匹配，将无法定位到索引树中的值。因此放弃走索引，而选择全表扫描。</p>
 <h4 id="1-3-函数操作的-SQL-优化"><a href="#1-3-函数操作的-SQL-优化" class="headerlink" title="1.3 函数操作的 SQL 优化"></a>1.3 函数操作的 SQL 优化</h4><p>因此如果需要优化的话，改成 c 字段实际值相匹配的形式。因为 SQL 的目的是查询 2019-05-21 当天所有的记录，因此可以改成范围查询，如下：</p>
 <pre class="line-numbers language-sql" data-language="sql"><code class="language-sql"><span class="token keyword">select</span> <span class="token operator">*</span> <span class="token keyword">from</span> t1 <span class="token keyword">where</span> c<span class="token operator">&gt;=</span><span class="token string">'2019-05-21 00:00:00'</span> <span class="token operator">and</span> c<span class="token operator">&lt;=</span><span class="token string">'2019-05-21 23:59:59'</span><span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
@@ -1298,7 +1298,7 @@ MISSING_BYTES_BEYOND_MAX_MEM_SIZE: 0	--该字段表示分析过程丢弃的文�
 <li>不建议对条件字段做运算及函数操作</li>
 </ul>
 <p>本节涉及到的一些SQL优化如下图：</p>
-<p><img src="C:\Users\kibaa\Desktop\MySQL条件字段有索引但是不走索引的场景.png" alt="图片描述"></p>
+<p><img src="/images/《一线数据库工程师带你深入理解MySQL》学习笔记/MySQL条件字段有索引但是不走索引的场景.png" alt="图片描述"></p>
 <h2 id="05-如何优化数据导入？"><a href="#05-如何优化数据导入？" class="headerlink" title="05 如何优化数据导入？"></a><strong>05 如何优化数据导入？</strong></h2><h3 id="1-一次插入多行的值"><a href="#1-一次插入多行的值" class="headerlink" title="1 一次插入多行的值"></a>1 一次插入多行的值</h3><p>插入行所需的时间由以下因素决定（参考MySQL 5.7参考手册：<a target="_blank" rel="noopener" href="https://dev.mysql.com/doc/refman/5.7/en/insert-optimization.html">8.2.4.1优化INSERT语句</a>）</p>
 <ul>
 <li>连接：30%</li>
@@ -1503,7 +1503,7 @@ mysql&gt; explain select id,a,b from t1 order by a,b;
 +----+-------------+-------+------------+-------+---------------+---------+---------+------+------+----------+------------------------------------------+<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span></span></code></pre>
 <p>这里对上面执行计划做下解释：首先条件 a&gt;9000 使用了索引（关注 key 字段对应的值为 idx_a_b）；在 Extra 中，看到了“Using filesort”，表示使用了 filesort 排序，并没有使用索引排序。所以联合索引中前面的字段使用了范围查询，对后面的字段排序使用不了索引排序。</p>
 <p>原因是：a、b 两个字段的联合索引，对于单个 a 的值，b 是有序的。而对于 a 字段的范围查询，也就是 a 字段会有多个值，取到 a，b 的值 b 就不一定有序了，因此要额外进行排序。联合索引结果如下图（为了便于理解，该图的值与上面所创建的表 t1 数据不一样）：</p>
-<p><img src="C:\Users\kibaa\Desktop\使用范围查询再排序.png" alt="图片描述"></p>
+<p><img src="/images/《一线数据库工程师带你深入理解MySQL》学习笔记/使用范围查询再排序.png" alt="图片描述"></p>
 <p>如上图所示，对于有 a、b 两个字段联合索引的表，如果对 a 字段范围查询，b 字段整体来看是无序的（如上图 b 的值为：1，2，3，1，2，3······）。</p>
 <h5 id="2-4-2-ASC-和-DESC-混合使用将无法使用索引"><a href="#2-4-2-ASC-和-DESC-混合使用将无法使用索引" class="headerlink" title="2.4.2 ASC 和 DESC 混合使用将无法使用索引"></a>2.4.2 ASC 和 DESC 混合使用将无法使用索引</h5><p>对联合索引多个字段同时排序时，如果一个是顺序，一个是倒序，则使用不了索引，如下例：</p>
 <pre class="line-numbers language-sql" data-language="sql"><code class="language-sql"><span class="token keyword">explain</span> <span class="token keyword">select</span> id<span class="token punctuation">,</span>a<span class="token punctuation">,</span>b <span class="token keyword">from</span> t1 <span class="token keyword">order</span> <span class="token keyword">by</span> a <span class="token keyword">asc</span><span class="token punctuation">,</span>b <span class="token keyword">desc</span><span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
@@ -1890,7 +1890,7 @@ Rows: 10147
 ...<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span></span></code></pre>
 <p>Rows 这列就表示这张表的行数。这种方式获取 InnoDB 表的行数非常快。</p>
 <p><strong>但是，这个值是个估算值，可能与实际值相差 40% 到 50%</strong>。（对于 Rows 这个字段更详细的解释，可以参考官方手册：<a target="_blank" rel="noopener" href="https://dev.mysql.com/doc/refman/5.7/en/show-table-status.html）">https://dev.mysql.com/doc/refman/5.7/en/show-table-status.html）</a></p>
-<h4 id="2-2-用-Redis-做计数器"><a href="#2-2-用-Redis-做计数器" class="headerlink" title="2.2 用 Redis 做计数器"></a>2.2 用 Redis 做计数器</h4><h4 id="2-3-增加计数表"><a href="#2-3-增加计数表" class="headerlink" title="2.3 增加计数表"></a>2.3 增加计数表</h4><p><img src="C:\Users\kibaa\Desktop\增加计数表.png" alt="图片描述"></p>
+<h4 id="2-2-用-Redis-做计数器"><a href="#2-2-用-Redis-做计数器" class="headerlink" title="2.2 用 Redis 做计数器"></a>2.2 用 Redis 做计数器</h4><h4 id="2-3-增加计数表"><a href="#2-3-增加计数表" class="headerlink" title="2.3 增加计数表"></a>2.3 增加计数表</h4><p><img src="/images/《一线数据库工程师带你深入理解MySQL》学习笔记/增加计数表.png" alt="图片描述"></p>
 <hr>
 <p>第2章 MySQL索引</p>
 <h2 id="10-为什么添加索引能提高查询速度"><a href="#10-为什么添加索引能提高查询速度" class="headerlink" title="10 为什么添加索引能提高查询速度?"></a><strong>10 为什么添加索引能提高查询速度?</strong></h2><p>为了便于理解 MySQL 的索引，我们先了解一些与索引相关的算法。</p>
@@ -1900,7 +1900,7 @@ Rows: 10147
 <h4 id="1-3-平衡二叉树"><a href="#1-3-平衡二叉树" class="headerlink" title="1.3 平衡二叉树"></a>1.3 平衡二叉树</h4><p>平衡二叉树的定义：满足二叉查找树的定义，另外必须满足任何节点的两个子树的高度差最大为 1。</p>
 <h4 id="1-4-B-树"><a href="#1-4-B-树" class="headerlink" title="1.4 B 树"></a>1.4 B 树</h4><p>B 树可以理解为一个节点可以拥有多于 2 个子节点的平衡多叉查找树。</p>
 <p>B 树中同一键值不会出现多次，要么在叶子节点，要么在内节点上。</p>
-<p>比如用 1、2、3、5、6、7、9 这些数字构建一个 B 树结构，其图形如下：<br><img src="C:\Users\kibaa\Desktop\B树.png" alt="图片描述"></p>
+<p>比如用 1、2、3、5、6、7、9 这些数字构建一个 B 树结构，其图形如下：<br><img src="/images/《一线数据库工程师带你深入理解MySQL》学习笔记/B树.png" alt="图片描述"></p>
 <p>与平衡二叉树相比，B 树利用多个分支（平衡二叉树只有两个分支）节点，减少获取记录时所经历的节点数。</p>
 <p>B 树也是有缺点的，因为每个节点都包含 key 值和 data 值，因此如果 data 比较大时，每一页存储的 key 会比较少；当数据比较多时，同样会有：“要经历多层节点才能查询在叶子节点的数据”的问题。这时，B+ 树站了出来。</p>
 <h4 id="1-5-B-树"><a href="#1-5-B-树" class="headerlink" title="1.5 B+ 树"></a>1.5 B+ 树</h4><p>B+ 树是 B 树的变体，定义基本与 B 树一致，与 B 树的不同点：</p>
@@ -1912,7 +1912,7 @@ Rows: 10147
 </ul>
 <p>在 B+ 树中，所有记录节点都是按键值的大小顺序存放在同一层的叶子节点上。B+ 树中的 B 不是代表二叉(binary) 而是代表（balance），B+ 树并不是一个二叉树。</p>
 <p>还是根据前面提到的这组数字（1、2、3、5、6、7、9）举例，它的结构如下：</p>
-<p><img src="C:\Users\kibaa\Desktop\Bplus树.png" alt="图片描述"></p>
+<p><img src="/images/《一线数据库工程师带你深入理解MySQL》学习笔记/Bplus树.png" alt="图片描述"></p>
 <p>与 1.4 中 B 树的结构最大的区别就是：</p>
 <p>它的键一定会出现在叶子节点上，同时也有可能在非叶子节点中重复出现。而 B 树中同一键值不会出现多次。</p>
 <h3 id="2-B-树索引"><a href="#2-B-树索引" class="headerlink" title="2 B+ 树索引"></a>2 B+ 树索引</h3><p>B+ 树索引就是基于本节前面介绍的 B+ 树发展而来的。在数据库中，B+ 树的高度一般都在 2 ~ 4 层，所以<strong>查找某一行数据最多只需要 2 到 4 次 IO。而没索引的情况，需要逐行扫描，明显效率低很多，这也就是为什么添加索引能提高查询速度。</strong></p>
@@ -1935,7 +1935,7 @@ Rows: 10147
 <p>由于实际的数据页只能按照一颗 B+ 树进行排序，因此每张表只能有一个聚集索引（TokuDB 引擎除外）。查询优化器倾向于采用聚集索引，因为聚集索引能够在 B+ 树索引的叶子节点上直接找到数据。</p>
 <p>聚集索引对于主键的排序查找和范围查找速度非常快。</p>
 <p>对于刚刚创建好的测试表 t8的聚集索引的大致结构如下：</p>
-<p><img src="C:\Users\kibaa\Desktop\表t8的聚集索引的大致结构.png" alt="图片描述"></p>
+<p><img src="/images/《一线数据库工程师带你深入理解MySQL》学习笔记/表t8的聚集索引的大致结构.png" alt="图片描述"></p>
 <p>两点关键信息：</p>
 <ul>
 <li>根据主键值创建了 B+ 树结构</li>
@@ -1945,7 +1945,7 @@ Rows: 10147
 <p>当通过辅助索引来寻找数据时，InnoDB 存储引擎会遍历辅助索引树查找到对应记录的主键，然后通过主键索引来找到对应的行数据。</p>
 <p>比如一颗高度为 3 的辅助索引树中查找数据，那需要对这颗辅助索引树遍历 3 次找到指定主键，如果聚集索引树的高度也为 3，那么还需要对聚集索引树进行 3 次查找，最终找到一个完整的行数据所在的页，因此获取数据一共需要6次逻辑 IO 访问。</p>
 <p>我们继续拿表 t8 分析，它的辅助索引 idx_a 结构如下：</p>
-<p><img src="C:\Users\kibaa\Desktop\表t8的辅助索引idx_a的大致结构.png" alt="图片描述"></p>
+<p><img src="/images/《一线数据库工程师带你深入理解MySQL》学习笔记/表t8的辅助索引idx_a的大致结构.png" alt="图片描述"></p>
 <p>上图中两点关键点需要注意：</p>
 <ul>
 <li>根据 a 字段的值创建了 B+ 树结构</li>
@@ -2097,7 +2097,7 @@ mysql&gt; explain select * from t9_1 where a = 90000;
 </ul>
 <h2 id="13-联合索引有哪些讲究"><a href="#13-联合索引有哪些讲究" class="headerlink" title="13 联合索引有哪些讲究?"></a><strong>13 联合索引有哪些讲究?</strong></h2><h3 id="1-认识联合索引"><a href="#1-认识联合索引" class="headerlink" title="1 认识联合索引"></a>1 认识联合索引</h3><p>联合索引：是指对表上的多个列进行索引。适合 where 条件中的多列组合，在某些场景可以避免回表。</p>
 <p>我们拿讲解 order by 时使用的联合索引 B+ 树图进行理解，如下图：</p>
-<p><img src="C:\Users\kibaa\Desktop\使用范围查询再排序.png" alt="使用范围查询再排序"></p>
+<p><img src="/images/《一线数据库工程师带你深入理解MySQL》学习笔记/使用范围查询再排序.png" alt="使用范围查询再排序"></p>
 <p>联合索引的键值数量大于 1（比如上图中有 a 和 b 两个键值），与单个键值的 B+ 树一样，也是按照键值排序的。<strong>对于 a、b 两个字段都做为条件时，查询是可以走索引的；对于单独 a 字段查询也是可以走索引的。但是对于 b 字段单独查询就走不了索引了。</strong></p>
 <p>联合索引的建议：</p>
 <ul>
@@ -2693,7 +2693,7 @@ mysql&gt; explain select * from t9_1 where a = 90000;
 <p>而在查询语句后面加了 for update 显式给记录集加了排他锁，也就让查询变成了当前读。插入、更新、删除操作，都属于当前读。其实也就可以理解 select … for update 是为了让普通查询获得插入、更新、删除操作时所获得的锁。</p>
 </blockquote>
 <p>表面看起来 session1 只给了 b=1 这一行加了排他锁，但 session2 在请求其它行的排他锁时，却出现了锁等待。看下图：</p>
-<p><img src="C:\Users\kibaa\Desktop\RC隔离级别和条件字段无索引.png" alt="图片描述"></p>
+<p><img src="/images/《一线数据库工程师带你深入理解MySQL》学习笔记/RC隔离级别和条件字段无索引.png" alt="图片描述"></p>
 <p>由于 b 字段没有索引，因此只能走聚簇索引，进行全表扫描。从上图中可以看到，满足条件的记录有一条，但是聚簇索引上的所有记录，都被加上了 X 锁。</p>
 <p>为什么不是只在满足条件的记录上加锁呢？</p>
 <p>这是因为在 MySQL 中，如果一个条件无法通过索引快速过滤，那么存储引擎层面就会将所有记录加锁后返回，然后由 server 层进行过滤。因此也就把所有记录都锁上了。</p>
@@ -2735,7 +2735,7 @@ mysql&gt; explain select * from t9_1 where a = 90000;
 </table>
 </div>
 <p>session1 给了 a=1 这一行加了排他锁，在 session2 中请求其他行的排他锁时，不会发生等待；但是在 session2 中请求 a=1 这一行的排他锁时，会发生等待。看下图：</p>
-<p><img src="C:\Users\kibaa\Desktop\RC隔离级别和条件字段有唯一索引.png" alt="图片描述"></p>
+<p><img src="/images/《一线数据库工程师带你深入理解MySQL》学习笔记/RC隔离级别和条件字段有唯一索引.png" alt="图片描述"></p>
 <p>由于 a 是唯一索引，因此 select * from t16 where a=1 for update；(后面称为 SQL2) 语句会选择走 a 列的索引进行条件过滤，在找到 a=1 的记录后，会将唯一索引上 a=1 索引记录上加 X 锁，同时，会根据读取到的 id 列，回到聚簇索引，然后将 id=1 对应的聚簇索引项加 X 锁。</p>
 <p>为什么聚簇索引上的记录也要加锁呢？</p>
 <p>比如，并发的一条 SQL，是通过主键索引来更新：update t16 set b=10 where id =1; 如果 SQL2 没有将主键索引上的记录加锁，那么并发的 update 并不知道 SQL2 在执行，所以如果 update 执行了，就违背了同一记录上的更新或者删除需要串行执行的约束。</p>
@@ -2785,7 +2785,7 @@ mysql&gt; explain select * from t9_1 where a = 90000;
 </table>
 </div>
 <p>我们在满足条件 c=3 的数据上加了排他锁，如上面结果，就是第 3、4 行。因此第 1、2 行的数据没被锁，而 3、4 行的数据被锁了。如下图：</p>
-<p><img src="C:\Users\kibaa\Desktop\RC隔离级别和条件字段有非唯一索引.png" alt="图片描述"></p>
+<p><img src="/images/《一线数据库工程师带你深入理解MySQL》学习笔记/RC隔离级别和条件字段有非唯一索引.png" alt="图片描述"></p>
 <p>通过上图可以看到，在 a 字段的非唯一索引上，满足 c=3 的所有记录，都被加了锁。同时，对应的主键索引上的记录也都加上了锁。与通过唯一索引查询的情况相比，唯一索引查询最多有一行记录被锁，而非唯一索引将会把满足条件的所有记录都加上锁。</p>
 <p>总结：<strong>如果查询的条件是非唯一索引，那么 SQL 需要在满足条件的非唯一索引上都加上锁，并且会在它们对应的聚簇索引上加锁。</strong></p>
 <h2 id="17-间隙锁的意义"><a href="#17-间隙锁的意义" class="headerlink" title="17 间隙锁的意义"></a><strong>17 间隙锁的意义</strong></h2><h3 id="1-揭晓上一节课后问题的答案"><a href="#1-揭晓上一节课后问题的答案" class="headerlink" title="1 揭晓上一节课后问题的答案"></a>1 揭晓上一节课后问题的答案</h3><p>拿上节的测试表 t16，进行如下实验：</p>
@@ -2832,7 +2832,7 @@ mysql&gt; explain select * from t9_1 where a = 90000;
 <p>我们看一下上面的实验结果：Result 1 和 Result 2 结果是不同的。在 session2 中，同一个事务中，按相同的查询条件重新读取以前检索过的数据，却发现了 session1 插入的满足查询条件的新数据，这也就是上一节讲到的幻读情况。</p>
 <p>为什么上面的实验中会出现幻读呢？</p>
 <p>我们来看看下面这张图：</p>
-<p><img src="C:\Users\kibaa\Desktop\RC隔离级别和条件字段有非唯一索引（幻读）.png" alt="img"></p>
+<p><img src="/images/《一线数据库工程师带你深入理解MySQL》学习笔记/RC隔离级别和条件字段有非唯一索引（幻读）.png" alt="img"></p>
 <p>从图中可以看出，RC 隔离级别下，只锁住了满足 c=3 的当前行，而不会对后面的位置（或者说间隙）加锁，因此导致 session1 的写入语句能正常执行并提交。</p>
 <p>那么应该怎样降低幻读出现的概率呢？</p>
 <p>从上面的分析我们可以知道，产生幻读的原因是：行锁只能锁住当前行，但是新插入的记录，是在被锁住记录之前的间隙。因此，为了降低幻读出现的概率，InnoDB 在 RR 隔离级别下配置了间隙锁（Gap Lock）。</p>
@@ -2894,7 +2894,7 @@ mysql&gt; explain select * from t9_1 where a = 90000;
 </table>
 </div>
 <p>根据实验情况，我们在 session2 中，对满足条件 c=4 的数据加上了排他锁，然后在 session1 写入一条 c=4 的记录，此时会出现等待，直到 session2 对事务进行提交后，session1 才会执行成功。这是为什么呢？我们来看下图：</p>
-<p><img src="C:\Users\kibaa\Desktop\RR隔离级别和条件字段有非唯一索引.png" alt="img"></p>
+<p><img src="/images/《一线数据库工程师带你深入理解MySQL》学习笔记/RR隔离级别和条件字段有非唯一索引.png" alt="img"></p>
 <p>与 RC 隔离级别下的图相似，但是有个比较大的区别是：RR 隔离级别多了 GAP 锁。</p>
 <p>如上图，首先需要考虑哪些位置可以插入新的满足条件 c=4 的项：</p>
 <ul>
@@ -2963,7 +2963,7 @@ mysql&gt; explain select * from t9_1 where a = 90000;
 </div>
 <p>可能你会问？为什么 session3 的 insert 会出现等待？</p>
 <p>我们看看下图：</p>
-<p><img src="C:\Users\kibaa\Desktop\RR隔离级别和条件字段无索引.png" alt="img"></p>
+<p><img src="/images/《一线数据库工程师带你深入理解MySQL》学习笔记/RR隔离级别和条件字段无索引.png" alt="img"></p>
 <p>如图，所有记录都有 X 锁，除此之外，每个 GAP 也被加上了 GAP 锁。因此这张表在执行完 select * from t17 where b=1 for update; 到 commit 之前，除了不加锁的快照读，其它任何加锁的 SQL，都会等待，如果这是线上业务表，那就是件非常恐怖的事情了。</p>
 <p>总结：RR 隔离级别下，非索引字段做条件的当前读不但会把每条记录都加上 X 锁，还会把每个 GAP 加上 GAP 锁。再次说明，条件字段加索引的重要性。</p>
 <h3 id="4-RR-隔离级别下的唯一索引当前读是否会用到-GAP-锁"><a href="#4-RR-隔离级别下的唯一索引当前读是否会用到-GAP-锁" class="headerlink" title="4 RR 隔离级别下的唯一索引当前读是否会用到 GAP 锁"></a>4 RR 隔离级别下的唯一索引当前读是否会用到 GAP 锁</h3><p>GAP 锁的目的是：为了防止同一事务两次当前读，出现幻读的情况。如果能确保索引字段唯一，那其实一个等值查询，最多就返回一条记录，而且相同索引记录的值，一定不会再新增，因此不会出现 GAP 锁。</p>
