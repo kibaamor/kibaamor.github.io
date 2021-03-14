@@ -431,21 +431,21 @@
                 
                 <div class="post-date info-break-policy">
                     <i class="far fa-calendar-check fa-fw"></i>更新日期:&nbsp;&nbsp;
-                    2021-03-12
+                    2021-03-14
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-file-word fa-fw"></i>文章字数:&nbsp;&nbsp;
-                    30.4k
+                    39.6k
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-clock fa-fw"></i>阅读时长:&nbsp;&nbsp;
-                    123 分
+                    157 分
                 </div>
                 
 
@@ -2994,6 +2994,519 @@ mysql&gt; explain select * from t9_1 where a = 90000;
 <p>另外设置 innodb_print_all_deadlocks = on 可以在 err log 中记录全部死锁信息。</p>
 <hr>
 <p>第4章 事务</p>
+<h2 id="19-数据库忽然断电会丢失数据吗？"><a href="#19-数据库忽然断电会丢失数据吗？" class="headerlink" title="19 数据库忽然断电会丢失数据吗？"></a>19 数据库忽然断电会丢失数据吗？</h2><h3 id="1-什么是事务？"><a href="#1-什么是事务？" class="headerlink" title="1 什么是事务？"></a>1 什么是事务？</h3><p>根据《高性能 MySQL》第 3 版 1.3 事务一节中定义：</p>
+<blockquote>
+<p>事务就是一组原子性的 SQL 查询，或者说一个独立的工作单元。如果数据库引擎能够成功地对数据库应用该组查询的全部语句，那么就执行该组查询。如果其中有任何一条语句因为崩溃或其他原因无法执行，那么所有的语句都不会执行。也就是说，事务内的语句，要么全部执行成功，要么全部执行失败。</p>
+</blockquote>
+<p>一个良好的事务处理系统，必须具备 ACID 特性：</p>
+<ul>
+<li>atomicity（原子性） ：要么全执行，要么全都不执行；</li>
+<li>consistency（一致性）：在事务开始和完成时，数据都必须保持一致状态；</li>
+<li>isolation（隔离性） ：事务处理过程中的中间状态对外部是不可见的；</li>
+<li>durability（持久性） ：事务完成之后，它对于数据的修改是永久性的。</li>
+</ul>
+<p>InnoDB 采用 redo log 机制来保证事务更新的一致性和持久性。</p>
+<h3 id="2-Redo-log"><a href="#2-Redo-log" class="headerlink" title="2 Redo log"></a>2 Redo log</h3><p>Redo log 称为重做日志，用于记录事务操作变化，记录的是数据被修改之后的值。</p>
+<p>Redo log 由两部分组成：</p>
+<ul>
+<li>内存中的重做日志缓冲（redo log buffer）</li>
+<li>重做日志文件（redo log file）</li>
+</ul>
+<p>每次数据更新会先更新 redo log buffer，然后根据 innodb_flush_log_at_trx_commit 来控制 redo log buffer 更新到 redo log file 的时机。innodb_flush_log_at_trx_commit 有三个值可选：</p>
+<p>0：事务提交时，每秒触发一次 redo log buffer 写磁盘操作，并调用操作系统 fsync 刷新 IO 缓存。</p>
+<p>1：事务提交时，InnoDB 立即将缓存中的 redo 日志写到日志文件中，并调用操作系统 fsync 刷新 IO 缓存；</p>
+<p>2：事务提交时，InnoDB 立即将缓存中的 redo 日志写到日志文件中，但不是马上调用 fsync 刷新 IO 缓存，而是每秒只做一次磁盘 IO 缓存刷新操作。</p>
+<p>innodb_flush_log_at_trx_commit 参数的默认值是 1，也就是每个事务提交的时候都会从 log buffer 写更新记录到日志文件，而且会刷新磁盘缓存，这完全满足事务持久化的要求，是最安全的，但是这样会有比较大的性能损失。</p>
+<p>将参数设置为 0 时，如果数据库崩溃，最后 1秒钟的 redo log 可能会由于未及时写入磁盘文件而丢失，这种方式尽管效率最高，但是最不安全。</p>
+<p>将参数设置为 2 时，如果数据库崩溃，由于已经执行了重做日志写入磁盘的操作，只是没有做磁盘 IO 刷新操作，因此，只要不发生操作系统奔溃，数据就不会丢失，这种方式是对性能和安全的一种折中处理。</p>
+<h3 id="3-Binlog"><a href="#3-Binlog" class="headerlink" title="3 Binlog"></a>3 Binlog</h3><p>二进制日志（binlog）记录了所有的 DDL（数据定义语句）和 DML（数据操纵语句），但是不包括 select 和 show 这类操作。Binlog 有以下几个作用：</p>
+<ul>
+<li>恢复：数据恢复时可以使用二进制日志</li>
+<li>复制：通过传输二进制日志到从库，然后进行恢复，以实现主从同步</li>
+<li>审计：可以通过二进制日志进行审计数据的变更操作</li>
+</ul>
+<p>可以通过参数 sync_binlog 来控制累积多少个事务后才将二进制日志 fsync 到磁盘。</p>
+<ul>
+<li>sync_binlog=0，表示每次提交事务都只write，不fsync</li>
+<li>sync_binlog=1，表示每次提交事务都会执行fsync</li>
+<li>sync_binlog=N(N&gt;1)，表示每次提交事务都write，累积N个事务后才fsync</li>
+</ul>
+<p>比如要加快写入数据的速度或者机器磁盘 IO 瓶颈时，可以将 sync_binlog 设置成大于 1 的值，但是如果设置为 N(N&gt;1)时，如果数据库崩溃，可能会丢失最近 N 个事务的 binlog。</p>
+<h3 id="4-怎样确保数据库突然断电不丢数据？"><a href="#4-怎样确保数据库突然断电不丢数据？" class="headerlink" title="4 怎样确保数据库突然断电不丢数据？"></a>4 怎样确保数据库突然断电不丢数据？</h3><p>通过上面的讲解，只要 innodb_flush_log_at_trx_commit 和 sync_binlog 都为 1（通常称为：双一），就能确保 MySQL 机器断电重启后，数据不丢失。</p>
+<p>因此建议在比较重要的库，比如涉及到钱的库，设置为双一，而你的测试环境或者正式业务不那么重要的库（比如日志库）可以将 innodb_flush_log_at_trx_commit 设置为0，sync_binlog 设置成大于100 的数值，提高更新效率。</p>
+<h2 id="20-MVCC怎么实现的"><a href="#20-MVCC怎么实现的" class="headerlink" title="20 MVCC怎么实现的?"></a>20 MVCC怎么实现的?</h2><p>本节跟大家一起聊聊 MVCC（Multi-Version Concurrency Control，多版本并发控制）。为了方便理解，在讲解 MVCC 之前，我们先来聊聊隐藏列、Undo log 和 Read View。</p>
+<h3 id="1-隐藏列"><a href="#1-隐藏列" class="headerlink" title="1 隐藏列"></a>1 隐藏列</h3><p>对于 InnoDB ，每行记录除了我们创建的字段外，其实还包含 3 个隐藏的列：</p>
+<ul>
+<li>ROW ID：隐藏的自增 ID，如果表没有主键，InnoDB 会自动以 ROW ID 产生一个聚集索引树。</li>
+<li>事务 ID：记录最后一次修改该记录的事务 ID。</li>
+<li>回滚指针：指向这条记录的上一个版本。</li>
+</ul>
+<h3 id="2-Undo-log"><a href="#2-Undo-log" class="headerlink" title="2 Undo log"></a>2 Undo log</h3><p>上节我们讲到了 redo log，它记录了事务操作变化。但是事务有时是需要回滚的，这时，Undo log 就发挥了作用。Undo log 是逻辑日志，将数据库逻辑地恢复到原来的样子，所有修改都被逻辑的取消了。</p>
+<ul>
+<li>如果是 insert 操作，其对应的回滚操作就是 delete；</li>
+<li>如果是 delete，则对应的回滚操作是 insert；</li>
+<li>如果是 update，则对应的回滚操作是一个反向的 update 操作。</li>
+</ul>
+<p>Undo log 的作用除了回滚操作，Undo log 的另一个作用是 MVCC，InnoDB 存储引擎中 MVCC 的实现是通过 Undo log 来完成的。当用户读取一行记录时，若该记录已经被其它事务占用，当前事务可以通过 Undo log 读取之前的行版本信息，因为没有事务需要对历史的数据进行修改操作，所以也不需要加锁，以此来实现非锁定读取。</p>
+<h3 id="3-Read-View"><a href="#3-Read-View" class="headerlink" title="3 Read View"></a>3 Read View</h3><p>Read View 是指事务进行快照读操作的那一刻，产生数据库系统当前活跃事务列表的一个快照。</p>
+<p>Read View 中大致包含以下内容：</p>
+<ul>
+<li>trx_ids：数据库系统当前活跃事务 ID 集合；</li>
+<li>low_limit_id：活跃事务中最大的事务 ID +1；</li>
+<li>up_limt_id：活跃事务总最小的事务 ID；</li>
+<li>creator_trx_id：创建这个 Read View 的事务 ID。</li>
+</ul>
+<p>比如某个事务，创建了 Read View，那么它的 creator_trx_id 就为这个事务的 ID，假如需要访问某一行，假设这一行记录的隐藏事务 ID 为 t_id，那么可能出现的情况如下：</p>
+<ul>
+<li>如果 t_id &lt; up_limt_id，说明这行记录在这些活跃的事务创建之前就已经提交了，那么这一行记录对该事务是可见的。</li>
+<li>如果 t_id &gt;= low_limt_id，说明这行记录在这些活跃的事务开始之后创建的，那么这一行记录对该事物是不可见的。</li>
+<li>如果 up_limit_id &lt;= t_id &lt; low_limit_id，说明这行记录可能是在这些活跃的事务中创建的，如果 t_id 也同时在 trx_ids 中，则说明 t_id 还未提交，那么这一行记录对该事物是不可见的；如果 t_id 不在 trx_ids 中，则说明事务 t_id 已经提交了，那么这一行记录对该事物是可见的。</li>
+</ul>
+<p>对于不可见的记录，都是通过查询 Undo log 来查询老的记录。</p>
+<p>了解了上面的原理，我们知道了，Read View 规则帮我们判断当前版本的数据是否可见。下面，我们分析下当查询一条记录时，大致的步骤：</p>
+<ul>
+<li>获取事务本身的事务 ID；</li>
+<li>获取 Read View；</li>
+<li>查询得到的数据，然后与 Read View 中的事务版本号进行比较；</li>
+<li>如果能查询，则直接查询对应的记录；如果不能直接查询，则通过 Undo Log 中获取历史快照；</li>
+<li>最终返回结果。</li>
+</ul>
+<p>另外需要补充的一点就是，在 RR 和 RC 隔离级别下，获取 Read View 的时机也是不一样的：</p>
+<ul>
+<li>在可重复读隔离级别（RR）下，同一个事务中，查询语句只是在第一个读请求发起时获取 Read View，而后面相同的查询语句都会使用这个 Read View。</li>
+<li>在读已提交隔离级别（RC）下，同一个事务中，同样的查询语句在每次读请求发起时都会获得 Read View。</li>
+</ul>
+<h3 id="4-什么是-MVCC？"><a href="#4-什么是-MVCC？" class="headerlink" title="4 什么是 MVCC？"></a>4 什么是 MVCC？</h3><p>在说 MVCC 之前，大家先看看下面这个例子。</p>
+<p>首先创建表并写入测试数据：</p>
+<pre class="line-numbers language-sql" data-language="sql"><code class="language-sql"><span class="token keyword">use</span> muke<span class="token punctuation">;</span>
+<span class="token keyword">drop</span> <span class="token keyword">table</span> <span class="token keyword">if</span> <span class="token keyword">exists</span> t20<span class="token punctuation">;</span>
+
+<span class="token keyword">CREATE</span> <span class="token keyword">TABLE</span> <span class="token punctuation">`</span>t20<span class="token punctuation">`</span> <span class="token punctuation">(</span>
+<span class="token punctuation">`</span>id<span class="token punctuation">`</span> <span class="token keyword">int</span><span class="token punctuation">(</span><span class="token number">11</span><span class="token punctuation">)</span> <span class="token operator">NOT</span> <span class="token boolean">NULL</span> <span class="token keyword">AUTO_INCREMENT</span><span class="token punctuation">,</span>
+<span class="token punctuation">`</span>a<span class="token punctuation">`</span> <span class="token keyword">int</span><span class="token punctuation">(</span><span class="token number">11</span><span class="token punctuation">)</span> <span class="token operator">NOT</span> <span class="token boolean">NULL</span><span class="token punctuation">,</span>
+<span class="token punctuation">`</span>b<span class="token punctuation">`</span> <span class="token keyword">int</span><span class="token punctuation">(</span><span class="token number">11</span><span class="token punctuation">)</span> <span class="token operator">NOT</span> <span class="token boolean">NULL</span><span class="token punctuation">,</span>
+<span class="token keyword">PRIMARY</span> <span class="token keyword">KEY</span> <span class="token punctuation">(</span><span class="token punctuation">`</span>id<span class="token punctuation">`</span><span class="token punctuation">)</span><span class="token punctuation">,</span>
+<span class="token keyword">KEY</span> <span class="token punctuation">`</span>idx_c<span class="token punctuation">`</span> <span class="token punctuation">(</span><span class="token punctuation">`</span>a<span class="token punctuation">`</span><span class="token punctuation">)</span>
+<span class="token punctuation">)</span> <span class="token keyword">ENGINE</span><span class="token operator">=</span><span class="token keyword">InnoDB</span> <span class="token keyword">CHARSET</span><span class="token operator">=</span>utf8mb4<span class="token punctuation">;</span>
+<span class="token keyword">insert</span> <span class="token keyword">into</span> t20<span class="token punctuation">(</span>a<span class="token punctuation">,</span>b<span class="token punctuation">)</span> <span class="token keyword">values</span> <span class="token punctuation">(</span><span class="token number">1</span><span class="token punctuation">,</span><span class="token number">1</span><span class="token punctuation">)</span><span class="token punctuation">,</span><span class="token punctuation">(</span><span class="token number">2</span><span class="token punctuation">,</span><span class="token number">2</span><span class="token punctuation">)</span><span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>进行实验：</p>
+<div class="table-container">
+<table>
+<thead>
+<tr>
+<th></th>
+<th>session1</th>
+<th>session2</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>set session transaction_isolation=‘READ-COMMITTED’;/<em> 设置会话隔离级别为 RC</em>/</td>
+<td>set session transaction_isolation=‘READ-COMMITTED’;/<em> 设置会话隔离级别为 RC</em>/</td>
+</tr>
+<tr>
+<td>2</td>
+<td>select <em> from t20;<br><em>*Result1</em></em></td>
+<td></td>
+</tr>
+<tr>
+<td>3</td>
+<td>begin;</td>
+<td></td>
+</tr>
+<tr>
+<td>4</td>
+<td>update t20 set b=666 where a=1;</td>
+<td></td>
+</tr>
+<tr>
+<td>5</td>
+<td></td>
+<td>begin;</td>
+</tr>
+<tr>
+<td>6</td>
+<td></td>
+<td>select <em> from t20;<br><em>*Result2</em></em></td>
+</tr>
+<tr>
+<td>7</td>
+<td>commit;</td>
+<td></td>
+</tr>
+<tr>
+<td>8</td>
+<td></td>
+<td>select <em> from t20;<br><em>*Result3</em></em></td>
+</tr>
+<tr>
+<td>9</td>
+<td></td>
+<td>commit;</td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>其中</p>
+<p><strong>Result1</strong>：</p>
+<pre class="line-numbers language-text" data-language="text"><code class="language-text">+----+---+---+
+| id | a | b |
++----+---+---+
+|  1 | 1 | 1 |
+|  2 | 2 | 2 |
++----+---+---+<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p><strong>Result2</strong>：</p>
+<pre class="line-numbers language-text" data-language="text"><code class="language-text">select * from t20;<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p><strong>Result3</strong>：</p>
+<pre class="line-numbers language-text" data-language="text"><code class="language-text">mysql&gt; select * from t20;
++----+---+-----+
+| id | a | b   |
++----+---+-----+
+|  1 | 1 | 666 |
+|  2 | 2 |   2 |
++----+---+-----+<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>在 session1 更新了 a=1 这行记录，但还没提交的情况下，在 session2 中，满足 a=1 这条记录，b 的值还是原始值 1，而不是 session 1 更新之后的 666，那么在数据库层面，这是怎么实现的呢？</p>
+<p>其实 InnoDB 就是通过 MVCC 和 Undo log 来实现的。</p>
+<p>什么是 MVCC 呢？</p>
+<p>MVCC， 即多版本并发控制。MVCC 的实现，是通过保存数据在某个时间点的快照来实现的，也就是说，不管需要执行多长时间，每个事务看到的数据都是一致的。根据事务开始的时间不同，每个事务对同一张表，同一时刻看到的数据可能是不一样的。</p>
+<p>也就是上面实验第 6 步中，为什么 session2 查询的结果还是 session1 修改之前的记录。</p>
+<h3 id="5-MVCC-的实现原理"><a href="#5-MVCC-的实现原理" class="headerlink" title="5 MVCC 的实现原理"></a>5 MVCC 的实现原理</h3><p>我们拿上面的例子，对应解释下 MVCC 的实现原理，如下图：</p>
+<p><img src="/images/《一线数据库工程师带你深入理解MySQL》学习笔记/MVCC实现原理.png" alt="img"></p>
+<p>如图，首先 insert 语句向表 t20 中插入了一条数据，a 字段为 1，b 字段为 1， ROW ID 也为 1 ，事务 ID 假设为 1，回滚指针假设为 null。当执行 update t20 set b=666 where a=1 时，大致步骤如下：</p>
+<ul>
+<li>数据库会先对满足 a=1 的行加排他锁；</li>
+<li>然后将原记录复制到 undo 表空间中；</li>
+<li>修改 b 字段的值为 666，修改事务 ID 为 2；</li>
+<li>并通过隐藏的回滚指针指向 Undo log 中的历史记录；</li>
+<li>事务提交，释放前面对满足 a=1 的行所加的排他锁。</li>
+</ul>
+<p>在前面实验的第 6 步中，session2 查询的结果是 session1 修改之前的记录，也就是那个点的 Read View，根据上面将的 Read View 原理，被查询行的隐藏事务 ID 就在当前活跃事务 ID 集合中。因此，这一行记录对该事物（session2 中的事务）是不可见的，可以知道 session2 查询的 a=1 这行记录实际就是来自 Undo log 中。我们看到的现象就是同一条记录在系统中存在了多个版本，这就是 MySQL 的多版本并发控制（MVCC）。</p>
+<p>需要注意的是，MVCC 只在 RC 和 RR 两个隔离级别下工作。因此在上面的实验中，改成 RR 隔离级别，第 6 步中，得到的结果还是 session1 修改之前的记录（但是在第 8 步，结果不一样哦，感兴趣的可以把上面操作放在 RR 隔离级别下实验一下）</p>
+<h3 id="6-MVCC-的优势"><a href="#6-MVCC-的优势" class="headerlink" title="6 MVCC 的优势"></a>6 MVCC 的优势</h3><p>MVCC 最大的好处是读不加锁，读写不冲突，极大地增加了 MySQL 的并发性。</p>
+<p>通过 MVCC，保证了事务 ACID 中的 I（隔离性）特性。</p>
+<h3 id="7-总结"><a href="#7-总结" class="headerlink" title="7 总结"></a>7 总结</h3><p>我们知道了，MySQL 是通过 Read View 判断是否能直接查询到对应的记录，如果需要查询一些被其它事务正在更新的行，则要取出 Undo log 中历史版本的记录。</p>
+<p>MVCC 实现的原理大致是：</p>
+<p>InnoDB 每一行数据都有一个隐藏的回滚指针，用于指向该行修改前的最后一个历史版本，这个历史版本存放在 Undo log 中。如果要执行更新操作，会将原记录放入 Undo log 中，并通过隐藏的回滚指针指向 Undo log 中的原记录。其它事务此时需要查询时，就是查询 Undo log 中这行数据的最后一个历史版本。</p>
+<p>MVCC 最大的好处是读不加锁，读写不冲突，极大的增加了 MySQL 的并发性，通过 MVCC，也保证了事务 ACID 中的 I（隔离性）特性。</p>
+<h3 id="8-问题"><a href="#8-问题" class="headerlink" title="8 问题"></a>8 问题</h3><p>MVCC 为什么只在 RC 和 RR 两个隔离级别下工作？</p>
+<p>解答：</p>
+<p>从查询方面看，MVCC是解决在并发条件下，同时可能会产生多个值，如何从多个值中选择一个值的技术。</p>
+<p>但在RU和串行的隔离级别下，只会存在一个值。</p>
+<ul>
+<li>RU：每次只取最新的值，不存在多个值的情况。</li>
+<li>串行：每次查询都会加读锁，当有更新时会阻塞住，只有等到查询完锁释放后，才会做更新操作。所以也不存在多个值的情况。</li>
+</ul>
+<h2 id="21-不同事务隔离级别有哪些区别？"><a href="#21-不同事务隔离级别有哪些区别？" class="headerlink" title="21 不同事务隔离级别有哪些区别？"></a>21 不同事务隔离级别有哪些区别？</h2><h3 id="1-通过基本定义认识事务隔离级别"><a href="#1-通过基本定义认识事务隔离级别" class="headerlink" title="1 通过基本定义认识事务隔离级别"></a>1 通过基本定义认识事务隔离级别</h3><p>MySQL 有四种隔离级别，我们来看一下这四种隔离级别的基本定义：</p>
+<ul>
+<li>Read uncommitted（读未提交，简称：RU）: 在该隔离级别，所有事务都可以看到其它未提交的事务的执行结果。可能会出现脏读。</li>
+<li>Read Committed（读已提交，简称： RC）：一个事务只能看见已经提交事务所做的改变。因为同一事务的其它实例在该实例处理期间可能会有新的 commit，所以可能出现幻读。</li>
+<li>Repeatable Read（可重复读，简称：RR）：这是 MySQL 的默认事务隔离级别，它确保同一事务的多个实例在并发读取数据时，会看到同样的数据行。消除了脏读、不可重复读，默认也不会出现幻读。</li>
+<li>Serializable（串行）：这是最高的隔离级别，它通过强制事务排序，使之不可能相互冲突，从而解决幻读问<br>题。</li>
+</ul>
+<h3 id="4-如何选择合适的事务隔离级别"><a href="#4-如何选择合适的事务隔离级别" class="headerlink" title="4 如何选择合适的事务隔离级别"></a>4 如何选择合适的事务隔离级别</h3><p>在上面的内容中，我们认识了事务隔离级别，那么应该怎样选择合适的事务隔离级别呢？</p>
+<p>对于 RU 隔离级别，会导致脏读，从性能上看，也不会比其它隔离级别好太多，因此生产环境不建议使用。</p>
+<p>对于 RC 隔离级别，相比 RU 隔离级别，不会出现脏读；但是会出现幻读，一个事务中的两次执行同样的查询，可能得到不一样的结果。</p>
+<p>对于 RR 隔离级别，相比 RC 隔离级别，解决了部分幻读（这个在第 17 节详细讲了，RR 隔离级别通过间隙锁解决了部分幻读），但是相对于 RC，锁的范围可能更大了。</p>
+<p>对于 Serializable 隔离级别，因为它强制事务串行执行，会在读取的每一行数据上都加锁，因此可能会导致大量的超时和锁争用的问题。生成环境很少使用。</p>
+<p>因此总的来说，建议在 RC 和 RR 两个隔离级别中选一种，如果能接受幻读，需要并发高点，就可以配置成 RC，如果不能接受幻读的情况，就设置成 RR 隔离级别。</p>
+<h3 id="22-养成好的事务习惯"><a href="#22-养成好的事务习惯" class="headerlink" title="22 养成好的事务习惯"></a>22 养成好的事务习惯</h3><h3 id="1-不好的事务习惯"><a href="#1-不好的事务习惯" class="headerlink" title="1 不好的事务习惯"></a>1 不好的事务习惯</h3><h4 id="1-1-在循环中提交"><a href="#1-1-在循环中提交" class="headerlink" title="1.1 在循环中提交"></a>1.1 在循环中提交</h4><p>在大多数情况下，MySQL 都是开启自动提交的，如果遇到循环执行 SQL，则相当于每个循环中都会进行一次提交，实际这算一个不好的事务习惯了。下面我创建一张测试表，并定义两个循环写入数据的存储过程：一个是自动提交，另一个是在循环前开启一个事务，在循环后一次性提交。</p>
+<pre class="line-numbers language-sql" data-language="sql"><code class="language-sql"><span class="token keyword">use</span> muke<span class="token punctuation">;</span> <span class="token comment">/* 使用muke这个database */</span>
+<span class="token keyword">drop</span> <span class="token keyword">table</span> <span class="token keyword">if</span> <span class="token keyword">exists</span> t22<span class="token punctuation">;</span> <span class="token comment">/* 如果表t22存在则删除表t22 */</span>
+<span class="token keyword">CREATE</span> <span class="token keyword">TABLE</span> <span class="token punctuation">`</span>t22<span class="token punctuation">`</span> <span class="token punctuation">(</span>
+<span class="token punctuation">`</span>id<span class="token punctuation">`</span> <span class="token keyword">int</span><span class="token punctuation">(</span><span class="token number">11</span><span class="token punctuation">)</span> <span class="token operator">NOT</span> <span class="token boolean">NULL</span> <span class="token keyword">AUTO_INCREMENT</span><span class="token punctuation">,</span>
+<span class="token punctuation">`</span>a<span class="token punctuation">`</span> <span class="token keyword">int</span><span class="token punctuation">(</span><span class="token number">11</span><span class="token punctuation">)</span> <span class="token keyword">DEFAULT</span> <span class="token boolean">NULL</span><span class="token punctuation">,</span>
+<span class="token punctuation">`</span>b<span class="token punctuation">`</span> <span class="token keyword">int</span><span class="token punctuation">(</span><span class="token number">11</span><span class="token punctuation">)</span> <span class="token operator">NOT</span> <span class="token boolean">NULL</span><span class="token punctuation">,</span>
+<span class="token punctuation">`</span>c<span class="token punctuation">`</span> <span class="token keyword">int</span><span class="token punctuation">(</span><span class="token number">11</span><span class="token punctuation">)</span> <span class="token keyword">DEFAULT</span> <span class="token boolean">NULL</span><span class="token punctuation">,</span>
+<span class="token punctuation">`</span>d<span class="token punctuation">`</span> <span class="token keyword">int</span><span class="token punctuation">(</span><span class="token number">11</span><span class="token punctuation">)</span> <span class="token keyword">DEFAULT</span> <span class="token boolean">NULL</span><span class="token punctuation">,</span>
+<span class="token keyword">PRIMARY</span> <span class="token keyword">KEY</span> <span class="token punctuation">(</span><span class="token punctuation">`</span>id<span class="token punctuation">`</span><span class="token punctuation">)</span><span class="token punctuation">,</span>
+<span class="token keyword">KEY</span> <span class="token punctuation">`</span>idx_a<span class="token punctuation">`</span> <span class="token punctuation">(</span><span class="token punctuation">`</span>a<span class="token punctuation">`</span><span class="token punctuation">)</span><span class="token punctuation">,</span>
+<span class="token keyword">KEY</span> <span class="token punctuation">`</span>idx_b<span class="token punctuation">`</span> <span class="token punctuation">(</span><span class="token punctuation">`</span>b<span class="token punctuation">`</span><span class="token punctuation">)</span>
+<span class="token punctuation">)</span> <span class="token keyword">ENGINE</span><span class="token operator">=</span><span class="token keyword">InnoDB</span>  <span class="token keyword">CHARSET</span><span class="token operator">=</span>utf8mb4<span class="token punctuation">;</span>
+
+<span class="token keyword">drop</span> <span class="token keyword">procedure</span> <span class="token keyword">if</span> <span class="token keyword">exists</span> insert_t22_1<span class="token punctuation">;</span> <span class="token comment">/* 如果存在存储过程insert_t22_1，则删除 */</span>
+<span class="token keyword">delimiter</span> <span class="token punctuation">;</span><span class="token punctuation">;</span>
+<span class="token keyword">create</span> <span class="token keyword">procedure</span> insert_t22_1<span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token comment">/* 创建存储过程insert_t22_1 */</span>
+<span class="token keyword">begin</span>
+<span class="token keyword">declare</span> i <span class="token keyword">int</span><span class="token punctuation">;</span> <span class="token comment">/* 声明变量i */</span>
+<span class="token keyword">set</span> i<span class="token operator">=</span><span class="token number">1</span><span class="token punctuation">;</span> <span class="token comment">/* 设置i的初始值为1 */</span>
+<span class="token keyword">while</span><span class="token punctuation">(</span>i<span class="token operator">&lt;=</span><span class="token number">10000</span><span class="token punctuation">)</span><span class="token keyword">do</span> <span class="token comment">/* 对满足i&lt;=10000的值进行while循环 */</span>
+<span class="token keyword">insert</span> <span class="token keyword">into</span> t22<span class="token punctuation">(</span>a<span class="token punctuation">,</span>b<span class="token punctuation">,</span>c<span class="token punctuation">,</span>d<span class="token punctuation">)</span> <span class="token keyword">values</span><span class="token punctuation">(</span>i<span class="token punctuation">,</span>i<span class="token punctuation">,</span>i<span class="token punctuation">,</span>i<span class="token punctuation">)</span><span class="token punctuation">;</span> <span class="token comment">/* 写入表t22中a、b两个字段，值都为i当前的值 */</span>
+<span class="token keyword">set</span> i<span class="token operator">=</span>i<span class="token operator">+</span><span class="token number">1</span><span class="token punctuation">;</span> <span class="token comment">/* 将i加1 */</span>
+<span class="token keyword">end</span> <span class="token keyword">while</span><span class="token punctuation">;</span>
+<span class="token keyword">end</span><span class="token punctuation">;</span><span class="token punctuation">;</span>
+<span class="token keyword">delimiter</span> <span class="token punctuation">;</span> <span class="token comment">/* 创建批量写入10000条数据到表t22的存储过程insert_t22_1 */</span>
+
+<span class="token keyword">drop</span> <span class="token keyword">procedure</span> <span class="token keyword">if</span> <span class="token keyword">exists</span> insert_t22_2<span class="token punctuation">;</span> <span class="token comment">/* 如果存在存储过程insert_t22_2，则删除 */</span>
+<span class="token keyword">delimiter</span> <span class="token punctuation">;</span><span class="token punctuation">;</span>
+<span class="token keyword">create</span> <span class="token keyword">procedure</span> insert_t22_2<span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token comment">/* 创建存储过程insert_t22_2 */</span>
+<span class="token keyword">begin</span>
+<span class="token keyword">declare</span> i <span class="token keyword">int</span><span class="token punctuation">;</span> <span class="token comment">/* 声明变量i */</span>
+<span class="token keyword">set</span> i<span class="token operator">=</span><span class="token number">1</span><span class="token punctuation">;</span> <span class="token comment">/* 设置i的初始值为1 */</span>
+<span class="token keyword">start</span> <span class="token keyword">transaction</span><span class="token punctuation">;</span>
+<span class="token keyword">while</span><span class="token punctuation">(</span>i<span class="token operator">&lt;=</span><span class="token number">10000</span><span class="token punctuation">)</span><span class="token keyword">do</span> <span class="token comment">/* 对满足i&lt;=10000的值进行while循环 */</span>
+<span class="token keyword">insert</span> <span class="token keyword">into</span> t22<span class="token punctuation">(</span>a<span class="token punctuation">,</span>b<span class="token punctuation">,</span>c<span class="token punctuation">,</span>d<span class="token punctuation">)</span> <span class="token keyword">values</span><span class="token punctuation">(</span>i<span class="token punctuation">,</span>i<span class="token punctuation">,</span>i<span class="token punctuation">,</span>i<span class="token punctuation">)</span><span class="token punctuation">;</span> <span class="token comment">/* 写入表t22中a、b两个字段，值都为i当前的值 */</span>
+<span class="token keyword">set</span> i<span class="token operator">=</span>i<span class="token operator">+</span><span class="token number">1</span><span class="token punctuation">;</span> <span class="token comment">/* 将i加1 */</span>
+<span class="token keyword">end</span> <span class="token keyword">while</span><span class="token punctuation">;</span>
+<span class="token keyword">commit</span><span class="token punctuation">;</span>
+<span class="token keyword">end</span><span class="token punctuation">;</span><span class="token punctuation">;</span>
+<span class="token keyword">delimiter</span> <span class="token punctuation">;</span> <span class="token comment">/* 创建批量写入10000条数据到表t22的存储过程insert_t22_2 */</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>我们来对比两个存储过程的速度：</p>
+<pre class="line-numbers language-text" data-language="text"><code class="language-text">mysql&gt; call insert_t22_1(); /* insert_t22_1 */
+Query OK, 1 row affected (28.36 sec)
+
+mysql&gt; call insert_t22_2(); /* insert_t22_2 */
+Query OK, 0 rows affected (0.37 sec)<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>明显第二种方式快的多。因为 insert_t22_1 每一次提交都要写一次重做日志，实际写了 10000 次重做日志，而存储过程 insert_t22_2 只写了 1 次重做日志。</p>
+<p>因此，在类似这种循环写入的情况，如果循环次数不是太多，建议在循环前开启一个事务，循环结束后统一提交。</p>
+<h3 id="1-2-不关注同一个事务里语句顺序"><a href="#1-2-不关注同一个事务里语句顺序" class="headerlink" title="1.2 不关注同一个事务里语句顺序"></a>1.2 不关注同一个事务里语句顺序</h3><p>比如 A 在超市购买 100 元的商品，付款操作可以简化为：</p>
+<div class="table-container">
+<table>
+<thead>
+<tr>
+<th>序号</th>
+<th>操作</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>A 的账户中扣除 100</td>
+</tr>
+<tr>
+<td>2</td>
+<td>超市的账户增加 100</td>
+</tr>
+<tr>
+<td>3</td>
+<td>在超市系统中记录一条日志</td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>很多时候我们会按上面的 SQL 步骤放入一个事务里执行，不关注里面语句的顺序。实际可以优化的。</p>
+<p>根据两阶段锁，整个事务里面涉及的锁，需要等到事务提交时才会释放。因此我们在同一个事务中，可以把没锁或者锁范围小的语句放在事务前面执行，而锁定范围大的语句放在后面执行。</p>
+<blockquote>
+<p>这里来回顾一下第 16 节中提到的两阶段锁：锁操作分为两个阶段，加锁阶段和解锁阶段，并且保证加锁阶段和解锁阶段不相交。在执行语句的时候加上锁，但并不是语句执行完就立刻释放锁，而是要等到事务结束时才释放。</p>
+</blockquote>
+<p>因此上面 A 购买商品的例子中，可能很多人同时在超市付款，那么存在锁竞争的最可能是超市账户增加 100 元的操作。</p>
+<p>那么付款操作可以这么优化：</p>
+<div class="table-container">
+<table>
+<thead>
+<tr>
+<th>序号</th>
+<th>操作</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>在超市系统中记录一条日志</td>
+</tr>
+<tr>
+<td>2</td>
+<td>A 的账户中扣除 100</td>
+</tr>
+<tr>
+<td>3</td>
+<td>超市的账户增加 100</td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>把可能存在锁竞争的操作放在最后执行，从而优化整个事务。</p>
+<p>因此在写程序时，应该去关注事务里的语句顺序。</p>
+<h3 id="1-3-不关注不同事务访问资源的顺序"><a href="#1-3-不关注不同事务访问资源的顺序" class="headerlink" title="1.3 不关注不同事务访问资源的顺序"></a>1.3 不关注不同事务访问资源的顺序</h3><p>各位是否还记得，在第 18 节中，讲到了几种产生死锁的原因，其中有两条就跟不同事务访问资源顺序有关，我们来回顾一下：</p>
+<ul>
+<li>不同线程并发访问同一张表的多行数据，未按顺序访问导致死锁。</li>
+<li>不同线程并发访问多个表时，未按顺序访问导致死锁。</li>
+</ul>
+<p>如果不关注并发访问的不同事务中访问资源的顺序，就会增大出现死锁的概率。</p>
+<p>因此，为了降低死锁，我们需要去关注不同事务访问资源的顺序。</p>
+<h4 id="1-4-不关注事务隔离级别"><a href="#1-4-不关注事务隔离级别" class="headerlink" title="1.4 不关注事务隔离级别"></a>1.4 不关注事务隔离级别</h4><p>在上一节中，我们详细聊到了事务隔离级别，因此也知道，不同事务隔离级别加锁的情况也是不同的。</p>
+<p>如果完全不关注自己业务使用的 MySQL 是什么隔离级别，可能会降低程序的并发能力或者导致死锁。</p>
+<p>比如业务场景完全能接受幻读，如果要求更高的 QPS，使用 RR 隔离级别显然不是最好的选择，因此可以改为 RC 隔离级别。</p>
+<p>而如果业务使用的是 RR 隔离级别，可能由于间隙锁导致死锁（可参考第 18 节 2.3 中的例子），因此也应该在程序编写时关注 RR 隔离级别下是否会有间隙锁。</p>
+<p>因此，为了更高的并发和降低死锁概率，在创建事务前，也应该去关注自己业务的数据库是什么事务隔离级别。</p>
+<h4 id="1-5-在事务中混合使用存储引擎"><a href="#1-5-在事务中混合使用存储引擎" class="headerlink" title="1.5 在事务中混合使用存储引擎"></a>1.5 在事务中混合使用存储引擎</h4><p>在事务中混合使用事务型（比如 InnoDB）和非事务型（比如 MyISAM）表，如果是正常提交，到没什么问题。</p>
+<p>但是，如果该事务回滚了，事务型的表可以正常回滚，而非事务型的表的变更就无法回滚了。这种情况就会导致数据不正常，并且事务最终的结果也难以确定。</p>
+<p>因此，在事务中混合使用存储引擎也是一个不好的事务习惯。</p>
+<blockquote>
+<p>值得一提的是：如果开启 GTID，那么当同一个事务中使用不同存储引擎的表时，会出现如下报错：<br>ERROR 1785 (HY000): Statement violates GTID consistency: Updates to non-transactional tables can only be done in either autocommitted statements or single-statement transactions, and never in the same statement as updates to transactional tables.<br>因此，开启 GTID 的情况，可以避免同一个事务中混合使用存储引擎的情况。</p>
+</blockquote>
+<h3 id="2-总结一下好的事务习惯"><a href="#2-总结一下好的事务习惯" class="headerlink" title="2 总结一下好的事务习惯"></a>2 总结一下好的事务习惯</h3><p>在本节中，我们列举了几种不好的事务习惯，这里总结一下好的事务习惯：</p>
+<ul>
+<li>循环写入的情况，如果循环次数不是太多，建议在循环前开启一个事务，循环结束后统一提交。</li>
+<li>优化事务里的语句顺序，减少锁时间。</li>
+<li>关注不同事务访问资源的顺序。</li>
+<li>创建事务之前，关注事务隔离级别。</li>
+<li>不在事务中混合使用存储引擎。</li>
+</ul>
+<h2 id="23-细聊分布式事务"><a href="#23-细聊分布式事务" class="headerlink" title="23 细聊分布式事务"></a>23 细聊分布式事务</h2><p>比如你在网上买了一本书，可以简化为在订单库增加订单，在库存库减掉这本书的 1 个库存。这里订单库和库存库是在不同的机器上，如果这两步放在两个事务里，增加订单这一步成功了，但是减库存这里失败了。那岂不是就乱了。</p>
+<p>这里就要引出分布式事务了。什么是分布式事务？</p>
+<h3 id="1-认识分布式事务"><a href="#1-认识分布式事务" class="headerlink" title="1 认识分布式事务"></a>1 认识分布式事务</h3><p>分布式事务是指一个大的事务由很多小操作组成，小操作分布在不同的服务器上或者不同的应用程序上。分布式事务需要保证这些小操作要么全部成功，要么全部失败。MySQL 从 5.0.3 开始支持分布式事务。</p>
+<p>分布式事务使用两阶段提交协议：</p>
+<ul>
+<li>第一阶段：所有分支事务都开始准备，告诉事务管理器自己已经准备好了；</li>
+<li>第二阶段：确定是 rollback 还是 commit，如果有一个节点不能提交，则所有节点都要回滚。</li>
+</ul>
+<p>与本地事务不同点在于：分布式事务需要多一次 prepare 操作，等收到所有节点的确定信息后，再进行 commit 或者 rollback。</p>
+<p>MySQL 中分布式事务按实现方式可以分为两种：MySQL 自带的分布式事务和结合中间件实现分布式事务。下面来详细介绍一下这两种分布式事务。</p>
+<h3 id="2-MySQL-自带的分布式事务"><a href="#2-MySQL-自带的分布式事务" class="headerlink" title="2 MySQL 自带的分布式事务"></a>2 MySQL 自带的分布式事务</h3><p>MySQL 有自带的分布式事务实现方法，具体语法如下：</p>
+<p>启动分支事务：</p>
+<pre class="line-numbers language-sql" data-language="sql"><code class="language-sql">xa <span class="token keyword">start</span> <span class="token string">'a'</span><span class="token punctuation">,</span> <span class="token string">'a_1'</span><span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<blockquote>
+<p>‘a’,‘a_1’ 表示 xid，<br>a 表示 gtrid，为分布式事务标识符，相同的分布式事务使用相同的 gtrid。<br>a_1 表示 bqual，为分支限定符，分布式事务中的每一个分支事务的 bqual 必须不同。</p>
+</blockquote>
+<p>结束分支事务：</p>
+<pre class="line-numbers language-sql" data-language="sql"><code class="language-sql">xa <span class="token keyword">end</span> <span class="token string">'a'</span><span class="token punctuation">,</span> <span class="token string">'a_1'</span><span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>进入准备状态：</p>
+<pre class="line-numbers language-sql" data-language="sql"><code class="language-sql">xa <span class="token keyword">prepare</span> <span class="token string">'a'</span><span class="token punctuation">,</span> <span class="token string">'a_1'</span><span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>提交分支事务：</p>
+<pre class="line-numbers language-sql" data-language="sql"><code class="language-sql">xa <span class="token keyword">commit</span> <span class="token string">'a'</span><span class="token punctuation">,</span> <span class="token string">'a_1'</span><span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>回滚分支事务：</p>
+<pre class="line-numbers language-sql" data-language="sql"><code class="language-sql">xa <span class="token keyword">rollback</span> <span class="token string">'a'</span><span class="token punctuation">,</span> <span class="token string">'a_1'</span><span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>返回当前数据库中处于prepare状态的分支事务的详细信息：</p>
+<pre class="line-numbers language-sql" data-language="sql"><code class="language-sql">xa recover<span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>我们来看一个例子：</p>
+<div class="table-container">
+<table>
+<thead>
+<tr>
+<th>session1</th>
+<th>session2</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>use muke1;</td>
+<td>use muke2;</td>
+</tr>
+<tr>
+<td>create table t23_1(id int);</td>
+<td>create table t23_2(id int);</td>
+</tr>
+<tr>
+<td>xa start ‘test’,‘muke1’;</td>
+<td>xa start ‘test’,‘muke2’;</td>
+</tr>
+<tr>
+<td>insert into t23_1 select 1;</td>
+<td>insert into t23_2 select 1;</td>
+</tr>
+<tr>
+<td>xa end ‘test’,‘muke1’;</td>
+<td>xa end ‘test’,‘muke2’;</td>
+</tr>
+<tr>
+<td>xa prepare ‘test’,‘muke1’;</td>
+<td>xa prepare ‘test’,‘muke2’;</td>
+</tr>
+<tr>
+<td>xa recover \G</td>
+<td>xa recover \G</td>
+</tr>
+<tr>
+<td>xa commit ‘test’,‘muke1’;</td>
+<td>xa commit ‘test’,‘muke2’;</td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>上面的例子就演示了一个分布式事务，事务在 muke1 库中的 t23_1 表中插入一条记录，同时在 muke2 库中的 t23_2 表中插入一条记录，两个操作作为同一个事务提交。在进入准备状态之前，如果 session2 中某一步没执行成功而回滚了，则 session1 和 session2 整个分布式事务的操作都会回滚。</p>
+<p>但是 MySQL 5.7 之前的版本，自带的分布式事务存在以下问题：</p>
+<p>比如某个分支事务到达 prepare 状态时，此时数据库断电，重启后，可以继续对分支事务进行提交或者回滚，但是提交的事务不会写 binlog，如果有从库，会导致主从数据不一致的情况。</p>
+<p>如果分支事务的客户端连接异常中止，那么数据库会自动回滚当前分支未完成的事务，如果此时分支事务已经到 prepare 状态，那么这个分布式事务的其他分支可能已经成功提交，如果这个分支回滚，可能导致分布式事务的不完整，丢失部分分支事务的内容。</p>
+<p>还有一种情况，如果分支事务在执行到 prepare 状态时，数据库出现故障，并且无法启动，需要使用全备和 binlog 来恢复数据，那么这些在 prepare 状态的分支事务因为没有记录到 binlog，所以也不能通过binlog 进行恢复，在数据库恢复后，将丢失这部分数据。</p>
+<p>所以，MySQL 5.7 之前的版本自带的分布式事务还存在比较严重的缺陷，在有些场景下，会导致数据丢失。如果业务对数据完整性要求不改，可以考虑使用，如果对数据完整性要求比较高，需要考虑先升级到 5.7 版本。</p>
+<h3 id="3-结合中间件实现分布式"><a href="#3-结合中间件实现分布式" class="headerlink" title="3 结合中间件实现分布式"></a>3 结合中间件实现分布式</h3><p>上面说了 MySQL 自带的分布式事务，这里再介绍一下借助中间件实现分布式的情况。</p>
+<p>具体实现方式可以拿上面网上购书的例子来说：</p>
+<p>订单业务程序处理完增加订单的操作后，将减库存操作发送到消息队列中间件中（比如：Rocketmq），订单业务程序完成提交。然后库存业务程序检查到消息队列有减对应商品库存的信息，就开始执行减库存操作。库存业务执行完减库存操作，再发送一条消息给消息队列中间件：内容是已经减掉库存。具体步骤如下：</p>
+<p><img src="/images/《一线数据库工程师带你深入理解MySQL》学习笔记/MQ实现增加订单和减库存操作.png" alt="img"></p>
+<p>当然，为了确定最终已经完成减库存操作，还可以加一步对数据库中该商品库存的判断。</p>
+<hr>
+<p>第5章 MySQL的一些其他经验</p>
+<h2 id="27-使用读写分离需要注意哪些？"><a href="#27-使用读写分离需要注意哪些？" class="headerlink" title="27 使用读写分离需要注意哪些？"></a>27 使用读写分离需要注意哪些？</h2><p>对于高访问量的业务场景，MySQL 读写分离显得格外重要。</p>
+<p>通常我们说的 MySQL 读写分离是指：对于修改操作在主库上执行，而对于查询操作，在从库上执行。主要目的是分担主库的压力。</p>
+<p>但是读写分离有时也会存在问题，比如：主从延迟时，读取的从库数据不是最新的，对应的业务场景比如：</p>
+<p>你网购的一个商品，付完款之后，因为主从延迟，第一时间还查询不到订单（查询的从库），即使等一段时间能看到订单，但是相信这种情况很多用户是不能接受的。</p>
+<p>本节就一起来讨论一下：读写分离需要注意哪些问题。</p>
+<p>通常情况下，读写分离都是依赖主从复制，因此，我们先来看看主从复制的原理，也能方便我们理解为什么会出现主从延迟的现象。</p>
+<h3 id="1-主从复制的原理"><a href="#1-主从复制的原理" class="headerlink" title="1 主从复制的原理"></a>1 主从复制的原理</h3><h4 id="1-1-MySQL-异步复制"><a href="#1-1-MySQL-异步复制" class="headerlink" title="1.1 MySQL 异步复制"></a>1.1 MySQL 异步复制</h4><p>传统的 MySQL 主从复制是异步的，因此也称为异步复制，MySQL 异步复制的原理如下：</p>
+<ul>
+<li>在主库开启 binlog 的情况下</li>
+<li>如果主库有增删改的语句，会记录到 binlog 中</li>
+<li>主库通过 IO 线程把 binlog 里面的内容传给从库的中继日志（relay log）中</li>
+<li>主库给客户端返回 commit 成功（这里不会管从库是否已经收到了事务的 binlog）</li>
+<li>从库的 SQL 线程负责读取它的 relay log 里的信息并应用到从库数据库中</li>
+</ul>
+<p>实现原理如下图：</p>
+<p><img src="/images/《一线数据库工程师带你深入理解MySQL》学习笔记/MySQL异步复制.png" alt="img"></p>
+<p>在上图中，有一个地方不能忽视：</p>
+<p>在主库上并行运行的更新 SQL，由于从库只有单个 SQL 线程去消化 relay log，因此更新的 SQL 在从库只能串行执行。这也是很多情况下，会出现主从延迟的原因。</p>
+<p>当然，从 5.6 开始，MySQL 支持了每个库可以配置单独的 SQL 线程来消化 relay log，在 5.7 又增加了基于组提交的并行复制，大大改善了主从延迟的问题。</p>
+<h4 id="1-2-MySQL-半同步复制"><a href="#1-2-MySQL-半同步复制" class="headerlink" title="1.2 MySQL 半同步复制"></a>1.2 MySQL 半同步复制</h4><p>在 MySQL 异步复制的基础上，又出现了一种改进的复制方式，称为：半同步复制。其原理如下：</p>
+<ul>
+<li>在主库开启 binlog 的情况下</li>
+<li>如果主库有增删改的语句，会记录到 binlog 中</li>
+<li>主库通过 IO 线程把 binlog 里面的内容传给从库的中继日志（relay log）中</li>
+<li>从库收到 binlog 后，发送给主库一个 ACK，表示收到了</li>
+<li>主库收到这个 ACK 以后，才能给客户端返回 commit 成功</li>
+<li>从库的 SQL 线程负责读取它的 relay log 里的信息并应用到从库数据库中</li>
+</ul>
+<p>实现原理如下图：</p>
+<p><img src="/images/《一线数据库工程师带你深入理解MySQL》学习笔记/MySQL半同步复制.png" alt="img"></p>
+<p>跟传统的异步复制相比，半同步复制保证了所有给客户端发送过确认提交的事务，从库都已经收到这个日志了。</p>
+<h3 id="2-常见的读写分离方式"><a href="#2-常见的读写分离方式" class="headerlink" title="2 常见的读写分离方式"></a>2 常见的读写分离方式</h3><h4 id="2-1、通过程序"><a href="#2-1、通过程序" class="headerlink" title="2.1、通过程序"></a>2.1、通过程序</h4><p>开发通过配置程序来决定修改操作走主库，查询操作走从库。这种方式直连数据库，优点是性能会好点，缺点是配置麻烦。</p>
+<p>但是需要注意的是：从库需要设置为 read_only，防止配置错误在从库写入了数据。</p>
+<blockquote>
+<p>这里提醒一点：<br>程序连接的用户建议不要给 super 权限，因为 super 权限的用户，即使整个库设置了 read_only ，也能写入数据。</p>
+</blockquote>
+<h4 id="2-2、通过中间件"><a href="#2-2、通过中间件" class="headerlink" title="2.2、通过中间件"></a>2.2、通过中间件</h4><p>通过中间件实现读写分离，目前算是一种主流的方式。拿 MyCAT 举例：</p>
+<p>在 schema.xml 文件中，dataHost 标签 balance 属性的值，决定了是否启用读写分离。</p>
+<p>balance 各个值及对应的读写方法如下：</p>
+<ul>
+<li>0：不开启读写分离，读操作发送到 writehost</li>
+<li>1：全部的 readhost 与 stand by writehost 参与 select 语句的负载均衡</li>
+<li>2：所有读操作都随机在 writehost、readhost上分发</li>
+<li>3：所有读请求随机分发到 writerhost 对应的 readhost 执行，writehost 不负担读压力</li>
+</ul>
+<p>因此可以根据实际情况选择上面合适的读写分离策略。</p>
+<h3 id="3-什么情况下会出现主从延迟"><a href="#3-什么情况下会出现主从延迟" class="headerlink" title="3 什么情况下会出现主从延迟"></a>3 什么情况下会出现主从延迟</h3><p>在本节的开始，我们说到，对于读写分离场景，最大的问题就是：主从延迟。那么在哪些情况下会出现主从延迟呢？这里大致总结一下可能导致主从延迟的场景：</p>
+<ul>
+<li>大表 DDL</li>
+<li>大事务</li>
+<li>主库 DML 并发大</li>
+<li>从库配置差</li>
+<li>表上无主键</li>
+<li>等等</li>
+</ul>
+<p>因此，如果存在读写分离的情况，应尽量避免上诉情况在业务高峰出现。</p>
+<p>当然，我们不能完全杜绝主从延迟。因此再介绍几种读写分离场景下应对延迟的方法。</p>
+<h3 id="4-读写分离怎样应对主从延迟"><a href="#4-读写分离怎样应对主从延迟" class="headerlink" title="4 读写分离怎样应对主从延迟"></a>4 读写分离怎样应对主从延迟</h3><p>读写分离场景应该怎样应对主从延迟呢？这里来讨论一下几种常见的应对主从延迟的方法：</p>
+<h4 id="4-1-判断主从是否延迟"><a href="#4-1-判断主从是否延迟" class="headerlink" title="4.1 判断主从是否延迟"></a>4.1 判断主从是否延迟</h4><p>有些业务场景，如果所有请求都落在主库，主库压力会很大，但是在读写分离的情况，又不希望主从存在延迟的时候去读取从库。这种情况，就可以考虑查询时，先判断主从是否存在延迟，如果存在延迟，则查询落在主库，如果没延迟，则查询语句落在从库。</p>
+<p>这里介绍几种判断主从延迟的方法：</p>
+<p>第一种方法：判断 Seconds_Behind_Master 是否等于 0。</p>
+<p>如果 Seconds_Behind_Master =0，则查询从库，如果大于 0，则查询主库。</p>
+<blockquote>
+<p>这里补充一下 Seconds_Behind_Master。<br>Seconds_Behind_Master 是在从库上执行 show slave status 时返回的其中一项，表示从库延迟的秒数。<br>其计算方法是：<br>从库服务器当前的时间戳与二进制日志中的事件的时间戳（在主库上的写入时间）相对比得到的。</p>
+</blockquote>
+<p>但是某些情况下，Seconds_Behind_Master 并不一定准确。比如网络中断时，Seconds_Behind_Master = 0 ，并不能代表主从无延迟。因此，有比这个更准确的一种方法：对比位点或 GTID。</p>
+<p>第二种方法：对比位点或 GTID</p>
+<p>如果 Master_Log_File 跟 Relay_Master_Log_File 相等，</p>
+<p>并且 Read_Master_Log_Pos 跟 Exec_Master_Log_Pos 相等，</p>
+<p>则可以把读请求放到从库，否则读请求放到主库。</p>
+<blockquote>
+<p>补充一下上面几个参数的意义：<br>几个参数均是通过 show slave status 返回的参数，用来查询主从复制的状态。<br>Master_Log_File：IO 线程正在读取的主库 binlog 文件名<br>Relay_Master_Log_File：SQL 线程最近执行的事务对应的主库 binlog 文件名<br>Read_Master_Log_Pos ：IO 线程正在读取的主库 binlog 文件中的位点<br>Exec_Master_Log_Pos ：SQL 线程最近读取和执行的事务对应的主库 binlog 文件中的位点</p>
+</blockquote>
+<p>如果开启了 GTID 复制，则可以对比 Retrieved_Gtid_Set 和 Executed_Gtid_Set 是否相等，相等则把读请求放到从库，有差异则读请求放到主库。</p>
+<blockquote>
+<p>同样补充下两个参数的意义：<br>前提是需要开启 GTID 两个参数才会有值，解释如下：<br>Retrieved_Gtid_Set：从库收到的所有日志的 GTID 集合<br>Executed_Gtid_Set：从库已经执行完的 GTID 集合</p>
+</blockquote>
+<h4 id="4-2-采用半同步复制"><a href="#4-2-采用半同步复制" class="headerlink" title="4.2 采用半同步复制"></a>4.2 采用半同步复制</h4><p>在本节的前面，我们讲解了半同步复制的原理，跟传统的异步复制相比，半同步复制保证了所有给客户端发送过确认提交的事务，从库都已经收到这个日志了。因此出现延迟的概率会小很多，当然实际生产应用时，建议结合上面讲的位点或 GTID 判断。</p>
+<h4 id="4-3-等待同步完成"><a href="#4-3-等待同步完成" class="headerlink" title="4.3 等待同步完成"></a>4.3 等待同步完成</h4><p>依然采用 4.1 中介绍的几种判断是否有延迟的方法，只是应对方式不一样，比如存在延迟，则将情况反馈给程序，在前端页面提醒用户数据未完全同步，如果没有延迟，则查询从库。</p>
+<p>有人可能会觉得：这种方式谁会用啊？实际可以应用在内部人员看的报表业务上。因为报表可能涉及的 SQL 都比较复杂，存在延迟就考虑去查询主库，可能会对其它线上业务有影响，因此可以等待从库同步完成，再查询从库。</p>
 
                 
             </div>
@@ -3433,7 +3946,7 @@ mysql&gt; explain select * from t9_1 where a = 90000;
             <br>
             
             &nbsp;<i class="fas fa-chart-area"></i>&nbsp;站点总字数:&nbsp;<span
-                class="white-color">119.5k</span>&nbsp;字
+                class="white-color">128.8k</span>&nbsp;字
             
             
             
