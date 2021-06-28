@@ -868,9 +868,11 @@ asmlinkage <span class="token keyword">const</span> sys_call_ptr_t sys_call_tabl
                     |- netif_napi_add(igb_poll) // drivers/net/ethernet/intel/igb/igb_main.c:1216
                         |- napi-&gt;poll = poll    // net/core/dev.c:6194<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
 <p> 对 Intel 的 igb 网卡来说，模块加载函数 <code>igb_probe</code> 做了：</p>
-<pre><code> - 初始化了设备相关的操作回调函数信息 `igb_netdev_ops` 。
- - 注册了 napi 的轮询回调函数 `igb_poll` 。
-</code></pre></li>
+<ul>
+<li>初始化了设备相关的操作回调函数信息 <code>igb_netdev_ops</code> 。</li>
+<li>注册了 napi 的轮询回调函数 <code>igb_poll</code> 。</li>
+</ul>
+</li>
 <li><p>启动设备</p>
 <p> 在函数 <code>igb_probe</code> 中，通过语句 <code>netdev-&gt;netdev_ops = &amp;igb_netdev_ops</code> 初始化了网卡相关的操作回调。在网卡启用时，比如执行命令 <code>ifconfig eth0 up</code> 时，系统会依次调用：</p>
  <pre class="line-numbers language-text" data-language="text"><code class="language-text">dev_open                        // net/core/dev.c:1430
@@ -892,9 +894,11 @@ asmlinkage <span class="token keyword">const</span> sys_call_ptr_t sys_call_tabl
         |- __napi_schedule                      // include/linux/netdevice.h:445
             |- ____napi_schedule                // net/core/dev.c:5892<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span></span></code></pre>
 <p>网卡队列中断处理函数最深处的调用 <code>____napi_schedule</code> 主要做两件事：</p>
-<pre><code>- 保存待处理的数据。
-- 触发中断 `NET_RX_SOFTIRQ` 。
-</code></pre><pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">static</span> <span class="token keyword">inline</span> <span class="token keyword">void</span> <span class="token function">____napi_schedule</span><span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">softnet_data</span> <span class="token operator">*</span>sd<span class="token punctuation">,</span>
+<ul>
+<li>保存待处理的数据。</li>
+<li>触发中断 <code>NET_RX_SOFTIRQ</code> 。</li>
+</ul>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">static</span> <span class="token keyword">inline</span> <span class="token keyword">void</span> <span class="token function">____napi_schedule</span><span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">softnet_data</span> <span class="token operator">*</span>sd<span class="token punctuation">,</span>
                     <span class="token keyword">struct</span> <span class="token class-name">napi_struct</span> <span class="token operator">*</span>napi<span class="token punctuation">)</span>
 <span class="token punctuation">{</span>
     <span class="token function">list_add_tail</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>napi<span class="token operator">-&gt;</span>poll_list<span class="token punctuation">,</span> <span class="token operator">&amp;</span>sd<span class="token operator">-&gt;</span>poll_list<span class="token punctuation">)</span><span class="token punctuation">;</span>
