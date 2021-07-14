@@ -2105,7 +2105,7 @@ mysql&gt; explain select * from t9_1 where a = 90000;
 <ul>
 <li>数据修改时，普通索引可以用 Change Buffer，而唯一索引不行。</li>
 <li>数据修改时，唯一索引在 RR 隔离级别下，更容易出现死锁。</li>
-<li>查询数据是，普通索引查到满足条件的第一条记录还需要继续查找下一个记录，而唯一索引查找到第一个记录就可以直接返回结果了，但是普通索引多出的查找次数所消耗的资源多数情况可以忽略不计。</li>
+<li>查询数据时，普通索引查到满足条件的第一条记录还需要继续查找下一个记录，而唯一索引查找到第一个记录就可以直接返回结果了，但是普通索引多出的查找次数所消耗的资源多数情况可以忽略不计。</li>
 </ul>
 <h3 id="4-普通索引和唯一索引如何选择"><a href="#4-普通索引和唯一索引如何选择" class="headerlink" title="4 普通索引和唯一索引如何选择"></a>4 普通索引和唯一索引如何选择</h3><p>上面说了普通索引和唯一索引的区别，那么两者应该如何选择呢？</p>
 <p>如果业务要求某个字段唯一，但是代码不能完全保证写入唯一值，则添加唯一索引，让这个字段唯一，该字段新增重复数据时，将报类似如下的错：</p>
@@ -2700,11 +2700,11 @@ mysql&gt; explain select * from t9_1 where a = 90000;
 </tr>
 <tr>
 <td style="text-align:left"></td>
-<td style="text-align:left">use muke; <br>select <em> from t16 where b=2 for update; <br><em>*（等待）</em></em></td>
+<td style="text-align:left">use muke; <br>select <em> from t16 where b=2 for update; <br> <em>*（等待）</em></em></td>
 </tr>
 <tr>
 <td style="text-align:left">commit;</td>
-<td style="text-align:left">select <em> from t16 where b=2 for update; <br>… <br>1 row in set (6.81 sec) <br><em>*（session1 执行 commit 后立马返回结果）</em></em></td>
+<td style="text-align:left">select <em> from t16 where b=2 for update; <br>… <br>1 row in set (6.81 sec) <br> <em>*（session1 执行 commit 后立马返回结果）</em></em></td>
 </tr>
 </tbody>
 </table>
@@ -2747,11 +2747,11 @@ mysql&gt; explain select * from t9_1 where a = 90000;
 </tr>
 <tr>
 <td style="text-align:left"></td>
-<td style="text-align:left">select <em> from t16 where a=1 for update; <br><em>*（等待）</em></em></td>
+<td style="text-align:left">select <em> from t16 where a=1 for update; <br> <em>*（等待）</em></em></td>
 </tr>
 <tr>
 <td style="text-align:left">commit;</td>
-<td style="text-align:left">select <em> from t16 where a=1 for update; <br>… <br>1 row in set (4.70 sec) <br><em>*（session1 提交后，马上返回结果）</em></em></td>
+<td style="text-align:left">select <em> from t16 where a=1 for update; <br>… <br>1 row in set (4.70 sec) <br> <em>*（session1 提交后，马上返回结果）</em></em></td>
 </tr>
 </tbody>
 </table>
@@ -2795,13 +2795,13 @@ mysql&gt; explain select * from t9_1 where a = 90000;
 </tr>
 <tr>
 <td style="text-align:left"></td>
-<td style="text-align:left">select <em> from t16 where a=3 for update; <br><em>*(等待)</em></em></td>
-<td style="text-align:left">select <em> from t16 where a=4 for update; <br><em>*(等待)</em></em></td>
+<td style="text-align:left">select <em> from t16 where a=3 for update; <br> <em>*(等待)</em></em></td>
+<td style="text-align:left">select <em> from t16 where a=4 for update; <br> <em>*(等待)</em></em></td>
 </tr>
 <tr>
 <td style="text-align:left">commit;</td>
-<td style="text-align:left">select <em> from t16 where a=3 for update; <br>… <br><em>*(session1 提交后，马上返回结果)</em></em></td>
-<td style="text-align:left">select <em> from t16 where a=4 for update; <br>… <br><em>*(session1 提交后，马上返回结果)</em></em></td>
+<td style="text-align:left">select <em> from t16 where a=3 for update; <br>… <br> <em>*(session1 提交后，马上返回结果)</em></em></td>
+<td style="text-align:left">select <em> from t16 where a=4 for update; <br>… <br> <em>*(session1 提交后，马上返回结果)</em></em></td>
 </tr>
 </tbody>
 </table>
@@ -2830,7 +2830,7 @@ mysql&gt; explain select * from t9_1 where a = 90000;
 </tr>
 <tr>
 <td style="text-align:left"></td>
-<td style="text-align:left">use muke; <br>select <em> from t16 where c=3 for update; <br><em>*Result1</em></em></td>
+<td style="text-align:left">use muke; <br>select <em> from t16 where c=3 for update; <br> <em>*Result1</em></em></td>
 </tr>
 <tr>
 <td style="text-align:left">use muke; insert into t16(a,b,c) values (5,5,3);</td>
@@ -2842,7 +2842,7 @@ mysql&gt; explain select * from t9_1 where a = 90000;
 </tr>
 <tr>
 <td style="text-align:left"></td>
-<td style="text-align:left">select <em> from t16 where c=3 for update; <br><em>*Result2</em></em></td>
+<td style="text-align:left">select <em> from t16 where c=3 for update; <br> <em>*Result2</em></em></td>
 </tr>
 <tr>
 <td style="text-align:left"></td>
@@ -2895,7 +2895,7 @@ mysql&gt; explain select * from t9_1 where a = 90000;
 </tr>
 <tr>
 <td style="text-align:left"></td>
-<td style="text-align:left">use muke; <br>select <em> from t17 where c=4 for update; <br><em>*Result1</em></em></td>
+<td style="text-align:left">use muke; <br>select <em> from t17 where c=4 for update; <br> <em>*Result1</em></em></td>
 </tr>
 <tr>
 <td style="text-align:left">use muke; <br>insert into t17(a,b,c) values (7,7,4); /<em> SQL 1 </em>/</td>
@@ -2903,7 +2903,7 @@ mysql&gt; explain select * from t9_1 where a = 90000;
 </tr>
 <tr>
 <td style="text-align:left"></td>
-<td style="text-align:left">select <em> from t17 where c=4 for update; <br><em>*Result2</em></em></td>
+<td style="text-align:left">select <em> from t17 where c=4 for update; <br> <em>*Result2</em></em></td>
 </tr>
 <tr>
 <td style="text-align:left">insert intot17(a,b,c) values (7,7,4); /<em> SQL 1 </em>/<br>Query  OK, 1 row affected (20.73 sec)<br>（等session2 执行commit; 后，SQL1马上返回结果）</td>
@@ -2972,13 +2972,13 @@ mysql&gt; explain select * from t9_1 where a = 90000;
 </tr>
 <tr>
 <td style="text-align:left"></td>
-<td style="text-align:left">use muke; <br>select <em> from t17 where b=2 for update; <br><em>*(等待)</em></em></td>
-<td style="text-align:left">insert into t17(a,b,c) values(10,10,10); <br><strong>(等待)</strong></td>
+<td style="text-align:left">use muke; <br>select <em> from t17 where b=2 for update; <br> <em>*(等待)</em></em></td>
+<td style="text-align:left">insert into t17(a,b,c) values(10,10,10); <br> <strong>(等待)</strong></td>
 </tr>
 <tr>
 <td style="text-align:left">commit;</td>
-<td style="text-align:left">select <em> from t17 where b=2 for update; <br>… <br><em>*(session1 提交后，马上返回结果)</em></em></td>
-<td style="text-align:left">insert into t17(a,b,c) values(10,10,10); <br>… <br><strong>(session1 提交后，马上写入)</strong></td>
+<td style="text-align:left">select <em> from t17 where b=2 for update; <br>… <br> <em>*(session1 提交后，马上返回结果)</em></em></td>
+<td style="text-align:left">insert into t17(a,b,c) values(10,10,10); <br>… <br> <strong>(session1 提交后，马上写入)</strong></td>
 </tr>
 </tbody>
 </table>
