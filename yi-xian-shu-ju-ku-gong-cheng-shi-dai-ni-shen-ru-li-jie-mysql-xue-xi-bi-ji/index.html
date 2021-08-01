@@ -2832,7 +2832,7 @@ mysql&gt; explain select * from t9_1 where a = 90000;
 <p>我们看一下上面的实验结果：Result 1 和 Result 2 结果是不同的。在 session2 中，同一个事务中，按相同的查询条件重新读取以前检索过的数据，却发现了 session1 插入的满足查询条件的新数据，这也就是上一节讲到的幻读情况。</p>
 <p>为什么上面的实验中会出现幻读呢？</p>
 <p>我们来看看下面这张图：</p>
-<p><img src="/images/《一线数据库工程师带你深入理解MySQL》学习笔记/RC隔离级别和条件字段有非唯一索引（幻读）.png" alt="img"></p>
+<p><img src="/images/《一线数据库工程师带你深入理解MySQL》学习笔记/RC隔离级别和条件字段有非唯一索引（幻读）.png" alt="RC隔离级别和条件字段有非唯一索引（幻读）"></p>
 <p>从图中可以看出，RC 隔离级别下，只锁住了满足 c=3 的当前行，而不会对后面的位置（或者说间隙）加锁，因此导致 session1 的写入语句能正常执行并提交。</p>
 <p>那么应该怎样降低幻读出现的概率呢？</p>
 <p>从上面的分析我们可以知道，产生幻读的原因是：行锁只能锁住当前行，但是新插入的记录，是在被锁住记录之前的间隙。因此，为了降低幻读出现的概率，InnoDB 在 RR 隔离级别下配置了间隙锁（Gap Lock）。</p>
@@ -2894,7 +2894,7 @@ mysql&gt; explain select * from t9_1 where a = 90000;
 </table>
 </div>
 <p>根据实验情况，我们在 session2 中，对满足条件 c=4 的数据加上了排他锁，然后在 session1 写入一条 c=4 的记录，此时会出现等待，直到 session2 对事务进行提交后，session1 才会执行成功。这是为什么呢？我们来看下图：</p>
-<p><img src="/images/《一线数据库工程师带你深入理解MySQL》学习笔记/RR隔离级别和条件字段有非唯一索引.png" alt="img"></p>
+<p><img src="/images/《一线数据库工程师带你深入理解MySQL》学习笔记/RR隔离级别和条件字段有非唯一索引.png" alt="RR隔离级别和条件字段有非唯一索引"></p>
 <p>与 RC 隔离级别下的图相似，但是有个比较大的区别是：RR 隔离级别多了 GAP 锁。</p>
 <p>如上图，首先需要考虑哪些位置可以插入新的满足条件 c=4 的项：</p>
 <ul>
@@ -2963,7 +2963,7 @@ mysql&gt; explain select * from t9_1 where a = 90000;
 </div>
 <p>可能你会问？为什么 session3 的 insert 会出现等待？</p>
 <p>我们看看下图：</p>
-<p><img src="/images/《一线数据库工程师带你深入理解MySQL》学习笔记/RR隔离级别和条件字段无索引.png" alt="img"></p>
+<p><img src="/images/《一线数据库工程师带你深入理解MySQL》学习笔记/RR隔离级别和条件字段无索引.png" alt="RR隔离级别和条件字段无索引"></p>
 <p>如图，所有记录都有 X 锁，除此之外，每个 GAP 也被加上了 GAP 锁。因此这张表在执行完 select * from t17 where b=1 for update; 到 commit 之前，除了不加锁的快照读，其它任何加锁的 SQL，都会等待，如果这是线上业务表，那就是件非常恐怖的事情了。</p>
 <p>总结：RR 隔离级别下，非索引字段做条件的当前读不但会把每条记录都加上 X 锁，还会把每个 GAP 加上 GAP 锁。再次说明，条件字段加索引的重要性。</p>
 <h3 id="4-RR-隔离级别下的唯一索引当前读是否会用到-GAP-锁"><a href="#4-RR-隔离级别下的唯一索引当前读是否会用到-GAP-锁" class="headerlink" title="4 RR 隔离级别下的唯一索引当前读是否会用到 GAP 锁"></a>4 RR 隔离级别下的唯一索引当前读是否会用到 GAP 锁</h3><p>GAP 锁的目的是：为了防止同一事务两次当前读，出现幻读的情况。如果能确保索引字段唯一，那其实一个等值查询，最多就返回一条记录，而且相同索引记录的值，一定不会再新增，因此不会出现 GAP 锁。</p>
@@ -3178,7 +3178,7 @@ mysql&gt; explain select * from t9_1 where a = 90000;
 <p>MVCC， 即多版本并发控制。MVCC 的实现，是通过保存数据在某个时间点的快照来实现的，也就是说，不管需要执行多长时间，每个事务看到的数据都是一致的。根据事务开始的时间不同，每个事务对同一张表，同一时刻看到的数据可能是不一样的。</p>
 <p>也就是上面实验第 6 步中，为什么 session2 查询的结果还是 session1 修改之前的记录。</p>
 <h3 id="5-MVCC-的实现原理"><a href="#5-MVCC-的实现原理" class="headerlink" title="5 MVCC 的实现原理"></a>5 MVCC 的实现原理</h3><p>我们拿上面的例子，对应解释下 MVCC 的实现原理，如下图：</p>
-<p><img src="/images/《一线数据库工程师带你深入理解MySQL》学习笔记/MVCC实现原理.png" alt="img"></p>
+<p><img src="/images/《一线数据库工程师带你深入理解MySQL》学习笔记/MVCC实现原理.png" alt="MVCC实现原理"></p>
 <p>如图，首先 insert 语句向表 t20 中插入了一条数据，a 字段为 1，b 字段为 1， ROW ID 也为 1 ，事务 ID 假设为 1，回滚指针假设为 null。当执行 update t20 set b=666 where a=1 时，大致步骤如下：</p>
 <ul>
 <li>数据库会先对满足 a=1 的行加排他锁；</li>
@@ -3429,7 +3429,7 @@ Query OK, 0 rows affected (0.37 sec)<span aria-hidden="true" class="line-numbers
 <h3 id="3-结合中间件实现分布式"><a href="#3-结合中间件实现分布式" class="headerlink" title="3 结合中间件实现分布式"></a>3 结合中间件实现分布式</h3><p>上面说了 MySQL 自带的分布式事务，这里再介绍一下借助中间件实现分布式的情况。</p>
 <p>具体实现方式可以拿上面网上购书的例子来说：</p>
 <p>订单业务程序处理完增加订单的操作后，将减库存操作发送到消息队列中间件中（比如：Rocketmq），订单业务程序完成提交。然后库存业务程序检查到消息队列有减对应商品库存的信息，就开始执行减库存操作。库存业务执行完减库存操作，再发送一条消息给消息队列中间件：内容是已经减掉库存。具体步骤如下：</p>
-<p><img src="/images/《一线数据库工程师带你深入理解MySQL》学习笔记/MQ实现增加订单和减库存操作.png" alt="img"></p>
+<p><img src="/images/《一线数据库工程师带你深入理解MySQL》学习笔记/MQ实现增加订单和减库存操作.png" alt="MQ实现增加订单和减库存操作"></p>
 <p>当然，为了确定最终已经完成减库存操作，还可以加一步对数据库中该商品库存的判断。</p>
 <hr>
 <p>第5章 MySQL的一些其他经验</p>
@@ -3448,7 +3448,7 @@ Query OK, 0 rows affected (0.37 sec)<span aria-hidden="true" class="line-numbers
 <li>从库的 SQL 线程负责读取它的 relay log 里的信息并应用到从库数据库中</li>
 </ul>
 <p>实现原理如下图：</p>
-<p><img src="/images/《一线数据库工程师带你深入理解MySQL》学习笔记/MySQL异步复制.png" alt="img"></p>
+<p><img src="/images/《一线数据库工程师带你深入理解MySQL》学习笔记/MySQL异步复制.png" alt="MySQL异步复制"></p>
 <p>在上图中，有一个地方不能忽视：</p>
 <p>在主库上并行运行的更新 SQL，由于从库只有单个 SQL 线程去消化 relay log，因此更新的 SQL 在从库只能串行执行。这也是很多情况下，会出现主从延迟的原因。</p>
 <p>当然，从 5.6 开始，MySQL 支持了每个库可以配置单独的 SQL 线程来消化 relay log，在 5.7 又增加了基于组提交的并行复制，大大改善了主从延迟的问题。</p>
@@ -3462,7 +3462,7 @@ Query OK, 0 rows affected (0.37 sec)<span aria-hidden="true" class="line-numbers
 <li>从库的 SQL 线程负责读取它的 relay log 里的信息并应用到从库数据库中</li>
 </ul>
 <p>实现原理如下图：</p>
-<p><img src="/images/《一线数据库工程师带你深入理解MySQL》学习笔记/MySQL半同步复制.png" alt="img"></p>
+<p><img src="/images/《一线数据库工程师带你深入理解MySQL》学习笔记/MySQL半同步复制.png" alt="MySQL半同步复制"></p>
 <p>跟传统的异步复制相比，半同步复制保证了所有给客户端发送过确认提交的事务，从库都已经收到这个日志了。</p>
 <h3 id="2-常见的读写分离方式"><a href="#2-常见的读写分离方式" class="headerlink" title="2 常见的读写分离方式"></a>2 常见的读写分离方式</h3><h4 id="2-1、通过程序"><a href="#2-1、通过程序" class="headerlink" title="2.1、通过程序"></a>2.1、通过程序</h4><p>开发通过配置程序来决定修改操作走主库，查询操作走从库。这种方式直连数据库，优点是性能会好点，缺点是配置麻烦。</p>
 <p>但是需要注意的是：从库需要设置为 read_only，防止配置错误在从库写入了数据。</p>
