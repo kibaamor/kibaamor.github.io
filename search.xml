@@ -4,6 +4,31 @@
   
     
     <entry>
+      <title>iptable简介</title>
+      <link href="iptable-jian-jie/"/>
+      <url>iptable-jian-jie/</url>
+      
+        <content type="html"><![CDATA[<h2 id="ip-tables-内核模块"><a href="#ip-tables-内核模块" class="headerlink" title="ip_tables 内核模块"></a>ip_tables 内核模块</h2><p>当一个网络包进入一台机器的时候，会首先拿下 MAC 头看看，是不是本机。如果是，则拿下 IP 头，得到目标 IP 后，就开始进行路由判断。在路由判断之前，这个节点我们称为 PREROUTING 。如果发现目标 IP 是本机 IP ，网络包就发给上面的传输层进行处理，这个节点叫作 INPUT 。如果发现目标 IP 不是本机，就需要转发出去，这个节点称为 FORWARD 。如果目标 IP 是本机，待上层处理完毕后，一般会返回一个处理结果，这个处理结果会发出去，这个节点称为 OUTPUT ，无论是 FORWARD 还是 OUTPUT，都是路由判断之后发生的，最后一个节点是 POSTROUTING 。</p><p><img src="/images/iptable简介/iptable的五个节点.jpg" alt="iptable的五个节点"></p><p>在 Linux 内核中，有一个框架叫 Netfilter 。它可以在这些节点插入 hook 函数。这些函数可以截获数据包，对数据包进行干预。例如做一定的修改，然后决策是否接着交给 TCP/IP 协议栈处理；或者可以交回给协议栈，那就是 ACCEPT ；或者过滤掉，不再传输，就是 DROP ；还有就是 QUEUE ，发送给某个用户态进程处理。</p><p>这个比较难理解，经常用在内部负载均衡，就是过来的数据一会儿传给目标地址 1，一会儿传给目标地址 2，而且目标地址的个数和权重都可能变。协议栈往往处理不了这么复杂的逻辑，需要写一个函数接管这个数据，实现自己的逻辑。</p><p>一个著名的实现，就是内核模块 ip_tables。它在这五个节点上埋下函数，从而可以根据规则进行包的处理。按功能可分为四大类：</p><ul><li>连接跟踪（conntrack）；</li><li>数据包的过滤（filter）；</li><li>网络地址转换（nat）；</li><li>数据包的修改（mangle）。</li></ul><p>其中连接跟踪是基础功能，被其他功能所依赖。其他三个可以实现包的过滤、修改和网络地址转换。</p><h2 id="iptable-的表和链"><a href="#iptable-的表和链" class="headerlink" title="iptable 的表和链"></a>iptable 的表和链</h2><p>在用户态，还有一个你肯定知道的客户端程序 iptables，用命令行来干预内核的规则。内核的功能对应 iptables 的命令行来讲，就是表和链的概念。</p><p><img src="/images/iptable简介/iptable命令.jpg" alt="iptable命令"></p><p>iptables 的表分为四种：raw–&gt;mangle–&gt;nat–&gt;filter。这四个优先级依次降低，raw 不常用，所以主要功能都在其他三种表里实现。每个表可以设置多个链。</p><h3 id="filter-表"><a href="#filter-表" class="headerlink" title="filter 表"></a>filter 表</h3><p>filter 表处理过滤功能，主要包含三个链：</p><ul><li>INPUT 链：过滤所有目标地址是本机的数据包；</li><li>FORWARD 链：过滤所有路过本机的数据包；</li><li>OUTPUT 链：过滤所有由本机产生的数据包。</li></ul><h3 id="nat-表"><a href="#nat-表" class="headerlink" title="nat 表"></a>nat 表</h3><p>nat 表主要是处理网络地址转换，可以进行 Snat（改变数据包的源地址）、Dnat（改变数据包的目标地址），包含三个链：</p><ul><li>PREROUTING 链：可以在数据包到达防火墙时改变目标地址；</li><li>OUTPUT 链：可以改变本地产生的数据包的目标地址；</li><li>POSTROUTING 链：在数据包离开防火墙时改变数据包的源地址。</li></ul><h3 id="mangle-表"><a href="#mangle-表" class="headerlink" title="mangle 表"></a>mangle 表</h3><p>mangle 表主要是修改数据包，包含：</p><ul><li>PREROUTING 链；</li><li>INPUT 链；</li><li>FORWARD 链；</li><li>OUTPUT 链；</li><li>POSTROUTING 链。</li></ul><h2 id="完整流程"><a href="#完整流程" class="headerlink" title="完整流程"></a>完整流程</h2><p><img src="/images/iptable简介/iptable的表和链.jpg" alt="iptable的表和链"></p><ol><li>数据包进入的时候，先进 mangle 表的 PREROUTING 链。在这里可以根据需要，改变数据包头内容之后，进入 nat 表的 PREROUTING 链，在这里可以根据需要做 Dnat，也就是目标地址转换。</li><li>进入路由判断，要判断是进入本地的还是转发的。</li><li>如果是进入本地的，就进入 INPUT 链，之后按条件过滤限制进入。</li><li>之后进入本机，再进入 OUTPUT 链，按条件过滤限制出去，离开本地。</li><li>如果是转发就进入 FORWARD 链，根据条件过滤限制转发。</li><li>之后进入 POSTROUTING 链，这里可以做 Snat，离开网络接口。</li></ol>]]></content>
+      
+      
+      <categories>
+          
+          <category> Linux </category>
+          
+      </categories>
+      
+      
+        <tags>
+            
+            <tag> iptable </tag>
+            
+        </tags>
+      
+    </entry>
+    
+    
+    
+    <entry>
       <title>TCP中的keepalive机制</title>
       <link href="tcp-zhong-de-keepalive-ji-zhi/"/>
       <url>tcp-zhong-de-keepalive-ji-zhi/</url>
