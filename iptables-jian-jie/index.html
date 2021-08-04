@@ -5,7 +5,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="referrer" content="no-referrer-when-downgrade">
-    <meta name="keywords" content="iptable简介, kiba, zen, amor, kibazen, kibaamor, 木叶, 木叶禅">
+    <meta name="keywords" content="iptables简介, kiba, zen, amor, kibazen, kibaamor, 木叶, 木叶禅">
     <meta name="description" content="一个普通游戏程序员的博客">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
@@ -17,7 +17,7 @@
     <!-- Global site tag (gtag.js) - Google Analytics -->
 
 
-    <title>iptable简介 | 木叶禅</title>
+    <title>iptables简介 | 木叶禅</title>
     <link rel="icon" type="image/png" href="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/favicon.png">
 
     <link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/libs/awesome/css/all.css">
@@ -274,12 +274,12 @@
 
 
 
-<div class="bg-cover pd-header post-cover" style="background-image: url('https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/medias/featureimages/14.jpg')">
+<div class="bg-cover pd-header post-cover" style="background-image: url('https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/medias/featureimages/1.jpg')">
     <div class="container" style="right: 0px;left: 0px;">
         <div class="row">
             <div class="col s12 m12 l12">
                 <div class="brand">
-                    <h1 class="description center-align post-title">iptable简介</h1>
+                    <h1 class="description center-align post-title">iptables简介</h1>
                 </div>
             </div>
         </div>
@@ -395,8 +395,12 @@
                     
                     <div class="article-tag">
                         
-                            <a href="/tags/iptable/">
-                                <span class="chip bg-color">iptable</span>
+                            <a href="/tags/netfilter/">
+                                <span class="chip bg-color">netfilter</span>
+                            </a>
+                        
+                            <a href="/tags/iptables/">
+                                <span class="chip bg-color">iptables</span>
                             </a>
                         
                     </div>
@@ -427,14 +431,14 @@
                 
                 <div class="post-date info-break-policy">
                     <i class="far fa-calendar-check fa-fw"></i>更新日期:&nbsp;&nbsp;
-                    2021-08-03
+                    2021-08-04
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-file-word fa-fw"></i>文章字数:&nbsp;&nbsp;
-                    1k
+                    1.1k
                 </div>
                 
 
@@ -459,50 +463,101 @@
 
         <div class="card-content article-card-content">
             <div id="articleContent">
-                <h2 id="ip-tables-内核模块"><a href="#ip-tables-内核模块" class="headerlink" title="ip_tables 内核模块"></a>ip_tables 内核模块</h2><p>当一个网络包进入一台机器的时候，会首先拿下 MAC 头看看，是不是本机。如果是，则拿下 IP 头，得到目标 IP 后，就开始进行路由判断。在路由判断之前，这个节点我们称为 PREROUTING 。如果发现目标 IP 是本机 IP ，网络包就发给上面的传输层进行处理，这个节点叫作 INPUT 。如果发现目标 IP 不是本机，就需要转发出去，这个节点称为 FORWARD 。如果目标 IP 是本机，待上层处理完毕后，一般会返回一个处理结果，这个处理结果会发出去，这个节点称为 OUTPUT ，无论是 FORWARD 还是 OUTPUT，都是路由判断之后发生的，最后一个节点是 POSTROUTING 。</p>
-<p><img src="/images/iptable简介/iptable的五个节点.jpg" alt="iptable的五个节点"></p>
-<p>在 Linux 内核中，有一个框架叫 Netfilter 。它可以在这些节点插入 hook 函数。这些函数可以截获数据包，对数据包进行干预。例如做一定的修改，然后决策是否接着交给 TCP/IP 协议栈处理；或者可以交回给协议栈，那就是 ACCEPT ；或者过滤掉，不再传输，就是 DROP ；还有就是 QUEUE ，发送给某个用户态进程处理。</p>
-<p>这个比较难理解，经常用在内部负载均衡，就是过来的数据一会儿传给目标地址 1，一会儿传给目标地址 2，而且目标地址的个数和权重都可能变。协议栈往往处理不了这么复杂的逻辑，需要写一个函数接管这个数据，实现自己的逻辑。</p>
-<p>一个著名的实现，就是内核模块 ip_tables。它在这五个节点上埋下函数，从而可以根据规则进行包的处理。按功能可分为四大类：</p>
-<ul>
-<li>连接跟踪（conntrack）；</li>
-<li>数据包的过滤（filter）；</li>
-<li>网络地址转换（nat）；</li>
-<li>数据包的修改（mangle）。</li>
-</ul>
-<p>其中连接跟踪是基础功能，被其他功能所依赖。其他三个可以实现包的过滤、修改和网络地址转换。</p>
-<h2 id="iptable-的表和链"><a href="#iptable-的表和链" class="headerlink" title="iptable 的表和链"></a>iptable 的表和链</h2><p>在用户态，还有一个你肯定知道的客户端程序 iptables，用命令行来干预内核的规则。内核的功能对应 iptables 的命令行来讲，就是表和链的概念。</p>
-<p><img src="/images/iptable简介/iptable命令.jpg" alt="iptable命令"></p>
-<p>iptables 的表分为四种：raw–&gt;mangle–&gt;nat–&gt;filter。这四个优先级依次降低，raw 不常用，所以主要功能都在其他三种表里实现。每个表可以设置多个链。</p>
-<h3 id="filter-表"><a href="#filter-表" class="headerlink" title="filter 表"></a>filter 表</h3><p>filter 表处理过滤功能，主要包含三个链：</p>
-<ul>
-<li>INPUT 链：过滤所有目标地址是本机的数据包；</li>
-<li>FORWARD 链：过滤所有路过本机的数据包；</li>
-<li>OUTPUT 链：过滤所有由本机产生的数据包。</li>
-</ul>
-<h3 id="nat-表"><a href="#nat-表" class="headerlink" title="nat 表"></a>nat 表</h3><p>nat 表主要是处理网络地址转换，可以进行 Snat（改变数据包的源地址）、Dnat（改变数据包的目标地址），包含三个链：</p>
-<ul>
-<li>PREROUTING 链：可以在数据包到达防火墙时改变目标地址；</li>
-<li>OUTPUT 链：可以改变本地产生的数据包的目标地址；</li>
-<li>POSTROUTING 链：在数据包离开防火墙时改变数据包的源地址。</li>
-</ul>
-<h3 id="mangle-表"><a href="#mangle-表" class="headerlink" title="mangle 表"></a>mangle 表</h3><p>mangle 表主要是修改数据包，包含：</p>
-<ul>
-<li>PREROUTING 链；</li>
-<li>INPUT 链；</li>
-<li>FORWARD 链；</li>
-<li>OUTPUT 链；</li>
-<li>POSTROUTING 链。</li>
-</ul>
-<h2 id="完整流程"><a href="#完整流程" class="headerlink" title="完整流程"></a>完整流程</h2><p><img src="/images/iptable简介/iptable的表和链.jpg" alt="iptable的表和链"></p>
+                <h2 id="netfilter-项目"><a href="#netfilter-项目" class="headerlink" title="netfilter 项目"></a>netfilter 项目</h2><p><a target="_blank" rel="noopener" href="https://www.netfilter.org/">netfilter 项目</a>是 <a target="_blank" rel="noopener" href="https://www.kernel.org/">Linux</a> 内核中用于数据包过滤的框架。</p>
+<p>netfilter 项目有两个常见的子项目：iptables 和 nftables。</p>
+<p><a target="_blank" rel="noopener" href="https://www.nftables.org/projects/iptables/index.html">iptables 项目</a>中包含了一系列的用于配置 Linux 内核中包过滤规则集命令行工具：iptables，ip6tables，arptables，ebtables。</p>
+<p><a target="_blank" rel="noopener" href="https://www.nftables.org/projects/nftables/index.html">nftables 项目</a>则是 iptables 项目的继承者，它允许更灵活、可扩展和性能更高的数据包分类。</p>
+<p><strong>本文只介绍使用 iptables 命令行工具管理 ip 协议时所需的相关内容。</strong></p>
+<h2 id="iptables-中的基本概念"><a href="#iptables-中的基本概念" class="headerlink" title="iptables 中的基本概念"></a>iptables 中的基本概念</h2><p>netfilter 框架的核心是在 Linux 内核处理数据包过程中的几个关键地方调用 <code>NF_HOOK</code> 函数，拦截数据包来进行处理。</p>
+<p><img src="/images/iptables简介/nf-hooks.png" alt="nf-hooks"></p>
+<blockquote>
+<p>图片来源：<a target="_blank" rel="noopener" href="https://wiki.nftables.org/wiki-nftables/index.php/Netfilter_hooks">Netfilter hooks</a></p>
+</blockquote>
+<p>利用 netfilter 框架可实现的功能包括检查、修改、转发、重定向和/或丢弃数据包。</p>
 <ol>
-<li>数据包进入的时候，先进 mangle 表的 PREROUTING 链。在这里可以根据需要，改变数据包头内容之后，进入 nat 表的 PREROUTING 链，在这里可以根据需要做 Dnat，也就是目标地址转换。</li>
-<li>进入路由判断，要判断是进入本地的还是转发的。</li>
-<li>如果是进入本地的，就进入 INPUT 链，之后按条件过滤限制进入。</li>
-<li>之后进入本机，再进入 OUTPUT 链，按条件过滤限制出去，离开本地。</li>
-<li>如果是转发就进入 FORWARD 链，根据条件过滤限制转发。</li>
-<li>之后进入 POSTROUTING 链，这里可以做 Snat，离开网络接口。</li>
+<li>根据用途的不同，将内核中处理数据包的代码组织成了几个不同的表（table）。</li>
+<li>表由一组的链（chain）组成。</li>
+<li>链中包含一系列规则（rule）。</li>
+<li>规则由匹配条件和相应的动作组成（如果条件匹配成功，则执行相应的动作）。</li>
+<li>链中的规则会按顺序的逐一执行，直到某个匹配的动作处理的结果是终止处理或<a href="#预定义的链">预定义的链</a>内的规则都执行完。</li>
 </ol>
+<h3 id="表"><a href="#表" class="headerlink" title="表"></a>表</h3><p>netfilter 中总共包含五个表：</p>
+<ol>
+<li><strong>raw</strong>：用于标记数据包，让它不被连接跟踪系统跟踪；</li>
+<li><strong>filter</strong>：用于过滤数据包；</li>
+<li><strong>nat</strong>：用来完成<a target="_blank" rel="noopener" href="https://en.wikipedia.org/wiki/Network_address_translation">网络地址转换（NAT）</a>功能；</li>
+<li><strong>mangle</strong>：用于修改数据包；</li>
+<li><strong>security</strong>：用于<a target="_blank" rel="noopener" href="https://en.wikipedia.org/wiki/Mandatory_access_control">强制访问控制（MAC）</a>网络规则（比如SELinux，<a target="_blank" rel="noopener" href="https://lwn.net/Articles/267140/">更多相关信息</a>）。</li>
+</ol>
+<h3 id="预定义的链"><a href="#预定义的链" class="headerlink" title="预定义的链"></a>预定义的链</h3><p>链的本质其实是 Linux 内核处理数据包的过程中，netfilter 框架嵌入 HOOK 函数的地方。</p>
+<p>netfilter 框架在 Linux 内核处理很多协议（比如：ip，ip6，arp等）的过程中都嵌入了 HOOK 函数，本文只关注 iptables 处理 ip 协议用到的。</p>
+<p>iptables 在每一个嵌入了 HOOK 函数的地方都预定义了一些链：</p>
+<ol>
+<li><strong>PREROUTING</strong>：接收到数据包但是还未判断其目的地是否是本机。</li>
+<li><strong>INPUT</strong>：数据包的目的地是本机但是还未交给协议栈的上层处理。</li>
+<li><strong>OUTPUT</strong>：数据包是由本机发出的。</li>
+<li><strong>FORWARD</strong>：数据包的目的地不是本机的。</li>
+<li><strong>POSTROUTING</strong>：数据包在离开本机之前。</li>
+</ol>
+<p><img src="/images/iptables简介/iptables预定义的链.jpg" alt="iptable预定义的链"></p>
+<p>预定义的链支持设置默认的数据包处理策略。</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token comment"># 将 INPUT 链的默认数据包处理策略设置为 ACCEPT（允许包通过）</span>
+<span class="token function">sudo</span> iptables -P INPUT ACCEPT
+<span class="token comment"># 将 FORWARD 链的默认数据包处理策略设置为 DROP（丢弃所有的包）</span>
+<span class="token function">sudo</span> iptables -P FORWARD DROP<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span></span></code></pre>
+<h3 id="表和预定义的链"><a href="#表和预定义的链" class="headerlink" title="表和预定义的链"></a>表和预定义的链</h3><p>根据表的功能和链所在的位置，并不是每个表都需要所有的链。</p>
+<ol>
+<li><p>raw 表</p>
+<p> raw 表用于就是标记数据包，让它不被连接跟踪系统跟踪。</p>
+<ul>
+<li><strong>PREROUTING</strong>：标记收到的所有数据包；</li>
+<li><strong>OUTPUT</strong>：标记本机发出的所有数据包。</li>
+</ul>
+</li>
+<li><p>filter 表</p>
+<p> filter 表用于过滤数据包。</p>
+<ul>
+<li><strong>INPUT</strong>：过滤发给本机的包；</li>
+<li><strong>OUTPUT</strong>：过滤本机发出的包；</li>
+<li><strong>FORWARD</strong>：过滤从本机经过的但不是发给本机的包。</li>
+</ul>
+</li>
+<li><p>nat 表</p>
+<p> nat 表用于完成 NAT 功能。</p>
+<ul>
+<li><strong>PREROUTING</strong>：修改数据包的目的地址，完成 DNAT 功能；</li>
+<li><strong>INPUT</strong>：修改发给本机数据包的源地址，完成 SNAT 功能；</li>
+<li><strong>OUTPUT</strong>：修改本机发出数据包的目的地址，完成 DNAT 功能；</li>
+<li><strong>POSTROUTING</strong>：修改数据包的源地址，完成 SNAT 功能。</li>
+</ul>
+</li>
+<li><p>mangle 表</p>
+<p> mangle 表用于修改数据包。</p>
+<ul>
+<li><strong>PREROUTING</strong>；</li>
+<li><strong>INPUT</strong>；</li>
+<li><strong>OUTPUT</strong>；</li>
+<li><strong>FORWARD</strong>；</li>
+<li><strong>POSTROUTING</strong>。</li>
+</ul>
+</li>
+<li><p>security 表</p>
+<p> security 表用于完成与安全相关的标记功能。</p>
+<ul>
+<li><strong>INPUT</strong>；</li>
+<li><strong>OUTPUT</strong>；</li>
+<li><strong>FORWARD</strong>。</li>
+</ul>
+</li>
+</ol>
+<p><img src="/images/iptables简介/iptables的表和预定义的链.png" alt="iptables的表和预定义的链"></p>
+<h3 id="自定义的链"><a href="#自定义的链" class="headerlink" title="自定义的链"></a>自定义的链</h3><p>除了使用预定的链外，iptables还支持自定义链。数据包在处理的过程中能够通过 jump 动作跳转到同一个表的另一个链（这个链必须是自定义的，不能是预定于的）上继续处理。</p>
+<p>同时，自定义的链不支持设置默认数据包处理策略，其默认的处理策略是返回父链中继续进行处理。</p>
+<p>在下面的图中，在链 1 中的 规则 3 时匹配成功，跳到链 2 从头开始执行，最后通过链 2 返回到链 1 的规则 4 继续执行。</p>
+<p><img src="/images/iptables简介/iptables自定义的链.jpg" alt="iptables自定义的链"></p>
+<blockquote>
+<p>图片来源：<a target="_blank" rel="noopener" href="https://www.frozentux.net/iptables-tutorial/iptables-tutorial.html#USERTABLES">User specified chains</a></p>
+</blockquote>
 
                 
             </div>
@@ -529,7 +584,7 @@
                     </i>
                     </span>
                 <span class="reprint-info">
-                    <a href="https://kibazen.cn/iptable-jian-jie/">https://kibazen.cn/iptable-jian-jie/</a>
+                    <a href="https://kibazen.cn/iptables-jian-jie/">https://kibazen.cn/iptables-jian-jie/</a>
                 </span>
             </div>
             <div class="reprint__notice">
@@ -567,8 +622,12 @@
                     
                         <div class="article-tag">
                             
-                                <a href="/tags/iptable/">
-                                    <span class="chip bg-color">iptable</span>
+                                <a href="/tags/netfilter/">
+                                    <span class="chip bg-color">netfilter</span>
+                                </a>
+                            
+                                <a href="/tags/iptables/">
+                                    <span class="chip bg-color">iptables</span>
                                 </a>
                             
                         </div>
@@ -617,13 +676,13 @@
                 <i class="far fa-dot-circle"></i>&nbsp;本篇
             </div>
             <div class="card">
-                <a href="/iptable-jian-jie/">
+                <a href="/iptables-jian-jie/">
                     <div class="card-image">
                         
                         
-                        <img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/medias/featureimages/14.jpg" class="responsive-img" alt="iptable简介">
+                        <img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/medias/featureimages/1.jpg" class="responsive-img" alt="iptables简介">
                         
-                        <span class="card-title">iptable简介</span>
+                        <span class="card-title">iptables简介</span>
                     </div>
                 </a>
                 <div class="card-content article-content">
@@ -652,8 +711,12 @@
                 
                 <div class="card-action article-tags">
                     
-                    <a href="/tags/iptable/">
-                        <span class="chip bg-color">iptable</span>
+                    <a href="/tags/netfilter/">
+                        <span class="chip bg-color">netfilter</span>
+                    </a>
+                    
+                    <a href="/tags/iptables/">
+                        <span class="chip bg-color">iptables</span>
                     </a>
                     
                 </div>
