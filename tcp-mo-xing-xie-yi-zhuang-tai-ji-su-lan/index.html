@@ -434,14 +434,14 @@
                 
                 <div class="info-break-policy">
                     <i class="far fa-file-word fa-fw"></i>文章字数:&nbsp;&nbsp;
-                    2.2k
+                    2.6k
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-clock fa-fw"></i>阅读时长:&nbsp;&nbsp;
-                    8 分
+                    9 分
                 </div>
                 
 
@@ -561,8 +561,21 @@
 <li>B向A发送4个字节的数据。</li>
 <li>B主动断开连接。</li>
 </ol>
-<h3 id="常见问题"><a href="#常见问题" class="headerlink" title="常见问题"></a>常见问题</h3><h4 id="1-TIME-WAIT会在什么情况下出现"><a href="#1-TIME-WAIT会在什么情况下出现" class="headerlink" title="1. TIME_WAIT会在什么情况下出现"></a>1. TIME_WAIT会在什么情况下出现</h4><p>首先，TIME_WAIT状态只会出现在主动断开TCP的那一方。</p>
+<h3 id="常见问题"><a href="#常见问题" class="headerlink" title="常见问题"></a>常见问题</h3><h4 id="1-TIME-WAIT会在什么情况下出现"><a href="#1-TIME-WAIT会在什么情况下出现" class="headerlink" title="1. TIME_WAIT会在什么情况下出现"></a>1. TIME_WAIT会在什么情况下出现</h4><p>如果处于 TIMEWAIT 状态，说明双方建立成功过连接，而且已经发送了最后的 ACK 之后，才会处于这个状态，而且是主动发起关闭的一方处于这个状态。</p>
 <p>其次，当断开TCP的主动方收到了被动方发来的FIN包并回复对应的ACK包给被动方后，主动方就进入了TIME_WAIT状态。然后等待<code>2 * MSL</code>时间（此时间段内如果再次收到被动方发来的FIN消息，说明之前回复的ACK包丢失，需要重新发送给被动方，并重新开始计时）后，再进入CLOSED状态，此时才能完成的释放相关的资源。</p>
+<p>如果存在大量的 TIMEWAIT，往往是因为短连接太多，不断的创建连接，然后释放连接，从而导致很多连接在这个状态，可能会导致无法发起新的连接。解决的方式往往是：</p>
+<ul>
+<li>打开 tcp_tw_recycle 和 tcp_timestamps 选项；</li>
+<li>打开 tcp_tw_reuse 和 tcp_timestamps 选项；</li>
+<li>程序中使用 SO_LINGER，应用强制使用 rst 关闭。</li>
+</ul>
+<p>当客户端收到 Connection Reset，往往是收到了 TCP 的 RST 消息，RST 消息一般在下面的情况下发送：</p>
+<ul>
+<li>试图连接一个未被监听的服务端；</li>
+<li>对方处于 TIMEWAIT 状态，或者连接已经关闭处于 CLOSED 状态，或者重新监听 seq num 不匹配；</li>
+<li>发起连接时超时，重传超时，keepalive 超时；</li>
+<li>在程序中使用 SO_LINGER，关闭连接时，放弃缓存中的数据，给对方发送 RST。</li>
+</ul>
 <h4 id="2-什么是MSL"><a href="#2-什么是MSL" class="headerlink" title="2. 什么是MSL"></a>2. 什么是MSL</h4><p><a target="_blank" rel="noopener" href="https://en.wikipedia.org/wiki/Maximum_segment_lifetime">MSL, Maximum Segment Lifetime</a>，TCP Segment在网络上的最长存活时间。</p>
 <p><a href="www.rfc-editor.org/rfc/rfc793.txt">RFC793</a>将MSL定义为2分钟。Linux下MSL默认是30秒，Windows下MSL默认是240秒。Linux下可以通过下面的命令查看实际的MSL值。</p>
 <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">sysctl net.ipv4.tcp_fin_timeout
@@ -642,6 +655,16 @@ end if<span aria-hidden="true" class="line-numbers-rows"><span></span><span></sp
 <h2 id="六、其他常见问题"><a href="#六、其他常见问题" class="headerlink" title="六、其他常见问题"></a>六、其他常见问题</h2><h3 id="1-MTU-1500-的具体含义是什么"><a href="#1-MTU-1500-的具体含义是什么" class="headerlink" title="1. MTU 1500 的具体含义是什么"></a>1. MTU 1500 的具体含义是什么</h3><p>MTU（Maximum Transmission Unit，最大传输单元）是二层的一个定义。以以太网为例，MTU 为 1500 个 Byte，前面有 6 个 Byte 的目标 MAC 地址，6 个 Byte 的源 MAC 地址，2 个 Byte 的类型，后面有 4 个 Byte 的 CRC 校验，共 1518 个 Byte。</p>
 <p>在 IP 层，一个 IP 数据报在以太网中传输，如果它的长度大于该 MTU 值，就要进行分片传输。如果不允许分片 DF，就会发送 ICMP 包，</p>
 <p>在 TCP 层有个 MSS（Maximum Segment Size，最大分段大小），它等于 MTU 减去 IP 头，再减去 TCP 头。即在不分片的情况下，TCP 里面放的最大内容。</p>
+<h3 id="2-HTTPS-的双向认证流程"><a href="#2-HTTPS-的双向认证流程" class="headerlink" title="2. HTTPS 的双向认证流程"></a>2. HTTPS 的双向认证流程</h3><p><img src="/images/TCP模型协议状态机速览/HTTPS的双向认证流程.jpg" alt="HTTPS的双向认证流程"></p>
+<p>其中，随机数和 premaster 的含义是：</p>
+<p><img src="/images/TCP模型协议状态机速览/HTTPS中的随机数和premaster.jpg" alt="HTTPS中的随机数和premaster"></p>
+<h3 id="3-RTMP-连接建立的过程"><a href="#3-RTMP-连接建立的过程" class="headerlink" title="3. RTMP 连接建立的过程"></a>3. RTMP 连接建立的过程</h3><ol>
+<li>首先，客户端发送 C0 表明自己的版本号，不必等对方的回复，然后发送 C1 表明自己的时间戳。</li>
+<li>服务器只有在收到 C0 的时候，才能返回 S0，表明自己的版本号。如果版本不匹配，可以断开连接。</li>
+<li>服务器发送完 S0 后，也不用等什么，就直接发送自己的时间戳 S1。客户端收到 S1 的时候，发一个知道了对方时间戳的 ACK C2。同理服务器收到 C1 的时候，发一个知道了对方时间戳的 ACK S2。</li>
+<li>握手完成。</li>
+</ol>
+<p><img src="/images/TCP模型协议状态机速览/RTMP连接建立的过程.jpg" alt="RTMP连接建立的过程"></p>
 
                 
             </div>
@@ -1025,7 +1048,7 @@ end if<span aria-hidden="true" class="line-numbers-rows"><span></span><span></sp
             <br>
             
             &nbsp;<i class="fas fa-chart-area"></i>&nbsp;站点总字数:&nbsp;<span
-                class="white-color">154.7k</span>&nbsp;字
+                class="white-color">155.2k</span>&nbsp;字
             
             
             
