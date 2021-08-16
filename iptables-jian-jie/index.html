@@ -438,14 +438,14 @@
                 
                 <div class="info-break-policy">
                     <i class="far fa-file-word fa-fw"></i>文章字数:&nbsp;&nbsp;
-                    1.9k
+                    2.2k
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-clock fa-fw"></i>阅读时长:&nbsp;&nbsp;
-                    6 分
+                    7 分
                 </div>
                 
 
@@ -585,15 +585,22 @@
 <p>内核对于每一种网络包，都设置了两个记录点：</p>
 <ol>
 <li>对于发给本机的包，在 <strong>PREROUTING</strong> 调用 <code>ipv4_conntrack_in</code>，创建连接跟踪记录；在 <strong>INPUT</strong> 调用 <code>ipv4_confirm</code>，将这个连接跟踪记录挂在内核的连接跟踪表里面。</li>
-<li>对于本地发出的包，在 <strong>OUTPUT</strong> 调用 <code>ipv4_conntrack_local</code>，创建连接跟踪记录，在 <strong>POSTROUTING</strong> 调用 <code>ipv4_confirm</code>，将这个连接跟踪记录挂在内核的连接跟踪表里面。</li>
-<li>对于经过本机的包，在 <strong>PREROUTING</strong> 调用 <code>ipv4_conntrack_in</code>，创建连接跟踪记录，在 <strong>POSTROUTING</strong> 调用 <code>ipv4_confirm</code>，将这个连接跟踪记录挂在内核的连接跟踪表里面。</li>
+<li>对于本地发出的包，在 <strong>OUTPUT</strong> 调用 <code>ipv4_conntrack_local</code>，创建连接跟踪记录；在 <strong>POSTROUTING</strong> 调用 <code>ipv4_confirm</code>，将这个连接跟踪记录挂在内核的连接跟踪表里面。</li>
+<li><p>对于经过本机的包，在 <strong>PREROUTING</strong> 调用 <code>ipv4_conntrack_in</code>，创建连接跟踪记录；在 <strong>POSTROUTING</strong> 调用 <code>ipv4_confirm</code>，将这个连接跟踪记录挂在内核的连接跟踪表里面。</p>
+<blockquote>
+<p>对于经过本机的 NAT 包，在 <strong>PREROUTING</strong> 调用 <code>ipv4_conntrack_in</code>，创建连接跟踪记录，并调用 <code>nf_nat_ipv4_in</code> 进行地址转换；在 <strong>POSTROUTING</strong> 调用 <code>nf_nat_ipv4_out</code> 进行地址转换，并调用 <code>ipv4_confirm</code>，将这个连接跟踪记录挂在内核的连接跟踪表里面。</p>
+</blockquote>
+</li>
 </ol>
 <blockquote>
 <p>因为有 <strong>filter</strong> 表可能会把包过滤掉，也就是丢弃了，所以才需要两个记录点。</p>
 </blockquote>
 <h2 id="三、iptables-规则的匹配条件"><a href="#三、iptables-规则的匹配条件" class="headerlink" title="三、iptables 规则的匹配条件"></a>三、iptables 规则的匹配条件</h2><p>参考：<a target="_blank" rel="noopener" href="https://www.frozentux.net/iptables-tutorial/iptables-tutorial.html#MATCHES">Iptables matches</a>。</p>
 <h2 id="四、iptables-规则的执行动作"><a href="#四、iptables-规则的执行动作" class="headerlink" title="四、iptables 规则的执行动作"></a>四、iptables 规则的执行动作</h2><p>参考：<a target="_blank" rel="noopener" href="https://www.frozentux.net/iptables-tutorial/iptables-tutorial.html#TARGETS">Iptables targets and jumps</a>。</p>
-<h2 id="五、参考资料"><a href="#五、参考资料" class="headerlink" title="五、参考资料"></a>五、参考资料</h2><ol>
+<h2 id="五、常见问题"><a href="#五、常见问题" class="headerlink" title="五、常见问题"></a>五、常见问题</h2><h3 id="1-NAT-能建立多少连接"><a href="#1-NAT-能建立多少连接" class="headerlink" title="1. NAT 能建立多少连接"></a>1. NAT 能建立多少连接</h3><p>DNAT 即外网访问内网的某个服务，是没有端口数目限制的。</p>
+<p>SNAT 即内网访问外网的场景，鉴于 conntrack 是由 <strong>{源 IP，源端口，目标 IP，目标端口}</strong>，hash 后确定的。所以如果内网机器很多，但是访问的是不同的外网，也即目标 IP 和目标端口很多，这样内网可承载的数量就非常大，可不止 65535 个。</p>
+<p>但是如果内网所有的机器，都一定要访问同一个目标 IP 和目标端口，这样源 IP 如果只有一个，这样的情况下，才受 65535 的端口数目限制，根据原理，一种方法就是多个源 IP，另外的方法就是多个 NAT 网关，来分摊不同的内网机器访问。</p>
+<h2 id="六、参考资料"><a href="#六、参考资料" class="headerlink" title="六、参考资料"></a>六、参考资料</h2><ol>
 <li><a target="_blank" rel="noopener" href="https://wiki.archlinux.org/title/Iptables">iptables</a></li>
 <li><a target="_blank" rel="noopener" href="https://wiki.nftables.org/wiki-nftables/index.php/Configuring_chains">Configuring chains</a></li>
 <li><a target="_blank" rel="noopener" href="https://www.frozentux.net/iptables-tutorial/iptables-tutorial.html">Iptables Tutorial 1.2.2</a></li>
@@ -995,7 +1002,7 @@
             <br>
             
             &nbsp;<i class="fas fa-chart-area"></i>&nbsp;站点总字数:&nbsp;<span
-                class="white-color">157.2k</span>&nbsp;字
+                class="white-color">157.5k</span>&nbsp;字
             
             
             
