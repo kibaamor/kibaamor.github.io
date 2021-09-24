@@ -434,14 +434,14 @@
                 
                 <div class="info-break-policy">
                     <i class="far fa-file-word fa-fw"></i>文章字数:&nbsp;&nbsp;
-                    4.2k
+                    5.1k
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-clock fa-fw"></i>阅读时长:&nbsp;&nbsp;
-                    18 分
+                    22 分
                 </div>
                 
 
@@ -766,7 +766,65 @@ E[o_i]
 <li>在最坏的情况下，模型总是预测标签词元的概率为0。在这种情况下，困惑度是正无穷大。</li>
 <li>在基线上，该模型的预测是词汇表的所有可用词元上的均匀分布。在这种情况下，困惑度等于词汇表中唯一词元的数量。事实上，如果我们在没有任何压缩的情况下存储序列，这将是我们能做的最好的编码方式。因此，这种方式提供了一个重要的上限，而任何实际的语言模型都必须超越这个上限。</li>
 </ul>
+<h2 id="9-循环神经网络"><a href="#9-循环神经网络" class="headerlink" title="9. 循环神经网络"></a>9. <a target="_blank" rel="noopener" href="https://zh-v2.d2l.ai/chapter_recurrent-neural-networks/index.html">循环神经网络</a></h2><p>完整的代码：<a href="/images/《动手学深度学习（第二版）》读书笔记/rnn.py">rnn.py</a></p>
+<h3 id="9-1-使用循环神经网络进行预测"><a href="#9-1-使用循环神经网络进行预测" class="headerlink" title="9.1 使用循环神经网络进行预测"></a>9.1 <a target="_blank" rel="noopener" href="https://zh-v2.d2l.ai/chapter_recurrent-neural-networks/rnn-scratch.html">使用循环神经网络进行预测</a></h3><p>prefix 是用于预测的字符串。循环遍历 prefix 中的字符，不断地将隐藏状态传递到下一个时间步，但不生成任何输出。这被称为“预热”（warm-up）期，因为在此期间模型会自我更新（例如，更新隐藏状态），但不会进行预测。预热期结束后，隐藏状态的值通常比刚开始的初始值更适合预测，从而预测字符并输出它们。</p>
+<pre class="line-numbers language-python" data-language="python"><code class="language-python"><span class="token keyword">def</span> <span class="token function">predict_ch8</span><span class="token punctuation">(</span>prefix<span class="token punctuation">,</span> num_preds<span class="token punctuation">,</span> net<span class="token punctuation">,</span> vocab<span class="token punctuation">,</span> device<span class="token punctuation">)</span><span class="token punctuation">:</span>
+    <span class="token triple-quoted-string string">"""在`prefix`后面生成新字符。"""</span>
+    state <span class="token operator">=</span> net<span class="token punctuation">.</span>begin_state<span class="token punctuation">(</span>batch_size<span class="token operator">=</span><span class="token number">1</span><span class="token punctuation">,</span> device<span class="token operator">=</span>device<span class="token punctuation">)</span>
+    outputs <span class="token operator">=</span> <span class="token punctuation">[</span>vocab<span class="token punctuation">[</span>prefix<span class="token punctuation">[</span><span class="token number">0</span><span class="token punctuation">]</span><span class="token punctuation">]</span><span class="token punctuation">]</span>
 
+    <span class="token keyword">def</span> <span class="token function">get_input</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">:</span>
+        <span class="token keyword">return</span> torch<span class="token punctuation">.</span>tensor<span class="token punctuation">(</span><span class="token punctuation">[</span>outputs<span class="token punctuation">[</span><span class="token operator">-</span><span class="token number">1</span><span class="token punctuation">]</span><span class="token punctuation">]</span><span class="token punctuation">,</span> device<span class="token operator">=</span>device<span class="token punctuation">)</span><span class="token punctuation">.</span>reshape<span class="token punctuation">(</span><span class="token punctuation">(</span><span class="token number">1</span><span class="token punctuation">,</span> <span class="token number">1</span><span class="token punctuation">)</span><span class="token punctuation">)</span>
+
+    <span class="token keyword">for</span> y <span class="token keyword">in</span> prefix<span class="token punctuation">[</span><span class="token number">1</span><span class="token punctuation">:</span><span class="token punctuation">]</span><span class="token punctuation">:</span>  <span class="token comment"># 预热期</span>
+        _<span class="token punctuation">,</span> state <span class="token operator">=</span> net<span class="token punctuation">(</span>get_input<span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">,</span> state<span class="token punctuation">)</span>
+        outputs<span class="token punctuation">.</span>append<span class="token punctuation">(</span>vocab<span class="token punctuation">[</span>y<span class="token punctuation">]</span><span class="token punctuation">)</span>
+
+    <span class="token keyword">for</span> _ <span class="token keyword">in</span> <span class="token builtin">range</span><span class="token punctuation">(</span>num_preds<span class="token punctuation">)</span><span class="token punctuation">:</span>  <span class="token comment"># 预测`num_preds`步</span>
+        y<span class="token punctuation">,</span> state <span class="token operator">=</span> net<span class="token punctuation">(</span>get_input<span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">,</span> state<span class="token punctuation">)</span>
+        outputs<span class="token punctuation">.</span>append<span class="token punctuation">(</span><span class="token builtin">int</span><span class="token punctuation">(</span>y<span class="token punctuation">.</span>argmax<span class="token punctuation">(</span>dim<span class="token operator">=</span><span class="token number">1</span><span class="token punctuation">)</span><span class="token punctuation">.</span>reshape<span class="token punctuation">(</span><span class="token number">1</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">)</span>
+
+    <span class="token keyword">return</span> <span class="token string">""</span><span class="token punctuation">.</span>join<span class="token punctuation">(</span><span class="token punctuation">[</span>vocab<span class="token punctuation">.</span>idx_to_token<span class="token punctuation">[</span>i<span class="token punctuation">]</span> <span class="token keyword">for</span> i <span class="token keyword">in</span> outputs<span class="token punctuation">]</span><span class="token punctuation">)</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<h3 id="9-2-使用循环神经网络进行训练"><a href="#9-2-使用循环神经网络进行训练" class="headerlink" title="9.2 使用循环神经网络进行训练"></a>9.2 <a target="_blank" rel="noopener" href="https://zh-v2.d2l.ai/chapter_recurrent-neural-networks/rnn-scratch.html">使用循环神经网络进行训练</a></h3><p>在训练模型之前，让我们定义一个函数在一个迭代周期内训练模型。</p>
+<ol>
+<li><p>序列数据的不同采样方法（<a target="_blank" rel="noopener" href="https://zh-v2.d2l.ai/chapter_recurrent-neural-networks/language-models-and-dataset.html">随机采样和顺序分区</a>）将导致隐藏状态初始化的差异。</p>
+<blockquote>
+<p>随机采样和顺序分区这两种采样的主要区别就是，顺序分区采样出来的数据两个相邻的小批量中的子序列在原始序列上也是相邻的，而随机采样不是。</p>
+</blockquote>
+</li>
+<li><p>在更新模型参数之前裁剪梯度。这样的操作即使训练过程中某个点上发生了梯度爆炸，也能保证模型不会发散。</p>
+</li>
+<li><p>用困惑度来评价模型。这样的度量确保了不同长度的序列具有可比性。</p>
+</li>
+</ol>
+<p>具体来说，当使用顺序分区时，只在每个迭代周期的开始位置初始化隐藏状态。由于下一个小批量数据中的第 $i$ 个子序列样本与当前第 $i$ 个子序列样本相邻，因此当前小批量数据最后一个样本的隐藏状态，将用于初始化下一个小批量数据第一个样本的隐藏状态。这样，存储在隐藏状态中的序列的历史信息可以在一个迭代周期内流经相邻的子序列。然而，在任何一点隐藏状态的计算，都依赖于同一迭代周期中前面所有的小批量数据，这使得梯度计算变得复杂。为了降低计算量，我们在处理任何一个小批量数据之前先分离梯度，使得隐藏状态的梯度计算总是限制在一个小批量数据的时间步内。</p>
+<p>当使用随机抽样时，因为每个样本都是在一个随机位置抽样的，因此需要为每个迭代周期重新初始化隐藏状态。</p>
+<pre class="line-numbers language-python" data-language="python"><code class="language-python"><span class="token keyword">def</span> <span class="token function">train_epoch_ch8</span><span class="token punctuation">(</span>net<span class="token punctuation">,</span> train_iter<span class="token punctuation">,</span> loss<span class="token punctuation">,</span> updater<span class="token punctuation">,</span> device<span class="token punctuation">,</span> use_random_iter<span class="token punctuation">)</span><span class="token punctuation">:</span>
+    <span class="token triple-quoted-string string">"""训练模型一个迭代周期（定义见第8章）。"""</span>
+    state <span class="token operator">=</span> <span class="token boolean">None</span>
+    metrics <span class="token operator">=</span> <span class="token punctuation">[</span><span class="token number">0.0</span><span class="token punctuation">,</span> <span class="token number">0.0</span><span class="token punctuation">]</span>  <span class="token comment"># 训练损失之和, 词元数量</span>
+    <span class="token keyword">for</span> X<span class="token punctuation">,</span> Y <span class="token keyword">in</span> train_iter<span class="token punctuation">:</span>
+        <span class="token keyword">if</span> state <span class="token keyword">is</span> <span class="token boolean">None</span> <span class="token keyword">or</span> use_random_iter<span class="token punctuation">:</span>
+            <span class="token comment"># 在第一次迭代或使用随机抽样时初始化`state`</span>
+            state <span class="token operator">=</span> net<span class="token punctuation">.</span>begin_state<span class="token punctuation">(</span>batch_size<span class="token operator">=</span>X<span class="token punctuation">.</span>shape<span class="token punctuation">[</span><span class="token number">0</span><span class="token punctuation">]</span><span class="token punctuation">,</span> device<span class="token operator">=</span>device<span class="token punctuation">)</span>
+        <span class="token keyword">else</span><span class="token punctuation">:</span>
+            <span class="token comment"># `state`我们从零开始实现的模型是个张量</span>
+            <span class="token keyword">for</span> s <span class="token keyword">in</span> state<span class="token punctuation">:</span>
+                s<span class="token punctuation">.</span>detach_<span class="token punctuation">(</span><span class="token punctuation">)</span>
+
+        y <span class="token operator">=</span> Y<span class="token punctuation">.</span>T<span class="token punctuation">.</span>reshape<span class="token punctuation">(</span><span class="token operator">-</span><span class="token number">1</span><span class="token punctuation">)</span>
+        X<span class="token punctuation">,</span> y <span class="token operator">=</span> X<span class="token punctuation">.</span>to<span class="token punctuation">(</span>device<span class="token punctuation">)</span><span class="token punctuation">,</span> y<span class="token punctuation">.</span>to<span class="token punctuation">(</span>device<span class="token punctuation">)</span>
+        y_hat<span class="token punctuation">,</span> state <span class="token operator">=</span> net<span class="token punctuation">(</span>X<span class="token punctuation">,</span> state<span class="token punctuation">)</span>
+
+        l <span class="token operator">=</span> loss<span class="token punctuation">(</span>y_hat<span class="token punctuation">,</span> y<span class="token punctuation">.</span><span class="token builtin">long</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">.</span>mean<span class="token punctuation">(</span><span class="token punctuation">)</span>
+        l<span class="token punctuation">.</span>backward<span class="token punctuation">(</span><span class="token punctuation">)</span>
+        grad_clipping<span class="token punctuation">(</span>net<span class="token punctuation">,</span> <span class="token number">1</span><span class="token punctuation">)</span>
+        <span class="token comment"># 因为已经调用了`mean`函数</span>
+        updater<span class="token punctuation">(</span>batch_size<span class="token operator">=</span><span class="token number">1</span><span class="token punctuation">)</span>
+
+        metrics<span class="token punctuation">[</span><span class="token number">0</span><span class="token punctuation">]</span> <span class="token operator">=</span> metrics<span class="token punctuation">[</span><span class="token number">0</span><span class="token punctuation">]</span> <span class="token operator">+</span> l <span class="token operator">*</span> y<span class="token punctuation">.</span>numel<span class="token punctuation">(</span><span class="token punctuation">)</span>
+        metrics<span class="token punctuation">[</span><span class="token number">1</span><span class="token punctuation">]</span> <span class="token operator">=</span> metrics<span class="token punctuation">[</span><span class="token number">1</span><span class="token punctuation">]</span> <span class="token operator">+</span> y<span class="token punctuation">.</span>numel<span class="token punctuation">(</span><span class="token punctuation">)</span>
+    <span class="token keyword">return</span> math<span class="token punctuation">.</span>exp<span class="token punctuation">(</span>metrics<span class="token punctuation">[</span><span class="token number">0</span><span class="token punctuation">]</span> <span class="token operator">/</span> metrics<span class="token punctuation">[</span><span class="token number">1</span><span class="token punctuation">]</span><span class="token punctuation">)</span>  <span class="token comment"># 困惑度</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
                 
             </div>
             <hr/>
@@ -1158,7 +1216,7 @@ E[o_i]
             <br>
             
             &nbsp;<i class="fas fa-chart-area"></i>&nbsp;站点总字数:&nbsp;<span
-                class="white-color">169k</span>&nbsp;字
+                class="white-color">169.9k</span>&nbsp;字
             
             
             
