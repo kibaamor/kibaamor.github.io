@@ -434,14 +434,14 @@
                 
                 <div class="info-break-policy">
                     <i class="far fa-file-word fa-fw"></i>文章字数:&nbsp;&nbsp;
-                    3.2k
+                    4.2k
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-clock fa-fw"></i>阅读时长:&nbsp;&nbsp;
-                    14 分
+                    18 分
                 </div>
                 
 
@@ -739,6 +739,33 @@ E[o_i]
             X<span class="token punctuation">,</span> self<span class="token punctuation">.</span>gamma<span class="token punctuation">,</span> self<span class="token punctuation">.</span>beta<span class="token punctuation">,</span> self<span class="token punctuation">.</span>moving_mean<span class="token punctuation">,</span> self<span class="token punctuation">.</span>moving_var<span class="token punctuation">,</span> eps<span class="token operator">=</span><span class="token number">1e</span><span class="token operator">-</span><span class="token number">5</span><span class="token punctuation">,</span> momentum<span class="token operator">=</span><span class="token number">0.9</span>
         <span class="token punctuation">)</span>
         <span class="token keyword">return</span> Y<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<h2 id="6-梯度裁剪"><a href="#6-梯度裁剪" class="headerlink" title="6. 梯度裁剪"></a>6. <a target="_blank" rel="noopener" href="https://zh-v2.d2l.ai/chapter_recurrent-neural-networks/rnn-scratch.html">梯度裁剪</a></h2><h3 id="6-1-梯度裁剪原理"><a href="#6-1-梯度裁剪原理" class="headerlink" title="6.1 梯度裁剪原理"></a>6.1 梯度裁剪原理</h3><p>训练的过程中，有时梯度可能很大，从而导致算法无法收敛。虽然可以降低学习率来缓解这个问题，但是如果训练过程中很少得到大的梯度时就不可行了。</p>
+<p>一个流行的方案是通过将梯度 $\mathbf{g}$ 投影回给定半径（例如 $\theta$ ）的球来裁剪梯度 $\mathbf{g}$ 。如下式：</p>
+<script type="math/tex; mode=display">\mathbf{g} \leftarrow \min\left(1, \frac{\theta}{\|\mathbf{g}\|}\right) \mathbf{g}</script><p>裁剪后的梯度范数不会超过 $\theta$ ，方向与 $\mathbf{g}$ 的原始方向对齐。它还有一个好处是限制任何给定的小批量数据（以及其中任何给定的样本）对参数向量的影响，让模型的训练更加稳定。</p>
+<p>梯度裁剪提供了一个快速修复梯度爆炸的方法。</p>
+<h3 id="6-2-实现梯度裁剪"><a href="#6-2-实现梯度裁剪" class="headerlink" title="6.2 实现梯度裁剪"></a>6.2 实现梯度裁剪</h3><pre class="line-numbers language-python" data-language="python"><code class="language-python"><span class="token keyword">def</span> <span class="token function">grad_clipping</span><span class="token punctuation">(</span>net<span class="token punctuation">,</span> theta<span class="token punctuation">)</span><span class="token punctuation">:</span>
+    <span class="token keyword">if</span> <span class="token builtin">isinstance</span><span class="token punctuation">(</span>net<span class="token punctuation">,</span> nn<span class="token punctuation">.</span>Module<span class="token punctuation">)</span><span class="token punctuation">:</span>
+        params <span class="token operator">=</span> <span class="token punctuation">[</span>p <span class="token keyword">for</span> p <span class="token keyword">in</span> net<span class="token punctuation">.</span>parameters<span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token keyword">if</span> p<span class="token punctuation">.</span>requires_grad<span class="token punctuation">]</span>
+    <span class="token keyword">else</span><span class="token punctuation">:</span>
+        params <span class="token operator">=</span> net<span class="token punctuation">.</span>params
+    norm <span class="token operator">=</span> torch<span class="token punctuation">.</span>sqrt<span class="token punctuation">(</span><span class="token builtin">sum</span><span class="token punctuation">(</span>torch<span class="token punctuation">.</span><span class="token builtin">sum</span><span class="token punctuation">(</span><span class="token punctuation">(</span>p<span class="token punctuation">.</span>grad <span class="token operator">**</span> <span class="token number">2</span><span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token keyword">for</span> p <span class="token keyword">in</span> params<span class="token punctuation">)</span><span class="token punctuation">)</span>
+    <span class="token keyword">if</span> norm <span class="token operator">&gt;</span> theta<span class="token punctuation">:</span>
+        <span class="token keyword">for</span> param <span class="token keyword">in</span> params<span class="token punctuation">:</span>
+            param<span class="token punctuation">.</span>grad<span class="token punctuation">[</span><span class="token punctuation">:</span><span class="token punctuation">]</span> <span class="token operator">*=</span> theta <span class="token operator">/</span> norm<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<h2 id="7-语言模型"><a href="#7-语言模型" class="headerlink" title="7. 语言模型"></a>7. <a target="_blank" rel="noopener" href="https://zh-v2.d2l.ai/chapter_recurrent-neural-networks/language-models-and-dataset.html#sec-language-model">语言模型</a></h2><h3 id="7-1-语言模型的定义"><a href="#7-1-语言模型的定义" class="headerlink" title="7.1 语言模型的定义"></a>7.1 语言模型的定义</h3><p>语言模型的本质是一个模型（可以理解为一个函数）。对于一段长度为 $T$ 的文本序列，其词元依次为 $x_1, x_2, \ldots, x_T$ ，通过这个模型可以计算出该序列出现的概率，即：</p>
+<script type="math/tex; mode=display">P(x_1, x_2, \ldots, x_T)</script><h3 id="7-2-学习语言模型"><a href="#7-2-学习语言模型" class="headerlink" title="7.2 学习语言模型"></a>7.2 学习语言模型</h3><p>学习语言模型的过程就是用一个神经网络去拟合真实的语言模型的过程。</p>
+<p>基本的概率规则：</p>
+<script type="math/tex; mode=display">P(x_1, x_2, \ldots, x_T) = \prod_{t=1}^T P(x_t  \mid  x_1, \ldots, x_{t-1})</script><p>例如，包含了四个单词的一个文本序列的概率是：</p>
+<script type="math/tex; mode=display">P(\text{deep}, \text{learning}, \text{is}, \text{fun}) =  P(\text{deep}) P(\text{learning}  \mid  \text{deep}) P(\text{is}  \mid  \text{deep}, \text{learning}) P(\text{fun}  \mid  \text{deep}, \text{learning}, \text{is})</script><p>为了计算语言模型，我们需要计算单词的概率和给定前面几个单词后出现某个单词的条件概率。这些概率本质上就是语言模型的参数。</p>
+<h2 id="8-困惑度（Perplexity）"><a href="#8-困惑度（Perplexity）" class="headerlink" title="8. 困惑度（Perplexity）"></a>8. <a target="_blank" rel="noopener" href="https://zh-v2.d2l.ai/chapter_recurrent-neural-networks/rnn.html#perplexity">困惑度（Perplexity）</a></h2><p>如果想要压缩文本（在循环神经网络中，会把一段文本都压缩进隐状态中），可以询问根据当前词元集预测的下一个词元。一个更好的语言模型应该能更准确地预测下一个词元。</p>
+<p>所以可以通过一个序列中所有的 $n$ 个词元的交叉熵损失的平均值来衡量：</p>
+<script type="math/tex; mode=display">\frac{1}{n} \sum_{t=1}^n -\log P(x_t \mid x_{t-1}, \ldots, x_1)</script><p>其中 $P$ 由语言模型给出， $x_t$ 是在时间步 $t$ 从该序列中观察到的实际词元。由于历史原因，自然语言处理的科学家更喜欢使用一个叫做 <em>困惑度</em>（perplexity）的量。它是上面公式的指数：</p>
+<script type="math/tex; mode=display">\exp\left(-\frac{1}{n} \sum_{t=1}^n \log P(x_t \mid x_{t-1}, \ldots, x_1)\right)</script><p>当需要决定下一个词元是哪个时，困惑度最好的理解是下一个词元的实际选择数的调和平均数。比如：</p>
+<ul>
+<li>在最好的情况下，模型总是完美地估计标签词元的概率为1。在这种情况下，模型的困惑度为1。</li>
+<li>在最坏的情况下，模型总是预测标签词元的概率为0。在这种情况下，困惑度是正无穷大。</li>
+<li>在基线上，该模型的预测是词汇表的所有可用词元上的均匀分布。在这种情况下，困惑度等于词汇表中唯一词元的数量。事实上，如果我们在没有任何压缩的情况下存储序列，这将是我们能做的最好的编码方式。因此，这种方式提供了一个重要的上限，而任何实际的语言模型都必须超越这个上限。</li>
+</ul>
 
                 
             </div>
@@ -1131,7 +1158,7 @@ E[o_i]
             <br>
             
             &nbsp;<i class="fas fa-chart-area"></i>&nbsp;站点总字数:&nbsp;<span
-                class="white-color">168k</span>&nbsp;字
+                class="white-color">169k</span>&nbsp;字
             
             
             
