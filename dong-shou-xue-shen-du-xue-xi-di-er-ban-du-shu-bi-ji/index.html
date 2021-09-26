@@ -906,15 +906,15 @@ E[o_i]
     enc_outputs <span class="token operator">=</span> self<span class="token punctuation">.</span>encoder<span class="token punctuation">(</span>enc_X<span class="token punctuation">,</span> <span class="token operator">*</span>args<span class="token punctuation">)</span>
     dec_state <span class="token operator">=</span> self<span class="token punctuation">.</span>decoder<span class="token punctuation">.</span>init_state<span class="token punctuation">(</span>enc_outputs<span class="token punctuation">,</span> <span class="token operator">*</span>args<span class="token punctuation">)</span>
     <span class="token keyword">return</span> self<span class="token punctuation">.</span>decoder<span class="token punctuation">(</span>dec_X<span class="token punctuation">,</span> dec_state<span class="token punctuation">)</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
-<h3 id="11-2-序列到序列学习（seq2seq）"><a href="#11-2-序列到序列学习（seq2seq）" class="headerlink" title="11.2 序列到序列学习（seq2seq）"></a>11.2 <a target="_blank" rel="noopener" href="https://zh-v2.d2l.ai/chapter_recurrent-modern/seq2seq.html">序列到序列学习（seq2seq）</a></h3></li>
+</li>
 </ol>
-<p>完整的代码：<a href="/images/《动手学深度学习（第二版）》读书笔记/machine_translation.py">machine_translation.py</a></p>
+<h3 id="11-2-序列到序列学习（seq2seq）"><a href="#11-2-序列到序列学习（seq2seq）" class="headerlink" title="11.2 序列到序列学习（seq2seq）"></a>11.2 <a target="_blank" rel="noopener" href="https://zh-v2.d2l.ai/chapter_recurrent-modern/seq2seq.html">序列到序列学习（seq2seq）</a></h3><p>完整的代码：<a href="/images/《动手学深度学习（第二版）》读书笔记/machine_translation.py">machine_translation.py</a></p>
 <p>机器翻译是一种典型的序列转换模型的问题，所以也可以遵循“编码器－解码器”结构的设计原则，来进行序列到序列（sequence to sequence，seq2seq）的学习。</p>
 <p>在数据预处理时，需要注意：</p>
 <ol>
 <li><p>机器翻译中常做单词级词元化，而不是字符级的词元化。</p>
 </li>
-<li><p>单词级词元化后，词汇量可能会很大，可以将出现次数较少的次元（比如少于2次的低频次元）视为未知（“<unk>”）词元。另外，一般还会添加一些额外的词元。比如：在小批量时用于将序列填充到相同长度的填充词元（“<pad>”），以及序列的开始词元（“<bos>”）和结束词元（“<eos>”）。</eos></bos></pad></unk></p>
+<li><p>单词级词元化后，词汇量可能会很大，可以将出现次数较少的次元（比如少于2次的低频次元）视为未知（<code>"&lt;unk&gt;"</code>）词元。另外，一般还会添加一些额外的词元。比如：在小批量时用于将序列填充到相同长度的填充词元（<code>"&lt;pad&gt;"</code>），以及序列的开始词元（<code>"&lt;bos&gt;"</code>）和结束词元（<code>"&lt;eos&gt;"</code>）。</p>
  <pre class="line-numbers language-python" data-language="python"><code class="language-python">src_vocab <span class="token operator">=</span> Vocab<span class="token punctuation">(</span>source<span class="token punctuation">,</span> min_freq<span class="token operator">=</span><span class="token number">2</span><span class="token punctuation">,</span> reserved_tokens<span class="token operator">=</span><span class="token punctuation">[</span><span class="token string">'&lt;pad&gt;'</span><span class="token punctuation">,</span> <span class="token string">'&lt;bos&gt;'</span><span class="token punctuation">,</span> <span class="token string">'&lt;eos&gt;'</span><span class="token punctuation">]</span><span class="token punctuation">)</span><span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre></li>
 <li><p>为了提高计算效率，一般会将一个小批量的文本序列截断（truncation）和 填充（padding）到相同的长度。</p>
  <pre class="line-numbers language-python" data-language="python"><code class="language-python"><span class="token keyword">def</span> <span class="token function">truncate_pad</span><span class="token punctuation">(</span>line<span class="token punctuation">,</span> num_steps<span class="token punctuation">,</span> padding_token<span class="token punctuation">)</span><span class="token punctuation">:</span>
@@ -945,14 +945,14 @@ E[o_i]
         unweighted_loss <span class="token operator">=</span> <span class="token builtin">super</span><span class="token punctuation">(</span>MaskedSoftmaxCELoss<span class="token punctuation">,</span> self<span class="token punctuation">)</span><span class="token punctuation">.</span>forward<span class="token punctuation">(</span>pred<span class="token punctuation">.</span>permute<span class="token punctuation">(</span><span class="token number">0</span><span class="token punctuation">,</span> <span class="token number">2</span><span class="token punctuation">,</span> <span class="token number">1</span><span class="token punctuation">)</span><span class="token punctuation">,</span> label<span class="token punctuation">)</span>
         weighted_loss <span class="token operator">=</span> <span class="token punctuation">(</span>unweighted_loss <span class="token operator">*</span> weights<span class="token punctuation">)</span><span class="token punctuation">.</span>mean<span class="token punctuation">(</span>dim<span class="token operator">=</span><span class="token number">1</span><span class="token punctuation">)</span>
         <span class="token keyword">return</span> weighted_loss<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre></li>
-<li><p>在训练的过程中，特定的序列开始词元（“<bos>”）和原始的输出序列（不包括序列结束词元“<eos>”）拼接在一起作为解码器的输入。这被称为教师强制（teacher forcing）。</eos></bos></p>
+<li><p>在训练的过程中，特定的序列开始词元（<code>"&lt;bos&gt;"</code>）和原始的输出序列（不包括序列结束词元 <code>"&lt;eos&gt;"</code>）拼接在一起作为解码器的输入。这被称为教师强制（teacher forcing）。</p>
 <p> <img src="/images/《动手学深度学习（第二版）》读书笔记/序列到序列学习的细节.svg" alt="序列到序列学习的细节"></p>
 <p> 比如，假如想要训练翻译 “谢谢你。” 为 “thank you.” 且预处理时序列长度为8，在进入网络之前，上图中的 Sources 和 Targets 会被处理为：</p>
  <pre class="line-numbers language-python" data-language="python"><code class="language-python">sources <span class="token operator">=</span> <span class="token punctuation">[</span><span class="token punctuation">[</span><span class="token string">"谢"</span><span class="token punctuation">,</span> <span class="token string">"谢"</span><span class="token punctuation">,</span> <span class="token string">"你"</span><span class="token punctuation">,</span> <span class="token string">"。"</span><span class="token punctuation">,</span> <span class="token string">"&lt;eos&gt;"</span><span class="token punctuation">,</span> <span class="token string">"&lt;pad&gt;"</span><span class="token punctuation">,</span> <span class="token string">"&lt;pad&gt;"</span><span class="token punctuation">,</span> <span class="token string">"&lt;pad&gt;"</span><span class="token punctuation">]</span><span class="token punctuation">]</span>
 targets <span class="token operator">=</span> <span class="token punctuation">[</span><span class="token punctuation">[</span><span class="token string">"&lt;bos&gt;"</span><span class="token punctuation">,</span> <span class="token string">"thank"</span><span class="token punctuation">,</span> <span class="token string">"you"</span><span class="token punctuation">,</span> <span class="token string">"."</span><span class="token punctuation">,</span> <span class="token string">"&lt;eos&gt;"</span><span class="token punctuation">,</span> <span class="token string">"&lt;pad&gt;"</span><span class="token punctuation">,</span> <span class="token string">"&lt;pad&gt;"</span><span class="token punctuation">,</span> <span class="token string">"&lt;pad&gt;"</span><span class="token punctuation">]</span><span class="token punctuation">]</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre>
-<h3 id="11-3-束搜索"><a href="#11-3-束搜索" class="headerlink" title="11.3 束搜索"></a>11.3 <a target="_blank" rel="noopener" href="https://zh-v2.d2l.ai/chapter_recurrent-modern/beam-search.html">束搜索</a></h3></li>
+</li>
 </ol>
-<p>在进行机器翻译预测时，输入数据后，会得到各个单词的概率，如何根据各个单词的概率来确定下一个是哪个单词呢？</p>
+<h3 id="11-3-束搜索"><a href="#11-3-束搜索" class="headerlink" title="11.3 束搜索"></a>11.3 <a target="_blank" rel="noopener" href="https://zh-v2.d2l.ai/chapter_recurrent-modern/beam-search.html">束搜索</a></h3><p>在进行机器翻译预测时，输入数据后，会得到各个单词的概率，如何根据各个单词的概率来确定下一个是哪个单词呢？</p>
 <ol>
 <li><p>贪心搜索</p>
 <p> 最简单常用的方法是贪心搜索，即每次都选择概率最大的那个单词最为下一个单词。</p>
@@ -1357,7 +1357,7 @@ targets <span class="token operator">=</span> <span class="token punctuation">[<
             <br>
             
             &nbsp;<i class="fas fa-chart-area"></i>&nbsp;站点总字数:&nbsp;<span
-                class="white-color">171.9k</span>&nbsp;字
+                class="white-color">172k</span>&nbsp;字
             
             
             
