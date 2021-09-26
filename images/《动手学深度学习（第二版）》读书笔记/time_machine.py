@@ -191,22 +191,6 @@ def grad_clipping(net, theta):
             param.grad[:] *= theta / norm
 
 
-class Accumulator:
-    """For accumulating sums over `n` variables."""
-
-    def __init__(self, n):
-        self.data = [0.0] * n
-
-    def add(self, *args):
-        self.data = [a + float(b) for a, b in zip(self.data, args)]
-
-    def reset(self):
-        self.data = [0.0] * len(self.data)
-
-    def __getitem__(self, idx):
-        return self.data[idx]
-
-
 def get_params(vocab_size, num_hiddens, device):
     num_inputs = num_outputs = vocab_size
 

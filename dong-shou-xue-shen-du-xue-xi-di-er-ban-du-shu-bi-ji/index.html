@@ -434,14 +434,14 @@
                 
                 <div class="info-break-policy">
                     <i class="far fa-file-word fa-fw"></i>文章字数:&nbsp;&nbsp;
-                    6k
+                    7.2k
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-clock fa-fw"></i>阅读时长:&nbsp;&nbsp;
-                    25 分
+                    30 分
                 </div>
                 
 
@@ -810,7 +810,7 @@ E[o_i]
 <li>在最坏的情况下，模型总是预测标签词元的概率为0。在这种情况下，困惑度是正无穷大。</li>
 <li>在基线上，该模型的预测是词汇表的所有可用词元上的均匀分布。在这种情况下，困惑度等于词汇表中唯一词元的数量。事实上，如果我们在没有任何压缩的情况下存储序列，这将是我们能做的最好的编码方式。因此，这种方式提供了一个重要的上限，而任何实际的语言模型都必须超越这个上限。</li>
 </ul>
-<h2 id="10-循环神经网络"><a href="#10-循环神经网络" class="headerlink" title="10. 循环神经网络"></a>10. <a target="_blank" rel="noopener" href="https://zh-v2.d2l.ai/chapter_recurrent-neural-networks/index.html">循环神经网络</a></h2><p>完整的代码：<a href="/images/《动手学深度学习（第二版）》读书笔记/rnn.py">rnn.py</a></p>
+<h2 id="10-循环神经网络"><a href="#10-循环神经网络" class="headerlink" title="10. 循环神经网络"></a>10. <a target="_blank" rel="noopener" href="https://zh-v2.d2l.ai/chapter_recurrent-neural-networks/index.html">循环神经网络</a></h2><p>完整的代码：<a href="/images/《动手学深度学习（第二版）》读书笔记/time_machine.py">time_machine.py</a></p>
 <h3 id="10-1-使用循环神经网络进行预测"><a href="#10-1-使用循环神经网络进行预测" class="headerlink" title="10.1 使用循环神经网络进行预测"></a>10.1 <a target="_blank" rel="noopener" href="https://zh-v2.d2l.ai/chapter_recurrent-neural-networks/rnn-scratch.html">使用循环神经网络进行预测</a></h3><p>prefix 是用于预测的字符串。循环遍历 prefix 中的字符，不断地将隐藏状态传递到下一个时间步，但不生成任何输出。这被称为“预热”（warm-up）期，因为在此期间模型会自我更新（例如，更新隐藏状态），但不会进行预测。预热期结束后，隐藏状态的值通常比刚开始的初始值更适合预测，从而预测字符并输出它们。</p>
 <pre class="line-numbers language-python" data-language="python"><code class="language-python"><span class="token keyword">def</span> <span class="token function">predict_ch8</span><span class="token punctuation">(</span>prefix<span class="token punctuation">,</span> num_preds<span class="token punctuation">,</span> net<span class="token punctuation">,</span> vocab<span class="token punctuation">,</span> device<span class="token punctuation">)</span><span class="token punctuation">:</span>
     <span class="token triple-quoted-string string">"""在`prefix`后面生成新字符。"""</span>
@@ -869,6 +869,103 @@ E[o_i]
         metrics<span class="token punctuation">[</span><span class="token number">0</span><span class="token punctuation">]</span> <span class="token operator">=</span> metrics<span class="token punctuation">[</span><span class="token number">0</span><span class="token punctuation">]</span> <span class="token operator">+</span> l <span class="token operator">*</span> y<span class="token punctuation">.</span>numel<span class="token punctuation">(</span><span class="token punctuation">)</span>
         metrics<span class="token punctuation">[</span><span class="token number">1</span><span class="token punctuation">]</span> <span class="token operator">=</span> metrics<span class="token punctuation">[</span><span class="token number">1</span><span class="token punctuation">]</span> <span class="token operator">+</span> y<span class="token punctuation">.</span>numel<span class="token punctuation">(</span><span class="token punctuation">)</span>
     <span class="token keyword">return</span> math<span class="token punctuation">.</span>exp<span class="token punctuation">(</span>metrics<span class="token punctuation">[</span><span class="token number">0</span><span class="token punctuation">]</span> <span class="token operator">/</span> metrics<span class="token punctuation">[</span><span class="token number">1</span><span class="token punctuation">]</span><span class="token punctuation">)</span>  <span class="token comment"># 困惑度</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<h2 id="11-机器翻译"><a href="#11-机器翻译" class="headerlink" title="11. 机器翻译"></a>11. <a target="_blank" rel="noopener" href="https://zh-v2.d2l.ai/chapter_recurrent-modern/machine-translation-and-dataset.html">机器翻译</a></h2><h3 id="11-1-编码器-解码器结构"><a href="#11-1-编码器-解码器结构" class="headerlink" title="11.1 编码器-解码器结构"></a>11.1 <a target="_blank" rel="noopener" href="https://zh-v2.d2l.ai/chapter_recurrent-modern/encoder-decoder.html">编码器-解码器结构</a></h3><p>编码器-解码器（encoder-decoder）结构常用于处理将输入序列转换成输出序列这类 <strong>序列转换模型（sequence transduction）</strong> 问题。</p>
+<p><img src="/images/《动手学深度学习（第二版）》读书笔记/编码器-解码器结构.svg" alt="编码器-解码器结构"></p>
+<ol>
+<li><p>编码器（encoder）接受一个长度可变的序列作为输入，并将其转换为具有固定形状的编码状态。</p>
+ <pre class="line-numbers language-python" data-language="python"><code class="language-python"><span class="token keyword">class</span> <span class="token class-name">Encoder</span><span class="token punctuation">(</span>nn<span class="token punctuation">.</span>Module<span class="token punctuation">)</span><span class="token punctuation">:</span>
+    <span class="token triple-quoted-string string">"""编码器-解码器结构的基本编码器接口。"""</span>
+
+    <span class="token keyword">def</span> <span class="token function">__init__</span><span class="token punctuation">(</span>self<span class="token punctuation">,</span> <span class="token operator">**</span>kwargs<span class="token punctuation">)</span><span class="token punctuation">:</span>
+        <span class="token builtin">super</span><span class="token punctuation">(</span>Encoder<span class="token punctuation">,</span> self<span class="token punctuation">)</span><span class="token punctuation">.</span>__init__<span class="token punctuation">(</span><span class="token operator">**</span>kwargs<span class="token punctuation">)</span>
+
+    <span class="token keyword">def</span> <span class="token function">forward</span><span class="token punctuation">(</span>self<span class="token punctuation">,</span> X<span class="token punctuation">,</span> <span class="token operator">*</span>args<span class="token punctuation">)</span><span class="token punctuation">:</span>
+        <span class="token keyword">raise</span> NotImplementedError<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre></li>
+<li><p>解码器（decoder）将固定形状的编码状态映射到长度可变的序列。</p>
+ <pre class="line-numbers language-python" data-language="python"><code class="language-python"><span class="token keyword">class</span> <span class="token class-name">Decoder</span><span class="token punctuation">(</span>nn<span class="token punctuation">.</span>Module<span class="token punctuation">)</span><span class="token punctuation">:</span>
+<span class="token triple-quoted-string string">"""编码器-解码器结构的基本解码器接口。"""</span>
+
+<span class="token keyword">def</span> <span class="token function">__init__</span><span class="token punctuation">(</span>self<span class="token punctuation">,</span> <span class="token operator">**</span>kwargs<span class="token punctuation">)</span><span class="token punctuation">:</span>
+    <span class="token builtin">super</span><span class="token punctuation">(</span>Decoder<span class="token punctuation">,</span> self<span class="token punctuation">)</span><span class="token punctuation">.</span>__init__<span class="token punctuation">(</span><span class="token operator">**</span>kwargs<span class="token punctuation">)</span>
+
+<span class="token keyword">def</span> <span class="token function">init_state</span><span class="token punctuation">(</span>self<span class="token punctuation">,</span> enc_outputs<span class="token punctuation">,</span> <span class="token operator">*</span>args<span class="token punctuation">)</span><span class="token punctuation">:</span>
+    <span class="token keyword">raise</span> NotImplementedError
+
+<span class="token keyword">def</span> <span class="token function">forward</span><span class="token punctuation">(</span>self<span class="token punctuation">,</span> X<span class="token punctuation">,</span> state<span class="token punctuation">)</span><span class="token punctuation">:</span>
+    <span class="token keyword">raise</span> NotImplementedError<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre></li>
+<li><p>编码器-解码器组合</p>
+ <pre class="line-numbers language-python" data-language="python"><code class="language-python"><span class="token keyword">class</span> <span class="token class-name">EncoderDecoder</span><span class="token punctuation">(</span>nn<span class="token punctuation">.</span>Module<span class="token punctuation">)</span><span class="token punctuation">:</span>
+<span class="token triple-quoted-string string">"""编码器-解码器结构的基类。"""</span>
+
+<span class="token keyword">def</span> <span class="token function">__init__</span><span class="token punctuation">(</span>self<span class="token punctuation">,</span> encoder<span class="token punctuation">,</span> decoder<span class="token punctuation">,</span> <span class="token operator">**</span>kwargs<span class="token punctuation">)</span><span class="token punctuation">:</span>
+    <span class="token builtin">super</span><span class="token punctuation">(</span>EncoderDecoder<span class="token punctuation">,</span> self<span class="token punctuation">)</span><span class="token punctuation">.</span>__init__<span class="token punctuation">(</span><span class="token operator">**</span>kwargs<span class="token punctuation">)</span>
+    self<span class="token punctuation">.</span>encoder <span class="token operator">=</span> encoder
+    self<span class="token punctuation">.</span>decoder <span class="token operator">=</span> decoder
+
+<span class="token keyword">def</span> <span class="token function">forward</span><span class="token punctuation">(</span>self<span class="token punctuation">,</span> enc_X<span class="token punctuation">,</span> dec_X<span class="token punctuation">,</span> <span class="token operator">*</span>args<span class="token punctuation">)</span><span class="token punctuation">:</span>
+    enc_outputs <span class="token operator">=</span> self<span class="token punctuation">.</span>encoder<span class="token punctuation">(</span>enc_X<span class="token punctuation">,</span> <span class="token operator">*</span>args<span class="token punctuation">)</span>
+    dec_state <span class="token operator">=</span> self<span class="token punctuation">.</span>decoder<span class="token punctuation">.</span>init_state<span class="token punctuation">(</span>enc_outputs<span class="token punctuation">,</span> <span class="token operator">*</span>args<span class="token punctuation">)</span>
+    <span class="token keyword">return</span> self<span class="token punctuation">.</span>decoder<span class="token punctuation">(</span>dec_X<span class="token punctuation">,</span> dec_state<span class="token punctuation">)</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<h3 id="11-2-序列到序列学习（seq2seq）"><a href="#11-2-序列到序列学习（seq2seq）" class="headerlink" title="11.2 序列到序列学习（seq2seq）"></a>11.2 <a target="_blank" rel="noopener" href="https://zh-v2.d2l.ai/chapter_recurrent-modern/seq2seq.html">序列到序列学习（seq2seq）</a></h3></li>
+</ol>
+<p>完整的代码：<a href="/images/《动手学深度学习（第二版）》读书笔记/machine_translation.py">machine_translation.py</a></p>
+<p>机器翻译是一种典型的序列转换模型的问题，所以也可以遵循“编码器－解码器”结构的设计原则，来进行序列到序列（sequence to sequence，seq2seq）的学习。</p>
+<p>在数据预处理时，需要注意：</p>
+<ol>
+<li><p>机器翻译中常做单词级词元化，而不是字符级的词元化。</p>
+</li>
+<li><p>单词级词元化后，词汇量可能会很大，可以将出现次数较少的次元（比如少于2次的低频次元）视为未知（“<unk>”）词元。另外，一般还会添加一些额外的词元。比如：在小批量时用于将序列填充到相同长度的填充词元（“<pad>”），以及序列的开始词元（“<bos>”）和结束词元（“<eos>”）。</eos></bos></pad></unk></p>
+ <pre class="line-numbers language-python" data-language="python"><code class="language-python">src_vocab <span class="token operator">=</span> Vocab<span class="token punctuation">(</span>source<span class="token punctuation">,</span> min_freq<span class="token operator">=</span><span class="token number">2</span><span class="token punctuation">,</span> reserved_tokens<span class="token operator">=</span><span class="token punctuation">[</span><span class="token string">'&lt;pad&gt;'</span><span class="token punctuation">,</span> <span class="token string">'&lt;bos&gt;'</span><span class="token punctuation">,</span> <span class="token string">'&lt;eos&gt;'</span><span class="token punctuation">]</span><span class="token punctuation">)</span><span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre></li>
+<li><p>为了提高计算效率，一般会将一个小批量的文本序列截断（truncation）和 填充（padding）到相同的长度。</p>
+ <pre class="line-numbers language-python" data-language="python"><code class="language-python"><span class="token keyword">def</span> <span class="token function">truncate_pad</span><span class="token punctuation">(</span>line<span class="token punctuation">,</span> num_steps<span class="token punctuation">,</span> padding_token<span class="token punctuation">)</span><span class="token punctuation">:</span>
+    <span class="token triple-quoted-string string">"""截断或填充文本序列。"""</span>
+    <span class="token keyword">if</span> <span class="token builtin">len</span><span class="token punctuation">(</span>line<span class="token punctuation">)</span> <span class="token operator">&gt;</span> num_steps<span class="token punctuation">:</span>
+        <span class="token keyword">return</span> line<span class="token punctuation">[</span><span class="token punctuation">:</span>num_steps<span class="token punctuation">]</span>  <span class="token comment"># 截断</span>
+    <span class="token keyword">return</span> line <span class="token operator">+</span> <span class="token punctuation">[</span>padding_token<span class="token punctuation">]</span> <span class="token operator">*</span> <span class="token punctuation">(</span>num_steps <span class="token operator">-</span> <span class="token builtin">len</span><span class="token punctuation">(</span>line<span class="token punctuation">)</span><span class="token punctuation">)</span>  <span class="token comment"># 填充</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>在训练的过程中，需要注意：</p>
+</li>
+<li><p>在每个时间步，解码器预测了输出词元的概率分布。类似于语言模型，可以使用 softmax 来获得分布，并通过计算交叉熵损失函数来进行优化。但是因为在数据预处理时，填充了一些词元到序列的末尾，所以在计算损失时，需要排除这些词元。</p>
+ <pre class="line-numbers language-python" data-language="python"><code class="language-python"><span class="token keyword">def</span> <span class="token function">sequence_mask</span><span class="token punctuation">(</span>X<span class="token punctuation">,</span> valid_len<span class="token punctuation">,</span> value<span class="token operator">=</span><span class="token number">0</span><span class="token punctuation">)</span><span class="token punctuation">:</span>
+    <span class="token triple-quoted-string string">"""在序列中屏蔽不相关的项。"""</span>
+    maxlen <span class="token operator">=</span> X<span class="token punctuation">.</span>size<span class="token punctuation">(</span><span class="token number">1</span><span class="token punctuation">)</span>
+    mask <span class="token operator">=</span> torch<span class="token punctuation">.</span>arange<span class="token punctuation">(</span><span class="token punctuation">(</span>maxlen<span class="token punctuation">)</span><span class="token punctuation">,</span> dtype<span class="token operator">=</span>torch<span class="token punctuation">.</span>float32<span class="token punctuation">,</span> device<span class="token operator">=</span>X<span class="token punctuation">.</span>device<span class="token punctuation">)</span><span class="token punctuation">[</span><span class="token boolean">None</span><span class="token punctuation">,</span> <span class="token punctuation">:</span><span class="token punctuation">]</span> <span class="token operator">&lt;</span> valid_len<span class="token punctuation">[</span><span class="token punctuation">:</span><span class="token punctuation">,</span> <span class="token boolean">None</span><span class="token punctuation">]</span>
+    X<span class="token punctuation">[</span><span class="token operator">~</span>mask<span class="token punctuation">]</span> <span class="token operator">=</span> value
+    <span class="token keyword">return</span> X
+
+
+<span class="token keyword">class</span> <span class="token class-name">MaskedSoftmaxCELoss</span><span class="token punctuation">(</span>nn<span class="token punctuation">.</span>CrossEntropyLoss<span class="token punctuation">)</span><span class="token punctuation">:</span>
+    <span class="token triple-quoted-string string">"""带遮蔽的softmax交叉熵损失函数"""</span>
+    <span class="token comment"># `pred` 的形状：(`batch_size`, `num_steps`, `vocab_size`)</span>
+    <span class="token comment"># `label` 的形状：(`batch_size`, `num_steps`)</span>
+    <span class="token comment"># `valid_len` 的形状：(`batch_size`,)</span>
+    <span class="token keyword">def</span> <span class="token function">forward</span><span class="token punctuation">(</span>self<span class="token punctuation">,</span> pred<span class="token punctuation">,</span> label<span class="token punctuation">,</span> valid_len<span class="token punctuation">)</span><span class="token punctuation">:</span>
+        weights <span class="token operator">=</span> torch<span class="token punctuation">.</span>ones_like<span class="token punctuation">(</span>label<span class="token punctuation">)</span>
+        weights <span class="token operator">=</span> sequence_mask<span class="token punctuation">(</span>weights<span class="token punctuation">,</span> valid_len<span class="token punctuation">)</span>
+        self<span class="token punctuation">.</span>reduction <span class="token operator">=</span> <span class="token string">"none"</span>
+        unweighted_loss <span class="token operator">=</span> <span class="token builtin">super</span><span class="token punctuation">(</span>MaskedSoftmaxCELoss<span class="token punctuation">,</span> self<span class="token punctuation">)</span><span class="token punctuation">.</span>forward<span class="token punctuation">(</span>pred<span class="token punctuation">.</span>permute<span class="token punctuation">(</span><span class="token number">0</span><span class="token punctuation">,</span> <span class="token number">2</span><span class="token punctuation">,</span> <span class="token number">1</span><span class="token punctuation">)</span><span class="token punctuation">,</span> label<span class="token punctuation">)</span>
+        weighted_loss <span class="token operator">=</span> <span class="token punctuation">(</span>unweighted_loss <span class="token operator">*</span> weights<span class="token punctuation">)</span><span class="token punctuation">.</span>mean<span class="token punctuation">(</span>dim<span class="token operator">=</span><span class="token number">1</span><span class="token punctuation">)</span>
+        <span class="token keyword">return</span> weighted_loss<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre></li>
+<li><p>在训练的过程中，特定的序列开始词元（“<bos>”）和原始的输出序列（不包括序列结束词元“<eos>”）拼接在一起作为解码器的输入。这被称为教师强制（teacher forcing）。</eos></bos></p>
+<p> <img src="/images/《动手学深度学习（第二版）》读书笔记/序列到序列学习的细节.svg" alt="序列到序列学习的细节"></p>
+<p> 比如，假如想要训练翻译 “谢谢你。” 为 “thank you.” 且预处理时序列长度为8，在进入网络之前，上图中的 Sources 和 Targets 会被处理为：</p>
+ <pre class="line-numbers language-python" data-language="python"><code class="language-python">sources <span class="token operator">=</span> <span class="token punctuation">[</span><span class="token punctuation">[</span><span class="token string">"谢"</span><span class="token punctuation">,</span> <span class="token string">"谢"</span><span class="token punctuation">,</span> <span class="token string">"你"</span><span class="token punctuation">,</span> <span class="token string">"。"</span><span class="token punctuation">,</span> <span class="token string">"&lt;eos&gt;"</span><span class="token punctuation">,</span> <span class="token string">"&lt;pad&gt;"</span><span class="token punctuation">,</span> <span class="token string">"&lt;pad&gt;"</span><span class="token punctuation">,</span> <span class="token string">"&lt;pad&gt;"</span><span class="token punctuation">]</span><span class="token punctuation">]</span>
+targets <span class="token operator">=</span> <span class="token punctuation">[</span><span class="token punctuation">[</span><span class="token string">"&lt;bos&gt;"</span><span class="token punctuation">,</span> <span class="token string">"thank"</span><span class="token punctuation">,</span> <span class="token string">"you"</span><span class="token punctuation">,</span> <span class="token string">"."</span><span class="token punctuation">,</span> <span class="token string">"&lt;eos&gt;"</span><span class="token punctuation">,</span> <span class="token string">"&lt;pad&gt;"</span><span class="token punctuation">,</span> <span class="token string">"&lt;pad&gt;"</span><span class="token punctuation">,</span> <span class="token string">"&lt;pad&gt;"</span><span class="token punctuation">]</span><span class="token punctuation">]</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre>
+<h3 id="11-3-束搜索"><a href="#11-3-束搜索" class="headerlink" title="11.3 束搜索"></a>11.3 <a target="_blank" rel="noopener" href="https://zh-v2.d2l.ai/chapter_recurrent-modern/beam-search.html">束搜索</a></h3></li>
+</ol>
+<p>在进行机器翻译预测时，输入数据后，会得到各个单词的概率，如何根据各个单词的概率来确定下一个是哪个单词呢？</p>
+<ol>
+<li><p>贪心搜索</p>
+<p> 最简单常用的方法是贪心搜索，即每次都选择概率最大的那个单词最为下一个单词。</p>
+<p> 事实上，翻译最好的结果应该是，翻译后的句子中，各个单词对应概率的乘积的最大值，对应那个句子才是最好的翻译结果，即最优序列（optimal sequence）。但是，贪心搜索的策略并不能保证得到最优序列。</p>
+</li>
+<li><p>穷举搜索</p>
+<p> 穷举搜索（exhaustive search）：穷举地列举所有可能的输出序列及其条件概率，然后输出条件概率最高的一个。这样肯定能得到最优序列，但是计算量过大。</p>
+</li>
+<li><p>束搜索</p>
+<p> 束搜索（beam search）是贪心搜索的一个改进版本。在每次选择单词时，选择最高条件概率的 $k$ 个单词来进行计算。束宽（beam size） $k$ 是一个超参数。</p>
+</li>
+</ol>
+
                 
             </div>
             <hr/>
@@ -1260,7 +1357,7 @@ E[o_i]
             <br>
             
             &nbsp;<i class="fas fa-chart-area"></i>&nbsp;站点总字数:&nbsp;<span
-                class="white-color">170.8k</span>&nbsp;字
+                class="white-color">171.9k</span>&nbsp;字
             
             
             
