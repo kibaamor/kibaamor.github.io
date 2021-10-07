@@ -434,14 +434,14 @@
                 
                 <div class="info-break-policy">
                     <i class="far fa-file-word fa-fw"></i>文章字数:&nbsp;&nbsp;
-                    5.4k
+                    6k
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-clock fa-fw"></i>阅读时长:&nbsp;&nbsp;
-                    21 分
+                    24 分
                 </div>
                 
 
@@ -818,6 +818,82 @@ SO_REUSEPORT (since Linux 3.9)
 </blockquote>
 </li>
 </ul>
+</li>
+</ol>
+<h3 id="6-8-tcp-tw-reuse-选项"><a href="#6-8-tcp-tw-reuse-选项" class="headerlink" title="6.8 tcp_tw_reuse 选项"></a>6.8 tcp_tw_reuse 选项</h3><p>首先看内核源码 (4.19.194) <code>ip-sysctl.txt</code> 文件中关于这两个选项的说明：</p>
+<pre class="line-numbers language-text" data-language="text"><code class="language-text">tcp_tw_reuse - INTEGER
+    Enable reuse of TIME-WAIT sockets for new connections when it is
+    safe from protocol viewpoint.
+    0 - disable
+    1 - global enable
+    2 - enable for loopback traffic only
+    It should not be changed without advice/request of technical
+    experts.
+    Default: 2<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<blockquote>
+<p><a target="_blank" rel="noopener" href="https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=4396e46187ca5070219b81773c4e65088dac50cc">tcp_tw_recycle 在内核选项已被移除。</a></p>
+</blockquote>
+<p>tcp_tw_reuse 设置的是内核变量 sysctl_tcp_tw_reuse ，而这个变量仅在 <code>tcp_twsk_unique</code> 函数中使用。而这个函数的调用路径有且仅有一个：</p>
+<ol>
+<li><code>net/ipv4/tcp_ipv4.c</code> 文件中的 <code>tcp_v4_connect</code> 函数。</li>
+<li><code>net/ipv4/inet_hashtables.c</code> 文件中的 <code>inet_hash_connect</code> 函数。</li>
+<li><code>net/ipv4/inet_hashtables.c</code> 文件中的 <code>__inet_check_established</code> 函数。</li>
+<li><code>include/net/timewait_sock.h</code> 文件中的 <code>twsk_unique</code> 函数。</li>
+<li><code>net/ipv4/tcp_ipv4.c</code> 文件中的 <code>tcp_twsk_unique</code> 函数。</li>
+</ol>
+<p><code>tcp_twsk_unique</code> 函数的主要实现如下：</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">int</span> <span class="token function">tcp_twsk_unique</span><span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">sock</span> <span class="token operator">*</span>sk<span class="token punctuation">,</span> <span class="token keyword">struct</span> <span class="token class-name">sock</span> <span class="token operator">*</span>sktw<span class="token punctuation">,</span> <span class="token keyword">void</span> <span class="token operator">*</span>twp<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token comment">/* With PAWS, it is safe from the viewpoint
+       of data integrity. Even without PAWS it is safe provided sequence
+       spaces do not overlap i.e. at data rates &lt;= 80Mbit/sec.
+
+       Actually, the idea is close to VJ's one, only timestamp cache is
+       held not per host, but per port pair and TW bucket is used as state
+       holder.
+
+       If TW bucket has been already destroyed we fall back to VJ's scheme
+       and use initial timestamp retrieved from peer table.
+     */</span>
+    <span class="token keyword">if</span> <span class="token punctuation">(</span>tcptw<span class="token operator">-&gt;</span>tw_ts_recent_stamp <span class="token operator">&amp;&amp;</span>
+        <span class="token punctuation">(</span><span class="token operator">!</span>twp <span class="token operator">||</span> <span class="token punctuation">(</span>reuse <span class="token operator">&amp;&amp;</span> <span class="token function">time_after32</span><span class="token punctuation">(</span><span class="token function">ktime_get_seconds</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">,</span>
+                        tcptw<span class="token operator">-&gt;</span>tw_ts_recent_stamp<span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+        <span class="token comment">/* In case of repair and re-using TIME-WAIT sockets we still
+         * want to be sure that it is safe as above but honor the
+         * sequence numbers and time stamps set as part of the repair
+         * process.
+         *
+         * Without this check re-using a TIME-WAIT socket with TCP
+         * repair would accumulate a -1 on the repair assigned
+         * sequence number. The first time it is reused the sequence
+         * is -1, the second time -2, etc. This fixes that issue
+         * without appearing to create any others.
+         */</span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token function">likely</span><span class="token punctuation">(</span><span class="token operator">!</span>tp<span class="token operator">-&gt;</span>repair<span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+            u32 seq <span class="token operator">=</span> tcptw<span class="token operator">-&gt;</span>tw_snd_nxt <span class="token operator">+</span> <span class="token number">65535</span> <span class="token operator">+</span> <span class="token number">2</span><span class="token punctuation">;</span>
+
+            <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token operator">!</span>seq<span class="token punctuation">)</span>
+                seq <span class="token operator">=</span> <span class="token number">1</span><span class="token punctuation">;</span>
+            <span class="token function">WRITE_ONCE</span><span class="token punctuation">(</span>tp<span class="token operator">-&gt;</span>write_seq<span class="token punctuation">,</span> seq<span class="token punctuation">)</span><span class="token punctuation">;</span>
+            tp<span class="token operator">-&gt;</span>rx_opt<span class="token punctuation">.</span>ts_recent       <span class="token operator">=</span> tcptw<span class="token operator">-&gt;</span>tw_ts_recent<span class="token punctuation">;</span>
+            tp<span class="token operator">-&gt;</span>rx_opt<span class="token punctuation">.</span>ts_recent_stamp <span class="token operator">=</span> tcptw<span class="token operator">-&gt;</span>tw_ts_recent_stamp<span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+        <span class="token function">sock_hold</span><span class="token punctuation">(</span>sktw<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token keyword">return</span> <span class="token number">1</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+
+    <span class="token keyword">return</span> <span class="token number">0</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>从源码实现中可以看出：</p>
+<ol>
+<li><p>因为 <code>tcp_twsk_unique</code> 函数最初只能由 <code>tcp_v4_connect</code> 函数调用，所以 <code>tcp_tw_reuse</code> 仅在 TCP 套接字作为客户端时起作用。</p>
+</li>
+<li><p>因为 <code>tcptw-&gt;tw_ts_recent_stamp</code> 的值要不为 0 ， 所以服务端发回的包中要包含 timestamp 数据才有效，这个功能可以通过设置 <code>net.ipv4.tcp_timestamps = 1</code>（默认为 1） 来开启。</p>
+<blockquote>
+<p><a target="_blank" rel="noopener" href="https://datatracker.ietf.org/doc/html/rfc1323#section-3">RFC 1323</a> 引入了新的 TCP 选项：两个 4 字节的时间戳字段，用于记录 TCP 发送方的当前时间戳和从对端接收到的最新时间戳。此选项对应的解析代码在 <code>net/ipv4/tcp_input.c</code> 文件 <code>tcp_parse_options</code> 函数中的 <code>case TCPOPT_TIMESTAMP:</code> 下。</p>
+</blockquote>
+</li>
+<li><p>因为 <code>time_after32(ktime_get_seconds(), tcptw-&gt;tw_ts_recent_stamp)</code> ，所以套接字必须要处于 <code>TIME-WAIT</code> 状态 1 秒及以上才行。</p>
 </li>
 </ol>
 
@@ -1203,7 +1279,7 @@ SO_REUSEPORT (since Linux 3.9)
             <br>
             
             &nbsp;<i class="fas fa-chart-area"></i>&nbsp;站点总字数:&nbsp;<span
-                class="white-color">176.7k</span>&nbsp;字
+                class="white-color">177.3k</span>&nbsp;字
             
             
             
