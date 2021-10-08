@@ -442,14 +442,14 @@
                 
                 <div class="info-break-policy">
                     <i class="far fa-file-word fa-fw"></i>文章字数:&nbsp;&nbsp;
-                    3.8k
+                    3.2k
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-clock fa-fw"></i>阅读时长:&nbsp;&nbsp;
-                    16 分
+                    13 分
                 </div>
                 
 
@@ -499,63 +499,20 @@
 </blockquote>
 </li>
 </ol>
-<h2 id="4-如果滑动窗口变成了-0-会发生什么"><a href="#4-如果滑动窗口变成了-0-会发生什么" class="headerlink" title="4. 如果滑动窗口变成了 0 会发生什么"></a>4. 如果滑动窗口变成了 0 会发生什么</h2><p>当滑动窗口减少到 0 后，就不能再发送数据给对方了。此时可以发送 <code>Zero Window Probe</code> 包给对方，这样在对方回复此包的 ACK 的同时，可以更新滑动窗口的大小。</p>
-<h2 id="5-什么是“糊涂窗口综合症”"><a href="#5-什么是“糊涂窗口综合症”" class="headerlink" title="5. 什么是“糊涂窗口综合症”"></a>5. 什么是“糊涂窗口综合症”</h2><p>如果发送方每次都发送很少的字节，或者接受方每次都处理很少的字节时，或者双方都有的情况下，就叫 <code>糊涂窗口综合症（Silly Window Syndrome）</code>。因为每次发送出去的字节数很少，比如几个字节，明显小于了 TCP/IP 的协议头的大小（TCP+IP 头有 40 个字节），此时网络传输的效率就很低。</p>
-<p>解决方案：</p>
-<ol>
-<li><p>发送方使用<a target="_blank" rel="noopener" href="https://en.wikipedia.org/wiki/Nagle%27s_algorithm">纳格算法，Nagle’s algorithm</a>，参考 Linux 源码中 <code>net/ipv4/tcp_output.c</code> 文件中 <code>tcp_nagle_check</code> 函数的实现：</p>
- <pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token comment">/* Return false, if packet can be sent now without violation Nagle's rules:
-* 1. It is full sized. (provided by caller in %partial bool)
-* 2. Or it contains FIN. (already checked by caller)
-* 3. Or TCP_CORK is not set, and TCP_NODELAY is set.
-* 4. Or TCP_CORK is not set, and all sent packets are ACKed.
-*    With Minshall's modification: all sent small packets are ACKed.
-*/</span>
-<span class="token keyword">static</span> bool <span class="token function">tcp_nagle_check</span><span class="token punctuation">(</span>bool partial<span class="token punctuation">,</span> <span class="token keyword">const</span> <span class="token keyword">struct</span> <span class="token class-name">tcp_sock</span> <span class="token operator">*</span>tp<span class="token punctuation">,</span>
-                <span class="token keyword">int</span> nonagle<span class="token punctuation">)</span>
-<span class="token punctuation">{</span>
-    <span class="token keyword">return</span> partial <span class="token operator">&amp;&amp;</span>
-        <span class="token punctuation">(</span><span class="token punctuation">(</span>nonagle <span class="token operator">&amp;</span> TCP_NAGLE_CORK<span class="token punctuation">)</span> <span class="token operator">||</span>
-        <span class="token punctuation">(</span><span class="token operator">!</span>nonagle <span class="token operator">&amp;&amp;</span> tp<span class="token operator">-&gt;</span>packets_out <span class="token operator">&amp;&amp;</span> <span class="token function">tcp_minshall_check</span><span class="token punctuation">(</span>tp<span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
-<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
-<ol>
-<li>如果包长度达到 MSS ，则允许发送；</li>
-<li>如果该包含有 FIN，则允许发送；</li>
-<li>未设置 <code>TCP_CORK</code> 选项，但设置了 <code>TCP_NODELAY</code> 选项，则允许发送；</li>
-<li><p>未设置 <code>TCP_CORK</code> 选项时，若所有发出去的包均被确认，或所有发出去的小数据包（包长度小于MSS）均被确认，则允许发送。</p>
-<blockquote>
-<p><code>TCP_CORK</code> 开启时，内核将不会马上发送长度小于 MSS 的数据包。<br><code>TCP_CORK</code> 对应 FreeBSD 中的 <code>TCP_NOPUSH</code> 选项。<br>nginx 的配置文件中 <code>tcp_nopush</code> 选项控制的就是套接字的 <code>TCP_CORK</code> / <code>TCP_NOPUSH</code> 选项。</p>
-</blockquote>
-</li>
-</ol>
-</li>
-<li><p>接收方使用 David D Clark 算法</p>
-<p> 如果窗口边界的移动值小于 <code>min(MSS, SO_RCVBUF的值/2)</code> 时，通知发送方窗口为 0 ，禁止发送数据。</p>
-</li>
-<li><p>接收方使用 <a target="_blank" rel="noopener" href="https://en.wikipedia.org/wiki/TCP_delayed_acknowledgment">TCP 延迟确认</a> 技术</p>
-<ol>
-<li><p><code>TCP_QUICKACK</code> 用于关闭 TCP 延迟确认技术（需要每次发送都设置一次，参考 <a target="_blank" rel="noopener" href="https://man7.org/linux/man-pages/man7/tcp.7.html"><code>man 7 tcp</code></a>）。</p>
-</li>
-<li><p>TCP 延迟确认技术在收到数据后并不马上回复对应的 ACK ，而是累计需要发送的 ACK 数据，等到有数据要发送给对方时一起发送给对方。如果一直没有数据发送给对方，在等到一段时间后也会把累计的 ACK 发送给对方。</p>
-</li>
-</ol>
-</li>
-</ol>
-<p>参考：<a target="_blank" rel="noopener" href="https://blog.csdn.net/sctq8888/article/details/7398967">Linux下TCP延迟确认(Delayed Ack)机制导致的时延问题分析</a></p>
-<h2 id="6-MTU-1500-的具体含义是什么"><a href="#6-MTU-1500-的具体含义是什么" class="headerlink" title="6. MTU 1500 的具体含义是什么"></a>6. MTU 1500 的具体含义是什么</h2><p>MTU（Maximum Transmission Unit，最大传输单元）是二层的一个定义。以以太网为例，MTU 为 1500 个 Byte，前面有 6 个 Byte 的目标 MAC 地址，6 个 Byte 的源 MAC 地址，2 个 Byte 的类型，后面有 4 个 Byte 的 CRC 校验，共 1518 个 Byte。</p>
+<h2 id="4-MTU-1500-的具体含义是什么"><a href="#4-MTU-1500-的具体含义是什么" class="headerlink" title="4. MTU 1500 的具体含义是什么"></a>4. MTU 1500 的具体含义是什么</h2><p>MTU（Maximum Transmission Unit，最大传输单元）是二层的一个定义。以以太网为例，MTU 为 1500 个 Byte，前面有 6 个 Byte 的目标 MAC 地址，6 个 Byte 的源 MAC 地址，2 个 Byte 的类型，后面有 4 个 Byte 的 CRC 校验，共 1518 个 Byte。</p>
 <p>在 IP 层，一个 IP 数据报在以太网中传输，如果它的长度大于该 MTU 值，就要进行分片传输。如果不允许分片 DF，就会发送 ICMP 包，</p>
 <p>在 TCP 层有个 MSS（Maximum Segment Size，最大分段大小），它等于 MTU 减去 IP 头，再减去 TCP 头。即在不分片的情况下，TCP 里面放的最大内容。</p>
-<h2 id="7-HTTPS-的双向认证流程"><a href="#7-HTTPS-的双向认证流程" class="headerlink" title="7. HTTPS 的双向认证流程"></a>7. HTTPS 的双向认证流程</h2><p><img src="/images/TCPIP常见问题/HTTPS的双向认证流程.jpg" alt="HTTPS的双向认证流程"></p>
+<h2 id="5-HTTPS-的双向认证流程"><a href="#5-HTTPS-的双向认证流程" class="headerlink" title="5. HTTPS 的双向认证流程"></a>5. HTTPS 的双向认证流程</h2><p><img src="/images/TCPIP常见问题/HTTPS的双向认证流程.jpg" alt="HTTPS的双向认证流程"></p>
 <p>其中，随机数和 premaster 的含义是：</p>
 <p><img src="/images/TCPIP常见问题/HTTPS中的随机数和premaster.jpg" alt="HTTPS中的随机数和premaster"></p>
-<h2 id="8-RTMP-连接建立的过程"><a href="#8-RTMP-连接建立的过程" class="headerlink" title="8. RTMP 连接建立的过程"></a>8. RTMP 连接建立的过程</h2><ol>
+<h2 id="6-RTMP-连接建立的过程"><a href="#6-RTMP-连接建立的过程" class="headerlink" title="6. RTMP 连接建立的过程"></a>6. RTMP 连接建立的过程</h2><ol>
 <li>首先，客户端发送 C0 表明自己的版本号，不必等对方的回复，然后发送 C1 表明自己的时间戳。</li>
 <li>服务器只有在收到 C0 的时候，才能返回 S0，表明自己的版本号。如果版本不匹配，可以断开连接。</li>
 <li>服务器发送完 S0 后，也不用等什么，就直接发送自己的时间戳 S1。客户端收到 S1 的时候，发一个知道了对方时间戳的 ACK C2。同理服务器收到 C1 的时候，发一个知道了对方时间戳的 ACK S2。</li>
 <li>握手完成。</li>
 </ol>
 <p><img src="/images/TCPIP常见问题/RTMP连接建立的过程.jpg" alt="RTMP连接建立的过程"></p>
-<h2 id="9-SO-RCVBUF-和-SO-SNDBUF-值设置的问题"><a href="#9-SO-RCVBUF-和-SO-SNDBUF-值设置的问题" class="headerlink" title="9. SO_RCVBUF 和 SO_SNDBUF 值设置的问题"></a>9. SO_RCVBUF 和 SO_SNDBUF 值设置的问题</h2><p>在 Windows 和 MacOS 下，套接字选项 SO_RCVBUF 和 SO_SNDBUF <strong>设置后的值</strong> 和 <strong>设置的值</strong> 相同。</p>
+<h2 id="7-SO-RCVBUF-和-SO-SNDBUF-值设置的问题"><a href="#7-SO-RCVBUF-和-SO-SNDBUF-值设置的问题" class="headerlink" title="7. SO_RCVBUF 和 SO_SNDBUF 值设置的问题"></a>7. SO_RCVBUF 和 SO_SNDBUF 值设置的问题</h2><p>在 Windows 和 MacOS 下，套接字选项 SO_RCVBUF 和 SO_SNDBUF <strong>设置后的值</strong> 和 <strong>设置的值</strong> 相同。</p>
 <p>但是在 Linux 下，<strong>设置后的值</strong> 是 <strong>设置值</strong> 的两倍。具体可以参考 <a target="_blank" rel="noopener" href="https://man7.org/linux/man-pages/man7/socket.7.html"><code>man 7 socket</code></a>：</p>
 <pre class="line-numbers language-text" data-language="text"><code class="language-text">SO_RCVBUF
     Sets or gets the maximum socket receive buffer in bytes.
@@ -576,7 +533,7 @@ SO_SNDBUF
     and the maximum allowed value is set by the
     /proc/sys/net/core/wmem_max file.  The minimum (doubled)
     value for this option is 2048.<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
-<h2 id="10-SO-REUSEADDR-和-SO-REUSEPORT-的区别"><a href="#10-SO-REUSEADDR-和-SO-REUSEPORT-的区别" class="headerlink" title="10. SO_REUSEADDR 和 SO_REUSEPORT 的区别"></a>10. SO_REUSEADDR 和 SO_REUSEPORT 的区别</h2><p>参考 <a target="_blank" rel="noopener" href="https://man7.org/linux/man-pages/man7/socket.7.html"><code>man 7 socket</code> 的说明</a>：</p>
+<h2 id="8-SO-REUSEADDR-和-SO-REUSEPORT-的区别"><a href="#8-SO-REUSEADDR-和-SO-REUSEPORT-的区别" class="headerlink" title="8. SO_REUSEADDR 和 SO_REUSEPORT 的区别"></a>8. SO_REUSEADDR 和 SO_REUSEPORT 的区别</h2><p>参考 <a target="_blank" rel="noopener" href="https://man7.org/linux/man-pages/man7/socket.7.html"><code>man 7 socket</code> 的说明</a>：</p>
 <pre class="line-numbers language-text" data-language="text"><code class="language-text">SO_REUSEADDR
     Indicates that the rules used in validating addresses
     supplied in a bind(2) call should allow reuse of local
@@ -609,7 +566,7 @@ SO_REUSEPORT (since Linux 3.9)
     (or threads) as compared to the traditional technique of
     having multiple processes compete to receive datagrams on
     the same socket.<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
-<h2 id="11-SO-LINGER-选项的使用"><a href="#11-SO-LINGER-选项的使用" class="headerlink" title="11. SO_LINGER 选项的使用"></a>11. SO_LINGER 选项的使用</h2><p>SO_LINGER 选项用于控制在函数 <code>close</code> 关闭面向连接的套接字时，操作系统应该如何处理发送缓存中未发送完的数据？</p>
+<h2 id="9-SO-LINGER-选项的使用"><a href="#9-SO-LINGER-选项的使用" class="headerlink" title="9. SO_LINGER 选项的使用"></a>9. SO_LINGER 选项的使用</h2><p>SO_LINGER 选项用于控制在函数 <code>close</code> 关闭面向连接的套接字时，操作系统应该如何处理发送缓存中未发送完的数据？</p>
 <pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">struct</span> <span class="token class-name">linger</span> <span class="token punctuation">{</span>
     <span class="token keyword">int</span> l_onoff<span class="token punctuation">;</span>    <span class="token comment">/* linger active */</span>
     <span class="token keyword">int</span> l_linger<span class="token punctuation">;</span>   <span class="token comment">/* how many seconds to linger for */</span>
@@ -636,7 +593,7 @@ SO_REUSEPORT (since Linux 3.9)
 </ul>
 </li>
 </ol>
-<h2 id="12-tcp-tw-reuse-选项"><a href="#12-tcp-tw-reuse-选项" class="headerlink" title="12. tcp_tw_reuse 选项"></a>12. tcp_tw_reuse 选项</h2><p>首先看内核源码 (4.19.194) <code>ip-sysctl.txt</code> 文件中关于这两个选项的说明：</p>
+<h2 id="10-tcp-tw-reuse-选项"><a href="#10-tcp-tw-reuse-选项" class="headerlink" title="10. tcp_tw_reuse 选项"></a>10. tcp_tw_reuse 选项</h2><p>首先看内核源码 (4.19.194) <code>ip-sysctl.txt</code> 文件中关于这两个选项的说明：</p>
 <pre class="line-numbers language-text" data-language="text"><code class="language-text">tcp_tw_reuse - INTEGER
     Enable reuse of TIME-WAIT sockets for new connections when it is
     safe from protocol viewpoint.
@@ -712,7 +669,7 @@ SO_REUSEPORT (since Linux 3.9)
 <li><p>因为 <code>time_after32(ktime_get_seconds(), tcptw-&gt;tw_ts_recent_stamp)</code> ，所以套接字必须要处于 <code>TIME-WAIT</code> 状态 1 秒及以上才行。</p>
 </li>
 </ol>
-<h2 id="13-close-和-shutdown-SHUT-RDWR-的区别"><a href="#13-close-和-shutdown-SHUT-RDWR-的区别" class="headerlink" title="13. close() 和 shutdown(SHUT_RDWR) 的区别"></a>13. close() 和 shutdown(SHUT_RDWR) 的区别</h2><ol>
+<h2 id="11-close-和-shutdown-SHUT-RDWR-的区别"><a href="#11-close-和-shutdown-SHUT-RDWR-的区别" class="headerlink" title="11. close() 和 shutdown(SHUT_RDWR) 的区别"></a>11. close() 和 shutdown(SHUT_RDWR) 的区别</h2><ol>
 <li><p><code>close</code> 函数</p>
 <ol>
 <li>把套接字的引用计数减 1，如果引用计数达到 0 时才进行后面的步骤。</li>
@@ -736,7 +693,7 @@ SO_REUSEPORT (since Linux 3.9)
 </ol>
 </li>
 </ol>
-<h2 id="14-不会导致产生-ICMP-差错报文情况"><a href="#14-不会导致产生-ICMP-差错报文情况" class="headerlink" title="14. 不会导致产生 ICMP 差错报文情况"></a>14. 不会导致产生 ICMP 差错报文情况</h2><ol>
+<h2 id="12-不会导致产生-ICMP-差错报文情况"><a href="#12-不会导致产生-ICMP-差错报文情况" class="headerlink" title="12. 不会导致产生 ICMP 差错报文情况"></a>12. 不会导致产生 ICMP 差错报文情况</h2><ol>
 <li>ICMP 差错报文（ICMP 查询报文可能会产生 ICMP 差错报文）；</li>
 <li>目的地址是广播地址或多播地址的 IP 数据报；</li>
 <li>作为链路层广播的数据报；</li>
@@ -860,18 +817,17 @@ SO_REUSEPORT (since Linux 3.9)
 <article id="prenext-posts" class="prev-next articles">
     <div class="row article-row">
         
-        <div class="article col s12 m6" data-aos="fade-up" data-aos="fade-up">
+        <div class="article col s12 m6" data-aos="fade-up">
             <div class="article-badge left-badge text-color">
-                <i class="far fa-dot-circle"></i>&nbsp;本篇
-            </div>
+                <i class="fas fa-chevron-left"></i>&nbsp;上一篇</div>
             <div class="card">
-                <a href="/tcpip-chang-jian-wen-ti/">
+                <a href="/li-jie-tcp-zhong-de-shu-ju-chuan-shu/">
                     <div class="card-image">
                         
                         
-                        <img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/medias/featureimages/19.jpg" class="responsive-img" alt="TCPIP常见问题">
+                        <img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/medias/featureimages/20.jpg" class="responsive-img" alt="理解TCP中的数据传输">
                         
-                        <span class="card-title">TCPIP常见问题</span>
+                        <span class="card-title">理解TCP中的数据传输</span>
                     </div>
                 </a>
                 <div class="card-content article-content">
@@ -881,9 +837,9 @@ SO_REUSEPORT (since Linux 3.9)
                         
                     </div>
                     <div class="publish-info">
-                            <span class="publish-date">
-                                <i class="far fa-clock fa-fw icon-date"></i>2021-10-08
-                            </span>
+                        <span class="publish-date">
+                            <i class="far fa-clock fa-fw icon-date"></i>2021-10-08
+                        </span>
                         <span class="publish-author">
                             
                             <i class="fas fa-bookmark fa-fw icon-category"></i>
@@ -896,7 +852,6 @@ SO_REUSEPORT (since Linux 3.9)
                         </span>
                     </div>
                 </div>
-
                 
                 <div class="card-action article-tags">
                     
@@ -906,10 +861,6 @@ SO_REUSEPORT (since Linux 3.9)
                     
                     <a href="/tags/TCP/">
                         <span class="chip bg-color">TCP</span>
-                    </a>
-                    
-                    <a href="/tags/HTTP/">
-                        <span class="chip bg-color">HTTP</span>
                     </a>
                     
                 </div>
@@ -1053,7 +1004,7 @@ SO_REUSEPORT (since Linux 3.9)
             tocSelector: '#toc-content',
             contentSelector: '#articleContent',
             headingsOffset: -($(window).height() * 0.4 - 45),
-            collapseDepth: Number('2'),
+            collapseDepth: Number('3'),
             headingSelector: 'h2, h3, h4, h5'
         });
 
@@ -1144,7 +1095,7 @@ SO_REUSEPORT (since Linux 3.9)
             <br>
             
             &nbsp;<i class="fas fa-chart-area"></i>&nbsp;站点总字数:&nbsp;<span
-                class="white-color">178.1k</span>&nbsp;字
+                class="white-color">179.3k</span>&nbsp;字
             
             
             
