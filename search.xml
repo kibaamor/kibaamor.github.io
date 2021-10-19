@@ -8,7 +8,7 @@
       <link href="shi-xian-huan-cun-he-shu-ju-ku-de-zui-zhong-yi-zhi-xing/"/>
       <url>shi-xian-huan-cun-he-shu-ju-ku-de-zui-zhong-yi-zhi-xing/</url>
       
-        <content type="html"><![CDATA[<p>以 MySQL 和 Redis 为例，实现缓存和数据库的最终一致性。</p><ol><li><p>读操作流程</p><ol><li>从 Redis 读取数据，如果有就直接返回；</li><li>如果 Redis 中没有数据，从 MySQL 中读取数据；</li><li>将结果使用 <code>SETNX</code> 回填到 Redis 中，并返回数据。</li></ol></li><li><p>写操作流程</p><ol><li>直接更新 MySQL ；</li><li>删除或更新 Redis ；</li><li>使用 Canal 解析 MySQL 的 binlog，将解析的结果投递到一个消息队列中（如：kafka），然后再消费该消息队列更新 Redis 来保证最终一致性。</li></ol></li></ol>]]></content>
+        <content type="html"><![CDATA[<p>以 MySQL 和 Redis 为例，实现缓存和数据库的最终一致性。</p><ol><li><p>读操作流程</p><ol><li>从 Redis 读取数据，如果有就直接返回；</li><li>如果 Redis 中没有数据，从 MySQL 中读取数据；</li><li>将结果使用 <code>SETNX</code> 回填到 Redis 中，并返回数据。</li></ol></li><li><p>写操作流程</p><ol><li>直接更新 MySQL ；</li><li><p>删除或更新 Redis ；</p><blockquote><p>用删除操作可能会导致缓存穿透问题，对热点数据不建议使用删除操作。</p><p>用更新操作可能会有 ABA 的问题，如：两次更新 v1 和 v2 ，缓存中的值会出现 v1 -&gt; v2 -&gt; v1 -&gt; v2 。</p></blockquote></li><li><p>使用 Canal 解析 MySQL 的 binlog，将解析的结果投递到一个消息队列中（如：kafka），然后再消费该消息队列更新 Redis 来保证最终一致性。</p></li></ol></li></ol>]]></content>
       
       
       <categories>
