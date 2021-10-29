@@ -438,14 +438,14 @@
                 
                 <div class="info-break-policy">
                     <i class="far fa-file-word fa-fw"></i>文章字数:&nbsp;&nbsp;
-                    27.1k
+                    28.3k
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-clock fa-fw"></i>阅读时长:&nbsp;&nbsp;
-                    106 分
+                    111 分
                 </div>
                 
 
@@ -1942,7 +1942,75 @@ service LibraryService {
 <li>服务依赖的 DB 连接池漏配超时，导致请求阻塞，最终服务集体 OOM。</li>
 <li>下游服务发版耗时增加，而上游服务配置超时过短，导致上游请求失败。</li>
 </ul>
-<h3 id="6-3-过载保护"><a href="#6-3-过载保护" class="headerlink" title="6.3 过载保护"></a>6.3 过载保护</h3><h3 id="6-4-限流"><a href="#6-4-限流" class="headerlink" title="6.4 限流"></a>6.4 限流</h3><h3 id="6-5-降级"><a href="#6-5-降级" class="headerlink" title="6.5 降级"></a>6.5 降级</h3><h3 id="6-6-重试"><a href="#6-6-重试" class="headerlink" title="6.6 重试"></a>6.6 重试</h3><h3 id="6-7-负载均衡"><a href="#6-7-负载均衡" class="headerlink" title="6.7 负载均衡"></a>6.7 负载均衡</h3><h3 id="6-8-最佳实践"><a href="#6-8-最佳实践" class="headerlink" title="6.8 最佳实践"></a>6.8 最佳实践</h3><h3 id="6-9-References"><a href="#6-9-References" class="headerlink" title="6.9 References"></a>6.9 References</h3>
+<h3 id="6-3-过载保护"><a href="#6-3-过载保护" class="headerlink" title="6.3 过载保护"></a>6.3 过载保护</h3><h4 id="6-3-1-令牌桶算法"><a href="#6-3-1-令牌桶算法" class="headerlink" title="6.3.1 令牌桶算法"></a>6.3.1 令牌桶算法</h4><p><img src="/images/《Go进阶训练营》学习笔记/令牌桶算法.png" alt="令牌桶算法"></p>
+<p>是一个存放固定容量令牌的桶，按照固定速率往桶里添加令牌。令牌桶算法的描述如下：</p>
+<ul>
+<li>假设限制2r/s，则按照500毫秒的固定速率往桶中添加令牌。</li>
+<li>桶中最多存放 b 个令牌，当桶满时，新添加的令牌被丢弃或拒绝。</li>
+<li>当一个 n 个字节大小的数据包到达，将从桶中删除 n 个令牌，接着数据包被发送到网络上。</li>
+<li>如果桶中的令牌不足 n 个，则不会删除令牌，且该数据包将被限流（要么丢弃，要么缓冲区等待）。</li>
+</ul>
+<p>token-bucket rate limit algorithm: <a target="_blank" rel="noopener" href="https://pkg.go.dev/golang.org/x/time/rate">/x/time/rate</a></p>
+<h4 id="6-3-2-漏桶算法"><a href="#6-3-2-漏桶算法" class="headerlink" title="6.3.2 漏桶算法"></a>6.3.2 漏桶算法</h4><p><img src="/images/《Go进阶训练营》学习笔记/漏桶算法.png" alt="漏桶算法"></p>
+<p>作为计量工具(The Leaky Bucket Algorithm as a Meter)时，可以用于流量整形(Traffic Shaping)和流量控制(TrafficPolicing)，漏桶算法的描述如下：</p>
+<ul>
+<li>一个固定容量的漏桶，按照常量固定速率流出水滴。</li>
+<li>如果桶是空的，则不需流出水滴。</li>
+<li>可以以任意速率流入水滴到漏桶。</li>
+<li>如果流入水滴超出了桶的容量，则流入的水滴溢出了（被丢弃），而漏桶容量是不变的。</li>
+</ul>
+<p>leaky-bucket rate limit algorithm: <a target="_blank" rel="noopener" href="https://pkg.go.dev/go.uber.org/ratelimit">/go.uber.org/ratelimit</a></p>
+<h4 id="6-3-3-过载保护算法的缺陷"><a href="#6-3-3-过载保护算法的缺陷" class="headerlink" title="6.3.3 过载保护算法的缺陷"></a>6.3.3 过载保护算法的缺陷</h4><p>漏斗桶/令牌桶确实能够保护系统不被拖垮, 但不管漏斗桶还是令牌桶, 其防护思路都是设定一个指标, 当超过该指标后就阻止或减少流量的继续进入，当系统负载降低到某一水平后则恢复流量的进入。但其通常都是被动的，其实际效果取决于限流阈值设置是否合理，但往往设置合理不是一件容易的事情。</p>
+<ul>
+<li>集群增加机器或者减少机器限流阈值是否要重新设置?</li>
+<li>设置限流阈值的依据是什么?</li>
+<li>人力运维成本是否过高?</li>
+<li>当调用方反馈429时, 这个时候重新设置限流, 其实流量高峰已经过了重新评估限流是否有意义?</li>
+</ul>
+<p>这些其实都是采用漏斗桶/令牌桶的缺点, 总体来说就是太被动, 不能快速适应流量变化。</p>
+<p>因此我们需要一种自适应的限流算法，即: 过载保护，根据系统当前的负载自动丢弃流量。</p>
+<h4 id="6-3-5-过载保护"><a href="#6-3-5-过载保护" class="headerlink" title="6.3.5 过载保护"></a>6.3.5 过载保护</h4><p>计算系统临近过载时的峰值吞吐作为限流的阈值来进行流量控制，达到系统保护。</p>
+<ul>
+<li>服务器临近过载时，主动抛弃一定量的负载，目标是自保。</li>
+<li>在系统稳定的前提下，保持系统的吞吐量。</li>
+</ul>
+<p><img src="/images/《Go进阶训练营》学习笔记/利特尔法则.png" alt="利特尔法则"></p>
+<blockquote>
+<p>在微服务中，流入速度是 QPS ，耗时就是 latency，整个系统的吞吐就是 QPS * latency 。</p>
+<p>BBR 的思路就是交替探测出网络的 输入速度 和 延迟 。</p>
+</blockquote>
+<p>常见做法：<strong>利特尔法则</strong></p>
+<ul>
+<li>CPU、内存作为信号量进行节流。<blockquote>
+<p>GO 一般仅用 CPU 就可以了。因为在 GO 中，如果内存涨的很快，要么就是每 2 分钟进行一次 GC，要么就是新申请的内存容量比之前的涨了多少倍，最终都会 GC 并反应在 CPU 上。</p>
+</blockquote>
+</li>
+<li>队列管理: 队列长度、LIFO。</li>
+<li>可控延迟算法: <a target="_blank" rel="noopener" href="https://blog.csdn.net/dog250/article/details/72849893">CoDel</a></li>
+</ul>
+<p>如何计算接近峰值时的系统吞吐？</p>
+<ul>
+<li><p>CPU: 使用一个独立的线程采样，每隔 250ms 触发一次。在计算均值时，使用了简单滑动平均去除峰值的影响。</p>
+<p>  <img src="/images/《Go进阶训练营》学习笔记/系统吞吐CPU采样.png" alt="系统吞吐CPU采样"></p>
+</li>
+<li><p>Inflight: 当前服务中正在进行的请求的数量。</p>
+<p>  atomic.int 来一个请求加一，处理完一个请求减一。用于计算QPS。</p>
+</li>
+<li><p>Pass&amp;RT: 最近5s，pass 为每100ms采样窗口内成功请求的数量最大值，rt 为单个采样窗口中平均响应时间（与取最大 pass 值对应时间窗口）。</p>
+<p>  <img src="/images/《Go进阶训练营》学习笔记/系统吞吐窗口采样.png" alt="系统吞吐窗口采样"></p>
+</li>
+</ul>
+<p>具体做法：</p>
+<blockquote>
+<p>思路是：在服务器临近过载时（比如 CPU 80% 时），认为这个时候系统的吞吐就是系统的最大值。如果系统实际的吞吐比最大吞吐大，就丢掉部分 QPS ，如果系统实际吞吐比最大吞吐小，就放行更多的 QPS 进入系统。</p>
+</blockquote>
+<ol>
+<li>我们使用 CPU 的滑动均值(CPU &gt; 800)作为启发阈值，一旦触发进入到过载保护阶段，算法为：(pass * rt) &lt; inflight</li>
+<li>限流效果生效后，CPU 会在临界值(800)附近抖动，如果不使用冷却时间，那么一个短时间的 CPU 下降就可能导致大量请求被放行，严重时会打满 CPU。</li>
+<li>在冷却时间(2s)后，重新判断阈值(CPU &gt; 800 )，是否持续进入过载保护。</li>
+</ol>
+<p><img src="/images/《Go进阶训练营》学习笔记/过载保护具体做法.png" alt="过载保护具体做法"></p>
+<h3 id="6-4-限流"><a href="#6-4-限流" class="headerlink" title="6.4 限流"></a>6.4 限流</h3><h3 id="6-5-降级"><a href="#6-5-降级" class="headerlink" title="6.5 降级"></a>6.5 降级</h3><h3 id="6-6-重试"><a href="#6-6-重试" class="headerlink" title="6.6 重试"></a>6.6 重试</h3><h3 id="6-7-负载均衡"><a href="#6-7-负载均衡" class="headerlink" title="6.7 负载均衡"></a>6.7 负载均衡</h3><h3 id="6-8-最佳实践"><a href="#6-8-最佳实践" class="headerlink" title="6.8 最佳实践"></a>6.8 最佳实践</h3><h3 id="6-9-References"><a href="#6-9-References" class="headerlink" title="6.9 References"></a>6.9 References</h3>
                 
             </div>
             <hr/>
@@ -2339,7 +2407,7 @@ service LibraryService {
             <br>
             
             &nbsp;<i class="fas fa-chart-area"></i>&nbsp;站点总字数:&nbsp;<span
-                class="white-color">213.5k</span>&nbsp;字
+                class="white-color">214.7k</span>&nbsp;字
             
             
             
