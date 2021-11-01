@@ -438,14 +438,14 @@
                 
                 <div class="info-break-policy">
                     <i class="far fa-file-word fa-fw"></i>文章字数:&nbsp;&nbsp;
-                    29.9k
+                    31.7k
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-clock fa-fw"></i>阅读时长:&nbsp;&nbsp;
-                    116 分
+                    123 分
                 </div>
                 
 
@@ -2097,7 +2097,123 @@ service LibraryService {
 </li>
 <li>用户重试导致的大面积故障。</li>
 </ul>
-<h3 id="6-5-降级"><a href="#6-5-降级" class="headerlink" title="6.5 降级"></a>6.5 降级</h3><h3 id="6-6-重试"><a href="#6-6-重试" class="headerlink" title="6.6 重试"></a>6.6 重试</h3><h3 id="6-7-负载均衡"><a href="#6-7-负载均衡" class="headerlink" title="6.7 负载均衡"></a>6.7 负载均衡</h3><h3 id="6-8-最佳实践"><a href="#6-8-最佳实践" class="headerlink" title="6.8 最佳实践"></a>6.8 最佳实践</h3><h3 id="6-9-References"><a href="#6-9-References" class="headerlink" title="6.9 References"></a>6.9 References</h3>
+<h3 id="6-5-降级"><a href="#6-5-降级" class="headerlink" title="6.5 降级"></a>6.5 降级</h3><h4 id="6-5-1-介绍"><a href="#6-5-1-介绍" class="headerlink" title="6.5.1 介绍"></a>6.5.1 介绍</h4><p>通过降级回复来减少工作量，或者丢弃不重要的请求。而且需要了解哪些流量可以降级，并且有能力区分不同的请求。我们通常提供降低回复的质量来答复减少所需的计算量或者时间。我们自动降级通常需要考虑几个点：</p>
+<ul>
+<li>确定具体采用哪个指标作为流量评估和优雅降级的决定性指标(如，CPU、延迟、队列长度、线程数量、错误等)。</li>
+<li>当服务进入降级模式时，需要执行什么动作？</li>
+<li>流量抛弃或者优雅降级应该在服务的哪一层实现？是否需要在整个服务的每一层都实现，还是可以选择某个高层面的关键节点来实现？</li>
+</ul>
+<blockquote>
+<p>降级通常在 BFF 或者 API Gateway 中做。在下游做的话上游感觉不到降级，可能会污染缓存等，也需要做的很复杂。</p>
+</blockquote>
+<p>同时我们要考虑一下几点：</p>
+<ul>
+<li>优雅降级不应该被经常触发 - 通常触发条件现实了容量规划的失误，或者是意外的负载。</li>
+<li>演练，代码平时不会触发和使用，需要定期针对一小部分的流量进行演练，保证模式的正常。</li>
+<li>应该足够简单。</li>
+</ul>
+<p>降级本质为: 提供有损服务。</p>
+<ul>
+<li><p>UI 模块化，非核心模块降级。</p>
+<ul>
+<li>BFF 层聚合 API，模块降级。</li>
+</ul>
+</li>
+<li><p>页面上一次缓存副本。</p>
+</li>
+<li>默认值、热门推荐等。</li>
+<li>流量拦截 + 定期数据缓存(过期副本策略)。</li>
+</ul>
+<p>处理策略</p>
+<ul>
+<li>页面降级、延迟服务、写/读降级、缓存降级</li>
+<li>抛异常、返回约定协议、Mock 数据、Fallback 处理</li>
+</ul>
+<h4 id="6-5-2-Case-Study"><a href="#6-5-2-Case-Study" class="headerlink" title="6.5.2 Case Study"></a>6.5.2 Case Study</h4><ul>
+<li>客户端解析协议失败，app 奔溃。</li>
+<li>客户端部分协议不兼容，导致页面失败。</li>
+<li>local cache 数据源缓存，发版失效 + 依赖接口故障，引起的白屏。</li>
+<li>没有 playbook（SOP），导致的平均修复时间（Mean time to repair，MTTR）上升。</li>
+</ul>
+<h3 id="6-6-重试"><a href="#6-6-重试" class="headerlink" title="6.6 重试"></a>6.6 重试</h3><h4 id="6-6-1-介绍"><a href="#6-6-1-介绍" class="headerlink" title="6.6.1 介绍"></a>6.6.1 介绍</h4><p>当请求返回错误(例: 配额不足、超时、内部错误等)，对于 backend 部分节点过载的情况下，倾向于立刻重试，但是需要留意重试带来的流量放大:</p>
+<ul>
+<li>限制重试次数和基于重试分布的策略(重试比率: 10%)。</li>
+<li>随机化、指数型递增的重试周期: exponential ackoff + jitter。</li>
+<li>client 测记录重试次数直方图，传递到 server，进行分布判定，交由 server 判定拒绝。</li>
+<li>只应该在失败的这层进行重试，当重试仍然失败，全局约定错误码“过载，无须重试”，避免级联重试。</li>
+</ul>
+<h4 id="6-6-2-Case-Study"><a href="#6-6-2-Case-Study" class="headerlink" title="6.6.2 Case Study"></a>6.6.2 Case Study</h4><ul>
+<li>Nginx upstream retry 过大，导致服务雪崩。</li>
+<li>业务不幂等，导致的重试，数据重复。<ul>
+<li>全局唯一 ID: 根据业务生成一个全局唯一 ID，在调用接口时会传入该 ID，接口提供方会从相应的存储系统比如 redis 中去检索这个全局 ID 是否存在，如果存在则说明该操作已经执行过了，将拒绝本次服务请求；否则将相应该服务请求并将全局 ID 存入存储系统中,之后包含相同业务 ID 参数的请求将被拒绝。</li>
+<li>去重表: 这种方法适用于在业务中有唯一标识的插入场景。比如在支付场景中，一个订单只会支付一次，可以建立一张去重表,将订单 ID 作为唯一索引。把支付并且写入支付单据到去重表放入一个事务中了，这样当出现重复支付时，数据库就会抛出唯一约束异常,操作就会回滚。这样保证了订单只会被支付一次。</li>
+<li>多版本并发控制: 适合对更新请求作幂等性控制,比如要更新商品的名字，这是就可以在更新的接口中增加一个版本号来做幂等性控制。</li>
+</ul>
+</li>
+<li>多层级重试传递，放大流量引起雪崩。</li>
+</ul>
+<h3 id="6-7-负载均衡"><a href="#6-7-负载均衡" class="headerlink" title="6.7 负载均衡"></a>6.7 负载均衡</h3><p>数据中心内部的负载均衡</p>
+<p>在理想情况下，某个服务的负载会完全均匀地分发给所有的后端任务。在任何时刻，最忙和最不忙的节点永远消耗同样数量的CPU。</p>
+<p>目标：</p>
+<ul>
+<li>均衡的流量分发。</li>
+<li>可靠的识别异常节点。</li>
+<li>scale-out，增加同质节点扩容。</li>
+<li>减少错误，提高可用性。</li>
+</ul>
+<p>我们发现在 backend 之间的 load 差异比较大：</p>
+<ul>
+<li>每个请求的处理成本不同。</li>
+<li>物理机环境的差异:<ul>
+<li>服务器很难强同质性。</li>
+<li>存在共享资源争用（内存缓存、带宽、IO等）。</li>
+</ul>
+</li>
+<li>性能因素:<ul>
+<li>FullGC。</li>
+<li>JVM JIT。</li>
+</ul>
+</li>
+</ul>
+<p>参考JSQ（最闲轮训）负载均衡算法带来的问题，缺乏的是服务端全局视图，因此我们目标需要综合考虑：负载+可用性。</p>
+<p>参考了《The power of two choices in randomized load balancing》的思路，我们使用 the choice-of-2 算法，随机选取的两个节点进行打分，选择更优的节点:</p>
+<ul>
+<li>选择 backend：CPU，client：health、inflight、latency 作为指标，使用一个简单的线性方程进行打分。</li>
+<li>对新启动的节点使用常量惩罚值(penalty)，以及使用探针方式最小化放量，进行预热。</li>
+<li><p>打分比较低的节点，避免进入“永久黑名单”而无法恢复，使用统计衰减的方式，让节点指标逐渐恢复到初始状态(即默认值)。</p>
+<p>  指标计算结合 moving average，使用时间衰减，计算 <code>vt = v(t-1) * β + at * (1-β)</code> ，β为若干次幂的倒数即: Math.Exp((-span) / 600ms)</p>
+</li>
+</ul>
+<h3 id="6-8-最佳实践"><a href="#6-8-最佳实践" class="headerlink" title="6.8 最佳实践"></a>6.8 最佳实践</h3><ul>
+<li>变更管理:<ul>
+<li>70％的问题是由变更引起的，恢复可用代码并不总是坏事。</li>
+</ul>
+</li>
+<li>避免过载:<ul>
+<li>过载保护、流量调度等。</li>
+</ul>
+</li>
+<li>依赖管理:<ul>
+<li>任何依赖都可能故障，做 chaos monkey testing，注入故障测试。</li>
+</ul>
+</li>
+<li>优雅降级:<ul>
+<li>有损服务，避免核心链路依赖故障。</li>
+</ul>
+</li>
+<li>重试退避:<ul>
+<li>退让算法，冻结时间，API retry detail 控制策略。</li>
+</ul>
+</li>
+<li>超时控制:<ul>
+<li>进程内 + 服务间 超时控制。</li>
+</ul>
+</li>
+<li>极限压测 + 故障演练。</li>
+<li>扩容 + 重启 + 消除有害流量。</li>
+</ul>
+<h3 id="6-9-References"><a href="#6-9-References" class="headerlink" title="6.9 References"></a>6.9 References</h3><p><a target="_blank" rel="noopener" href="http://www.360doc.com/content/16/1124/21/31263000_609259745.shtml">http://www.360doc.com/content/16/1124/21/31263000_609259745.shtml</a><br><a target="_blank" rel="noopener" href="http://www.infoq.com/cn/articles/basis-frameworkto-implement-micro-service/">http://www.infoq.com/cn/articles/basis-frameworkto-implement-micro-service/</a><br><a target="_blank" rel="noopener" href="http://www.infoq.com/cn/news/2017/04/linkerd-celebrates-one-year">http://www.infoq.com/cn/news/2017/04/linkerd-celebrates-one-year</a><br><a target="_blank" rel="noopener" href="https://medium.com/netflix-techblog/netflix-edge-load-balancing-695308b5548c">https://medium.com/netflix-techblog/netflix-edge-load-balancing-695308b5548c</a><br><a target="_blank" rel="noopener" href="https://mp.weixin.qq.com/s?__biz=MzAwNjQwNzU2NQ==&amp;mid=402841629&amp;idx=1&amp;sn=f598fec9b370b8a6f2062233b31122e0&amp;mpshare=1&amp;scene=23&amp;srcid=0404qP0fH8zRiIiFzQBiuzuU#rd">https://mp.weixin.qq.com/s?__biz=MzAwNjQwNzU2NQ==&amp;mid=402841629&amp;idx=1&amp;sn=f598fec9b370b8a6f2062233b31122e0&amp;mpshare=1&amp;scene=23&amp;srcid=0404qP0fH8zRiIiFzQBiuzuU#rd</a><br><a target="_blank" rel="noopener" href="https://mp.weixin.qq.com/s?__biz=MzIzMzk2NDQyMw==&amp;mid=2247486641&amp;idx=1&amp;sn=1660fb41b0c5b8d8d6eacdfc1b26b6a6&amp;source=41#wechat_redirect">https://mp.weixin.qq.com/s?__biz=MzIzMzk2NDQyMw==&amp;mid=2247486641&amp;idx=1&amp;sn=1660fb41b0c5b8d8d6eacdfc1b26b6a6&amp;source=41#wechat_redirect</a><br><a target="_blank" rel="noopener" href="https://blog.acolyer.org/2018/11/16/overload-control-for-scaling-wechat-microservices/">https://blog.acolyer.org/2018/11/16/overload-control-for-scaling-wechat-microservices/</a><br><a target="_blank" rel="noopener" href="https://www.cs.columbia.edu/~ruigu/papers/socc18-final100.pdf">https://www.cs.columbia.edu/~ruigu/papers/socc18-final100.pdf</a><br><a target="_blank" rel="noopener" href="https://github.com/alibaba/Sentinel/wiki/系统负载保护">https://github.com/alibaba/Sentinel/wiki/系统负载保护</a><br><a target="_blank" rel="noopener" href="https://blog.csdn.net/okiwilldoit/article/details/81738782">https://blog.csdn.net/okiwilldoit/article/details/81738782</a><br><a target="_blank" rel="noopener" href="http://alex-ii.github.io/notes/2019/02/13/predictive_load_balancing.html">http://alex-ii.github.io/notes/2019/02/13/predictive_load_balancing.html</a><br><a target="_blank" rel="noopener" href="https://blog.csdn.net/m0_38106113/article/details/81542863">https://blog.csdn.net/m0_38106113/article/details/81542863</a></p>
+
                 
             </div>
             <hr/>
@@ -2494,7 +2610,7 @@ service LibraryService {
             <br>
             
             &nbsp;<i class="fas fa-chart-area"></i>&nbsp;站点总字数:&nbsp;<span
-                class="white-color">216.4k</span>&nbsp;字
+                class="white-color">218.1k</span>&nbsp;字
             
             
             
