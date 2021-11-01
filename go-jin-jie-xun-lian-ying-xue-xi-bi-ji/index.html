@@ -438,14 +438,14 @@
                 
                 <div class="info-break-policy">
                     <i class="far fa-file-word fa-fw"></i>文章字数:&nbsp;&nbsp;
-                    34.6k
+                    41.5k
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-clock fa-fw"></i>阅读时长:&nbsp;&nbsp;
-                    134 分
+                    159 分
                 </div>
                 
 
@@ -2290,6 +2290,299 @@ service LibraryService {
 <p>我们在写操作(高频请求)中，把当前的 flag 返回到 API 协议中，作为一个日期值，客户端保存到本地，下次请求的时候带上，如果发现该值在，获取以后直接使用不再请求缓存，例如: 2021-1-1，发现当前时间还是2021-1-1，直接不再请求 redis，如果发现当前时间是2021-1-2，需要触发一次 redis 访问，返回新的 flag 到客户端，这样把状态广播同步到任何其他设备，可以大大减少判定缓存。</p>
 <p>实现成本在于，你认为的代价高低。</p>
 <h3 id="7-5-References"><a href="#7-5-References" class="headerlink" title="7.5 References"></a>7.5 References</h3><p><a target="_blank" rel="noopener" href="https://en.wikipedia.org/wiki/Cache#Writing_Policies">https://en.wikipedia.org/wiki/Cache#Writing_Policies</a><br><a target="_blank" rel="noopener" href="https://blog.csdn.net/jiaomeng/article/details/1495500">https://blog.csdn.net/jiaomeng/article/details/1495500</a><br><a target="_blank" rel="noopener" href="https://blog.csdn.net/yizishou/article/details/78342499">https://blog.csdn.net/yizishou/article/details/78342499</a><br><a target="_blank" rel="noopener" href="https://blog.csdn.net/caoshangpa/article/details/78783749">https://blog.csdn.net/caoshangpa/article/details/78783749</a></p>
+<h2 id="第8课-分布式缓存和分布式事务"><a href="#第8课-分布式缓存和分布式事务" class="headerlink" title="第8课 分布式缓存和分布式事务"></a>第8课 分布式缓存和分布式事务</h2><h3 id="8-1-缓存选型"><a href="#8-1-缓存选型" class="headerlink" title="8.1 缓存选型"></a>8.1 缓存选型</h3><h4 id="8-1-1-memcache"><a href="#8-1-1-memcache" class="headerlink" title="8.1.1 memcache"></a>8.1.1 memcache</h4><p><img src="/images/《Go进阶训练营》学习笔记/分布式缓存-缓存选型-memcache.png" alt="分布式缓存-缓存选型-memcache"></p>
+<p>memcache 提供简单的 kv cache 存储，value 大小不超过1mb。</p>
+<p>我使用 memcache 作为大文本或者简单的 kv结构使用。</p>
+<p>memcache 使用了slab 方式做内存管理，存在一定的浪费，如果大量接近的 item，建议调整 memcache 参数来优化每一个 slab 增长的 ratio、可以通过设置 slab_automove &amp; slab_reassign 开启memcache 的动态/手动 move slab，防止某些 slab 热点导致内存足够的情况下引发 LRU。</p>
+<p>大部分情况下，简单 KV 推荐使用 Memcache，吞吐和相应都足够好。</p>
+<p>每个 slab 包含若干大小为1M的内存页，这些内存又被分割成多个 chunk，每个 chunk存储一个 item；</p>
+<p>在 memcache 启动初始化时，每个 slab 都预分配一个 1M 的内存页，由slabs_preallocate 完成(也可将相应代码注释掉关闭预分配功能)。</p>
+<p>chunk 的增长因子由 -f 指定，默认1.25，起始大小为48字节。</p>
+<p>内存池有很多种设计，可以参考下: nginx ngx_pool_t，tcmalloc 的设计等等。</p>
+<h4 id="8-1-2-redis"><a href="#8-1-2-redis" class="headerlink" title="8.1.2 redis"></a>8.1.2 redis</h4><p>redis 有丰富的数据类型，支持增量方式的修改部分数据，比如排行榜，集合，数组等。</p>
+<p>比较常用的方式是使用 redis 作为数据索引，比如评论的列表 ID，播放历史的列表 ID 集合，我们的关系链列表 ID。</p>
+<p>redis 因为没有使用内存池，所以是存在一定的内存碎片的，一般会使用 jemalloc 来优化内存分配，需要编译时候使用 jemalloc 库代替 glib 的 malloc 使用。</p>
+<h4 id="8-1-3-redis-vs-memcache"><a href="#8-1-3-redis-vs-memcache" class="headerlink" title="8.1.3 redis vs memcache"></a>8.1.3 redis vs memcache</h4><p><img src="/images/《Go进阶训练营》学习笔记/分布式缓存-缓存选型-redis-vs-memcache.png" alt="分布式缓存-缓存选型-redis-vs-memcache"></p>
+<p>Redis 和 Memcache 最大的区别其实是 redis 单线程(新版本双线程)，memcache 多线程，所以 QPS 可能两者差异不大，但是吞吐会有很大的差别，比如大数据 value 返回的时候，redis qps 会抖动下降的的很厉害，因为单线程工作，其他查询进不来(新版本有不少的改善)。</p>
+<p>所以建议纯 kv 都走 memcache，比如我们的关系链服务中用了 hashs 存储双向关系，但是我们也会使用 memcache 档一层来避免hgetall 导致的吞吐下降问题。</p>
+<p>我们系统中多次使用 memcache + redis 双缓存设计。</p>
+<blockquote>
+<p>redis 6 已经支持了多线程的网络 IO 。</p>
+<p>memcached 使用 slab 方式做内存管理，存在一定的浪费。如果有大量接近的 item，建议调整 memcache 参数来优化每一个 slab 增长的 ratio ，可以通过设置 <code>slab_automove</code> 和 <code>slab_reassign</code> 开启 memcached 的动态/手动 move slab，防止某些 slab 热点导致内存足够的情况下引发 LRU 。</p>
+</blockquote>
+<h4 id="8-1-4-Proxy"><a href="#8-1-4-Proxy" class="headerlink" title="8.1.4 Proxy"></a>8.1.4 Proxy</h4><p>早期使用 twemproxy 作为缓存代理，但是在使用上有如下一些痛点：</p>
+<ul>
+<li>单进程单线程模型和 redis 类似，在处理一些大 key 的时候可能出现 io 瓶颈；</li>
+<li>二次开发成本难度高，难以于公司运维平台进行深度集成；</li>
+<li>不支持自动伸缩，不支持 autorebalance 增删节点需要重启才能生效；</li>
+<li>运维不友好，没有控制面板；</li>
+</ul>
+<p>业界开源的的其他代理工具：</p>
+<ul>
+<li>codis: 只支持 redis 协议，且需要使用 patch版本的 redis；</li>
+<li>mcrouter: 只支持 memcache 协议，C 开发，与运维集成开发难度高；</li>
+</ul>
+<blockquote>
+<p>现在推荐直接用redis cluster。</p>
+</blockquote>
+<p><img src="/images/《Go进阶训练营》学习笔记/分布式缓存-缓存选型-Proxy.png" alt="分布式缓存-缓存选型-Proxy"></p>
+<p>从集中式访问缓存到 Sidecar 访问缓存：</p>
+<ul>
+<li>微服务强调去中心化；</li>
+<li>LVS 运维困难，容易流量热点，随下游扩容而扩容，连接不均衡等问题；</li>
+<li>Sidecar 伴生容器随 App 容器启动而启动，配置简化；</li>
+</ul>
+<h4 id="8-1-5-一致性Hash"><a href="#8-1-5-一致性Hash" class="headerlink" title="8.1.5 一致性Hash"></a>8.1.5 一致性Hash</h4><p><img src="/images/《Go进阶训练营》学习笔记/分布式缓存-缓存选型-一致性Hash.png" alt="分布式缓存-缓存选型-一致性Hash"><br><img src="/images/《Go进阶训练营》学习笔记/分布式缓存-缓存选型-一致性Hash-添加节点.png" alt="分布式缓存-缓存选型-一致性Hash-添加节点"></p>
+<p>一致性 hash 是将数据按照特征值映射到一个首尾相接的 hash 环上，同时也将节点（按照 IP 地址或者机器名 hash）映射到这个环上。</p>
+<p>对于数据，从数据在环上的位置开始，顺时针找到的第一个节点即为数据的存储节点。</p>
+<p>余数分布式算法由于保存键的服务器会发生巨大变化而影响缓存的命中率，但Consistent Hashing 中，只有在园（continuum）上增加服务器的地点逆时针方向的第一台服务器上的键会受到影响。</p>
+<ul>
+<li>平衡性(Balance)：尽可能分布到所有的缓冲中去</li>
+<li>单调性(Monotonicity)：单调性是指如果已经有一些内容通过哈希分派到了相应的缓冲中，又有新的缓冲区加入到系统中，那么哈希的结果应能够保证原有已分配的内容可以被映射到新的缓冲区中去，而不会被映射到旧的缓冲集合中的其他缓冲区。</li>
+<li>分散性(Spread)：相同内容被存储到不同缓冲中去，降低了系统存储的效率，需要尽量降低分散性。</li>
+<li>负载(Load)：哈希算法应能够尽量降低缓冲的负荷。</li>
+<li>平滑性(Smoothness)：缓存服务器的数目平滑改变和缓存对象的平滑改变是一致的。</li>
+</ul>
+<p>一致性哈希算法在服务节点太少时，容易因为节点分部不均匀而造成数据倾斜问题。</p>
+<p><img src="/images/《Go进阶训练营》学习笔记/分布式缓存-缓存选型-一致性Hash-虚拟节点.png" alt="分布式缓存-缓存选型-一致性Hash-虚拟节点"></p>
+<p>此时必然造成大量数据集中到 Node A 上，而只有极少量会定位到 Node B 上。为了解决这种数据倾斜问题，一致性哈希算法引入了虚拟节点机制，即对每一个服务节点计算多个哈希，每个计算结果位置都放置一个此服务节点，称为虚拟节点。</p>
+<p>具体做法可以在服务器 ip 或主机名的后面增加编号来实现。</p>
+<p>例如上面的情况，可以为每台服务器计算三个虚拟节点，于是可以分别计算 “Node A#1”、“Node A#2”、“Node A#3”、“Node B#1”、“Node B#2”、“Node B#3” 的哈希值，于是形成六个虚拟节点。</p>
+<p>同时数据定位算法不变，只是多了一步虚拟节点到实际节点的映射，例如定位到 “Node A#1”、“Node A#2”、“Node A#3”三个虚拟节点的数据均定位到 Node A 上。这样就解决了服务节点少时数据倾斜的问题。</p>
+<p>参考微信红包的写合并优化： <a target="_blank" rel="noopener" href="https://www.cnblogs.com/chinanetwind/articles/9460820.html">https://www.cnblogs.com/chinanetwind/articles/9460820.html</a></p>
+<p>在网关层，使用一致性 hash，对红包 id 进行分片，命中到某一个逻辑服务器处理，在进程内做写操作的合并，减少存储层的单行锁争用。</p>
+<p><img src="/images/《Go进阶训练营》学习笔记/分布式缓存-缓存选型-有界负载一致性hash.png" alt="分布式缓存-缓存选型-有界负载一致性hash"></p>
+<p>我认为更好的做法是 有界负载一致性 hash。</p>
+<h4 id="8-1-6-Hash"><a href="#8-1-6-Hash" class="headerlink" title="8.1.6 Hash"></a>8.1.6 Hash</h4><p>数据分片的 hash 方式也是这个思想，即按照数据的某一特征（key）来计算哈希值，并将哈希值与系统中的节点建立映射关系,从而将哈希值不同的数据分布到不同的节点上。</p>
+<p>按照 hash 方式做数据分片，映射关系非常简单；需要管理的元数据也非常之少，只需要记录节点的数目以及 hash 方式就行了。</p>
+<p>当加入或者删除一个节点的时候，大量的数据需要移动。比如在这里增加一个节点 N3，因此 hash 方式变为了 mod 4。</p>
+<p>均衡问题：原始数据的特征值分布不均匀，导致大量的数据集中到一个物理节点上；第二，对于可修改的记录数据，单条记录的数据变大。</p>
+<p>高级玩法是抽象 slot，基于 Hash 的 Slot Sharding，例如 Redis-Cluster。</p>
+<h4 id="8-1-7-Slot"><a href="#8-1-7-Slot" class="headerlink" title="8.1.7 Slot"></a>8.1.7 Slot</h4><p><img src="/images/《Go进阶训练营》学习笔记/分布式缓存-缓存选型-Slot.png" alt="分布式缓存-缓存选型-Slot"></p>
+<p>redis cluster 的做法：</p>
+<p>1.把 16384 槽按照节点数量进行平均分配，由节点进行管理<br>2.对每个 key 按照 CRC16 规则进行 hash 运算<br>3.把 hash 结果对 16383 进行取余<br>4.把余数发送给 redis 节点<br>5.节点接收到数据，验证是否在自己管理的槽编号的范围<br>    如果在自己管理的槽编号范围内，则把数据保存到数据槽中，然后返回执行结果<br>    如果在自己管理的槽编号范围外，则会把数据发送给正确的节点，由正确的节点来把数据保存在对应的槽中</p>
+<blockquote>
+<p><code>16384 = (1&lt;&lt;14)</code> 。</p>
+<p>Redis Cluster的节点之间会共享消息，每个节点都会知道是哪个节点负责哪个范围内的数据槽</p>
+<p><a target="_blank" rel="noopener" href="https://www.cnblogs.com/renpingsheng/p/9862485.html">高可用Redis(十二)：Redis Cluster</a></p>
+</blockquote>
+<h3 id="8-2-缓存模式"><a href="#8-2-缓存模式" class="headerlink" title="8.2 缓存模式"></a>8.2 缓存模式</h3><h4 id="8-2-1-数据一致性"><a href="#8-2-1-数据一致性" class="headerlink" title="8.2.1 数据一致性"></a>8.2.1 数据一致性</h4><p><img src="/images/《Go进阶训练营》学习笔记/分布式缓存-缓存模式-数据一致性.png" alt="分布式缓存-缓存模式-数据一致性"></p>
+<p>Storage 和 Cache 同步更新容易出现数据不一致。</p>
+<p>模拟 MySQL Slave 做数据复制，再把消息投递到 Kafka，保证至少一次消费：</p>
+<ol>
+<li>同步操作DB；</li>
+<li>同步操作Cache；</li>
+<li>利用Job消费消息，重新补偿一次缓存操作</li>
+</ol>
+<p>保证时效性和一致性。</p>
+<p><img src="/images/《Go进阶训练营》学习笔记/分布式缓存-缓存模式-数据一致性-CacheAside模型.png" alt="分布式缓存-缓存模式-数据一致性-CacheAside模型"></p>
+<p>Cache Aside 模型中，读缓存 Miss 的回填操作，和修改数据同步更新缓存，包括消息队列的异步补偿缓存，都无法满足 “Happens Before”，会存在相互覆盖的情况。</p>
+<p><img src="/images/《Go进阶训练营》学习笔记/分布式缓存-缓存模式-数据一致性-CacheAside模型-错误的使用.png" alt="分布式缓存-缓存模式-数据一致性-CacheAside模型-错误的使用"></p>
+<p>错误的使用：</p>
+<ol>
+<li>读操作，读缓存，缓存 MISS</li>
+<li>读操作，读 DB，读取到数据</li>
+<li>写操作，更新 DB 数据</li>
+<li>写操作 SET/DELETE Cache（可 Job 异步操作）</li>
+<li>读操作，SET操作数据回写缓存（可 Job 异步操作）</li>
+</ol>
+<p>这种交互下，由于4和5操作步骤都是设置缓存，导致写入的值互相覆盖；并且操作的顺序性不确定，从而导致 cache 存在脏缓存的情况。</p>
+<p><img src="/images/《Go进阶训练营》学习笔记/分布式缓存-缓存模式-数据一致性-CacheAside模型-正确的使用.png" alt="分布式缓存-缓存模式-数据一致性-CacheAside模型-正确的使用"></p>
+<p>正确的使用：</p>
+<ol>
+<li>读操作，读缓存，缓存 MISS</li>
+<li>读操作，读 DB，读取到数据</li>
+<li>写操作，更新 DB 数据</li>
+<li>写操作 SET Cache（可异步 job 操作，Redis 可以使用 SETEX 操作）</li>
+<li>读操作，ADD 操作数据回写缓存（可 Job异步操作，Redis 可以使用 SETNX 操作）</li>
+<li>写操作使用 SET 操作命令，覆盖写缓存；读操作，使用 ADD 操作回写 MISS 数据，从而保证写操作的最新数据不会被读操作的回写数据覆盖。</li>
+</ol>
+<blockquote>
+<ol>
+<li><p>读操作流程</p>
+<ol>
+<li>从 Redis 读取数据，如果有就直接返回；</li>
+<li>如果 Redis 中没有数据，从 MySQL 中读取数据；</li>
+<li>将结果使用 <code>SETNX</code> 回填到 Redis 中，并返回数据。</li>
+</ol>
+</li>
+<li><p>写操作流程</p>
+<ol>
+<li>直接更新 MySQL ；</li>
+<li><p>删除或更新 Redis ；</p>
+<p>用删除操作可能会导致缓存穿透问题，对热点数据不建议使用删除操作。</p>
+<p>用更新操作可能会有 ABA 的问题，如：两次更新 v1 和 v2 ，缓存中的值会出现 v1 -&gt; v2 -&gt; v1 -&gt; v2 。</p>
+</li>
+<li><p>使用 Canal 解析 MySQL 的 binlog，将解析的结果投递到一个消息队列中（如：kafka），然后再消费该消息队列更新 Redis 来保证最终一致性。</p>
+</li>
+</ol>
+</li>
+</ol>
+</blockquote>
+<h4 id="8-2-2-多级缓存"><a href="#8-2-2-多级缓存" class="headerlink" title="8.2.2 多级缓存"></a>8.2.2 多级缓存</h4><p><img src="/images/《Go进阶训练营》学习笔记/分布式缓存-缓存模式-多级缓存.png" alt="分布式缓存-缓存模式-多级缓存.png"></p>
+<p>微服务拆分细粒度原子业务下的整合服务（聚合服务），用于提供粗粒度的接口，以及二级缓存加速，减少扇出的 rpc 网络请求，减少延迟。</p>
+<p>最重要是保证多级缓存的一致性：</p>
+<ul>
+<li>清理的优先级是有要求的，先优先清理下游再上游；</li>
+<li>下游的缓存expire要大于上游，里面穿透回源；</li>
+</ul>
+<p>天下大势分久必合，适当的微服务合并也是不错的做法，再使用 DDD 思路以及我们介绍的目录结构组织方式，区分不同的 Usecase。</p>
+<h4 id="8-2-3-热点缓存"><a href="#8-2-3-热点缓存" class="headerlink" title="8.2.3 热点缓存"></a>8.2.3 热点缓存</h4><p><img src="/images/《Go进阶训练营》学习笔记/分布式缓存-缓存模式-热点缓存.png" alt="分布式缓存-缓存模式-热点缓存"></p>
+<p>对于热点缓存 Key，按照如下思路解决：</p>
+<ul>
+<li>小表广播，从 RemoteCache 提升为LocalCache，App 定时更新，甚至可以让运营平台支持广播刷新 LocalCache；</li>
+<li>主动监控防御预热，比如直播房间页高在线情况下直接外挂服务主动防御；</li>
+<li>基础库框架支持热点发现，自动短时的 short-live cache；</li>
+<li>多 Cluster 支持；<ul>
+<li>多 Key 设计: 使用多副本，减小节点热点的问题</li>
+<li>使用多副本 ms_1,ms_2,ms_3 每个节点保存一份数据，使得请求分散到多个节点，避免单点热点问题。</li>
+</ul>
+</li>
+</ul>
+<p><img src="/images/《Go进阶训练营》学习笔记/分布式缓存-缓存模式-热点缓存-多Cluster.png" alt="分布式缓存-缓存模式-热点缓存-多Cluster.png"></p>
+<p>建立多个 Cluster ，和微服务、存储等一起组成一个 Region。</p>
+<p>这样相当于是用空间换时间：</p>
+<p>同一个 key 在每一个 frontend cluster 都可能有一个 copy，这样会带来 consistency 的问题，但是这样能够降低 latency 和提高 availability。利用 MySQL Binlog 消息 anycast 到不同集群的某个节点清理或者更新缓存；</p>
+<p>当业务频繁更新时候，cache频繁过期，会导致命中率低: stale sets</p>
+<p>如果应用程序层可以忍受稍微过期一点的数据，针对这点可以进一步降低系统负载。当一个key 被删除的时候（delete 请求或者 cache 爆棚清空间了），它被放倒一个临时的数据结构里，会再续上比较短的一段时间。当有请求进来的时候会返回这个数据并标记为“Stale”。对于大部分应用场景而言，Stale Value 是可以忍受的。(需要改 memcache、redis 源码，或者基础库支持）；</p>
+<blockquote>
+<p>最好通过改 Redis 源码来实现，因为要高效的处理边缘情况（比如：该数据本身的过期时间已经比 10 秒小了)。</p>
+</blockquote>
+<h4 id="8-2-4-穿透缓存"><a href="#8-2-4-穿透缓存" class="headerlink" title="8.2.4 穿透缓存"></a>8.2.4 穿透缓存</h4><ul>
+<li>singlefly<br>  对关键字进行一致性 hash，使其某一个维度的 key 一定命中某个节点，然后在节点内使用互斥锁，保证归并回源，但是对于批量查询无解；</li>
+<li>分布式锁<br>  设置一个 lock key，有且只有一个人成功，并且返回，交由这个人来执行回源操作，其他候选者轮训 cache 这个 lock key，如果不存在去读数据缓存，hit 就返回，miss 继续抢锁；</li>
+<li>队列<br>  如果 cache miss，交由队列聚合一个key，来 load 数据回写缓存，对于 miss 当前请求可以使用 singlefly 保证回源，如评论架构实现。适合回源加载数据重的任务，比如评论 miss 只返回第一页，但是需要构建完成评论数据索引。</li>
+<li>lease<br>  通过加入 lease 机制，可以很好避免这两个问题，lease 是 64-bit 的 token，与客户端请求的 key 绑定，对于过时设置，在写入时验证 lease，可以解决这个问题；对于 thundering herd，每个key 10s 分配一次，当 client 在没有获取到 lease 时，可以稍微等一下再访问 cache，这时往往cache 中已有数据。（基础库支持 &amp; 修改 cache 源码）；</li>
+</ul>
+<h3 id="8-3-缓存技巧"><a href="#8-3-缓存技巧" class="headerlink" title="8.3 缓存技巧"></a>8.3 缓存技巧</h3><h4 id="8-3-1-Incast-Congestion"><a href="#8-3-1-Incast-Congestion" class="headerlink" title="8.3.1 Incast Congestion"></a>8.3.1 Incast Congestion</h4><p>如果在网路中的包太多，就会发生 Incast Congestion 的问题（可以理解为，network 有很多switch，router 啥的，一旦一次性发一堆包，这些包同时到达 switch，这些 switch 就会忙不过来）。</p>
+<p>应对这个问题就是不要让大量包在同一时间发送出去，在客户端限制每次发出去的包的数量（具体实现就是客户端弄个队列）。</p>
+<p>每次发送的包的数量称为“Window size”。这个值太小的话，发送太慢，自然延迟会变高；这个值太大，发送的包太多把 network switch 搞崩溃了，就可能发生比如丢包之类的情况，可能被当作 cache miss，这样延迟也会变高。所以这个值需要调，一般会在 proxy 层面实现。</p>
+<h4 id="8-3-2-小技巧"><a href="#8-3-2-小技巧" class="headerlink" title="8.3.2 小技巧"></a>8.3.2 小技巧</h4><ul>
+<li>易读性的前提下，key 设置尽可能小，减少资源的占用，redis value 可以用 int 就不要用string，对于小于 N 的 value，redis 内部有 shared_object 缓存。</li>
+<li>拆分 key。主要是用在 redis 使用 hashes 情况下。同一个 hashes key 会落到同一个 redis 节点，hashes 过大的情况下会导致内存及请求分布的不均匀。考虑对 hash 进行拆分为小的hash，使得节点内存均匀及避免单节点请求热点。</li>
+<li>空缓存设置。对于部分数据，可能数据库始终为空，这时应该设置空缓存，避免每次请求都缓存 miss 直接打到 DB。</li>
+<li>空缓存保护策略。</li>
+<li>读失败后的写缓存策略（降级后一般读失败不触发回写缓存）。</li>
+<li>序列化使用 protobuf，尽可能减少 size。</li>
+<li>工具化浇水代码</li>
+</ul>
+<p><img src="/images/《Go进阶训练营》学习笔记/分布式缓存-缓存技巧-工具化浇水代码.png" alt="分布式缓存-缓存技巧-工具化浇水代码"></p>
+<h4 id="8-3-3-memcache-小技巧"><a href="#8-3-3-memcache-小技巧" class="headerlink" title="8.3.3 memcache 小技巧"></a>8.3.3 memcache 小技巧</h4><ul>
+<li>flag 使用：标识 compress、encoding、large value 等；</li>
+<li>memcache 支持 gets，尽量读取，尽可能的 pipeline，减少网络往返；</li>
+<li>使用二进制协议，支持 pipeline delete，UDP 读取、TCP 更新；</li>
+</ul>
+<h4 id="8-3-4-redis-小技巧"><a href="#8-3-4-redis-小技巧" class="headerlink" title="8.3.4 redis 小技巧"></a>8.3.4 redis 小技巧</h4><ul>
+<li>增量更新一致性：EXPIRE、ZADD/HSET 等，保证索引结构体务必存在的情况下去操作新增数据；</li>
+<li>BITSET: 存储每日登陆用户，单个标记位置（boolean），为了避免单个 BITSET 过大或者热点，需要使用 region sharding，比如按照mid求余 %和/ 10000，商为 KEY、余数- 作为offset；</li>
+<li>List:抽奖的奖池、顶弹幕，用于类似 Stack PUSH/POP操作；</li>
+<li>Sortedset: 翻页、排序、有序的集合，杜绝 zrange 或者 zrevrange 返回的集合过大；<blockquote>
+<p>Sortedset 的 score 是 double 类型，不能存放下 int64，注意不要溢出了。</p>
+</blockquote>
+</li>
+<li>Hashs: 过小的时候会使用压缩列表、过大的情况容易导致 rehash 内存浪费，也杜绝返回hgetall，对于小结构体，建议直接使用 memcache KV；</li>
+<li>String: SET 的 EX/NX 等 KV 扩展指令，SETNX 可以用于分布式锁、SETEX 聚合了SET + EXPIRE；</li>
+<li>Sets: 类似 Hashs，无 Value，去重等；</li>
+<li>尽可能的 PIPELINE 指令，但是避免集合过大；</li>
+<li>避免超大 Value；</li>
+</ul>
+<h3 id="8-4-References"><a href="#8-4-References" class="headerlink" title="8.4 References"></a>8.4 References</h3><p><a target="_blank" rel="noopener" href="https://blog.csdn.net/chen_kkw/article/details/82724330">https://blog.csdn.net/chen_kkw/article/details/82724330</a><br><a target="_blank" rel="noopener" href="https://zhuanlan.zhihu.com/p/328728595">https://zhuanlan.zhihu.com/p/328728595</a><br><a target="_blank" rel="noopener" href="https://www.cnblogs.com/chinanetwind/articles/9460820.html">https://www.cnblogs.com/chinanetwind/articles/9460820.html</a><br><a target="_blank" rel="noopener" href="https://medium.com/vimeo-engineering-blog/improving-load-balancing-with-a-new-consistent-hashing-algorithm-9f1bd75709ed">https://medium.com/vimeo-engineering-blog/improving-load-balancing-with-a-new-consistent-hashing-algorithm-9f1bd75709ed</a><br><a target="_blank" rel="noopener" href="https://www.jianshu.com/p/5fa447c60327">https://www.jianshu.com/p/5fa447c60327</a><br><a target="_blank" rel="noopener" href="https://writings.sh/post/consistent-hashing-algorithms-part-1-the-problem-and-the-concept">https://writings.sh/post/consistent-hashing-algorithms-part-1-the-problem-and-the-concept</a><br><a target="_blank" rel="noopener" href="https://www.cnblogs.com/williamjie/p/11132211.html">https://www.cnblogs.com/williamjie/p/11132211.html</a></p>
+<h3 id="8-5-分布式事务"><a href="#8-5-分布式事务" class="headerlink" title="8.5 分布式事务"></a>8.5 分布式事务</h3><h4 id="8-5-1-转账问题"><a href="#8-5-1-转账问题" class="headerlink" title="8.5.1 转账问题"></a>8.5.1 转账问题</h4><p><img src="/images/《Go进阶训练营》学习笔记/分布式事务-转账问题.png" alt="分布式事务-转账问题"></p>
+<p>讲到事务，又得搬出经典的转账问题了：</p>
+<ol>
+<li>支付宝账户表：A (id, user_id, amount)</li>
+<li>余额宝账户表：B (id, user_id, amount)</li>
+</ol>
+<p>用户的 user_id = 1，从支付宝转帐1万快到余额宝分为两个步骤：</p>
+<ol>
+<li>支付宝表扣除1万：<br> UPDATE A SET amount = amount - 10000 WHERE user_id = 1;</li>
+<li>余额宝表增加1万：<br> UPDATE B SET amount = amount + 10000 WHERE user_id = 1;</li>
+</ol>
+<p>如何保证数据一致性呢？</p>
+<p>单个数据库，我们保证 ACID 使用 数据库事务。</p>
+<h4 id="8-5-2-微服务架构下转账问题"><a href="#8-5-2-微服务架构下转账问题" class="headerlink" title="8.5.2 微服务架构下转账问题"></a>8.5.2 微服务架构下转账问题</h4><p><img src="/images/《Go进阶训练营》学习笔记/分布式事务-微服务架构下转账问题.png" alt="分布式事务-微服务架构下转账问题"></p>
+<p>随着我们系统变大，我们进行了微服务架构的改造，因为每个微服务独占了一个数据库实例，从 user_id = 1 发起的转帐动作，跨越了两个微服务：pay 和 balance 服务。<br>我们需要保证，跨多个服务的步骤数据一致性：</p>
+<ol>
+<li>微服务 pay 的支付宝表扣除1万；</li>
+<li>微服务 balance 的余额宝表增加1万；</li>
+</ol>
+<p>每个系统都对应一个独立的数据源，且可能位于不同机房，同时调用多个系统的服务很难保证同时成功，这就是跨服务分布式事务问题。</p>
+<p>我们系统应该能保证每个服务自身的 ACID，基于这个假设，我们事务消息解决分布式事务问题。</p>
+<h4 id="8-5-3-事务消息"><a href="#8-5-3-事务消息" class="headerlink" title="8.5.3 事务消息"></a>8.5.3 事务消息</h4><p><img src="/images/《Go进阶训练营》学习笔记/分布式事务-事务消息.png" alt="分布式事务-事务消息.png"></p>
+<p>在北京很有名的姚记炒肝点了炒肝并付了钱后，他们并不会直接把你点的炒肝给你，往往是给你一张小票，然后让你拿着小票到出货区排队去取。</p>
+<p>为什么他们要将付钱和取货两个动作分开呢？原因很多，其中一个很重要的原因是为了使他们接待能力增强（并发量更高）。</p>
+<p>只要这张小票在，你最终是能拿到炒肝的。同理转账服务也是如此。</p>
+<p>当支付宝账户扣除1万后，我们只要生成一个凭证（消息）即可，这个凭证（消息）上写着“让余额宝账户增加 1万”，只要这个凭证（消息）能可靠保存，我们最终是可以拿着这个凭证（消息）让余额宝账户增加1万的，即我们能依靠这个凭证（消息）完成最终一致性。</p>
+<p>如何可靠的保存消息凭证？</p>
+<p>要解决消息可靠存储，我们实际上需要解决的问题是，本地的 mysql 存储和 message 存储的一致性问题。</p>
+<ul>
+<li>Transactional outbox</li>
+<li>Polling publisher</li>
+<li>Transaction log tailing</li>
+<li>2PC Message Queue</li>
+</ul>
+<p>事务消息一旦被可靠的持久化，我们整个分布式事务，变为了最终一致性，消息的消费才能保障最终业务数据的完整性，所以我们要尽最大努力，把消息送达到下游的业务消费方，称为：Best Effort。只有消息被消费，整个交易才能算是完整完结。</p>
+<h4 id="8-5-4-Best-Effort"><a href="#8-5-4-Best-Effort" class="headerlink" title="8.5.4 Best Effort"></a>8.5.4 Best Effort</h4><p><img src="/images/《Go进阶训练营》学习笔记/分布式事务-BestEffort.png" alt="分布式事务-BestEffort"></p>
+<p>即尽最大努力交付，主要用于在这样一种场景：不同的服务平台之间的事务性保证。</p>
+<p>比如我们在电商购物，使用支付宝支付；又比如玩网游的时候，通过 App Store 充值。</p>
+<p>拿购物为例，电商平台与支付平台是相互独立的，隶属于不同的公司，即使是同一个公司也很可能是独立的部门。</p>
+<p>“ 做过支付宝交易接口的同学都知道，我们一般会在支付宝的回调页面和接口里，解密参数，然后调用系统中更新交易状态相关的服务，将订单更新为付款成功。</p>
+<p>同时，只有当我们回调页面中输出了success 字样或者标识业务处理成功相应状态码时，支付宝才会停止回调请求。否则，支付宝会每间隔一段时间后，再向客户方发起回调请求，直到输出成功标识为止。”</p>
+<h4 id="8-5-5-Transactional-outbox"><a href="#8-5-5-Transactional-outbox" class="headerlink" title="8.5.5 Transactional outbox"></a>8.5.5 Transactional outbox</h4><p><img src="/images/《Go进阶训练营》学习笔记/分布式事务-Transactionaloutbox.png" alt="分布式事务-Transactionaloutbox.png"></p>
+<p>Transactional outbox，支付宝在完成扣款的同时，同时记录消息数据，这个消息数据与业务数据保存在同一数据库实例里（消息记录表表名为 msg）。</p>
+<pre class="line-numbers language-sql" data-language="sql"><code class="language-sql"><span class="token keyword">BEGIN</span> <span class="token keyword">TRANSACTION</span>
+    <span class="token keyword">UPDATE</span> A <span class="token keyword">SET</span> amount <span class="token operator">=</span> amount <span class="token operator">-</span> <span class="token number">10000</span> <span class="token keyword">WHERE</span> user_id <span class="token operator">=</span> <span class="token number">1</span><span class="token punctuation">;</span>
+    <span class="token keyword">INSERT</span> <span class="token keyword">INTO</span> msg<span class="token punctuation">(</span>user_id<span class="token punctuation">,</span> amount<span class="token punctuation">,</span> <span class="token keyword">status</span><span class="token punctuation">)</span> <span class="token keyword">VALUES</span><span class="token punctuation">(</span><span class="token number">1</span><span class="token punctuation">,</span> <span class="token number">10000</span><span class="token punctuation">,</span> <span class="token number">1</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token keyword">END</span> <span class="token keyword">TRANSACTION</span>
+<span class="token keyword">COMMIT</span><span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>上述事务能保证只要支付宝账户里被扣了钱，消息一定能保存下来。当上述事务提交成功后，我们想办法将此消息通知余额宝，余额宝处理成功后发送回复成功消息，支付宝收到回复后删除该条消息数据。</p>
+<h4 id="8-5-6-Polling-publisher"><a href="#8-5-6-Polling-publisher" class="headerlink" title="8.5.6 Polling publisher"></a>8.5.6 Polling publisher</h4><p><img src="/images/《Go进阶训练营》学习笔记/分布式事务-Pollingpublisher.png" alt="分布式事务-Pollingpublisher"></p>
+<p>Polling publisher，我们定时的轮训 msg 表，把 status = 1 的消息统统拿出来消费，可以按照自增 id 排序，保证顺序消费。在这里我们独立了一个  pay_task 服务，把拖出来的消息 publish 给我们消息队列，balance 服务自己来消费队列，或者直接 rpc 发送给 balance 服务。</p>
+<p>实际我们第一个版本的 archive-service 在使用 CQRS 时，就用的这个模型，Pull 的模型，从延迟来说不够好，Pull 太猛对 Database 有一定压力，Pull 频次低了，延迟比较高。</p>
+<h4 id="8-5-6-Transaction-log-tailing"><a href="#8-5-6-Transaction-log-tailing" class="headerlink" title="8.5.6 Transaction log tailing"></a>8.5.6 Transaction log tailing</h4><p><img src="/images/《Go进阶训练营》学习笔记/分布式事务-Transactionlogtailing.png" alt="分布式事务-Transactionlogtailing"></p>
+<p>Transaction log tailing，上述保存消息的方式使得消息数据和业务数据紧耦合在一起，从架构上看不够优雅，而且容易诱发其他问题。</p>
+<p>有一些业务场景，可以直接使用主表被 canal 订阅使用，有一些业务场景自带这类 message 表，比如订单或者交易流水，可以直接使用这类流水表作为 message 表使用。</p>
+<p>使用 canal 订阅以后，是实时流式消费数据，在消费者 balance 或者 balance-job 必须努力送达到。</p>
+<p>我们发现，所有努力送达的模型，必须是先预扣（预占资源）的做法。</p>
+<h4 id="8-5-7-幂等"><a href="#8-5-7-幂等" class="headerlink" title="8.5.7 幂等"></a>8.5.7 幂等</h4><p><img src="/images/《Go进阶训练营》学习笔记/分布式事务-幂等.png" alt="分布式事务-幂等"></p>
+<p>还有一个很严重的问题就是消息重复投递，如果相同的消息被重复投递两次，那么我们余额宝账户将会增加2万而不是1万了。</p>
+<p>为什么相同的消息会被重复投递？比如余额宝处理完消息 msg 后，发送了处理成功的消息给支付宝，正常情况下支付宝应该要删除消息msg，但如果支付宝这时候悲剧的挂了，重启后一看消息 msg 还在，就会继续发送消息 msg。</p>
+<ul>
+<li>全局唯一 ID+ 去重表<br>  在余额宝这边增加消息应用状态表 msg_apply，通俗来说就是个账本，用于记录消息的消费情况，每次来一个消息，在真正执行之前，先去消息应用状态表中查询一遍，如果找到说明是重复消息，丢弃即可，如果没找到才执行，同时插入到消息应用状态表（同一事务）。</li>
+<li>版本号</li>
+</ul>
+<h4 id="8-5-8-2PC"><a href="#8-5-8-2PC" class="headerlink" title="8.5.8 2PC"></a>8.5.8 2PC</h4><p><img src="/images/《Go进阶训练营》学习笔记/分布式事务-2PC.png" alt="分布式事务-2PC.png"></p>
+<p>两阶段提交协议(Two Phase Commitment Protocol)中，涉及到两种角色</p>
+<ul>
+<li>一个事务协调者（coordinator）：负责协调多个参与者进行事务投票及提交(回滚)</li>
+<li>多个事务参与者（participants）：即本地事务执行者</li>
+</ul>
+<p>总共处理步骤有两个</p>
+<ol>
+<li>投票阶段（voting phase）：协调者将通知事务参与者准备提交或取消事务，然后进入表决过程。参与者将告知协调者自己的决策：同意（事务参与者本地事务执行成功，但未提交）或取消（本地事务执行故障）；</li>
+<li>提交阶段（commit phase）：收到参与者的通知后，协调者再向参与者发出通知，根据反馈情况决定各参与者是否要提交还是回滚；</li>
+</ol>
+<h4 id="8-5-9-2PC-Message-Queue"><a href="#8-5-9-2PC-Message-Queue" class="headerlink" title="8.5.9 2PC Message Queue"></a>8.5.9 2PC Message Queue</h4><p><img src="/images/《Go进阶训练营》学习笔记/分布式事务-2PCMessageQueue.png" alt="分布式事务-2PCMessageQueue.png"></p>
+<h4 id="8-5-10-Seata-2PC"><a href="#8-5-10-Seata-2PC" class="headerlink" title="8.5.10 Seata 2PC"></a>8.5.10 Seata 2PC</h4><p><img src="/images/《Go进阶训练营》学习笔记/分布式事务-Seata2PC.png" alt="分布式事务-Seata2PC"></p>
+<p>Seata 实现 2PC 与传统 2PC 的差别</p>
+<ul>
+<li>架构层次方面：传统 2PC 方案的 RM 实际上是在数据库层，RM 本质上就是数据库自身，通过 XA 协议实现，而 Seata 的 RM 是以 jar 包的形式作为中间件层部署在应用程序这一侧的。</li>
+<li>两阶段提交方面：传统 2PC无论第二阶段的决议是 commit 还是 rollback ，事务性资源的锁都要保持到 Phase2 完成才释放。而 Seata 的做法是在 Phase1 就将本地事务提交，这样就可以省去 Phase2 持锁的时间，整体提高效率。</li>
+</ul>
+<h3 id="8-5-11-TCC"><a href="#8-5-11-TCC" class="headerlink" title="8.5.11 TCC"></a>8.5.11 TCC</h3><p><img src="/images/《Go进阶训练营》学习笔记/分布式事务-TCC.png" alt="分布式事务-TCC"></p>
+<p>TCC 是 Try、Conﬁrm、Cancel 三个词语的缩写，TCC 要求每个分支事务实现三个操作：预处理 Try、确认 Conﬁrm、撤销 Cancel。</p>
+<p>Try 操作做业务检查及资源预留，Conﬁrm 做业务确认操作，Cancel 实现一个与 Try 相反的操作即回滚操作。</p>
+<p>TM 首先发起所有的分支事务的 Try 操作，任何一个分支事务的 Try 操作执行失败，TM 将会发起所有分支事务的 Cancel 操作，若 Try 操作全部成功，TM 将会发起所有分支事务的 Conﬁrm 操作，其中 Conﬁrm/Cancel 操作若执行失败，TM 会进行重试。</p>
+<p>需要注意：</p>
+<ul>
+<li>空回滚</li>
+<li>防悬挂</li>
+</ul>
+<h3 id="8-6-微服务"><a href="#8-6-微服务" class="headerlink" title="8.6 微服务"></a>8.6 微服务</h3><ul>
+<li>Event sourcing</li>
+<li>Saga</li>
+</ul>
+<h3 id="8-7-References"><a href="#8-7-References" class="headerlink" title="8.7 References"></a>8.7 References</h3><p><a target="_blank" rel="noopener" href="https://blog.csdn.net/hosaos/article/details/89136666">https://blog.csdn.net/hosaos/article/details/89136666</a><br><a target="_blank" rel="noopener" href="https://zhuanlan.zhihu.com/p/183753774">https://zhuanlan.zhihu.com/p/183753774</a><br><a target="_blank" rel="noopener" href="https://www.cnblogs.com/dyzcs/p/13780668.html">https://www.cnblogs.com/dyzcs/p/13780668.html</a><br><a target="_blank" rel="noopener" href="https://blog.csdn.net/bjweimengshu/article/details/79607522">https://blog.csdn.net/bjweimengshu/article/details/79607522</a><br><a target="_blank" rel="noopener" href="https://microservices.io/patterns/data/event-sourcing.html">https://microservices.io/patterns/data/event-sourcing.html</a><br><a target="_blank" rel="noopener" href="https://microservices.io/patterns/data/saga.html">https://microservices.io/patterns/data/saga.html</a><br><a target="_blank" rel="noopener" href="https://microservices.io/patterns/data/polling-publisher.html">https://microservices.io/patterns/data/polling-publisher.html</a><br><a target="_blank" rel="noopener" href="https://microservices.io/patterns/data/polling-publisher.html">https://microservices.io/patterns/data/polling-publisher.html</a><br><a target="_blank" rel="noopener" href="https://microservices.io/patterns/data/transaction-log-tailing.html">https://microservices.io/patterns/data/transaction-log-tailing.html</a></p>
 
                 
             </div>
@@ -2462,13 +2755,13 @@ service LibraryService {
                 下一篇&nbsp;<i class="fas fa-chevron-right"></i>
             </div>
             <div class="card">
-                <a href="/shu-ju-ku-he-huan-cun-bei-wang/">
+                <a href="/epoll-select-he-poll-yuan-ma-jian-xi/">
                     <div class="card-image">
                         
                         
-                        <img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/medias/featureimages/5.jpg" class="responsive-img" alt="数据库和缓存备忘">
+                        <img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/medias/featureimages/21.jpg" class="responsive-img" alt="epoll、select和poll源码简析">
                         
-                        <span class="card-title">数据库和缓存备忘</span>
+                        <span class="card-title">epoll、select和poll源码简析</span>
                     </div>
                 </a>
                 <div class="card-content article-content">
@@ -2479,14 +2772,14 @@ service LibraryService {
                     </div>
                     <div class="publish-info">
                             <span class="publish-date">
-                                <i class="far fa-clock fa-fw icon-date"></i>2021-10-19
+                                <i class="far fa-clock fa-fw icon-date"></i>2021-10-09
                             </span>
                         <span class="publish-author">
                             
                             <i class="fas fa-bookmark fa-fw icon-category"></i>
                             
-                            <a href="/categories/%E5%90%8E%E7%AB%AF%E6%9E%B6%E6%9E%84/" class="post-category">
-                                    后端架构
+                            <a href="/categories/%E7%BD%91%E7%BB%9C/" class="post-category">
+                                    网络
                                 </a>
                             
                             
@@ -2496,12 +2789,20 @@ service LibraryService {
                 
                 <div class="card-action article-tags">
                     
-                    <a href="/tags/%E6%95%B0%E6%8D%AE%E5%BA%93/">
-                        <span class="chip bg-color">数据库</span>
+                    <a href="/tags/TCP/">
+                        <span class="chip bg-color">TCP</span>
                     </a>
                     
-                    <a href="/tags/%E7%BC%93%E5%AD%98/">
-                        <span class="chip bg-color">缓存</span>
+                    <a href="/tags/epoll/">
+                        <span class="chip bg-color">epoll</span>
+                    </a>
+                    
+                    <a href="/tags/select/">
+                        <span class="chip bg-color">select</span>
+                    </a>
+                    
+                    <a href="/tags/poll/">
+                        <span class="chip bg-color">poll</span>
                     </a>
                     
                 </div>
@@ -2687,7 +2988,7 @@ service LibraryService {
             <br>
             
             &nbsp;<i class="fas fa-chart-area"></i>&nbsp;站点总字数:&nbsp;<span
-                class="white-color">221.1k</span>&nbsp;字
+                class="white-color">226k</span>&nbsp;字
             
             
             
