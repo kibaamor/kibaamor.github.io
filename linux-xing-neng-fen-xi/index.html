@@ -434,14 +434,14 @@
                 
                 <div class="info-break-policy">
                     <i class="far fa-file-word fa-fw"></i>文章字数:&nbsp;&nbsp;
-                    2.7k
+                    3.3k
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-clock fa-fw"></i>阅读时长:&nbsp;&nbsp;
-                    11 分
+                    13 分
                 </div>
                 
 
@@ -459,7 +459,16 @@
 
         <div class="card-content article-card-content">
             <div id="articleContent">
-                <h2 id="1-top"><a href="#1-top" class="headerlink" title="1. top"></a>1. top</h2><pre class="line-numbers language-text" data-language="text"><code class="language-text">top - 12:20:32 up 18:33,  0 users,  load average: 0.00, 0.00, 0.00
+                <h2 id="0-cpupower"><a href="#0-cpupower" class="headerlink" title="0. cpupower"></a>0. cpupower</h2><p>可以设置 CPU 为 performance 模式来提高性能。</p>
+<ol>
+<li><p>查看 CPU 支持的模式。</p>
+ <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token function">cat</span> /sys/devices/system/cpu/cpu0/cpufreq/scaling_available_governors<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre></li>
+<li><p>设置为 performance 模式。</p>
+ <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">cpupower frequency-set -g performance<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p><a target="_blank" rel="noopener" href="https://wsgzao.github.io/post/cpupower/">CPU 优化建议使用 cpupower 设置 CPU Performance 模式</a></p>
+</li>
+</ol>
+<h2 id="1-top"><a href="#1-top" class="headerlink" title="1. top"></a>1. top</h2><pre class="line-numbers language-text" data-language="text"><code class="language-text">top - 12:20:32 up 18:33,  0 users,  load average: 0.00, 0.00, 0.00
 Tasks:   9 total,   1 running,   8 sleeping,   0 stopped,   0 zombie
 %Cpu(s):  0.0 us,  0.0 sy,  0.0 ni,100.0 id,  0.0 wa,  0.0 hi,  0.0 si,  0.0 st
 KiB Mem : 16345516 total, 15938648 free,   273724 used,   133144 buff/cache
@@ -635,6 +644,53 @@ File-backed  . pgms/shared libs    |
 </ol>
 <blockquote>
 <p>注意：虽然程序映像和共享库被认为是进程私有的，但在内核中被当做共享的(shared, SHR)。</p>
+</blockquote>
+<h3 id="1-2-关注指标"><a href="#1-2-关注指标" class="headerlink" title="1.2 关注指标"></a>1.2 关注指标</h3><h4 id="1-2-1-us-和-sy"><a href="#1-2-1-us-和-sy" class="headerlink" title="1.2.1 us 和 sy"></a>1.2.1 <code>us</code> 和 <code>sy</code></h4><p><code>us</code> 低 和 <code>sy</code> 高的情况一般有两种：</p>
+<ol>
+<li>用户态的代码写的很好，都压缩成了系统调用。</li>
+<li>用户态的代码写的很差，导致全是小的系统调佣。</li>
+</ol>
+<h4 id="1-2-2-wa"><a href="#1-2-2-wa" class="headerlink" title="1.2.2 wa"></a>1.2.2 <code>wa</code></h4><p><code>wa</code> 高表示硬盘或者网络 I/O wait 高。</p>
+<h4 id="1-2-3-si"><a href="#1-2-3-si" class="headerlink" title="1.2.3 si"></a>1.2.3 <code>si</code></h4><p>网络压测时，很有可能会出现单个 CPU 的 <code>si</code> 很高的情况。优化思路就是让 <code>si</code> 均衡到多个 CPU 上，方式有：</p>
+<blockquote>
+<p>完整资料：<a target="_blank" rel="noopener" href="https://www.kernel.org/doc/Documentation/networking/scaling.txt">Scaling in the Linux Networking Stack</a></p>
+</blockquote>
+<ol>
+<li><p>RSS(Receive Side Scaling)</p>
+<p> 就是俗称的网卡多队列。需要网卡硬件支持。</p>
+<p> 把不同的流分散的不同的网卡多列中，至于网卡队列由哪个cpu处理还需要绑定网卡队列中断与 CPU。</p>
+<blockquote>
+<p>队列应不超过机器上 CPU 物理核的数量。</p>
+</blockquote>
+<p> <a target="_blank" rel="noopener" href="https://access.redhat.com/documentation/en-us/red_hat_enterprise_linux/6/html/performance_tuning_guide/network-rss">RECEIVE-SIDE SCALING (RSS)</a></p>
+</li>
+<li><p>RPS(Receive Packet Steering)</p>
+<p> 网卡多队列的软件实现。</p>
+<p> 单队列网卡或者虚拟网卡，把该网卡上的数据流让多个 CPU 处理。</p>
+<p> <a target="_blank" rel="noopener" href="https://access.redhat.com/documentation/en-us/red_hat_enterprise_linux/6/html/performance_tuning_guide/network-rps">RECEIVE PACKET STEERING (RPS)</a></p>
+<p> <a target="_blank" rel="noopener" href="https://gist.github.com/wsgzao/18828f69147635f3e38a14690a633daf">rps.sh</a></p>
+</li>
+<li><p>RFS(Receive Flow Steering)</p>
+<p> 在 RPS 之上的优化版本。</p>
+<p> 当流量需要传输到用户态处理时，用处理软中断的 CPU 去处理用户态的逻辑。主要是为了避免 CPU 由内核态进入到用户态的时候发生切换，导致 CPU cache 失效损失性能。</p>
+<p> <a target="_blank" rel="noopener" href="https://access.redhat.com/documentation/en-us/red_hat_enterprise_linux/6/html/performance_tuning_guide/network-rfs">RECEIVE FLOW STEERING (RFS)</a></p>
+</li>
+<li><p>Accelerated RFS(Receive Flow Steering)</p>
+<p> 使用硬件加速版本的 RFS 。</p>
+<p> <a target="_blank" rel="noopener" href="https://access.redhat.com/documentation/en-us/red_hat_enterprise_linux/6/html/performance_tuning_guide/network-acc-rfs">ACCELERATED RFS</a></p>
+</li>
+<li><p>XPS(Transmit Packet Steering)</p>
+<p> 根据当前处理软中断的cpu选择网卡发包队列，适合于多队列网卡。主要是为了避免 CPU 由 RX 队列的中断进入到 TX 队列的中断时发生切换，导致 CPU cache 失效损失性能。</p>
+</li>
+</ol>
+<blockquote>
+<p>其他资料：</p>
+<ol>
+<li><a target="_blank" rel="noopener" href="https://blog.yufeng.info/archives/2037">MYSQL数据库网卡软中断不平衡问题及解决方案</a></li>
+<li><a target="_blank" rel="noopener" href="https://wsgzao.github.io/post/rps/">RPS 和 RFS 网卡多队列性能调优实践</a></li>
+<li><a target="_blank" rel="noopener" href="https://tech.meituan.com/2018/03/16/redis-high-concurrency-optimization.html">Redis 高负载下的中断优化</a></li>
+<li><a target="_blank" rel="noopener" href="https://www.cnblogs.com/scottieyuyang/p/5665731.html">Linux RSS/RPS/RFS/XPS对比</a></li>
+</ol>
 </blockquote>
 
                 
@@ -1025,7 +1081,7 @@ File-backed  . pgms/shared libs    |
             <br>
             
             &nbsp;<i class="fas fa-chart-area"></i>&nbsp;站点总字数:&nbsp;<span
-                class="white-color">228.8k</span>&nbsp;字
+                class="white-color">229.3k</span>&nbsp;字
             
             
             
