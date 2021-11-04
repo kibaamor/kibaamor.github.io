@@ -442,14 +442,14 @@
                 
                 <div class="info-break-policy">
                     <i class="far fa-file-word fa-fw"></i>文章字数:&nbsp;&nbsp;
-                    3.2k
+                    6.6k
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-clock fa-fw"></i>阅读时长:&nbsp;&nbsp;
-                    11 分
+                    26 分
                 </div>
                 
 
@@ -489,8 +489,8 @@
 <li>边学边实践，通过大量的案例演习掌握 Linux 性能的分析和优化。</li>
 <li>勤思考，多反思，善总结，多问为什么。</li>
 </ul>
-<h2 id="02-CPU-性能篇"><a href="#02-CPU-性能篇" class="headerlink" title="02 CPU 性能篇"></a><strong>02 CPU 性能篇</strong></h2><h3 id="02-基础篇：到底应该怎么理解“平均负载”？"><a href="#02-基础篇：到底应该怎么理解“平均负载”？" class="headerlink" title="02 | 基础篇：到底应该怎么理解“平均负载”？"></a>02 | 基础篇：到底应该怎么理解“平均负载”？</h3><h4 id="2-1-平均负载"><a href="#2-1-平均负载" class="headerlink" title="2.1 平均负载"></a>2.1 平均负载</h4><pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token function">uptime</span><span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
-<pre class="line-numbers language-text" data-language="text"><code class="language-text">02:34:03 up 2 days, 20:14,  1 user,  load average: 0.63, 0.83, 0.88<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<h2 id="02-CPU-性能篇"><a href="#02-CPU-性能篇" class="headerlink" title="02 CPU 性能篇"></a><strong>02 CPU 性能篇</strong></h2><h3 id="02-基础篇：到底应该怎么理解“平均负载”？"><a href="#02-基础篇：到底应该怎么理解“平均负载”？" class="headerlink" title="02 | 基础篇：到底应该怎么理解“平均负载”？"></a>02 | 基础篇：到底应该怎么理解“平均负载”？</h3><h4 id="2-1-平均负载"><a href="#2-1-平均负载" class="headerlink" title="2.1 平均负载"></a>2.1 平均负载</h4><pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ <span class="token function">uptime</span>
+02:34:03 up <span class="token number">2</span> days, <span class="token number">20</span>:14,  <span class="token number">1</span> user,  load average: <span class="token number">0.63</span>, <span class="token number">0.83</span>, <span class="token number">0.88</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre>
 <p>输出结果分别是：系统当前时间、系统运行时间、登录用户数、系统过去 1 分钟、5 分钟、15 分钟的平均负载（Load Average）。</p>
 <p>关于平均负载的解释可以查看 <code>man uptime</code>。</p>
 <p>平均负载是指单位时间内，系统处于可运行状态和不可中断状态的平均进程数，也就是平均活跃进程数。</p>
@@ -517,26 +517,98 @@
 <li>I/O 密集型进程，等待 I/O 也会导致平均负载升高，但 CPU 使用率不一定很高；</li>
 <li>大量等待 CPU 的进程调度也会导致平均负载升高，此时的 CPU 使用率也会比较高。</li>
 </ul>
-<h4 id="2-4-平均负载案例分析"><a href="#2-4-平均负载案例分析" class="headerlink" title="2.4 平均负载案例分析"></a>2.4 平均负载案例分析</h4><pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token function">apt</span> <span class="token function">install</span> stress sysstat<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<h4 id="2-4-平均负载案例分析"><a href="#2-4-平均负载案例分析" class="headerlink" title="2.4 平均负载案例分析"></a>2.4 平均负载案例分析</h4><blockquote>
+<p>机器配置：2 CPU，8GB 内存。</p>
+<p>安装软件：<code>apt install stress sysstat</code>。</p>
+</blockquote>
+<p>观察测试前的平均负载</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ <span class="token function">uptime</span>
+<span class="token punctuation">..</span>.,  load average: <span class="token number">0.11</span>, <span class="token number">0.15</span>, <span class="token number">0.09</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre>
 <ol>
 <li><p>场景一：CPU 密集型进程</p>
-<p> 模拟高 CPU 使用率</p>
- <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">stress --cpu <span class="token number">1</span> --timeout <span class="token number">600</span><span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
-<p> 查看平均负载</p>
- <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token function">watch</span> -d <span class="token function">uptime</span><span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
-<p> 查看 CPU 使用率的变化情况</p>
- <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">mpstat -P ALL <span class="token number">5</span><span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
-<p> 查看那个进程使 CPU 使用率</p>
- <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">pidstat -u <span class="token number">5</span> <span class="token number">1</span><span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre></li>
+<ol>
+<li><p>模拟高 CPU 使用率</p>
+ <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ stress --cpu <span class="token number">1</span> --timeout <span class="token number">600</span><span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre></li>
+<li><p>在第二个终端运行 uptime 查看平均负载的变化情况</p>
+ <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token comment"># -d 参数表示高亮显示变化的区域</span>
+$ <span class="token function">watch</span> -d <span class="token function">uptime</span>
+<span class="token punctuation">..</span>.,  load average: <span class="token number">1.00</span>, <span class="token number">0.75</span>, <span class="token number">0.39</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span></span></code></pre></li>
+<li><p>在第三个终端运行 mpstat 查看 CPU 使用率的变化情况</p>
+ <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token comment"># -P ALL 表示监控所有 CPU，后面数字 5 表示间隔 5 秒后输出一组数据</span>
+$ mpstat -P ALL <span class="token number">5</span>
+Linux <span class="token number">4.15</span>.0 <span class="token punctuation">(</span>ubuntu<span class="token punctuation">)</span> 09/22/18 _x86_64_ <span class="token punctuation">(</span><span class="token number">2</span> CPU<span class="token punctuation">)</span>
+<span class="token number">13</span>:30:06     CPU    %usr   %nice    %sys %iowait    %irq   %soft  %steal  %guest  %gnice   %idle
+<span class="token number">13</span>:30:11     all   <span class="token number">50.05</span>    <span class="token number">0.00</span>    <span class="token number">0.00</span>    <span class="token number">0.00</span>    <span class="token number">0.00</span>    <span class="token number">0.00</span>    <span class="token number">0.00</span>    <span class="token number">0.00</span>    <span class="token number">0.00</span>   <span class="token number">49.95</span>
+<span class="token number">13</span>:30:11       <span class="token number">0</span>    <span class="token number">0.00</span>    <span class="token number">0.00</span>    <span class="token number">0.00</span>    <span class="token number">0.00</span>    <span class="token number">0.00</span>    <span class="token number">0.00</span>    <span class="token number">0.00</span>    <span class="token number">0.00</span>    <span class="token number">0.00</span>  <span class="token number">100.00</span>
+<span class="token number">13</span>:30:11       <span class="token number">1</span>  <span class="token number">100.00</span>    <span class="token number">0.00</span>    <span class="token number">0.00</span>    <span class="token number">0.00</span>    <span class="token number">0.00</span>    <span class="token number">0.00</span>    <span class="token number">0.00</span>    <span class="token number">0.00</span>    <span class="token number">0.00</span>    <span class="token number">0.00</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p> 可以看到，1 分钟的平均负载会慢慢增加到 1.00，而从终端三中还可以看到，正好有一个 CPU 的使用率为 100%，但它的 iowait 只有 0。这说明，平均负载的升高正是由于 CPU 使用率为 100% 。</p>
+</li>
+<li><p>到底是哪个进程导致了 CPU 使用率为 100% 呢？你可以使用 pidstat 来查询</p>
+ <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token comment"># 间隔 5 秒后输出一组数据</span>
+$ pidstat -u <span class="token number">5</span> <span class="token number">1</span>
+<span class="token number">13</span>:37:07      <span class="token environment constant">UID</span>       PID    %usr %system  %guest   %wait    %CPU   CPU  Command
+<span class="token number">13</span>:37:12        <span class="token number">0</span>      <span class="token number">2962</span>  <span class="token number">100.00</span>    <span class="token number">0.00</span>    <span class="token number">0.00</span>    <span class="token number">0.00</span>  <span class="token number">100.00</span>     <span class="token number">1</span>  stress<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span></span></code></pre>
+<p> 可以明显看到，stress 进程的 CPU 使用率为 100%。</p>
+</li>
+</ol>
+</li>
 <li><p>场景二：I/O 密集型进程</p>
-<p> 模拟 I/O 压力，即不停地执行 sync</p>
+<ol>
+<li><p>模拟 I/O 压力，即不停地执行 sync</p>
  <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">stress -i <span class="token number">1</span> --timeout <span class="token number">600</span><span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre></li>
+<li><p>在第二个终端运行 uptime 查看平均负载的变化情况</p>
+ <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ <span class="token function">watch</span> -d <span class="token function">uptime</span>
+<span class="token punctuation">..</span>.,  load average: <span class="token number">1.06</span>, <span class="token number">0.58</span>, <span class="token number">0.37</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre></li>
+<li><p>在第三个终端运行 mpstat 查看 CPU 使用率的变化情况</p>
+ <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token comment"># 显示所有 CPU 的指标，并在间隔 5 秒输出一组数据</span>
+$ mpstat -P ALL <span class="token number">5</span> <span class="token number">1</span>
+Linux <span class="token number">4.15</span>.0 <span class="token punctuation">(</span>ubuntu<span class="token punctuation">)</span>     09/22/18     _x86_64_    <span class="token punctuation">(</span><span class="token number">2</span> CPU<span class="token punctuation">)</span>
+<span class="token number">13</span>:41:28     CPU    %usr   %nice    %sys %iowait    %irq   %soft  %steal  %guest  %gnice   %idle
+<span class="token number">13</span>:41:33     all    <span class="token number">0.21</span>    <span class="token number">0.00</span>   <span class="token number">12.07</span>   <span class="token number">32.67</span>    <span class="token number">0.00</span>    <span class="token number">0.21</span>    <span class="token number">0.00</span>    <span class="token number">0.00</span>    <span class="token number">0.00</span>   <span class="token number">54.84</span>
+<span class="token number">13</span>:41:33       <span class="token number">0</span>    <span class="token number">0.43</span>    <span class="token number">0.00</span>   <span class="token number">23.87</span>   <span class="token number">67.53</span>    <span class="token number">0.00</span>    <span class="token number">0.43</span>    <span class="token number">0.00</span>    <span class="token number">0.00</span>    <span class="token number">0.00</span>    <span class="token number">7.74</span>
+<span class="token number">13</span>:41:33       <span class="token number">1</span>    <span class="token number">0.00</span>    <span class="token number">0.00</span>    <span class="token number">0.81</span>    <span class="token number">0.20</span>    <span class="token number">0.00</span>    <span class="token number">0.00</span>    <span class="token number">0.00</span>    <span class="token number">0.00</span>    <span class="token number">0.00</span>   <span class="token number">98.99</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p> 可以看到，1 分钟的平均负载会慢慢增加到 1.06，其中一个 CPU 的系统 CPU 使用率升高到了 23.87，而 iowait 高达 67.53%。这说明，平均负载的升高是由于 iowait 的升高。</p>
+</li>
+<li><p>那么到底是哪个进程，导致 iowait 这么高呢？用 pidstat 来查询</p>
+ <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token comment"># 间隔 5 秒后输出一组数据，-u 表示 CPU 指标</span>
+$ pidstat -u <span class="token number">5</span> <span class="token number">1</span>
+Linux <span class="token number">4.15</span>.0 <span class="token punctuation">(</span>ubuntu<span class="token punctuation">)</span>     09/22/18     _x86_64_    <span class="token punctuation">(</span><span class="token number">2</span> CPU<span class="token punctuation">)</span>
+<span class="token number">13</span>:42:08      <span class="token environment constant">UID</span>       PID    %usr %system  %guest   %wait    %CPU   CPU  Command
+<span class="token number">13</span>:42:13        <span class="token number">0</span>       <span class="token number">104</span>    <span class="token number">0.00</span>    <span class="token number">3.39</span>    <span class="token number">0.00</span>    <span class="token number">0.00</span>    <span class="token number">3.39</span>     <span class="token number">1</span>  kworker/1:1H
+<span class="token number">13</span>:42:13        <span class="token number">0</span>       <span class="token number">109</span>    <span class="token number">0.00</span>    <span class="token number">0.40</span>    <span class="token number">0.00</span>    <span class="token number">0.00</span>    <span class="token number">0.40</span>     <span class="token number">0</span>  kworker/0:1H
+<span class="token number">13</span>:42:13        <span class="token number">0</span>      <span class="token number">2997</span>    <span class="token number">2.00</span>   <span class="token number">35.53</span>    <span class="token number">0.00</span>    <span class="token number">3.99</span>   <span class="token number">37.52</span>     <span class="token number">1</span>  stress
+<span class="token number">13</span>:42:13        <span class="token number">0</span>      <span class="token number">3057</span>    <span class="token number">0.00</span>    <span class="token number">0.40</span>    <span class="token number">0.00</span>    <span class="token number">0.00</span>    <span class="token number">0.40</span>     <span class="token number">0</span>  pidstat<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p> 可以发现，还是 stress 进程导致的。</p>
+</li>
+</ol>
+</li>
 <li><p>场景三：大量进程的场景</p>
 <p> 当系统中运行进程超出 CPU 运行能力时，就会出现等待 CPU 的进程。</p>
- <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">stress -c <span class="token number">8</span> --timeout <span class="token number">600</span> <span class="token comment"># 假设系统只有 2 个 CPU</span><span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
-<h4 id="2-5-小结"><a href="#2-5-小结" class="headerlink" title="2.5 小结"></a>2.5 小结</h4></li>
+<ol>
+<li><p>使用 stress 模拟的是 8 个进程</p>
+ <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ stress -c <span class="token number">8</span> --timeout <span class="token number">600</span><span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre></li>
+<li><p>由于系统只有 2 个 CPU，明显比 8 个进程要少得多，因而，系统的 CPU 处于严重过载状态，平均负载高达 7.97。</p>
+ <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ <span class="token function">uptime</span>
+<span class="token punctuation">..</span>.,  load average: <span class="token number">7.97</span>, <span class="token number">5.93</span>, <span class="token number">3.02</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre></li>
+<li><p>接着再运行 pidstat 来看一下进程的情况</p>
+ <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token comment"># 间隔 5 秒后输出一组数据</span>
+$ pidstat -u <span class="token number">5</span> <span class="token number">1</span>
+<span class="token number">14</span>:23:25      <span class="token environment constant">UID</span>       PID    %usr %system  %guest   %wait    %CPU   CPU  Command
+<span class="token number">14</span>:23:30        <span class="token number">0</span>      <span class="token number">3190</span>   <span class="token number">25.00</span>    <span class="token number">0.00</span>    <span class="token number">0.00</span>   <span class="token number">74.80</span>   <span class="token number">25.00</span>     <span class="token number">0</span>  stress
+<span class="token number">14</span>:23:30        <span class="token number">0</span>      <span class="token number">3191</span>   <span class="token number">25.00</span>    <span class="token number">0.00</span>    <span class="token number">0.00</span>   <span class="token number">75.20</span>   <span class="token number">25.00</span>     <span class="token number">0</span>  stress
+<span class="token number">14</span>:23:30        <span class="token number">0</span>      <span class="token number">3192</span>   <span class="token number">25.00</span>    <span class="token number">0.00</span>    <span class="token number">0.00</span>   <span class="token number">74.80</span>   <span class="token number">25.00</span>     <span class="token number">1</span>  stress
+<span class="token number">14</span>:23:30        <span class="token number">0</span>      <span class="token number">3193</span>   <span class="token number">25.00</span>    <span class="token number">0.00</span>    <span class="token number">0.00</span>   <span class="token number">75.00</span>   <span class="token number">25.00</span>     <span class="token number">1</span>  stress
+<span class="token number">14</span>:23:30        <span class="token number">0</span>      <span class="token number">3194</span>   <span class="token number">24.80</span>    <span class="token number">0.00</span>    <span class="token number">0.00</span>   <span class="token number">74.60</span>   <span class="token number">24.80</span>     <span class="token number">0</span>  stress
+<span class="token number">14</span>:23:30        <span class="token number">0</span>      <span class="token number">3195</span>   <span class="token number">24.80</span>    <span class="token number">0.00</span>    <span class="token number">0.00</span>   <span class="token number">75.00</span>   <span class="token number">24.80</span>     <span class="token number">0</span>  stress
+<span class="token number">14</span>:23:30        <span class="token number">0</span>      <span class="token number">3196</span>   <span class="token number">24.80</span>    <span class="token number">0.00</span>    <span class="token number">0.00</span>   <span class="token number">74.60</span>   <span class="token number">24.80</span>     <span class="token number">1</span>  stress
+<span class="token number">14</span>:23:30        <span class="token number">0</span>      <span class="token number">3197</span>   <span class="token number">24.80</span>    <span class="token number">0.00</span>    <span class="token number">0.00</span>   <span class="token number">74.80</span>   <span class="token number">24.80</span>     <span class="token number">1</span>  stress
+<span class="token number">14</span>:23:30        <span class="token number">0</span>      <span class="token number">3200</span>    <span class="token number">0.00</span>    <span class="token number">0.20</span>    <span class="token number">0.00</span>    <span class="token number">0.20</span>    <span class="token number">0.20</span>     <span class="token number">0</span>  pidstat<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p> 可以看出，8 个进程在争抢 2 个 CPU，每个进程等待 CPU 的时间（也就是代码块中的 %wait 列）高达 75%。这些超出 CPU 计算能力的进程，最终导致 CPU 过载。</p>
+</li>
 </ol>
-<p>平均负载提供了一个快速查看系统整体性能的手段，反映了整体的负载情况。但只看平均负载本身，我们并不能直接发现，到底是哪里出现了瓶颈。所以，在理解平均负载时，也要注意：</p>
+</li>
+</ol>
+<h4 id="2-5-小结"><a href="#2-5-小结" class="headerlink" title="2.5 小结"></a>2.5 小结</h4><p>平均负载提供了一个快速查看系统整体性能的手段，反映了整体的负载情况。但只看平均负载本身，我们并不能直接发现，到底是哪里出现了瓶颈。所以，在理解平均负载时，也要注意：</p>
 <ul>
 <li>平均负载高有可能是 CPU 密集型进程导致的；</li>
 <li>平均负载高并不一定代表 CPU 使用率高，还有可能是 I/O 更繁忙了；</li>
@@ -544,22 +616,27 @@
 </ul>
 <h3 id="03-基础篇：经常说的-CPU-上下文切换是什么意思？（上）"><a href="#03-基础篇：经常说的-CPU-上下文切换是什么意思？（上）" class="headerlink" title="03 | 基础篇：经常说的 CPU 上下文切换是什么意思？（上）"></a>03 | 基础篇：经常说的 CPU 上下文切换是什么意思？（上）</h3><p>进程在竞争 CPU 的时候并没有真正运行，但是 CPU 上下文切换会导致系统的负载升高。</p>
 <p>根据任务的不同，CPU 的上下文切换就可以分为几个不同的场景，也就是进程上下文切换、线程上下文切换以及中断上下文切换。</p>
-<h4 id="3-1-进程上下文切换"><a href="#3-1-进程上下文切换" class="headerlink" title="3.1 进程上下文切换"></a>3.1 进程上下文切换</h4><p>系统调用的过程会发生 CPU 上下文。</p>
-<p>CPU 寄存器里原来用户态的指令位置，需要先保存起来。接着，为了执行内核态代码，CPU 寄存器需要更新为内核态指令的新位置。最后才是跳转到内核态运行内核任务。</p>
-<p>而系统调用结束后，CPU 寄存器需要恢复原来保存的用户态，然后再切换到用户空间，继续运行进程。所以，一次系统调用的过程，其实是发生了两次 CPU 上下文切换。</p>
-<p>需要注意的是，系统调用过程中，并不会涉及到虚拟内存等进程用户态的资源，也不会切换进程。这跟我们通常所说的进程上下文切换是不一样的：</p>
+<h4 id="3-1-进程上下文切换"><a href="#3-1-进程上下文切换" class="headerlink" title="3.1 进程上下文切换"></a>3.1 进程上下文切换</h4><ol>
+<li><p>系统调用</p>
+<p> 系统调用的过程会发生 CPU 上下文。</p>
+<p> CPU 寄存器里原来用户态的指令位置，需要先保存起来。接着，为了执行内核态代码，CPU 寄存器需要更新为内核态指令的新位置。最后才是跳转到内核态运行内核任务。</p>
+<p> 而系统调用结束后，CPU 寄存器需要恢复原来保存的用户态，然后再切换到用户空间，继续运行进程。所以，一次系统调用的过程，其实是发生了两次 CPU 上下文切换。</p>
+<p> 需要注意的是，系统调用过程中，并不会涉及到虚拟内存等进程用户态的资源，也不会切换进程。这跟我们通常所说的进程上下文切换是不一样的：</p>
 <ul>
 <li>进程上下文切换，是指从一个进程切换到另一个进程运行。</li>
-<li>而系统调用过程中一直是同一个进程在运行。</li>
-</ul>
+<li><p>而系统调用过程中一直是同一个进程在运行。</p>
 <p><strong>所以，系统调用过程通常称为特权模式切换，而不是上下文切换。</strong></p>
-<p>进程上下文切换跟系统调用又有什么区别呢？</p>
-<p>进程是由内核来管理和调度的，进程的切换只能发生在内核态。所以，进程的上下文不仅包括了虚拟内存、栈、全局变量等用户空间的资源，还包括了内核堆栈、寄存器等内核空间的状态。</p>
-<p>因此，进程的上下文切换就比系统调用时多了一步：在保存当前进程的内核状态和 CPU 寄存器之前，需要先把该进程的虚拟内存、栈等保存下来；而加载了下一进程的内核态后，还需要刷新进程的虚拟内存和用户栈。</p>
-<p><img src="/images/《Linux性能优化实战》学习笔记/进程上下文切换.png" alt="进程上下文切换"></p>
-<p>根据 <a target="_blank" rel="noopener" href="https://blog.tsunanet.net/2010/11/how-long-does-it-take-to-make-context.html">How long does it take to make a context switch?</a> 的测试报告，每次上下文切换都需要几十纳秒到数微秒的 CPU 时间。</p>
-<p>另外， Linux 通过 TLB（Translation Lookaside Buffer）来管理虚拟内存到物理内存的映射关系。当虚拟内存更新后，TLB 也需要刷新，内存的访问也会随之变慢。特别是在多处理器系统上，缓存是被多个处理器共享的，刷新缓存不仅会影响当前处理器的进程，还会影响共享缓存的其他处理器的进程。</p>
-<p>进程在什么时候才会被调度到 CPU 上运行呢？</p>
+</li>
+</ul>
+</li>
+<li><p>进程上下文切换跟系统调用又有什么区别呢？</p>
+<p> 进程是由内核来管理和调度的，进程的切换只能发生在内核态。所以，进程的上下文不仅包括了虚拟内存、栈、全局变量等用户空间的资源，还包括了内核堆栈、寄存器等内核空间的状态。</p>
+<p> 因此，进程的上下文切换就比系统调用时多了一步：在保存当前进程的内核状态和 CPU 寄存器之前，需要先把该进程的虚拟内存、栈等保存下来；而加载了下一进程的内核态后，还需要刷新进程的虚拟内存和用户栈。</p>
+<p> <img src="/images/《Linux性能优化实战》学习笔记/进程上下文切换.png" alt="进程上下文切换"></p>
+<p> 根据 <a target="_blank" rel="noopener" href="https://blog.tsunanet.net/2010/11/how-long-does-it-take-to-make-context.html">How long does it take to make a context switch?</a> 的测试报告，每次上下文切换都需要几十纳秒到数微秒的 CPU 时间。</p>
+<p> 另外， Linux 通过 TLB（Translation Lookaside Buffer）来管理虚拟内存到物理内存的映射关系。当虚拟内存更新后，TLB 也需要刷新，内存的访问也会随之变慢。特别是在多处理器系统上，缓存是被多个处理器共享的，刷新缓存不仅会影响当前处理器的进程，还会影响共享缓存的其他处理器的进程。</p>
+</li>
+<li><p>进程在什么时候才会被调度到 CPU 上运行呢？</p>
 <ol>
 <li>进程执行完终止了，它之前使用的 CPU 会释放出来，这个时候再从就绪队列里，拿一个新的进程过来运行。</li>
 <li>当某个进程的时间片耗尽了，就会被系统挂起，切换到其它正在等待 CPU 的进程运行。</li>
@@ -567,6 +644,8 @@
 <li>当进程通过睡眠函数 sleep 这样的方法将自己主动挂起时，自然也会重新调度。</li>
 <li>当有优先级更高的进程运行时，为了保证高优先级进程的运行，当前进程会被挂起，由高优先级进程来运行。</li>
 <li>发生硬件中断时，CPU 上的进程会被中断挂起，转而执行内核中的中断服务程序。</li>
+</ol>
+</li>
 </ol>
 <h4 id="3-2-线程上下文切换"><a href="#3-2-线程上下文切换" class="headerlink" title="3.2 线程上下文切换"></a>3.2 线程上下文切换</h4><p>线程与进程最大的区别在于，<strong>线程是调度的基本单位，而进程则是资源拥有的基本单位</strong> 。内核中的任务调度，实际上的调度对象是线程；而进程只是给线程提供了虚拟内存、全局变量等资源。所以，对于线程和进程，可以这么理解：</p>
 <ul>
@@ -583,6 +662,134 @@
 <h4 id="3-3-中断上下文切换"><a href="#3-3-中断上下文切换" class="headerlink" title="3.3 中断上下文切换"></a>3.3 中断上下文切换</h4><p>为了快速响应硬件的事件，<strong>中断处理会打断进程的正常调度和执行</strong>，转而调用中断处理程序，响应设备事件。</p>
 <p>跟进程上下文不同，中断上下文切换并不涉及到进程的用户态。所以，即便中断过程打断了一个正处在用户态的进程，也不需要保存和恢复这个进程的虚拟内存、全局变量等用户态资源。中断上下文，其实只包括内核态中断服务程序执行所必需的状态，包括 CPU 寄存器、内核堆栈、硬件中断参数等。</p>
 <p>对同一个 CPU 来说，中断处理比进程拥有更高的优先级，所以中断上下文切换并不会与进程上下文切换同时发生。</p>
+<h3 id="04-基础篇：经常说的-CPU-上下文切换是什么意思？（下）"><a href="#04-基础篇：经常说的-CPU-上下文切换是什么意思？（下）" class="headerlink" title="04 | 基础篇：经常说的 CPU 上下文切换是什么意思？（下）"></a>04 | 基础篇：经常说的 CPU 上下文切换是什么意思？（下）</h3><h4 id="4-1-怎么查看系统的上下文切换情况"><a href="#4-1-怎么查看系统的上下文切换情况" class="headerlink" title="4.1 怎么查看系统的上下文切换情况"></a>4.1 怎么查看系统的上下文切换情况</h4><ol>
+<li><p>查看系统总体的上下文切换情况</p>
+<p> vmstat 是一个常用的系统性能分析工具，主要用来分析系统的内存使用情况，也常用来分析 CPU 上下文切换和中断的次数。</p>
+ <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token comment"># 每隔 5 秒输出 1 组数据</span>
+$ <span class="token function">vmstat</span> <span class="token number">5</span>
+procs -----------memory---------- ---swap-- -----io---- -system-- ------cpu-----
+ r  b   swpd   <span class="token function">free</span>   buff  cache   si   so    bi    bo   <span class="token keyword">in</span>   cs us sy <span class="token function">id</span> wa st
+ <span class="token number">0</span>  <span class="token number">0</span>      <span class="token number">0</span> <span class="token number">7005360</span>  <span class="token number">91564</span> <span class="token number">818900</span>    <span class="token number">0</span>    <span class="token number">0</span>     <span class="token number">0</span>     <span class="token number">0</span>   <span class="token number">25</span>   <span class="token number">33</span>  <span class="token number">0</span>  <span class="token number">0</span> <span class="token number">100</span>  <span class="token number">0</span>  <span class="token number">0</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p> 特别关注下面几列信息：</p>
+<ul>
+<li>cs（context switch）是每秒上下文切换的次数。</li>
+<li>in（interrupt）则是每秒中断的次数。</li>
+<li>r（Running or Runnable）是就绪队列的长度，也就是正在运行和等待 CPU 的进程数。</li>
+<li>b（Blocked）则是处于不可中断睡眠状态的进程数。</li>
+</ul>
+</li>
+<li><p>查看每个进程的上下文切换情况</p>
+<p> vmstat 只给出了系统总体的上下文切换情况，要想查看每个进程的详细情况，就需要使用我们前面提到过的 pidstat 了。给它加上 -w 选项，你就可以查看每个进程上下文切换的情况了。</p>
+ <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token comment"># 每隔 5 秒输出 1 组数据</span>
+$ pidstat -w <span class="token number">5</span>
+Linux <span class="token number">4.15</span>.0 <span class="token punctuation">(</span>ubuntu<span class="token punctuation">)</span>  09/23/18  _x86_64_  <span class="token punctuation">(</span><span class="token number">2</span> CPU<span class="token punctuation">)</span>
+
+08:18:26      <span class="token environment constant">UID</span>       PID   cswch/s nvcswch/s  Command
+08:18:31        <span class="token number">0</span>         <span class="token number">1</span>      <span class="token number">0.20</span>      <span class="token number">0.00</span>  systemd
+08:18:31        <span class="token number">0</span>         <span class="token number">8</span>      <span class="token number">5.40</span>      <span class="token number">0.00</span>  rcu_sched
+<span class="token punctuation">..</span>.<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p> 特别关注下面几列信息：</p>
+<ul>
+<li>cswch ，表示每秒自愿上下文切换（voluntary context switches）的次数。</li>
+<li><p>nvcswch ，表示每秒非自愿上下文切换（non voluntary context switches）的次数。</p>
+<p>它们会反应出不同的性能问题：</p>
+</li>
+<li><p>自愿上下文切换，是指进程无法获取所需资源，导致的上下文切换。比如说， I/O、内存等系统资源不足时，就会发生自愿上下文切换。</p>
+</li>
+<li>非自愿上下文切换，则是指进程由于时间片已到等原因，被系统强制调度，进而发生的上下文切换。比如说，大量进程都在争抢 CPU 时，就容易发生非自愿上下文切换。</li>
+</ul>
+</li>
+</ol>
+<h4 id="4-2-案例分析"><a href="#4-2-案例分析" class="headerlink" title="4.2 案例分析"></a>4.2 案例分析</h4><pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token function">apt</span> <span class="token function">install</span> sysbench sysstat<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<blockquote>
+<p>机器配置： 2 CPU, 8 GB 内存。</p>
+<p>安装软件：<code>apt install sysbench sysstat</code>。</p>
+</blockquote>
+<p>先用 vmstat 看一下空闲系统的上下文切换次数</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token comment"># 间隔 1 秒后输出 1 组数据</span>
+$ <span class="token function">vmstat</span> <span class="token number">1</span> <span class="token number">1</span>
+procs -----------memory---------- ---swap-- -----io---- -system-- ------cpu-----
+ r  b   swpd   <span class="token function">free</span>   buff  cache   si   so    bi    bo   <span class="token keyword">in</span>   cs us sy <span class="token function">id</span> wa st
+ <span class="token number">0</span>  <span class="token number">0</span>      <span class="token number">0</span> <span class="token number">6984064</span>  <span class="token number">92668</span> <span class="token number">830896</span>    <span class="token number">0</span>    <span class="token number">0</span>     <span class="token number">2</span>    <span class="token number">19</span>   <span class="token number">19</span>   <span class="token number">35</span>  <span class="token number">1</span>  <span class="token number">0</span> <span class="token number">99</span>  <span class="token number">0</span>  <span class="token number">0</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>可以看到，现在的上下文切换次数 cs 是 35，而中断次数 in 是 19，r 和 b 都是 0。因为这会儿没有运行其他任务，所以它们就是空闲系统的上下文切换次数。</p>
+<ol>
+<li><p>在第一个终端里运行 sysbench ，模拟系统多线程调度的瓶颈</p>
+ <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token comment"># 以 10 个线程运行 5 分钟的基准测试，模拟多线程切换的问题</span>
+$ sysbench --threads<span class="token operator">=</span><span class="token number">10</span> --max-time<span class="token operator">=</span><span class="token number">300</span> threads run<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre></li>
+<li><p>在第二个终端运行 vmstat ，观察上下文切换情况</p>
+ <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token comment"># 每隔 1 秒输出 1 组数据（需要 Ctrl+C 才结束）</span>
+$ <span class="token function">vmstat</span> <span class="token number">1</span>
+procs -----------memory---------- ---swap-- -----io---- -system-- ------cpu-----
+r  b   swpd   <span class="token function">free</span>   buff  cache   si   so    bi    bo   <span class="token keyword">in</span>   cs us sy <span class="token function">id</span> wa st
+<span class="token number">6</span>  <span class="token number">0</span>      <span class="token number">0</span> <span class="token number">6487428</span> <span class="token number">118240</span> <span class="token number">1292772</span>    <span class="token number">0</span>    <span class="token number">0</span>     <span class="token number">0</span>     <span class="token number">0</span> <span class="token number">9019</span> <span class="token number">1398830</span> <span class="token number">16</span> <span class="token number">84</span>  <span class="token number">0</span>  <span class="token number">0</span>  <span class="token number">0</span>
+<span class="token number">8</span>  <span class="token number">0</span>      <span class="token number">0</span> <span class="token number">6487428</span> <span class="token number">118240</span> <span class="token number">1292772</span>    <span class="token number">0</span>    <span class="token number">0</span>     <span class="token number">0</span>     <span class="token number">0</span> <span class="token number">10191</span> <span class="token number">1392312</span> <span class="token number">16</span> <span class="token number">84</span>  <span class="token number">0</span>  <span class="token number">0</span>  <span class="token number">0</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p> 可以发现，cs 列的上下文切换次数从之前的 35 骤然上升到了 139 万。同时，注意观察其他几个指标：</p>
+<ul>
+<li>r 列：就绪队列的长度已经到了 8，远远超过了系统 CPU 的个数 2，所以肯定会有大量的 CPU 竞争。</li>
+<li>us（user）和 sy（system）列：这两列的 CPU 使用率加起来上升到了 100%，其中系统 CPU 使用率，也就是 sy 列高达 84%，说明 CPU 主要是被内核占用了。</li>
+<li><p>in 列：中断次数也上升到了 1 万左右，说明中断处理也是个潜在的问题。</p>
+<p>综合这几个指标，我们可以知道，系统的就绪队列过长，也就是正在运行和等待 CPU 的进程数过多，导致了大量的上下文切换，而上下文切换又导致了系统 CPU 的占用率升高。</p>
+<p>那么到底是什么进程导致了这些问题呢？</p>
+</li>
+</ul>
+</li>
+<li><p>在第三个终端再用 pidstat 来看一下， CPU 和进程上下文切换的情况</p>
+ <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token comment"># 每隔 1 秒输出 1 组数据（需要 Ctrl+C 才结束）</span>
+<span class="token comment"># -w 参数表示输出进程切换指标，而 -u 参数则表示输出 CPU 使用指标</span>
+$ pidstat -w -u <span class="token number">1</span>
+08:06:33      <span class="token environment constant">UID</span>       PID    %usr %system  %guest   %wait    %CPU   CPU  Command
+08:06:34        <span class="token number">0</span>     <span class="token number">10488</span>   <span class="token number">30.00</span>  <span class="token number">100.00</span>    <span class="token number">0.00</span>    <span class="token number">0.00</span>  <span class="token number">100.00</span>     <span class="token number">0</span>  sysbench
+08:06:34        <span class="token number">0</span>     <span class="token number">26326</span>    <span class="token number">0.00</span>    <span class="token number">1.00</span>    <span class="token number">0.00</span>    <span class="token number">0.00</span>    <span class="token number">1.00</span>     <span class="token number">0</span>  kworker/u4:2
+
+08:06:33      <span class="token environment constant">UID</span>       PID   cswch/s nvcswch/s  Command
+08:06:34        <span class="token number">0</span>         <span class="token number">8</span>     <span class="token number">11.00</span>      <span class="token number">0.00</span>  rcu_sched
+08:06:34        <span class="token number">0</span>        <span class="token number">16</span>      <span class="token number">1.00</span>      <span class="token number">0.00</span>  ksoftirqd/1
+08:06:34        <span class="token number">0</span>       <span class="token number">471</span>      <span class="token number">1.00</span>      <span class="token number">0.00</span>  hv_balloon
+08:06:34        <span class="token number">0</span>      <span class="token number">1230</span>      <span class="token number">1.00</span>      <span class="token number">0.00</span>  iscsid
+08:06:34        <span class="token number">0</span>      <span class="token number">4089</span>      <span class="token number">1.00</span>      <span class="token number">0.00</span>  kworker/1:5
+08:06:34        <span class="token number">0</span>      <span class="token number">4333</span>      <span class="token number">1.00</span>      <span class="token number">0.00</span>  kworker/0:3
+08:06:34        <span class="token number">0</span>     <span class="token number">10499</span>      <span class="token number">1.00</span>    <span class="token number">224.00</span>  pidstat
+08:06:34        <span class="token number">0</span>     <span class="token number">26326</span>    <span class="token number">236.00</span>      <span class="token number">0.00</span>  kworker/u4:2
+08:06:34     <span class="token number">1000</span>     <span class="token number">26784</span>    <span class="token number">223.00</span>      <span class="token number">0.00</span>  sshd<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p> 从 pidstat 的输出你可以发现，CPU 使用率的升高果然是 sysbench 导致的，它的 CPU 使用率已经达到了 100%。但上下文切换则是来自其他进程，包括非自愿上下文切换频率最高的 pidstat ，以及自愿上下文切换频率最高的内核线程 kworker 和 sshd。</p>
+<p> 不过，细心的你肯定也发现了一个怪异的事儿：pidstat 输出的上下文切换次数，加起来也就几百，比 vmstat 的 139 万明显小了太多。</p>
+<p> 通过运行 man pidstat ，你会发现，pidstat 默认显示进程的指标数据，加上 -t 参数后，才会输出线程的指标。</p>
+<p> 所以，在第三个终端里， Ctrl+C 停止刚才的 pidstat 命令，再加上 -t 参数，重试一下看看：</p>
+ <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token comment"># 每隔 1 秒输出一组数据（需要 Ctrl+C 才结束）</span>
+<span class="token comment"># -wt 参数表示输出线程的上下文切换指标</span>
+$ pidstat -wt <span class="token number">1</span>
+08:14:05      <span class="token environment constant">UID</span>      TGID       TID   cswch/s nvcswch/s  Command
+<span class="token punctuation">..</span>.
+08:14:05        <span class="token number">0</span>     <span class="token number">10551</span>         -      <span class="token number">6.00</span>      <span class="token number">0.00</span>  sysbench
+08:14:05        <span class="token number">0</span>         -     <span class="token number">10551</span>      <span class="token number">6.00</span>      <span class="token number">0.00</span>  <span class="token operator">|</span>__sysbench
+08:14:05        <span class="token number">0</span>         -     <span class="token number">10552</span>  <span class="token number">18911.00</span> <span class="token number">103740.00</span>  <span class="token operator">|</span>__sysbench
+08:14:05        <span class="token number">0</span>         -     <span class="token number">10553</span>  <span class="token number">18915.00</span> <span class="token number">100955.00</span>  <span class="token operator">|</span>__sysbench
+08:14:05        <span class="token number">0</span>         -     <span class="token number">10554</span>  <span class="token number">18827.00</span> <span class="token number">103954.00</span>  <span class="token operator">|</span>__sysbench
+<span class="token punctuation">..</span>.<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p> 现在你就能看到了，虽然 sysbench 进程（也就是主线程）的上下文切换次数看起来并不多，但它的子线程的上下文切换次数却有很多。看来，上下文切换罪魁祸首，还是过多的 sysbench 线程。</p>
+<p> 在观察系统指标时，除了上下文切换频率骤然升高，还有一个指标也有很大的变化。是的，正是中断次数。中断次数也上升到了 1 万，但到底是什么类型的中断上升了？</p>
+<p> 既然是中断，我们都知道，它只发生在内核态，而 pidstat 只是一个进程的性能分析工具，并不提供任何关于中断的详细信息，怎样才能知道中断发生的类型呢？</p>
+<p> 没错，那就是从 /proc/interrupts 这个只读文件中读取。/proc 实际上是 Linux 的一个虚拟文件系统，用于内核空间与用户空间之间的通信。/proc/interrupts 就是这种通信机制的一部分，提供了一个只读的中断使用情况。</p>
+<p> 在第三个终端里， Ctrl+C 停止刚才的 pidstat 命令，然后运行下面的命令，观察中断的变化情况：</p>
+ <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token comment"># -d 参数表示高亮显示变化的区域</span>
+$ <span class="token function">watch</span> -d <span class="token function">cat</span> /proc/interrupts
+        CPU0       CPU1
+<span class="token punctuation">..</span>.
+RES:    <span class="token number">2450431</span>    <span class="token number">5279697</span>   Rescheduling interrupts
+<span class="token punctuation">..</span>.<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p> 观察一段时间，你可以发现，变化速度最快的是重调度中断（RES），这个中断类型表示，唤醒空闲状态的 CPU 来调度新的任务运行。这是多处理器系统（SMP）中，调度器用来分散任务到不同 CPU 的机制，通常也被称为处理器间中断（Inter-Processor Interrupts，IPI）。</p>
+<p> 所以，这里的中断升高还是因为过多任务的调度问题，跟前面上下文切换次数的分析结果是一致的。</p>
+<p> 通过这个案例，你应该也发现了多工具、多方面指标对比观测的好处。如果最开始时，我们只用了 pidstat 观测，这些很严重的上下文切换线程，压根儿就发现不了了。</p>
+<p> 现在再回到最初的问题，每秒上下文切换多少次才算正常呢？</p>
+<p> 这个数值其实取决于系统本身的 CPU 性能。在我看来，如果系统的上下文切换次数比较稳定，那么从数百到一万以内，都应该算是正常的。但当上下文切换次数超过一万次，或者切换次数出现数量级的增长时，就很可能已经出现了性能问题。</p>
+<p> 这时，你还需要根据上下文切换的类型，再做具体分析。比方说：</p>
+<ul>
+<li>自愿上下文切换变多了，说明进程都在等待资源，有可能发生了 I/O 等其他问题；</li>
+<li>非自愿上下文切换变多了，说明进程都在被强制调度，也就是都在争抢 CPU，说明 CPU 的确成了瓶颈；</li>
+<li>中断次数变多了，说明 CPU 被中断处理程序占用，还需要通过查看 /proc/interrupts 文件来分析具体的中断类型。</li>
+</ul>
+</li>
+</ol>
 
                 
             </div>
@@ -984,7 +1191,7 @@
             <br>
             
             &nbsp;<i class="fas fa-chart-area"></i>&nbsp;站点总字数:&nbsp;<span
-                class="white-color">233.5k</span>&nbsp;字
+                class="white-color">236.9k</span>&nbsp;字
             
             
             
