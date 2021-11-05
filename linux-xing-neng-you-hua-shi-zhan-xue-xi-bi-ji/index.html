@@ -442,14 +442,14 @@
                 
                 <div class="info-break-policy">
                     <i class="far fa-file-word fa-fw"></i>文章字数:&nbsp;&nbsp;
-                    58.2k
+                    66.4k
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-clock fa-fw"></i>阅读时长:&nbsp;&nbsp;
-                    226 分
+                    256 分
                 </div>
                 
 
@@ -3005,6 +3005,275 @@ cachestat<span aria-hidden="true" class="line-numbers-rows"><span></span><span><
 <p>很多同学留言写下了自己的想法，都很不错。这里，我重点表扬下郭江伟同学，他给出的方法非常好：</p>
 <p>他的思路是不用动态内存分配的方法，而是用数组来暂存计算结果。这样就可以由系统自动管理这些栈内存，也不存在内存泄漏的问题了。</p>
 <p>这种减少动态内存分配的思路，除了可以解决内存泄漏问题，其实也是常用的内存优化方法。比如，在需要大量内存的场景中，你就可以考虑用栈内存、内存池、HugePage 等方法，来优化内存的分配和管理。</p>
+<h2 id="04-I-O-性能篇"><a href="#04-I-O-性能篇" class="headerlink" title="04-I-O 性能篇"></a><strong>04-I-O 性能篇</strong></h2><h3 id="23-基础篇：Linux-文件系统是怎么工作的？"><a href="#23-基础篇：Linux-文件系统是怎么工作的？" class="headerlink" title="23 | 基础篇：Linux 文件系统是怎么工作的？"></a>23 | 基础篇：Linux 文件系统是怎么工作的？</h3><h4 id="23-1-索引节点和目录项"><a href="#23-1-索引节点和目录项" class="headerlink" title="23.1 索引节点和目录项"></a>23.1 索引节点和目录项</h4><p>文件系统，本身是对存储设备上的文件，进行组织管理的机制。组织方式不同，就会形成不同的文件系统。</p>
+<p>你要记住最重要的一点，在 Linux 中一切皆文件。不仅普通的文件和目录，就连块设备、套接字、管道等，也都要通过统一的文件系统来管理。</p>
+<p>为了方便管理，Linux 文件系统为每个文件都分配两个数据结构，索引节点（index node）和目录项（directory entry）。它们主要用来记录文件的元信息和目录结构。</p>
+<ul>
+<li>索引节点，简称为 inode，用来记录文件的元数据，比如 inode 编号、文件大小、访问权限、修改日期、数据的位置等。索引节点和文件一一对应，它跟文件内容一样，都会被持久化存储到磁盘中。所以记住，索引节点同样占用磁盘空间。</li>
+<li>目录项，简称为 dentry，用来记录文件的名字、索引节点指针以及与其他目录项的关联关系。多个关联的目录项，就构成了文件系统的目录结构。不过，不同于索引节点，目录项是由内核维护的一个内存数据结构，所以通常也被叫做目录项缓存。</li>
+</ul>
+<p>换句话说，索引节点是每个文件的唯一标志，而目录项维护的正是文件系统的树状结构。目录项和索引节点的关系是多对一，你可以简单理解为，一个文件可以有多个别名。</p>
+<p>举个例子，通过硬链接为文件创建的别名，就会对应不同的目录项，不过这些目录项本质上还是链接同一个文件，所以，它们的索引节点相同。</p>
+<p>索引节点和目录项纪录了文件的元数据，以及文件间的目录关系，那么具体来说，文件数据到底是怎么存储的呢？是不是直接写到磁盘中就好了呢？</p>
+<p>实际上，磁盘读写的最小单位是扇区，然而扇区只有 512B 大小，如果每次都读写这么小的单位，效率一定很低。所以，文件系统又把连续的扇区组成了逻辑块，然后每次都以逻辑块为最小单元，来管理数据。常见的逻辑块大小为 4KB，也就是由连续的 8 个扇区组成。</p>
+<p>为了帮助你理解目录项、索引节点以及文件数据的关系，我画了一张示意图。你可以对照着这张图，来回忆刚刚讲过的内容，把知识和细节串联起来。</p>
+<p><img src="/images/《Linux性能优化实战》学习笔记/目录项、索引节点以及文件数据的关系.png" alt="目录项、索引节点以及文件数据的关系"></p>
+<p>不过，这里有两点需要你注意。</p>
+<ol>
+<li><p>第一，目录项本身就是一个内存缓存，而索引节点则是存储在磁盘中的数据。在前面的 Buffer 和 Cache 原理中，我曾经提到过，为了协调慢速磁盘与快速 CPU 的性能差异，文件内容会缓存到页缓存 Cache 中。</p>
+<p> 那么，你应该想到，这些索引节点自然也会缓存到内存中，加速文件的访问。</p>
+</li>
+<li><p>第二，磁盘在执行文件系统格式化时，会被分成三个存储区域，超级块、索引节点区和数据块区。其中，</p>
+<ul>
+<li>超级块，存储整个文件系统的状态。</li>
+<li>索引节点区，用来存储索引节点。</li>
+<li>数据块区，则用来存储文件数据。</li>
+</ul>
+</li>
+</ol>
+<h4 id="23-2-虚拟文件系统"><a href="#23-2-虚拟文件系统" class="headerlink" title="23.2 虚拟文件系统"></a>23.2 虚拟文件系统</h4><p>目录项、索引节点、逻辑块以及超级块，构成了 Linux 文件系统的四大基本要素。不过，为了支持各种不同的文件系统，Linux 内核在用户进程和文件系统的中间，又引入了一个抽象层，也就是虚拟文件系统 VFS（Virtual File System）。</p>
+<p>VFS 定义了一组所有文件系统都支持的数据结构和标准接口。这样，用户进程和内核中的其他子系统，只需要跟 VFS 提供的统一接口进行交互就可以了，而不需要再关心底层各种文件系统的实现细节。</p>
+<p>这里，我画了一张 Linux 文件系统的架构图，帮你更好地理解系统调用、VFS、缓存、文件系统以及块存储之间的关系。</p>
+<p><img src="/images/《Linux性能优化实战》学习笔记/Linux文件系统的架构图.png" alt="Linux文件系统的架构图"></p>
+<p>通过这张图，你可以看到，在 VFS 的下方，Linux 支持各种各样的文件系统，如 Ext4、XFS、NFS 等等。按照存储位置的不同，这些文件系统可以分为三类。</p>
+<ol>
+<li>第一类是基于磁盘的文件系统，也就是把数据直接存储在计算机本地挂载的磁盘中。常见的 Ext4、XFS、OverlayFS 等，都是这类文件系统。</li>
+<li>第二类是基于内存的文件系统，也就是我们常说的虚拟文件系统。这类文件系统，不需要任何磁盘分配存储空间，但会占用内存。我们经常用到的 /proc 文件系统，其实就是一种最常见的虚拟文件系统。此外，/sys 文件系统也属于这一类，主要向用户空间导出层次化的内核对象。</li>
+<li>第三类是网络文件系统，也就是用来访问其他计算机数据的文件系统，比如 NFS、SMB、iSCSI 等。</li>
+</ol>
+<p>这些文件系统，要先挂载到 VFS 目录树中的某个子目录（称为挂载点），然后才能访问其中的文件。拿第一类，也就是基于磁盘的文件系统为例，在安装系统时，要先挂载一个根目录（/），在根目录下再把其他文件系统（比如其他的磁盘分区、/proc 文件系统、/sys 文件系统、NFS 等）挂载进来。</p>
+<h4 id="23-3-文件系统-I-O"><a href="#23-3-文件系统-I-O" class="headerlink" title="23.3 文件系统 I/O"></a>23.3 文件系统 I/O</h4><p>把文件系统挂载到挂载点后，你就能通过挂载点，再去访问它管理的文件了。VFS 提供了一组标准的文件访问接口。这些接口以系统调用的方式，提供给应用程序使用。</p>
+<p>就拿 cat 命令来说，它首先调用 open() ，打开一个文件；然后调用 read() ，读取文件的内容；最后再调用 write() ，把文件内容输出到控制台的标准输出中：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">int open<span class="token punctuation">(</span>const char *pathname, int flags, mode_t mode<span class="token punctuation">)</span><span class="token punctuation">;</span>
+ssize_t read<span class="token punctuation">(</span>int fd, void *buf, size_t count<span class="token punctuation">)</span><span class="token punctuation">;</span>
+ssize_t write<span class="token punctuation">(</span>int fd, const void *buf, size_t count<span class="token punctuation">)</span><span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span></span></code></pre>
+<p>文件读写方式的各种差异，导致 I/O 的分类多种多样。最常见的有，缓冲与非缓冲 I/O、直接与非直接 I/O、阻塞与非阻塞 I/O、同步与异步 I/O 等。 接下来，我们就详细看这四种分类。</p>
+<ol>
+<li><p>第一种，根据是否利用标准库缓存，可以把文件 I/O 分为缓冲 I/O 与非缓冲 I/O。</p>
+<ul>
+<li>缓冲 I/O，是指利用标准库缓存来加速文件的访问，而标准库内部再通过系统调度访问文件。</li>
+<li><p>非缓冲 I/O，是指直接通过系统调用来访问文件，不再经过标准库缓存。</p>
+<p>注意，这里所说的“缓冲”，是指标准库内部实现的缓存。比方说，你可能见到过，很多程序遇到换行时才真正输出，而换行前的内容，其实就是被标准库暂时缓存了起来。</p>
+<p>无论缓冲 I/O 还是非缓冲 I/O，它们最终还是要经过系统调用来访问文件。而根据上一节内容，我们知道，系统调用后，还会通过页缓存，来减少磁盘的 I/O 操作。</p>
+</li>
+</ul>
+</li>
+<li><p>第二，根据是否利用操作系统的页缓存，可以把文件 I/O 分为直接 I/O 与非直接 I/O。</p>
+<ul>
+<li>直接 I/O，是指跳过操作系统的页缓存，直接跟文件系统交互来访问文件。</li>
+<li><p>非直接 I/O 正好相反，文件读写时，先要经过系统的页缓存，然后再由内核或额外的系统调用，真正写入磁盘。</p>
+<p>想要实现直接 I/O，需要你在系统调用中，指定 O_DIRECT 标志。如果没有设置过，默认的是非直接 I/O。</p>
+<p>不过要注意，直接 I/O、非直接 I/O，本质上还是和文件系统交互。如果是在数据库等场景中，你还会看到，跳过文件系统读写磁盘的情况，也就是我们通常所说的裸 I/O。</p>
+</li>
+</ul>
+</li>
+<li><p>第三，根据应用程序是否阻塞自身运行，可以把文件 I/O 分为阻塞 I/O 和非阻塞 I/O：</p>
+<ul>
+<li>所谓阻塞 I/O，是指应用程序执行 I/O 操作后，如果没有获得响应，就会阻塞当前线程，自然就不能执行其他任务。</li>
+<li><p>所谓非阻塞 I/O，是指应用程序执行 I/O 操作后，不会阻塞当前的线程，可以继续执行其他的任务，随后再通过轮询或者事件通知的形式，获取调用的结果。</p>
+<p>比方说，访问管道或者网络套接字时，设置 O_NONBLOCK 标志，就表示用非阻塞方式访问；而如果不做任何设置，默认的就是阻塞访问。</p>
+</li>
+</ul>
+</li>
+<li><p>第四，根据是否等待响应结果，可以把文件 I/O 分为同步和异步 I/O：</p>
+<ul>
+<li>所谓同步 I/O，是指应用程序执行 I/O 操作后，要一直等到整个 I/O 完成后，才能获得 I/O 响应。</li>
+<li><p>所谓异步 I/O，是指应用程序执行 I/O 操作后，不用等待完成和完成后的响应，而是继续执行就可以。等到这次 I/O 完成后，响应会用事件通知的方式，告诉应用程序。</p>
+<p>举个例子，在操作文件时，如果你设置了 O_SYNC 或者 O_DSYNC 标志，就代表同步 I/O。如果设置了 O_DSYNC，就要等文件数据写入磁盘后，才能返回；而 O_SYNC，则是在 O_DSYNC 基础上，要求文件元数据也要写入磁盘后，才能返回。</p>
+<p>再比如，在访问管道或者网络套接字时，设置了 O_ASYNC 选项后，相应的 I/O 就是异步 I/O。这样，内核会再通过 SIGIO 或者 SIGPOLL，来通知进程文件是否可读写。</p>
+</li>
+</ul>
+</li>
+</ol>
+<p>你也应该可以理解，“Linux 一切皆文件”的深刻含义。无论是普通文件和块设备、还是网络套接字和管道等，它们都通过统一的 VFS 接口来访问。</p>
+<h4 id="23-4-性能观测"><a href="#23-4-性能观测" class="headerlink" title="23.4 性能观测"></a>23.4 性能观测</h4><p>观察一下文件系统的性能情况。</p>
+<ol>
+<li><p>容量。</p>
+<p> 对文件系统来说，最常见的一个问题就是空间不足。当然，你可能本身就知道，用 df 命令，就能查看文件系统的磁盘空间使用情况。比如：</p>
+ <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ <span class="token function">df</span> /dev/sda1
+Filesystem     1K-blocks    Used Available Use% Mounted on
+/dev/sda1       <span class="token number">30308240</span> <span class="token number">3167020</span>  <span class="token number">27124836</span>  <span class="token number">11</span>% /<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span></span></code></pre>
+<p> 你可以看到，我的根文件系统只使用了 11% 的空间。这里还要注意，总空间用 1K-blocks 的数量来表示，你可以给 df 加上 -h 选项，以获得更好的可读性：</p>
+ <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ <span class="token function">df</span> -h /dev/sda1
+Filesystem      Size  Used Avail Use% Mounted on
+/dev/sda1        29G  <span class="token number">3</span>.1G   26G  <span class="token number">11</span>% /<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span></span></code></pre>
+<p> 不过有时候，明明你碰到了空间不足的问题，可是用 df 查看磁盘空间后，却发现剩余空间还有很多。这是怎么回事呢？</p>
+<p> 不知道你还记不记得，刚才我强调的一个细节。除了文件数据，索引节点也占用磁盘空间。你可以给 df 命令加上 -i 参数，查看索引节点的使用情况，如下所示：</p>
+ <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ <span class="token function">df</span> -i /dev/sda1
+Filesystem      Inodes  IUsed   IFree IUse% Mounted on
+/dev/sda1      <span class="token number">3870720</span> <span class="token number">157460</span> <span class="token number">3713260</span>    <span class="token number">5</span>% /<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span></span></code></pre>
+<p> 索引节点的容量，（也就是 Inode 个数）是在格式化磁盘时设定好的，一般由格式化工具自动生成。当你发现索引节点空间不足，但磁盘空间充足时，很可能就是过多小文件导致的。</p>
+<p> 所以，一般来说，删除这些小文件，或者把它们移动到索引节点充足的其他磁盘中，就可以解决这个问题。</p>
+</li>
+<li><p>缓存</p>
+<p> free 输出的 Cache，是页缓存和可回收 Slab 缓存的和，你可以从 /proc/meminfo ，直接得到它们的大小：</p>
+ <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ <span class="token function">cat</span> /proc/meminfo <span class="token operator">|</span> <span class="token function">grep</span> -E <span class="token string">"SReclaimable|Cached"</span>
+Cached:           <span class="token number">748316</span> kB
+SwapCached:            <span class="token number">0</span> kB
+SReclaimable:     <span class="token number">179508</span> kB<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span></span></code></pre>
+<p> 话说回来，文件系统中的目录项和索引节点缓存，又该如何观察呢？</p>
+<p> 实际上，内核使用 Slab 机制，管理目录项和索引节点的缓存。/proc/meminfo 只给出了 Slab 的整体大小，具体到每一种 Slab 缓存，还要查看 /proc/slabinfo 这个文件。</p>
+<p> 比如，运行下面的命令，你就可以得到，所有目录项和各种文件系统索引节点的缓存情况：</p>
+ <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ <span class="token function">cat</span> /proc/slabinfo <span class="token operator">|</span> <span class="token function">grep</span> -E <span class="token string">'^#|dentry|inode'</span>
+<span class="token comment"># name            &lt;active_objs&gt; &lt;num_objs&gt; &lt;objsize&gt; &lt;objperslab&gt; &lt;pagesperslab&gt; : tunables &lt;limit&gt; &lt;batchcount&gt; &lt;sharedfactor&gt; : slabdata &lt;active_slabs&gt; &lt;num_slabs&gt;     &lt;sharedavail&gt;</span>
+xfs_inode              <span class="token number">0</span>      <span class="token number">0</span>    <span class="token number">960</span>   <span class="token number">17</span>    <span class="token number">4</span> <span class="token builtin class-name">:</span> tunables    <span class="token number">0</span>    <span class="token number">0</span>    <span class="token number">0</span> <span class="token builtin class-name">:</span> slabdata      <span class="token number">0</span>      <span class="token number">0</span>      <span class="token number">0</span>
+<span class="token punctuation">..</span>.
+ext4_inode_cache   <span class="token number">32104</span>  <span class="token number">34590</span>   <span class="token number">1088</span>   <span class="token number">15</span>    <span class="token number">4</span> <span class="token builtin class-name">:</span> tunables    <span class="token number">0</span>    <span class="token number">0</span>    <span class="token number">0</span> <span class="token builtin class-name">:</span> slabdata   <span class="token number">2306</span>   <span class="token number">2306</span>      0hugetlbfs_inode_cache     <span class="token number">13</span>     <span class="token number">13</span>    <span class="token number">624</span>   <span class="token number">13</span>    <span class="token number">2</span> <span class="token builtin class-name">:</span> tunables        <span class="token number">0</span>    <span class="token number">0</span>    <span class="token number">0</span> <span class="token builtin class-name">:</span> slabdata      <span class="token number">1</span>      <span class="token number">1</span>      <span class="token number">0</span>
+sock_inode_cache    <span class="token number">1190</span>   <span class="token number">1242</span>    <span class="token number">704</span>   <span class="token number">23</span>    <span class="token number">4</span> <span class="token builtin class-name">:</span> tunables    <span class="token number">0</span>    <span class="token number">0</span>    <span class="token number">0</span> <span class="token builtin class-name">:</span> slabdata     <span class="token number">54</span>     <span class="token number">54</span>      <span class="token number">0</span>
+shmem_inode_cache   <span class="token number">1622</span>   <span class="token number">2139</span>    <span class="token number">712</span>   <span class="token number">23</span>    <span class="token number">4</span> <span class="token builtin class-name">:</span> tunables    <span class="token number">0</span>    <span class="token number">0</span>    <span class="token number">0</span> <span class="token builtin class-name">:</span> slabdata     <span class="token number">93</span>     <span class="token number">93</span>      <span class="token number">0</span>
+proc_inode_cache    <span class="token number">3560</span>   <span class="token number">4080</span>    <span class="token number">680</span>   <span class="token number">12</span>    <span class="token number">2</span> <span class="token builtin class-name">:</span> tunables    <span class="token number">0</span>    <span class="token number">0</span>    <span class="token number">0</span> <span class="token builtin class-name">:</span> slabdata    <span class="token number">340</span>    <span class="token number">340</span>      <span class="token number">0</span>
+inode_cache        <span class="token number">25172</span>  <span class="token number">25818</span>    <span class="token number">608</span>   <span class="token number">13</span>    <span class="token number">2</span> <span class="token builtin class-name">:</span> tunables    <span class="token number">0</span>    <span class="token number">0</span>    <span class="token number">0</span> <span class="token builtin class-name">:</span> slabdata   <span class="token number">1986</span>   <span class="token number">1986</span>      <span class="token number">0</span>
+dentry             <span class="token number">76050</span> <span class="token number">121296</span>    <span class="token number">192</span>   <span class="token number">21</span>    <span class="token number">1</span> <span class="token builtin class-name">:</span> tunables    <span class="token number">0</span>    <span class="token number">0</span>    <span class="token number">0</span> <span class="token builtin class-name">:</span> slabdata   <span class="token number">5776</span>   <span class="token number">5776</span>      <span class="token number">0</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p> 这个界面中，dentry 行表示目录项缓存，inode_cache 行，表示 VFS 索引节点缓存，其余的则是各种文件系统的索引节点缓存。</p>
+<p> /proc/slabinfo 的列比较多，具体含义你可以查询 man slabinfo。在实际性能分析中，我们更常使用 slabtop ，来找到占用内存最多的缓存类型。</p>
+<p> 比如，下面就是我运行 slabtop 得到的结果：</p>
+ <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token comment"># 按下 c 按照缓存大小排序，按下 a 按照活跃对象数排序</span>
+$ slabtop
+Active / Total Objects <span class="token punctuation">(</span>% used<span class="token punctuation">)</span>    <span class="token builtin class-name">:</span> <span class="token number">277970</span> / <span class="token number">358914</span> <span class="token punctuation">(</span><span class="token number">77.4</span>%<span class="token punctuation">)</span>
+Active / Total Slabs <span class="token punctuation">(</span>% used<span class="token punctuation">)</span>      <span class="token builtin class-name">:</span> <span class="token number">12414</span> / <span class="token number">12414</span> <span class="token punctuation">(</span><span class="token number">100.0</span>%<span class="token punctuation">)</span>
+Active / Total Caches <span class="token punctuation">(</span>% used<span class="token punctuation">)</span>     <span class="token builtin class-name">:</span> <span class="token number">83</span> / <span class="token number">135</span> <span class="token punctuation">(</span><span class="token number">61.5</span>%<span class="token punctuation">)</span>
+Active / Total Size <span class="token punctuation">(</span>% used<span class="token punctuation">)</span>       <span class="token builtin class-name">:</span> <span class="token number">57816</span>.88K / <span class="token number">73307</span>.70K <span class="token punctuation">(</span><span class="token number">78.9</span>%<span class="token punctuation">)</span>
+Minimum / Average / Maximum Object <span class="token builtin class-name">:</span> <span class="token number">0</span>.01K / <span class="token number">0</span>.20K / <span class="token number">22</span>.88K
+
+ OBJS ACTIVE  USE OBJ SIZE  SLABS OBJ/SLAB CACHE SIZE NAME
+<span class="token number">69804</span>  <span class="token number">23094</span>   <span class="token number">0</span>%    <span class="token number">0</span>.19K   <span class="token number">3324</span>       <span class="token number">21</span>     13296K dentry
+<span class="token number">16380</span>  <span class="token number">15854</span>   <span class="token number">0</span>%    <span class="token number">0</span>.59K   <span class="token number">1260</span>       <span class="token number">13</span>     10080K inode_cache
+<span class="token number">58260</span>  <span class="token number">55397</span>   <span class="token number">0</span>%    <span class="token number">0</span>.13K   <span class="token number">1942</span>       <span class="token number">30</span>      7768K kernfs_node_cache
+  <span class="token number">485</span>    <span class="token number">413</span>   <span class="token number">0</span>%    <span class="token number">5</span>.69K     <span class="token number">97</span>        <span class="token number">5</span>      3104K task_struct
+ <span class="token number">1472</span>   <span class="token number">1397</span>   <span class="token number">0</span>%    <span class="token number">2</span>.00K     <span class="token number">92</span>       <span class="token number">16</span>      2944K kmalloc-2048<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p> 从这个结果你可以看到，在我的系统中，目录项和索引节点占用了最多的 Slab 缓存。不过它们占用的内存其实并不大，加起来也只有 23MB 左右。</p>
+</li>
+</ol>
+<h3 id="24-基础篇：Linux-磁盘I-O是怎么工作的（上）"><a href="#24-基础篇：Linux-磁盘I-O是怎么工作的（上）" class="headerlink" title="24 | 基础篇：Linux 磁盘I/O是怎么工作的（上）"></a>24 | 基础篇：Linux 磁盘I/O是怎么工作的（上）</h3><p>回顾一下，文件系统是对存储设备上的文件，进行组织管理的一种机制。而 Linux 在各种文件系统实现上，又抽象了一层虚拟文件系统 VFS，它定义了一组，所有文件系统都支持的，数据结构和标准接口。</p>
+<p>这样，对应用程序来说，只需要跟 VFS 提供的统一接口交互，而不需要关注文件系统的具体实现；对具体的文件系统来说，只需要按照 VFS 的标准，就可以无缝支持各种应用程序。</p>
+<p>VFS 内部又通过目录项、索引节点、逻辑块以及超级块等数据结构，来管理文件。</p>
+<ul>
+<li>目录项，记录了文件的名字，以及文件与其他目录项之间的目录关系。</li>
+<li>索引节点，记录了文件的元数据。</li>
+<li>逻辑块，是由连续磁盘扇区构成的最小读写单元，用来存储文件数据。</li>
+<li>超级块，用来记录文件系统整体的状态，如索引节点和逻辑块的使用情况等。</li>
+</ul>
+<p>其中，目录项是一个内存缓存；而超级块、索引节点和逻辑块，都是存储在磁盘中的持久化数据。</p>
+<p>接下来，我就带你一起看看， Linux 磁盘 I/O 的工作原理。</p>
+<h4 id="24-1-磁盘"><a href="#24-1-磁盘" class="headerlink" title="24.1 磁盘"></a>24.1 磁盘</h4><p>磁盘是可以持久化存储的设备，根据存储介质的不同，常见磁盘可以分为两类：机械磁盘和固态磁盘。</p>
+<p>第一类，机械磁盘，也称为硬盘驱动器（Hard Disk Driver），通常缩写为 HDD。机械磁盘主要由盘片和读写磁头组成，数据就存储在盘片的环状磁道中。在读写数据前，需要移动读写磁头，定位到数据所在的磁道，然后才能访问数据。</p>
+<p>显然，如果 I/O 请求刚好连续，那就不需要磁道寻址，自然可以获得最佳性能。这其实就是我们熟悉的，连续 I/O 的工作原理。与之相对应的，当然就是随机 I/O，它需要不停地移动磁头，来定位数据位置，所以读写速度就会比较慢。</p>
+<p>第二类，固态磁盘（Solid State Disk），通常缩写为 SSD，由固态电子元器件组成。固态磁盘不需要磁道寻址，所以，不管是连续 I/O，还是随机 I/O 的性能，都比机械磁盘要好得多。</p>
+<p>其实，无论机械磁盘，还是固态磁盘，相同磁盘的随机 I/O 都要比连续 I/O 慢很多，原因也很明显。</p>
+<ul>
+<li>对机械磁盘来说，我们刚刚提到过的，由于随机 I/O 需要更多的磁头寻道和盘片旋转，它的性能自然要比连续 I/O 慢。</li>
+<li>而对固态磁盘来说，虽然它的随机性能比机械硬盘好很多，但同样存在“先擦除再写入”的限制。随机读写会导致大量的垃圾回收，所以相对应的，随机 I/O 的性能比起连续 I/O 来，也还是差了很多。</li>
+<li>此外，连续 I/O 还可以通过预读的方式，来减少 I/O 请求的次数，这也是其性能优异的一个原因。很多性能优化的方案，也都会从这个角度出发，来优化 I/O 性能。</li>
+</ul>
+<p>此外，机械磁盘和固态磁盘还分别有一个最小的读写单位。</p>
+<ul>
+<li>机械磁盘的最小读写单位是扇区，一般大小为 512 字节。</li>
+<li>而固态磁盘的最小读写单位是页，通常大小是 4KB、8KB 等。</li>
+</ul>
+<p>在上一节中，我也提到过，如果每次都读写 512 字节这么小的单位的话，效率很低。所以，文件系统会把连续的扇区或页，组成逻辑块，然后以逻辑块作为最小单元来管理数据。常见的逻辑块的大小是 4KB，也就是说，连续 8 个扇区，或者单独的一个页，都可以组成一个逻辑块。</p>
+<p>除了可以按照存储介质来分类，另一个常见的分类方法，是按照接口来分类，比如可以把硬盘分为 IDE（Integrated Drive Electronics）、SCSI（Small Computer System Interface） 、SAS（Serial Attached SCSI） 、SATA（Serial ATA） 、FC（Fibre Channel） 等。</p>
+<p>不同的接口，往往分配不同的设备名称。比如， IDE 设备会分配一个 hd 前缀的设备名，SCSI 和 SATA 设备会分配一个 sd 前缀的设备名。如果是多块同类型的磁盘，就会按照 a、b、c 等的字母顺序来编号。</p>
+<p>除了磁盘本身的分类外，当你把磁盘接入服务器后，按照不同的使用方式，又可以把它们划分为多种不同的架构。</p>
+<p>最简单的，就是直接作为独立磁盘设备来使用。这些磁盘，往往还会根据需要，划分为不同的逻辑分区，每个分区再用数字编号。比如我们前面多次用到的 /dev/sda ，还可以分成两个分区 /dev/sda1 和 /dev/sda2。</p>
+<p>另一个比较常用的架构，是把多块磁盘组合成一个逻辑磁盘，构成冗余独立磁盘阵列，也就是 RAID（Redundant Array of Independent Disks），从而可以提高数据访问的性能，并且增强数据存储的可靠性。</p>
+<p>根据容量、性能和可靠性需求的不同，RAID 一般可以划分为多个级别，如 RAID0、RAID1、RAID5、RAID10 等。</p>
+<ul>
+<li>RAID0 有最优的读写性能，但不提供数据冗余的功能。</li>
+<li>而其他级别的 RAID，在提供数据冗余的基础上，对读写性能也有一定程度的优化。</li>
+</ul>
+<p>最后一种架构，是把这些磁盘组合成一个网络存储集群，再通过 NFS、SMB、iSCSI 等网络存储协议，暴露给服务器使用。</p>
+<p>其实在 Linux 中，<strong>磁盘实际上是作为一个块设备来管理的</strong>，也就是以块为单位读写数据，并且支持随机读写。每个块设备都会被赋予两个设备号，分别是主、次设备号。主设备号用在驱动程序中，用来区分设备类型；而次设备号则是用来给多个同类设备编号。</p>
+<h4 id="24-2-通用块层"><a href="#24-2-通用块层" class="headerlink" title="24.2 通用块层"></a>24.2 通用块层</h4><p>跟我们上一节讲到的虚拟文件系统 VFS 类似，为了减小不同块设备的差异带来的影响，Linux 通过一个统一的通用块层，来管理各种不同的块设备。</p>
+<p>通用块层，其实是处在文件系统和磁盘驱动中间的一个块设备抽象层。它主要有两个功能 。</p>
+<ol>
+<li>第一个功能跟虚拟文件系统的功能类似。向上，为文件系统和应用程序，提供访问块设备的标准接口；向下，把各种异构的磁盘设备抽象为统一的块设备，并提供统一框架来管理这些设备的驱动程序。</li>
+<li>第二个功能，通用块层还会给文件系统和应用程序发来的 I/O 请求排队，并通过重新排序、请求合并等方式，提高磁盘读写的效率。</li>
+</ol>
+<p>其中，对 I/O 请求排序的过程，也就是我们熟悉的 I/O 调度。事实上，Linux 内核支持四种 I/O 调度算法，分别是 NONE、NOOP、CFQ 以及 DeadLine。这里我也分别介绍一下。</p>
+<ol>
+<li><p>第一种 NONE ，更确切来说，并不能算 I/O 调度算法。因为它完全不使用任何 I/O 调度器，对文件系统和应用程序的 I/O 其实不做任何处理，常用在虚拟机中（此时磁盘 I/O 调度完全由物理机负责）。</p>
+</li>
+<li><p>第二种 NOOP ，是最简单的一种 I/O 调度算法。它实际上是一个先入先出的队列，只做一些最基本的请求合并，常用于 SSD 磁盘。</p>
+</li>
+<li><p>第三种 CFQ（Completely Fair Scheduler），也被称为完全公平调度器，是现在很多发行版的默认 I/O 调度器，它为每个进程维护了一个 I/O 调度队列，并按照时间片来均匀分布每个进程的 I/O 请求。</p>
+<p> 类似于进程 CPU 调度，CFQ 还支持进程 I/O 的优先级调度，所以它适用于运行大量进程的系统，像是桌面环境、多媒体应用等。</p>
+</li>
+<li><p>最后一种 DeadLine 调度算法，分别为读、写请求创建了不同的 I/O 队列，可以提高机械磁盘的吞吐量，并确保达到最终期限（deadline）的请求被优先处理。DeadLine 调度算法，多用在 I/O 压力比较重的场景，比如数据库等。</p>
+</li>
+</ol>
+<h4 id="24-3-I-O-栈"><a href="#24-3-I-O-栈" class="headerlink" title="24.3. I/O 栈"></a>24.3. I/O 栈</h4><p>可以把 Linux 存储系统的 I/O 栈，由上到下分为三个层次，分别是文件系统层、通用块层和设备层。这三个 I/O 层的关系如下图所示，这其实也是 Linux 存储系统的 I/O 栈全景图。</p>
+<p><img src="/images/《Linux性能优化实战》学习笔记/Linux存储系统的IO栈全景图.png" alt="Linux存储系统的IO栈全景图.png"></p>
+<blockquote>
+<p>图片来源：<a target="_blank" rel="noopener" href="https://www.thomas-krenn.com/en/wiki/Linux_Storage_Stack_Diagram">Linux Storage Stack Diagram</a></p>
+</blockquote>
+<p>根据这张 I/O 栈的全景图，我们可以更清楚地理解，存储系统 I/O 的工作原理。</p>
+<ol>
+<li>文件系统层，包括虚拟文件系统和其他各种文件系统的具体实现。它为上层的应用程序，提供标准的文件访问接口；对下会通过通用块层，来存储和管理磁盘数据。</li>
+<li>通用块层，包括块设备 I/O 队列和 I/O 调度器。它会对文件系统的 I/O 请求进行排队，再通过重新排序和请求合并，然后才要发送给下一级的设备层。</li>
+<li>设备层，包括存储设备和相应的驱动程序，负责最终物理设备的 I/O 操作。</li>
+</ol>
+<p>存储系统的 I/O ，通常是整个系统中最慢的一环。所以， Linux 通过多种缓存机制来优化 I/O 效率。</p>
+<p>比方说，为了优化文件访问的性能，会使用页缓存、索引节点缓存、目录项缓存等多种缓存机制，以减少对下层块设备的直接调用。</p>
+<p>同样，为了优化块设备的访问效率，会使用缓冲区，来缓存块设备的数据。</p>
+<h4 id="24-4-小结"><a href="#24-4-小结" class="headerlink" title="24.4 小结"></a>24.4 小结</h4><p>通用块层是 Linux 磁盘 I/O 的核心。向上，它为文件系统和应用程序，提供访问了块设备的标准接口；向下，把各种异构的磁盘设备，抽象为统一的块设备，并会对文件系统和应用程序发来的 I/O 请求进行重新排序、请求合并等，提高了磁盘访问的效率。</p>
+<h3 id="25-基础篇：Linux-磁盘I-O是怎么工作的（下）"><a href="#25-基础篇：Linux-磁盘I-O是怎么工作的（下）" class="headerlink" title="25 | 基础篇：Linux 磁盘I/O是怎么工作的（下）"></a>25 | 基础篇：Linux 磁盘I/O是怎么工作的（下）</h3><h4 id="25-1-磁盘性能指标"><a href="#25-1-磁盘性能指标" class="headerlink" title="25.1 磁盘性能指标"></a>25.1 磁盘性能指标</h4><p>说到磁盘性能的衡量标准，必须要提到五个常见指标，也就是我们经常用到的，使用率、饱和度、IOPS、吞吐量以及响应时间等。这五个指标，是衡量磁盘性能的基本指标。</p>
+<ul>
+<li>使用率，是指磁盘处理 I/O 的时间百分比。过高的使用率（比如超过 80%），通常意味着磁盘 I/O 存在性能瓶颈。</li>
+<li>饱和度，是指磁盘处理 I/O 的繁忙程度。过高的饱和度，意味着磁盘存在严重的性能瓶颈。当饱和度为 100% 时，磁盘无法接受新的 I/O 请求。</li>
+<li>IOPS（Input/Output Per Second），是指每秒的 I/O 请求数。</li>
+<li>吞吐量，是指每秒的 I/O 请求大小。</li>
+<li>响应时间，是指 I/O 请求从发出到收到响应的间隔时间。</li>
+</ul>
+<p>这里要注意的是，使用率只考虑有没有 I/O，而不考虑 I/O 的大小。换句话说，当使用率是 100% 的时候，磁盘依然有可能接受新的 I/O 请求。</p>
+<p>这些指标，很可能是你经常挂在嘴边的，一讨论磁盘性能必定提起的对象。不过我还是要强调一点，不要孤立地去比较某一指标，而要结合读写比例、I/O 类型（随机还是连续）以及 I/O 的大小，综合来分析。</p>
+<p>举个例子，在数据库、大量小文件等这类随机读写比较多的场景中，IOPS 更能反映系统的整体性能；而在多媒体等顺序读写较多的场景中，吞吐量才更能反映系统的整体性能。</p>
+<p>一般来说，我们在为应用程序的服务器选型时，要先对磁盘的 I/O 性能进行基准测试，以便可以准确评估，磁盘性能是否可以满足应用程序的需求。</p>
+<p>这一方面，我推荐用性能测试工具 fio ，来测试磁盘的 IOPS、吞吐量以及响应时间等核心指标。但还是那句话，因地制宜，灵活选取。在基准测试时，一定要注意根据应用程序 I/O 的特点，来具体评估指标。</p>
+<p>当然，这就需要你测试出，不同 I/O 大小（一般是 512B 至 1MB 中间的若干值）分别在随机读、顺序读、随机写、顺序写等各种场景下的性能情况。</p>
+<p>用性能工具得到的这些指标，可以作为后续分析应用程序性能的依据。一旦发生性能问题，你就可以把它们作为磁盘性能的极限值，进而评估磁盘 I/O 的使用情况。</p>
+<h4 id="25-2-磁盘-I-O-观测"><a href="#25-2-磁盘-I-O-观测" class="headerlink" title="25.2 磁盘 I/O 观测"></a>25.2 磁盘 I/O 观测</h4><p>第一个要观测的，是每块磁盘的使用情况。</p>
+<p>iostat 是最常用的磁盘 I/O 性能观测工具，它提供了每个磁盘的使用率、IOPS、吞吐量等各种常见的性能指标，当然，这些指标实际上来自 /proc/diskstats。</p>
+<p>iostat 的输出界面如下。</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token comment"># -d -x 表示显示所有磁盘 I/O 的指标</span>
+$ iostat -d -x <span class="token number">1</span>
+Device            r/s     w/s     rkB/s     wkB/s   rrqm/s   wrqm/s  %rrqm  %wrqm r_await w_await aqu-sz rareq-sz wareq-sz  svctm  %util
+loop0            <span class="token number">0.00</span>    <span class="token number">0.00</span>      <span class="token number">0.00</span>      <span class="token number">0.00</span>     <span class="token number">0.00</span>     <span class="token number">0.00</span>   <span class="token number">0.00</span>   <span class="token number">0.00</span>    <span class="token number">0.00</span>    <span class="token number">0.00</span>   <span class="token number">0.00</span>     <span class="token number">0.00</span>     <span class="token number">0.00</span>   <span class="token number">0.00</span>   <span class="token number">0.00</span>
+loop1            <span class="token number">0.00</span>    <span class="token number">0.00</span>      <span class="token number">0.00</span>      <span class="token number">0.00</span>     <span class="token number">0.00</span>     <span class="token number">0.00</span>   <span class="token number">0.00</span>   <span class="token number">0.00</span>    <span class="token number">0.00</span>    <span class="token number">0.00</span>   <span class="token number">0.00</span>     <span class="token number">0.00</span>     <span class="token number">0.00</span>   <span class="token number">0.00</span>   <span class="token number">0.00</span>
+sda              <span class="token number">0.00</span>    <span class="token number">0.00</span>      <span class="token number">0.00</span>      <span class="token number">0.00</span>     <span class="token number">0.00</span>     <span class="token number">0.00</span>   <span class="token number">0.00</span>   <span class="token number">0.00</span>    <span class="token number">0.00</span>    <span class="token number">0.00</span>   <span class="token number">0.00</span>     <span class="token number">0.00</span>     <span class="token number">0.00</span>   <span class="token number">0.00</span>   <span class="token number">0.00</span>
+sdb              <span class="token number">0.00</span>    <span class="token number">0.00</span>      <span class="token number">0.00</span>      <span class="token number">0.00</span>     <span class="token number">0.00</span>     <span class="token number">0.00</span>   <span class="token number">0.00</span>   <span class="token number">0.00</span>    <span class="token number">0.00</span>    <span class="token number">0.00</span>   <span class="token number">0.00</span>     <span class="token number">0.00</span>     <span class="token number">0.00</span>   <span class="token number">0.00</span>   <span class="token number">0.00</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p><img src="/images/《Linux性能优化实战》学习笔记/iostat指标解读.png" alt="iostat指标解读"></p>
+<p>这些指标中，你要注意：</p>
+<ul>
+<li>%util ，就是我们前面提到的磁盘 I/O 使用率；</li>
+<li>r/s+ w/s ，就是 IOPS；</li>
+<li>rkB/s+wkB/s ，就是吞吐量；</li>
+<li>r_await+w_await ，就是响应时间。</li>
+</ul>
+<p>在观测指标时，也别忘了结合请求的大小（ rareq-sz 和 wareq-sz）一起分析。</p>
+<p>你可能注意到，从 iostat 并不能直接得到磁盘饱和度。事实上，饱和度通常也没有其他简单的观测方法，不过，你可以把观测到的，平均请求队列长度或者读写请求完成的等待时间，跟基准测试的结果（比如通过 fio）进行对比，综合评估磁盘的饱和情况。</p>
+<h4 id="25-3-进程-I-O-观测"><a href="#25-3-进程-I-O-观测" class="headerlink" title="25.3 进程 I/O 观测"></a>25.3 进程 I/O 观测</h4><p>除了每块磁盘的 I/O 情况，每个进程的 I/O 情况也是我们需要关注的重点。</p>
+<p>上面提到的 iostat 只提供磁盘整体的 I/O 性能数据，缺点在于，并不能知道具体是哪些进程在进行磁盘读写。要观察进程的 I/O 情况，你还可以使用 pidstat 和 iotop 这两个工具。</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ pidstat -d <span class="token number">1</span>
+<span class="token number">13</span>:39:51      <span class="token environment constant">UID</span>       PID   kB_rd/s   kB_wr/s kB_ccwr/s iodelay  Command
+<span class="token number">13</span>:39:52      <span class="token number">102</span>       <span class="token number">916</span>      <span class="token number">0.00</span>      <span class="token number">4.00</span>      <span class="token number">0.00</span>       <span class="token number">0</span>  rsyslogd<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span></span></code></pre>
+<p>从 pidstat 的输出你能看到，它可以实时查看每个进程的 I/O 情况，包括下面这些内容。</p>
+<ul>
+<li>用户 ID（UID）和进程 ID（PID） 。</li>
+<li>每秒读取的数据大小（kB_rd/s） ，单位是 KB。</li>
+<li>每秒发出的写请求数据大小（kB_wr/s） ，单位是 KB。</li>
+<li>每秒取消的写请求数据大小（kB_ccwr/s） ，单位是 KB。</li>
+<li>块 I/O 延迟（iodelay），包括等待同步块 I/O 和换入块 I/O 结束的时间，单位是时钟周期。</li>
+</ul>
+<p>除了可以用 pidstat 实时查看，根据 I/O 大小对进程排序，也是性能分析中一个常用的方法。这一点，我推荐另一个工具， iotop。它是一个类似于 top 的工具，你可以按照 I/O 大小对进程排序，然后找到 I/O 较大的那些进程。</p>
+<p>iotop 的输出如下所示：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ iotop
+Total DISK READ <span class="token builtin class-name">:</span>       <span class="token number">0.00</span> B/s <span class="token operator">|</span> Total DISK WRITE <span class="token builtin class-name">:</span>       <span class="token number">7.85</span> K/s
+Actual DISK READ:       <span class="token number">0.00</span> B/s <span class="token operator">|</span> Actual DISK WRITE:       <span class="token number">0.00</span> B/s
+  TID  PRIO  <span class="token environment constant">USER</span>     DISK READ  DISK WRITE  SWAPIN     IO<span class="token operator">&gt;</span>    COMMAND
+<span class="token number">15055</span> be/3 root        <span class="token number">0.00</span> B/s    <span class="token number">7.85</span> K/s  <span class="token number">0.00</span> %  <span class="token number">0.00</span> % systemd-journald<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>从这个输出，你可以看到，前两行分别表示，进程的磁盘读写大小总数和磁盘真实的读写大小总数。因为缓存、缓冲区、I/O 合并等因素的影响，它们可能并不相等。</p>
+<p>剩下的部分，则是从各个角度来分别表示进程的 I/O 情况，包括线程 ID、I/O 优先级、每秒读磁盘的大小、每秒写磁盘的大小、换入和等待 I/O 的时钟百分比等。</p>
+<p>这两个工具，是我们分析磁盘 I/O 性能时最常用到的。你先了解它们的功能和指标含义，具体的使用方法，接下来的案例实战中我们一起学习。</p>
 
                 
             </div>
@@ -3406,7 +3675,7 @@ cachestat<span aria-hidden="true" class="line-numbers-rows"><span></span><span><
             <br>
             
             &nbsp;<i class="fas fa-chart-area"></i>&nbsp;站点总字数:&nbsp;<span
-                class="white-color">288.6k</span>&nbsp;字
+                class="white-color">296.7k</span>&nbsp;字
             
             
             
