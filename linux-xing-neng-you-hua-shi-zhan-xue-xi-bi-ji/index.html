@@ -442,14 +442,14 @@
                 
                 <div class="info-break-policy">
                     <i class="far fa-file-word fa-fw"></i>文章字数:&nbsp;&nbsp;
-                    46.4k
+                    51.1k
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-clock fa-fw"></i>阅读时长:&nbsp;&nbsp;
-                    181 分
+                    199 分
                 </div>
                 
 
@@ -2443,6 +2443,229 @@ PID      UID      CMD              HITS     MISSES   DIRTIES  READ_HIT%  WRITE_H
 </ul>
 </li>
 </ol>
+<h3 id="18-案例篇：内存泄漏了，我该如何定位和处理？"><a href="#18-案例篇：内存泄漏了，我该如何定位和处理？" class="headerlink" title="18 | 案例篇：内存泄漏了，我该如何定位和处理？"></a>18 | 案例篇：内存泄漏了，我该如何定位和处理？</h3><h4 id="18-1-内存的分配和回收"><a href="#18-1-内存的分配和回收" class="headerlink" title="18.1 内存的分配和回收"></a>18.1 内存的分配和回收</h4><p>用户空间内存包括多个不同的内存段，比如只读段、数据段、堆、栈以及文件映射段等。这些内存段正是应用程序使用内存的基本方式。</p>
+<p>栈内存由系统自动分配和管理。一旦程序运行超出了这个局部变量的作用域，栈内存就会被系统自动回收，所以不会产生内存泄漏的问题。</p>
+<p>堆内存由应用程序自己来分配和管理。除非程序退出，这些堆内存并不会被系统自动释放，而是需要应用程序明确调用库函数 free() 来释放它们。如果应用程序没有正确释放堆内存，就会造成内存泄漏。</p>
+<p>其他内存段是否也会导致内存泄漏呢？</p>
+<ul>
+<li>只读段，包括程序的代码和常量，由于是只读的，不会再去分配新的内存，所以也不会产生内存泄漏。</li>
+<li>数据段，包括全局变量和静态变量，这些变量在定义时就已经确定了大小，所以也不会产生内存泄漏。</li>
+<li>最后一个内存映射段，包括动态链接库和共享内存，其中共享内存由程序动态分配和管理。所以，如果程序在分配后忘了回收，就会导致跟堆内存类似的泄漏问题。</li>
+</ul>
+<p><strong>内存泄漏的危害非常大，这些忘记释放的内存，不仅应用程序自己不能访问，系统也不能把它们再次分配给其他应用</strong>。内存泄漏不断累积，甚至会耗尽系统内存。</p>
+<p>虽然，系统最终可以通过 OOM （Out of Memory）机制杀死进程，但进程在 OOM 前，可能已经引发了一连串的反应，导致严重的性能问题。</p>
+<p>比如，其他需要内存的进程，可能无法分配新的内存；内存不足，又会触发系统的缓存回收以及 SWAP 机制，从而进一步导致 I/O 的性能问题等等。</p>
+<p>如果你已经发现了内存泄漏，该如何定位和处理呢。</p>
+<h4 id="18-2-案例"><a href="#18-2-案例" class="headerlink" title="18.2 案例"></a>18.2 案例</h4><blockquote>
+<p>机器配置： 2 CPU, 8 GB 内存。</p>
+<p>安装软件：<code>apt install docker.io sysstat</code> 以及 bcc。</p>
+</blockquote>
+<ol>
+<li><p>执行下面的命令来运行案例：</p>
+ <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ docker run --name<span class="token operator">=</span>app -itd feisky/app:mem-leak<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre></li>
+<li><p>案例成功运行后，你需要输入下面的命令，确认案例应用已经正常启动。如果一切正常，你应该可以看到下面这个界面：</p>
+ <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ docker logs app
+2th <span class="token operator">=</span><span class="token operator">&gt;</span> <span class="token number">1</span>
+3th <span class="token operator">=</span><span class="token operator">&gt;</span> <span class="token number">2</span>
+4th <span class="token operator">=</span><span class="token operator">&gt;</span> <span class="token number">3</span>
+5th <span class="token operator">=</span><span class="token operator">&gt;</span> <span class="token number">5</span>
+6th <span class="token operator">=</span><span class="token operator">&gt;</span> <span class="token number">8</span>
+7th <span class="token operator">=</span><span class="token operator">&gt;</span> <span class="token number">13</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p> 我们应该怎么检查内存情况，判断有没有泄漏发生呢？你首先想到的可能是 top 工具，不过，top 虽然能观察系统和进程的内存占用情况，但今天的案例并不适合。内存泄漏问题，我们更应该关注内存使用的变化趋势。</p>
+</li>
+<li><p>运行下面的 vmstat ，等待一段时间，观察内存的变化情况。如果忘了 vmstat 里各指标的含义，记得复习前面内容，或者执行 man vmstat 查询。</p>
+ <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token comment"># 每隔 3 秒输出一组数据</span>
+$ <span class="token function">vmstat</span> <span class="token number">3</span>
+procs -----------memory---------- ---swap-- -----io---- -system-- ------cpu-----
+r  b   swpd   <span class="token function">free</span>   buff  cache   si   so    bi    bo   <span class="token keyword">in</span>   cs us sy <span class="token function">id</span> wa st
+procs -----------memory---------- ---swap-- -----io---- -system-- ------cpu-----
+r  b   swpd   <span class="token function">free</span>   buff  cache   si   so    bi    bo   <span class="token keyword">in</span>   cs us sy <span class="token function">id</span> wa st
+<span class="token number">0</span>  <span class="token number">0</span>      <span class="token number">0</span> <span class="token number">6601824</span>  <span class="token number">97620</span> <span class="token number">1098784</span>    <span class="token number">0</span>    <span class="token number">0</span>     <span class="token number">0</span>     <span class="token number">0</span>   <span class="token number">62</span>  <span class="token number">322</span>  <span class="token number">0</span>  <span class="token number">0</span> <span class="token number">100</span>  <span class="token number">0</span>  <span class="token number">0</span>
+<span class="token number">0</span>  <span class="token number">0</span>      <span class="token number">0</span> <span class="token number">6601700</span>  <span class="token number">97620</span> <span class="token number">1098788</span>    <span class="token number">0</span>    <span class="token number">0</span>     <span class="token number">0</span>     <span class="token number">0</span>   <span class="token number">57</span>  <span class="token number">251</span>  <span class="token number">0</span>  <span class="token number">0</span> <span class="token number">100</span>  <span class="token number">0</span>  <span class="token number">0</span>
+<span class="token number">0</span>  <span class="token number">0</span>      <span class="token number">0</span> <span class="token number">6601320</span>  <span class="token number">97620</span> <span class="token number">1098788</span>    <span class="token number">0</span>    <span class="token number">0</span>     <span class="token number">0</span>     <span class="token number">3</span>   <span class="token number">52</span>  <span class="token number">306</span>  <span class="token number">0</span>  <span class="token number">0</span> <span class="token number">100</span>  <span class="token number">0</span>  <span class="token number">0</span>
+<span class="token number">0</span>  <span class="token number">0</span>      <span class="token number">0</span> <span class="token number">6601452</span>  <span class="token number">97628</span> <span class="token number">1098788</span>    <span class="token number">0</span>    <span class="token number">0</span>     <span class="token number">0</span>    <span class="token number">27</span>   <span class="token number">63</span>  <span class="token number">326</span>  <span class="token number">0</span>  <span class="token number">0</span> <span class="token number">100</span>  <span class="token number">0</span>  <span class="token number">0</span>
+<span class="token number">2</span>  <span class="token number">0</span>      <span class="token number">0</span> <span class="token number">6601328</span>  <span class="token number">97628</span> <span class="token number">1098788</span>    <span class="token number">0</span>    <span class="token number">0</span>     <span class="token number">0</span>    <span class="token number">44</span>   <span class="token number">52</span>  <span class="token number">299</span>  <span class="token number">0</span>  <span class="token number">0</span> <span class="token number">100</span>  <span class="token number">0</span>  <span class="token number">0</span>
+<span class="token number">0</span>  <span class="token number">0</span>      <span class="token number">0</span> <span class="token number">6601080</span>  <span class="token number">97628</span> <span class="token number">1098792</span>    <span class="token number">0</span>    <span class="token number">0</span>     <span class="token number">0</span>     <span class="token number">0</span>   <span class="token number">56</span>  <span class="token number">285</span>  <span class="token number">0</span>  <span class="token number">0</span> <span class="token number">100</span>  <span class="token number">0</span>  <span class="token number">0</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p> 从输出中你可以看到，内存的 free 列在不停的变化，并且是下降趋势；而 buffer 和 cache 基本保持不变。</p>
+<p> 未使用内存在逐渐减小，而 buffer 和 cache 基本不变，这说明，系统中使用的内存一直在升高。但这并不能说明有内存泄漏，因为应用程序运行中需要的内存也可能会增大。比如说，程序中如果用了一个动态增长的数组来缓存计算结果，占用内存自然会增长。</p>
+<p> 那怎么确定是不是内存泄漏呢？或者换句话说，有没有简单方法找出让内存增长的进程，并定位增长内存用在哪儿呢？</p>
+<p> 根据前面内容，你应该想到了用 top 或 ps 来观察进程的内存使用情况，然后找出内存使用一直增长的进程，最后再通过 pmap 查看进程的内存分布。</p>
+<p> 但这种方法并不太好用，因为要判断内存的变化情况，还需要你写一个脚本，来处理 top 或者 ps 的输出。</p>
+<p> 这里，我介绍一个专门用来检测内存泄漏的工具，memleak。memleak 可以跟踪系统或指定进程的内存分配、释放请求，然后定期输出一个未释放内存和相应调用栈的汇总情况（默认 5 秒）。</p>
+</li>
+<li><p>memleak 是 bcc 软件包中的一个工具，我们一开始就装好了，执行 /usr/share/bcc/tools/memleak 就可以运行它。比如，我们运行下面的命令：</p>
+ <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token comment"># -a 表示显示每个内存分配请求的大小以及地址</span>
+<span class="token comment"># -p 指定案例应用的 PID 号</span>
+$ /usr/share/bcc/tools/memleak -a -p <span class="token variable"><span class="token variable">$(</span>pidof app<span class="token variable">)</span></span>
+WARNING: Couldn<span class="token string">'t find .text section in /app
+WARNING: BCC can'</span>t handle sym <span class="token function">look</span> ups <span class="token keyword">for</span> /app
+    addr <span class="token operator">=</span> 7f8f704732b0 size <span class="token operator">=</span> <span class="token number">8192</span>
+    addr <span class="token operator">=</span> 7f8f704772d0 size <span class="token operator">=</span> <span class="token number">8192</span>
+    addr <span class="token operator">=</span> 7f8f704712a0 size <span class="token operator">=</span> <span class="token number">8192</span>
+    addr <span class="token operator">=</span> 7f8f704752c0 size <span class="token operator">=</span> <span class="token number">8192</span>
+    <span class="token number">32768</span> bytes <span class="token keyword">in</span> <span class="token number">4</span> allocations from stack
+        <span class="token punctuation">[</span>unknown<span class="token punctuation">]</span> <span class="token punctuation">[</span>app<span class="token punctuation">]</span>
+        <span class="token punctuation">[</span>unknown<span class="token punctuation">]</span> <span class="token punctuation">[</span>app<span class="token punctuation">]</span>
+        start_thread+0xdb <span class="token punctuation">[</span>libpthread-2.27.so<span class="token punctuation">]</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p> 从 memleak 的输出可以看到，案例应用在不停地分配内存，并且这些分配的地址没有被回收。</p>
+<p> 这里有一个问题，Couldn’t find .text section in /app，所以调用栈不能正常输出，最后的调用栈部分只能看到 [unknown] 的标志。</p>
+<p> 为什么会有这个错误呢？实际上，这是由于案例应用运行在容器中导致的。memleak 工具运行在容器之外，并不能直接访问进程路径 /app。</p>
+<p> 类似的问题，我在 CPU 模块中的 <a target="_blank" rel="noopener" href="https://time.geekbang.org/column/article/73738">perf 使用方法</a> 中已经提到好几个解决思路。最简单的方法，就是在容器外部构建相同路径的文件以及依赖库。这个案例只有一个二进制文件，所以只要把案例应用的二进制文件放到 /app 路径中，就可以修复这个问题。</p>
+<p> 比如，你可以运行下面的命令，把 app 二进制文件从容器中复制出来，然后重新运行 memleak 工具：</p>
+ <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ /usr/share/bcc/tools/memleak -p <span class="token variable"><span class="token variable">$(</span>pidof app<span class="token variable">)</span></span> -a
+Attaching to pid <span class="token number">12512</span>, Ctrl+C to quit.
+<span class="token punctuation">[</span>03:00:41<span class="token punctuation">]</span> Top <span class="token number">10</span> stacks with outstanding allocations:
+    addr <span class="token operator">=</span> 7f8f70863220 size <span class="token operator">=</span> <span class="token number">8192</span>
+    addr <span class="token operator">=</span> 7f8f70861210 size <span class="token operator">=</span> <span class="token number">8192</span>
+    addr <span class="token operator">=</span> 7f8f7085b1e0 size <span class="token operator">=</span> <span class="token number">8192</span>
+    addr <span class="token operator">=</span> 7f8f7085f200 size <span class="token operator">=</span> <span class="token number">8192</span>
+    addr <span class="token operator">=</span> 7f8f7085d1f0 size <span class="token operator">=</span> <span class="token number">8192</span>
+    <span class="token number">40960</span> bytes <span class="token keyword">in</span> <span class="token number">5</span> allocations from stack
+        fibonacci+0x1f <span class="token punctuation">[</span>app<span class="token punctuation">]</span>
+        child+0x4f <span class="token punctuation">[</span>app<span class="token punctuation">]</span>
+        start_thread+0xdb <span class="token punctuation">[</span>libpthread-2.27.so<span class="token punctuation">]</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p> 这一次，我们终于看到了内存分配的调用栈，原来是 fibonacci() 函数分配的内存没释放。</p>
+<p> 定位了内存泄漏的来源，下一步自然就应该查看源码，想办法修复它。我们一起来看案例应用的源代码 <a target="_blank" rel="noopener" href="https://github.com/feiskyer/linux-perf-examples/blob/master/mem-leak/app.c">app.c</a>：</p>
+ <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ docker <span class="token builtin class-name">exec</span> app <span class="token function">cat</span> /app.c
+<span class="token punctuation">..</span>.
+long long *fibonacci<span class="token punctuation">(</span>long long *n0, long long *n1<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    // 分配 <span class="token number">1024</span> 个长整数空间方便观测内存的变化情况
+    long long *v <span class="token operator">=</span> <span class="token punctuation">(</span>long long *<span class="token punctuation">)</span> calloc<span class="token punctuation">(</span><span class="token number">1024</span>, sizeof<span class="token punctuation">(</span>long long<span class="token punctuation">))</span><span class="token punctuation">;</span>
+    *v <span class="token operator">=</span> *n0 + *n1<span class="token punctuation">;</span>
+    <span class="token builtin class-name">return</span> <span class="token function">v</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+
+
+void *child<span class="token punctuation">(</span>void *arg<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    long long n0 <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span>
+    long long n1 <span class="token operator">=</span> <span class="token number">1</span><span class="token punctuation">;</span>
+    long long *v <span class="token operator">=</span> NULL<span class="token punctuation">;</span>
+    <span class="token keyword">for</span> <span class="token punctuation">(</span>int n <span class="token operator">=</span> <span class="token number">2</span><span class="token punctuation">;</span> n <span class="token operator">&gt;</span> <span class="token number">0</span><span class="token punctuation">;</span> n++<span class="token punctuation">)</span> <span class="token punctuation">{</span>
+        <span class="token function">v</span> <span class="token operator">=</span> fibonacci<span class="token punctuation">(</span><span class="token operator">&amp;</span>n0, <span class="token operator">&amp;</span>n1<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        n0 <span class="token operator">=</span> n1<span class="token punctuation">;</span>
+        n1 <span class="token operator">=</span> *v<span class="token punctuation">;</span>
+        printf<span class="token punctuation">(</span><span class="token string">"%dth =&gt; %lld<span class="token entity" title="\n">\n</span>"</span>, n, *v<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        sleep<span class="token punctuation">(</span><span class="token number">1</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+<span class="token punctuation">}</span>
+<span class="token punctuation">..</span>.<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre></li>
+<li><p>我把修复后的代码放到了 <a target="_blank" rel="noopener" href="https://github.com/feiskyer/linux-perf-examples/blob/master/mem-leak/app-fix.c">app-fix.c</a>，也打包成了一<br>个 Docker 镜像。你可以运行下面的命令，验证一下内存泄漏是否修复：</p>
+ <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token comment"># 清理原来的案例应用</span>
+$ docker <span class="token function">rm</span> -f app
+
+<span class="token comment"># 运行修复后的应用</span>
+$ docker run --name<span class="token operator">=</span>app -itd feisky/app:mem-leak-fix
+
+<span class="token comment"># 重新执行 memleak 工具检查内存泄漏情况</span>
+$ /usr/share/bcc/tools/memleak -a -p <span class="token variable"><span class="token variable">$(</span>pidof app<span class="token variable">)</span></span>
+Attaching to pid <span class="token number">18808</span>, Ctrl+C to quit.
+<span class="token punctuation">[</span><span class="token number">10</span>:23:18<span class="token punctuation">]</span> Top <span class="token number">10</span> stacks with outstanding allocations:
+<span class="token punctuation">[</span><span class="token number">10</span>:23:23<span class="token punctuation">]</span> Top <span class="token number">10</span> stacks with outstanding allocations:<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<h3 id="19-案例篇：为什么系统的Swap变高了（上）"><a href="#19-案例篇：为什么系统的Swap变高了（上）" class="headerlink" title="19 | 案例篇：为什么系统的Swap变高了（上）"></a>19 | 案例篇：为什么系统的Swap变高了（上）</h3></li>
+</ol>
+<p>当发生了内存泄漏时，或者运行了大内存的应用程序，导致系统的内存资源紧张时，系统又会如何应对呢？</p>
+<p>这其实会导致两种可能结果，内存回收和 OOM 杀死进程。</p>
+<p>内存资源紧张导致的 OOM（Out Of Memory），相对容易理解，指的是系统杀死占用大量内存的进程，释放这些内存，再分配给其他更需要的进程。</p>
+<p>内存回收，也就是系统释放掉可以回收的内存，比如我前面讲过的缓存和缓冲区，就属于可回收内存。它们在内存管理中，通常被叫做<strong>文件页</strong>（File-backed Page）。</p>
+<p>大部分文件页，都可以直接回收，以后有需要时，再从磁盘重新读取就可以了。而那些被应用程序修改过，并且暂时还没写入磁盘的数据（也就是脏页），就得先写入磁盘，然后才能进行内存释放。</p>
+<p>这些脏页，一般可以通过两种方式写入磁盘。</p>
+<ul>
+<li>可以在应用程序中，通过系统调用 fsync ，把脏页同步到磁盘中；</li>
+<li>也可以交给系统，由内核线程 pdflush 负责这些脏页的刷新。</li>
+</ul>
+<p>除了缓存和缓冲区，通过内存映射获取的文件映射页，也是一种常见的文件页。它也可以被释放掉，下次再访问的时候，从文件重新读取。</p>
+<p>除了文件页外，还有没有其他的内存可以回收呢？比如，应用程序动态分配的堆内存，也就是我们在内存管理中说到的匿名页（Anonymous Page），是不是也可以回收呢？</p>
+<p>我想，你肯定会说，它们很可能还要再次被访问啊，当然不能直接回收了。非常正确，这些内存自然不能直接释放。</p>
+<p>但是，如果这些内存在分配后很少被访问，似乎也是一种资源浪费。是不是可以把它们暂时先存在磁盘里，释放内存给其他更需要的进程？</p>
+<p>其实，这正是 Linux 的 Swap 机制。Swap 把这些不常访问的内存先写到磁盘中，然后释放这些内存，给其他更需要的进程使用。再次访问这些内存时，重新从磁盘读入内存就可以了。</p>
+<h4 id="19-1-Swap-原理"><a href="#19-1-Swap-原理" class="headerlink" title="19.1 Swap 原理"></a>19.1 Swap 原理</h4><p>Swap 说白了就是把一块磁盘空间或者一个本地文件（以下讲解以磁盘为例），当成内存来使用。它包括换出和换入两个过程。</p>
+<ul>
+<li>所谓换出，就是把进程暂时不用的内存数据存储到磁盘中，并释放这些数据占用的内存。</li>
+<li>而换入，则是在进程再次访问这些内存的时候，把它们从磁盘读到内存中来。</li>
+</ul>
+<p>Swap 其实是把系统的可用内存变大了。这样，即使服务器的内存不足，也可以运行大内存的应用程序。</p>
+<p>现在的内存便宜多了，服务器一般也会配置很大的内存，那是不是说 Swap 就没有用武之地了呢？</p>
+<p>当然不是。事实上，内存再大，对应用程序来说，也有不够用的时候。</p>
+<p>一个很典型的场景就是，即使内存不足时，有些应用程序也并不想被 OOM 杀死，而是希望能缓一段时间，等待人工介入，或者等系统自动释放其他进程的内存，再分配给它。</p>
+<p>除此之外，我们常见的笔记本电脑的休眠和快速开机的功能，也基于 Swap 。休眠时，把系统的内存存入磁盘，这样等到再次开机时，只要从磁盘中加载内存就可以。这样就省去了很多应用程序的初始化过程，加快了开机速度。</p>
+<p>话说回来，既然 Swap 是为了回收内存，那么 Linux 到底在什么时候需要回收内存呢？前面一直在说内存资源紧张，又该怎么来衡量内存是不是紧张呢？</p>
+<ol>
+<li><p>一个最容易想到的场景就是，有新的大块内存分配请求，但是剩余内存不足。这个时候系统就需要回收一部分内存（比如前面提到的缓存），进而尽可能地满足新内存请求。这个过程通常被称为<strong>直接内存回收</strong>。</p>
+</li>
+<li><p>除了直接内存回收，还有一个专门的内核线程用来定期回收内存，也就是<strong>kswapd0</strong>。为了衡量内存的使用情况，kswapd0 定义了三个内存阈值（watermark，也称为水位），分别是</p>
+<p> 页最小阈值（pages_min）、页低阈值（pages_low）和页高阈值（pages_high）。剩余内存，则使用 pages_free 表示。</p>
+<p> 这里，我画了一张图表示它们的关系。</p>
+<p> <img src="/images/《Linux性能优化实战》学习笔记/kswapd0的三个内存阈值.png" alt="kswapd0的三个内存阈值.png"></p>
+<p> kswapd0 定期扫描内存的使用情况，并根据剩余内存落在这三个阈值的空间位置，进行内存的回收操作。</p>
+<ul>
+<li>剩余内存小于<strong>页最小阈值</strong>，说明进程可用内存都耗尽了，只有内核才可以分配内存。</li>
+<li>剩余内存落在<strong>页最小阈值</strong>和<strong>页低阈值</strong>中间，说明内存压力比较大，剩余内存不多了。这时 kswapd0 会执行内存回收，直到剩余内存大于高阈值为止。</li>
+<li>剩余内存落在<strong>页低阈值</strong>和<strong>页高阈值</strong>中间，说明内存有一定压力，但还可以满足新内存请求。</li>
+<li><p>剩余内存大于<strong>页高阈值</strong>，说明剩余内存比较多，没有内存压力。</p>
+<p>我们可以看到，一旦剩余内存小于页低阈值，就会触发内存的回收。这个页低阈值，其实可以通过内核选项 /proc/sys/vm/min_free_kbytes 来间接设置。min_free_kbytes 设置了页最小阈值，而其他两个阈值，都是根据页最小阈值计算生成的，计算方法如下 ：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">pages_low <span class="token operator">=</span> pages_min*5/4
+pages_high <span class="token operator">=</span> pages_min*3/2<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre>
+<h4 id="19-2-NUMA-与-Swap"><a href="#19-2-NUMA-与-Swap" class="headerlink" title="19.2 NUMA 与 Swap"></a>19.2 NUMA 与 Swap</h4></li>
+</ul>
+</li>
+</ol>
+<p>很多情况下，你明明发现了 Swap 升高，可是在分析系统的内存使用时，却很可能发现，系统剩余内存还多着呢。为什么剩余内存很多的情况下，也会发生 Swap 呢？</p>
+<p>看到上面的标题，你应该已经想到了，这正是处理器的 NUMA （Non-Uniform Memory Access）架构导致的。</p>
+<p>在 NUMA 架构下，多个处理器被划分到不同 Node 上，且每个 Node 都拥有自己的本地内存空间。</p>
+<p>而同一个 Node 内部的内存空间，实际上又可以进一步分为不同的内存域（Zone），比如直接内存访问区（DMA）、普通内存区（NORMAL）、伪内存区（MOVABLE）等，如下图所示：</p>
+<p><img src="/images/《Linux性能优化实战》学习笔记/NUMA与Swap.png" alt="NUMA与Swap"></p>
+<p>先不用特别关注这些内存域的具体含义，我们只要会查看阈值的配置，以及缓存、匿名页的实际使用情况就够了。</p>
+<p>既然 NUMA 架构下的每个 Node 都有自己的本地内存空间，那么，在分析内存的使用时，我们也应该针对每个 Node 单独分析。</p>
+<p>你可以通过 numactl 命令，来查看处理器在 Node 的分布情况，以及每个 Node 的内存使用情况。比如，下面就是一个 numactl 输出的示例：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ numactl --hardware
+available: <span class="token number">1</span> nodes <span class="token punctuation">(</span><span class="token number">0</span><span class="token punctuation">)</span>
+node <span class="token number">0</span> cpus: <span class="token number">0</span> <span class="token number">1</span>
+node <span class="token number">0</span> size: <span class="token number">7977</span> MB
+node <span class="token number">0</span> free: <span class="token number">4416</span> MB
+<span class="token punctuation">..</span>.<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>这个界面显示，我的系统中只有一个 Node，也就是 Node 0 ，而且编号为 0 和 1 的两个 CPU， 都位于 Node 0 上。另外，Node 0 的内存大小为 7977 MB，剩余内存为 4416 MB。</p>
+<p>实际上，前面提到的三个内存阈值（页最小阈值、页低阈值和页高阈值），都可以通过内存域在 proc 文件系统中的接口 /proc/zoneinfo 来查看。</p>
+<p>比如，下面就是一个 /proc/zoneinfo 文件的内容示例：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ <span class="token function">cat</span> /proc/zoneinfo
+<span class="token punctuation">..</span>.
+Node <span class="token number">0</span>, zone   Normal
+ pages <span class="token function">free</span>     <span class="token number">227894</span>
+       min      <span class="token number">14896</span>
+       low      <span class="token number">18620</span>
+       high     <span class="token number">22344</span>
+<span class="token punctuation">..</span>.
+     nr_free_pages <span class="token number">227894</span>
+     nr_zone_inactive_anon <span class="token number">11082</span>
+     nr_zone_active_anon <span class="token number">14024</span>
+     nr_zone_inactive_file <span class="token number">539024</span>
+     nr_zone_active_file <span class="token number">923986</span>
+<span class="token punctuation">..</span>.<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>这个输出中有大量指标，我来解释一下比较重要的几个。</p>
+<ul>
+<li>pages 处的 min、low、high，就是上面提到的三个内存阈值，而 free 是剩余内存页数，它跟后面的 nr_free_pages 相同。</li>
+<li>nr_zone_active_anon 和 nr_zone_inactive_anon，分别是活跃和非活跃的匿名页数。</li>
+<li>nr_zone_active_file 和 nr_zone_inactive_file，分别是活跃和非活跃的文件页数。</li>
+</ul>
+<p>从这个输出结果可以发现，剩余内存远大于页高阈值，所以此时的 kswapd0 不会回收内存。</p>
+<p>当然，某个 Node 内存不足时，系统可以从其他 Node 寻找空闲内存，也可以从本地内存中回收内存。具体选哪种模式，你可以通过 /proc/sys/vm/zone_reclaim_mode 来调整。它支持以下几个选项：</p>
+<ul>
+<li>默认的 0 ，也就是刚刚提到的模式，表示既可以从其他 Node 寻找空闲内存，也可以从本地回收内存。</li>
+<li>1、2、4 都表示只回收本地内存，2 表示可以回写脏数据回收内存，4 表示可以用 Swap 方式回收内存。</li>
+</ul>
+<h4 id="19-3-swappiness"><a href="#19-3-swappiness" class="headerlink" title="19.3 swappiness"></a>19.3 swappiness</h4><p>到这里，我们就可以理解内存回收的机制了。这些回收的内存既包括了文件页，又包括了匿名页。</p>
+<ul>
+<li>对文件页的回收，当然就是直接回收缓存，或者把脏页写回磁盘后再回收。</li>
+<li>而对匿名页的回收，其实就是通过 Swap 机制，把它们写入磁盘后再释放内存。</li>
+</ul>
+<p>不过，你可能还有一个问题。既然有两种不同的内存回收机制，那么在实际回收内存时，到底该先回收哪一种呢？</p>
+<p>其实，Linux 提供了一个 /proc/sys/vm/swappiness 选项，用来调整使用 Swap 的积极程度。</p>
+<p>swappiness 的范围是 0-100，数值越大，越积极使用 Swap，也就是更倾向于回收匿名页；数值越小，越消极使用 Swap，也就是更倾向于回收文件页。</p>
+<p>虽然 swappiness 的范围是 0-100，不过要注意，这并不是内存的百分比，而是调整 Swap 积极程度的权重，即使你把它设置成 0，当<a target="_blank" rel="noopener" href="https://www.kernel.org/doc/Documentation/sysctl/vm.txt">剩余内存 + 文件页小于页高阈值</a>时，还是会发生 Swap。</p>
+<blockquote>
+<p>A value of 0 instructs the kernel not to initiate swap until the amount of free and file-backed pages is less than the high water mark in a zone.</p>
+</blockquote>
 
                 
             </div>
@@ -2844,7 +3067,7 @@ PID      UID      CMD              HITS     MISSES   DIRTIES  READ_HIT%  WRITE_H
             <br>
             
             &nbsp;<i class="fas fa-chart-area"></i>&nbsp;站点总字数:&nbsp;<span
-                class="white-color">276.7k</span>&nbsp;字
+                class="white-color">281.4k</span>&nbsp;字
             
             
             
