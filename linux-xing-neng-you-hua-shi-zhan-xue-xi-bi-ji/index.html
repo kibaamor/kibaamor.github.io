@@ -442,14 +442,14 @@
                 
                 <div class="info-break-policy">
                     <i class="far fa-file-word fa-fw"></i>文章字数:&nbsp;&nbsp;
-                    15.3k
+                    21.1k
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-clock fa-fw"></i>阅读时长:&nbsp;&nbsp;
-                    62 分
+                    86 分
                 </div>
                 
 
@@ -700,8 +700,7 @@ Linux <span class="token number">4.15</span>.0 <span class="token punctuation">(
 </ul>
 </li>
 </ol>
-<h4 id="4-2-案例分析"><a href="#4-2-案例分析" class="headerlink" title="4.2 案例分析"></a>4.2 案例分析</h4><pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token function">apt</span> <span class="token function">install</span> sysbench sysstat<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
-<blockquote>
+<h4 id="4-2-案例分析"><a href="#4-2-案例分析" class="headerlink" title="4.2 案例分析"></a>4.2 案例分析</h4><blockquote>
 <p>机器配置： 2 CPU, 8 GB 内存。</p>
 <p>安装软件：<code>apt install sysbench sysstat</code>。</p>
 </blockquote>
@@ -1201,6 +1200,284 @@ execsnoop 所用的 ftrace 是一种常用的动态追踪技术，一般用于�
 <li>第二，应用本身在不停地崩溃重启，而启动过程的资源初始化，很可能会占用相当多的 CPU。</li>
 </ul>
 <p>对于这类进程，我们可以用 pstree 或者 execsnoop 找到它们的父进程，再从父进程所在的应用入手，排查问题的根源。</p>
+<h3 id="07-案例篇：系统中出现大量不可中断进程和僵尸进程怎么办？（上）"><a href="#07-案例篇：系统中出现大量不可中断进程和僵尸进程怎么办？（上）" class="headerlink" title="07 | 案例篇：系统中出现大量不可中断进程和僵尸进程怎么办？（上）"></a>07 | 案例篇：系统中出现大量不可中断进程和僵尸进程怎么办？（上）</h3><h4 id="7-1-进程状态"><a href="#7-1-进程状态" class="headerlink" title="7.1 进程状态"></a>7.1 进程状态</h4><p>当 iowait 升高时，进程很可能因为得不到硬件的响应，而长时间处于不可中断状态。从 ps 或者 top 命令的输出中，你可以发现它们都处于 D 状态，也就是不可中断状态（Uninterruptible Sleep）。</p>
+<p>top 和 ps 是最常用的查看进程状态的工具，我们就从 top 的输出开始。下面是一个 top 命令输出的示例，S 列（也就是 Status 列）表示进程的状态。从这个示例里，你可以看到 R、D、Z、S、I 等几个状态，它们分别是什么意思呢？</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ <span class="token function">top</span>
+  PID <span class="token environment constant">USER</span>      PR  NI    VIRT    RES    SHR S  %CPU %MEM     TIME+ COMMAND
+<span class="token number">28961</span> root      <span class="token number">20</span>   <span class="token number">0</span>   <span class="token number">43816</span>   <span class="token number">3148</span>   <span class="token number">4040</span> R   <span class="token number">3.2</span>  <span class="token number">0.0</span>   <span class="token number">0</span>:00.01 <span class="token function">top</span>
+  <span class="token number">620</span> root      <span class="token number">20</span>   <span class="token number">0</span>   <span class="token number">37280</span>  <span class="token number">33676</span>    <span class="token number">908</span> D   <span class="token number">0.3</span>  <span class="token number">0.4</span>   <span class="token number">0</span>:00.01 app
+    <span class="token number">1</span> root      <span class="token number">20</span>   <span class="token number">0</span>  <span class="token number">160072</span>   <span class="token number">9416</span>   <span class="token number">6752</span> S   <span class="token number">0.0</span>  <span class="token number">0.1</span>   <span class="token number">0</span>:37.64 systemd
+ <span class="token number">1896</span> root      <span class="token number">20</span>   <span class="token number">0</span>       <span class="token number">0</span>      <span class="token number">0</span>      <span class="token number">0</span> Z   <span class="token number">0.0</span>  <span class="token number">0.0</span>   <span class="token number">0</span>:00.00 devapp
+    <span class="token number">2</span> root      <span class="token number">20</span>   <span class="token number">0</span>       <span class="token number">0</span>      <span class="token number">0</span>      <span class="token number">0</span> S   <span class="token number">0.0</span>  <span class="token number">0.0</span>   <span class="token number">0</span>:00.10 kthreadd
+    <span class="token number">4</span> root       <span class="token number">0</span> -20       <span class="token number">0</span>      <span class="token number">0</span>      <span class="token number">0</span> I   <span class="token number">0.0</span>  <span class="token number">0.0</span>   <span class="token number">0</span>:00.00 kworker/0:0H
+    <span class="token number">6</span> root       <span class="token number">0</span> -20       <span class="token number">0</span>      <span class="token number">0</span>      <span class="token number">0</span> I   <span class="token number">0.0</span>  <span class="token number">0.0</span>   <span class="token number">0</span>:00.00 mm_percpu_wq
+    <span class="token number">7</span> root      <span class="token number">20</span>   <span class="token number">0</span>       <span class="token number">0</span>      <span class="token number">0</span>      <span class="token number">0</span> S   <span class="token number">0.0</span>  <span class="token number">0.0</span>   <span class="token number">0</span>:06.37 ksoftirqd/0<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>我们挨个来看一下：</p>
+<ul>
+<li>R 是 Running 或 Runnable 的缩写，表示进程在 CPU 的就绪队列中，正在运行或者正在等待运行。</li>
+<li>D 是 Disk Sleep 的缩写，也就是不可中断状态睡眠（Uninterruptible Sleep），一般表示进程正在跟硬件交互，并且交互过程不允许被其他进程或中断打断。</li>
+<li>Z 是 Zombie 的缩写，如果你玩过“植物大战僵尸”这款游戏，应该知道它的意思。它表示僵尸进程，也就是进程实际上已经结束了，但是父进程还没有回收它的资源（比如进程的描述符、PID 等）。</li>
+<li>S 是 Interruptible Sleep 的缩写，也就是可中断状态睡眠，表示进程因为等待某个事件而被系统挂起。当进程等待的事件发生时，它会被唤醒并进入 R 状态。</li>
+<li>I 是 Idle 的缩写，也就是空闲状态，用在不可中断睡眠的内核线程上。前面说了，硬件交互导致的不可中断进程用 D 表示，但对某些内核线程来说，它们有可能实际上并没有任何负载，用 Idle 正是为了区分这种情况。要注意，D 状态的进程会导致平均负载升高， I 状态的进程却不会。</li>
+</ul>
+<p>当然了，上面的示例并没有包括进程的所有状态。除了以上 5 个状态，进程还包括下面这 2 个状态。</p>
+<ul>
+<li>第一个是 T 或者 t，也就是 Stopped 或 Traced 的缩写，表示进程处于暂停或者跟踪状态。<blockquote>
+<p>向一个进程发送 SIGSTOP 信号，它就会因响应这个信号变成暂停状态（Stopped）；再向它发送 SIGCONT 信号，进程又会恢复运行（如果进程是终端里直接启动的，则需要你用 fg 命令，恢复到前台运行）。</p>
+<p>而当你用调试器（如 gdb）调试一个进程时，在使用断点中断进程后，进程就会变成跟踪状态，这其实也是一种特殊的暂停状态，只不过你可以用调试器来跟踪并按需要控制进程的运行。</p>
+</blockquote>
+</li>
+<li>另一个是 X，也就是 Dead 的缩写，表示进程已经消亡，所以你不会在 top 或者 ps 命令中看到它。</li>
+</ul>
+<ol>
+<li><p>不可中断状态</p>
+<p> 先看不可中断状态，这其实是为了保证进程数据与硬件状态一致，并且正常情况下，不可中断状态在很短时间内就会结束。所以，短时的不可中断状态进程，我们一般可以忽略。</p>
+<p> 但如果系统或硬件发生了故障，进程可能会在不可中断状态保持很久，甚至导致系统中出现大量不可中断进程。这时，你就得注意下，系统是不是出现了 I/O 等性能问题。</p>
+</li>
+<li><p>僵尸进程</p>
+<p> 再看僵尸进程，这是多进程应用很容易碰到的问题。正常情况下，当一个进程创建了子进程后，它应该通过系统调用 wait() 或者 waitpid() 等待子进程结束，回收子进程的资源；而子进程在结束时，会向它的父进程发送 SIGCHLD 信号，所以，父进程还可以注册 SIGCHLD 信号的处理函数，异步回收资源。</p>
+<p> 如果父进程没这么做，或是子进程执行太快，父进程还没来得及处理子进程状态，子进程就已经提前退出，那这时的子进程就会变成僵尸进程。换句话说，父亲应该一直对儿子负责，善始善终，如果不作为或者跟不上，都会导致“问题少年”的出现。</p>
+<p> 通常，僵尸进程持续的时间都比较短，在父进程回收它的资源后就会消亡；或者在父进程退出后，由 init 进程回收后也会消亡。</p>
+<p> 一旦父进程没有处理子进程的终止，还一直保持运行状态，那么子进程就会一直处于僵尸状态。大量的僵尸进程会用尽 PID 进程号，导致新进程不能创建，所以这种情况一定要避免。</p>
+</li>
+</ol>
+<h4 id="7-1-案例分析"><a href="#7-1-案例分析" class="headerlink" title="7.1 案例分析"></a>7.1 案例分析</h4><blockquote>
+<p>机器配置： 2 CPU, 8 GB 内存。</p>
+<p>安装软件：<code>apt install docker.io dstat sysstat</code>。</p>
+<blockquote>
+<p>dstat 是一个新的性能工具，它吸收了 vmstat、iostat、ifstat 等几种工具的优点，可以同时观察系统的 CPU、磁盘 I/O、网络以及内存使用情况。</p>
+</blockquote>
+</blockquote>
+<ol>
+<li><p>首先执行下面的命令运行案例应用：</p>
+ <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ docker run --privileged --name<span class="token operator">=</span>app -itd feisky/app:iowait<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre></li>
+<li><p>然后，输入 ps 命令，确认案例应用已正常启动。如果一切正常，你应该可以看到如下所示的输出：</p>
+ <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ <span class="token function">ps</span> aux <span class="token operator">|</span> <span class="token function">grep</span> /app
+root      <span class="token number">4009</span>  <span class="token number">0.0</span>  <span class="token number">0.0</span>   <span class="token number">4376</span>  <span class="token number">1008</span> pts/0    Ss+  05:51   <span class="token number">0</span>:00 /app
+root      <span class="token number">4287</span>  <span class="token number">0.6</span>  <span class="token number">0.4</span>  <span class="token number">37280</span> <span class="token number">33660</span> pts/0    D+   05:54   <span class="token number">0</span>:00 /app
+root      <span class="token number">4288</span>  <span class="token number">0.6</span>  <span class="token number">0.4</span>  <span class="token number">37280</span> <span class="token number">33668</span> pts/0    D+   05:54   <span class="token number">0</span>:00 /app<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span></span></code></pre>
+<p> 从这个界面，我们可以发现多个 app 进程已经启动，并且它们的状态分别是 Ss+ 和 D+。其中，S 表示可中断睡眠状态，D 表示不可中断睡眠状态，我们在前面刚学过，那后面的 s 和 + 是什么意思呢？不知道也没关系，查一下 <code>man ps</code> 就可以。现在记住，s 表示这个进程是一个会话的领导进程，而 + 表示前台进程组。</p>
+<p> 这里又出现了两个新概念，进程组和会话。它们用来管理一组相互关联的进程，意思其实很好理解。</p>
+<ul>
+<li>进程组表示一组相互关联的进程，比如每个子进程都是父进程所在组的成员；</li>
+<li><p>而会话是指共享同一个控制终端的一个或多个进程组。</p>
+<p>比如，我们通过 SSH 登录服务器，就会打开一个控制终端（TTY），这个控制终端就对应一个会话。而我们在终端中运行的命令以及它们的子进程，就构成了一个个的进程组，其中，在后台运行的命令，构成后台进程组；在前台运行的命令，构成前台进程组。</p>
+<p>明白了这些，我们再用 top 看一下系统的资源使用情况：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token comment"># 按下数字 1 切换到所有 CPU 的使用情况，观察一会儿按 Ctrl+C 结束</span>
+$ <span class="token function">top</span>
+<span class="token function">top</span> - 05:56:23 up <span class="token number">17</span> days, <span class="token number">16</span>:45,  <span class="token number">2</span> users,  load average: <span class="token number">2.00</span>, <span class="token number">1.68</span>, <span class="token number">1.39</span>
+Tasks: <span class="token number">247</span> total,   <span class="token number">1</span> running,  <span class="token number">79</span> sleeping,   <span class="token number">0</span> stopped, <span class="token number">115</span> zombie
+%Cpu0  <span class="token builtin class-name">:</span>  <span class="token number">0.0</span> us,  <span class="token number">0.7</span> sy,  <span class="token number">0.0</span> ni, <span class="token number">38.9</span> id, <span class="token number">60.5</span> wa,  <span class="token number">0.0</span> hi,  <span class="token number">0.0</span> si,  <span class="token number">0.0</span> st
+%Cpu1  <span class="token builtin class-name">:</span>  <span class="token number">0.0</span> us,  <span class="token number">0.7</span> sy,  <span class="token number">0.0</span> ni,  <span class="token number">4.7</span> id, <span class="token number">94.6</span> wa,  <span class="token number">0.0</span> hi,  <span class="token number">0.0</span> si,  <span class="token number">0.0</span> st
+<span class="token punctuation">..</span>.
+
+PID <span class="token environment constant">USER</span>      PR  NI    VIRT    RES    SHR S  %CPU %MEM     TIME+ COMMAND
+<span class="token number">4340</span> root      <span class="token number">20</span>   <span class="token number">0</span>   <span class="token number">44676</span>   <span class="token number">4048</span>   <span class="token number">3432</span> R   <span class="token number">0.3</span>  <span class="token number">0.0</span>   <span class="token number">0</span>:00.05 <span class="token function">top</span>
+<span class="token number">4345</span> root      <span class="token number">20</span>   <span class="token number">0</span>   <span class="token number">37280</span>  <span class="token number">33624</span>    <span class="token number">860</span> D   <span class="token number">0.3</span>  <span class="token number">0.0</span>   <span class="token number">0</span>:00.01 app
+<span class="token number">4344</span> root      <span class="token number">20</span>   <span class="token number">0</span>   <span class="token number">37280</span>  <span class="token number">33624</span>    <span class="token number">860</span> D   <span class="token number">0.3</span>  <span class="token number">0.4</span>   <span class="token number">0</span>:00.01 app
+   <span class="token number">1</span> root      <span class="token number">20</span>   <span class="token number">0</span>  <span class="token number">160072</span>   <span class="token number">9416</span>   <span class="token number">6752</span> S   <span class="token number">0.0</span>  <span class="token number">0.1</span>   <span class="token number">0</span>:38.59 systemd
+<span class="token punctuation">..</span>.<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>从这里你能看出什么问题吗？</p>
+</li>
+<li><p>先看第一行的平均负载（ Load Average），过去 1 分钟、5 分钟和 15 分钟内的平均负载在依次减小，说明平均负载正在升高；而 1 分钟内的平均负载已经达到系统的 CPU 个数，说明系统很可能已经有了性能瓶颈。</p>
+</li>
+<li>再看第二行的 Tasks，有 1 个正在运行的进程，但僵尸进程比较多，而且还在不停增加，说明有子进程在退出时没被清理。</li>
+<li>接下来看两个 CPU 的使用率情况，用户 CPU 和系统 CPU 都不高，但 iowait 分别是 60.5% 和 94.6%，好像有点儿不正常。</li>
+<li><p>最后再看每个进程的情况， CPU 使用率最高的进程只有 0.3%，看起来并不高；但有两个进程处于 D 状态，它们可能在等待 I/O，但光凭这里并不能确定是它们导致了 iowait 升高。</p>
+<p>汇总一下：</p>
+</li>
+<li><p>第一点，iowait 太高了，导致系统的平均负载升高，甚至达到了系统 CPU 的个数。</p>
+</li>
+<li>第二点，僵尸进程在不断增多，说明有程序没能正确清理子进程的资源。</li>
+</ul>
+</li>
+</ol>
+<h4 id="7-2-小结"><a href="#7-2-小结" class="headerlink" title="7.2 小结"></a>7.2 小结</h4><p>进程的状态包括运行（R）、空闲（I）、不可中断睡眠（D）、可中断睡眠（S）、僵尸（Z）以及暂停（T）等。</p>
+<p>其中，不可中断状态和僵尸状态，是我们今天学习的重点。</p>
+<ul>
+<li>不可中断状态，表示进程正在跟硬件交互，为了保护进程数据和硬件的一致性，系统不允许其他进程或中断打断这个进程。进程长时间处于不可中断状态，通常表示系统有 I/O 性能问题。</li>
+<li>僵尸进程表示进程已经退出，但它的父进程还没有回收子进程占用的资源。短暂的僵尸状态我们通常不必理会，但进程长时间处于僵尸状态，就应该注意了，可能有应用程序没有正常处理子进程的退出。</li>
+</ul>
+<h3 id="08-案例篇：系统中出现大量不可中断进程和僵尸进程怎么办？（下）"><a href="#08-案例篇：系统中出现大量不可中断进程和僵尸进程怎么办？（下）" class="headerlink" title="08 | 案例篇：系统中出现大量不可中断进程和僵尸进程怎么办？（下）"></a>08 | 案例篇：系统中出现大量不可中断进程和僵尸进程怎么办？（下）</h3><p>打开一个终端，登录到上次的机器中。然后执行下面的命令，重新运行这个案例：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token comment"># 先删除上次启动的案例</span>
+$ docker <span class="token function">rm</span> -f app
+<span class="token comment"># 重新运行案例</span>
+$ docker run --privileged --name<span class="token operator">=</span>app -itd feisky/app:iowait<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span></span></code></pre>
+<h4 id="8-1-iowait-分析"><a href="#8-1-iowait-分析" class="headerlink" title="8.1 iowait 分析"></a>8.1 iowait 分析</h4><p>一提到 iowait 升高，你首先会想要查询系统的 I/O 情况。我一般也是这种思路，那么什么工具可以查询系统的 I/O 情况呢？</p>
+<p>这里，我推荐的正是上节课要求安装的 dstat ，它的好处是，可以同时查看 CPU 和 I/O 这两种资源的使用情况，便于对比分析。</p>
+<ol>
+<li><p>在终端中运行 dstat 命令，观察 CPU 和 I/O 的使用情况：</p>
+ <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token comment"># 间隔 1 秒输出 10 组数据</span>
+$ dstat <span class="token number">1</span> <span class="token number">10</span>
+You did not <span class="token keyword">select</span> any stats, using -cdngy by default.
+--total-cpu-usage-- -dsk/total- -net/total- ---paging-- ---system--
+usr sys idl wai stl<span class="token operator">|</span> <span class="token builtin class-name">read</span>  writ<span class="token operator">|</span> recv  send<span class="token operator">|</span>  <span class="token keyword">in</span>   out <span class="token operator">|</span> int   csw
+  <span class="token number">0</span>   <span class="token number">0</span>  <span class="token number">96</span>   <span class="token number">4</span>   <span class="token number">0</span><span class="token operator">|</span>1219k  408k<span class="token operator">|</span>   <span class="token number">0</span>     <span class="token number">0</span> <span class="token operator">|</span>   <span class="token number">0</span>     <span class="token number">0</span> <span class="token operator">|</span>  <span class="token number">42</span>   <span class="token number">885</span>
+  <span class="token number">0</span>   <span class="token number">0</span>   <span class="token number">2</span>  <span class="token number">98</span>   <span class="token number">0</span><span class="token operator">|</span>  34M    <span class="token number">0</span> <span class="token operator">|</span> 198B  790B<span class="token operator">|</span>   <span class="token number">0</span>     <span class="token number">0</span> <span class="token operator">|</span>  <span class="token number">42</span>   <span class="token number">138</span>
+  <span class="token number">0</span>   <span class="token number">0</span>   <span class="token number">0</span> <span class="token number">100</span>   <span class="token number">0</span><span class="token operator">|</span>  34M    <span class="token number">0</span> <span class="token operator">|</span>  66B  342B<span class="token operator">|</span>   <span class="token number">0</span>     <span class="token number">0</span> <span class="token operator">|</span>  <span class="token number">42</span>   <span class="token number">135</span>
+  <span class="token number">0</span>   <span class="token number">0</span>  <span class="token number">84</span>  <span class="token number">16</span>   <span class="token number">0</span><span class="token operator">|</span>5633k    <span class="token number">0</span> <span class="token operator">|</span>  66B  342B<span class="token operator">|</span>   <span class="token number">0</span>     <span class="token number">0</span> <span class="token operator">|</span>  <span class="token number">52</span>   <span class="token number">177</span>
+  <span class="token number">0</span>   <span class="token number">3</span>  <span class="token number">39</span>  <span class="token number">58</span>   <span class="token number">0</span><span class="token operator">|</span>  22M    <span class="token number">0</span> <span class="token operator">|</span>  66B  342B<span class="token operator">|</span>   <span class="token number">0</span>     <span class="token number">0</span> <span class="token operator">|</span>  <span class="token number">43</span>   <span class="token number">144</span>
+  <span class="token number">0</span>   <span class="token number">0</span>   <span class="token number">0</span> <span class="token number">100</span>   <span class="token number">0</span><span class="token operator">|</span>  34M    <span class="token number">0</span> <span class="token operator">|</span> 200B  450B<span class="token operator">|</span>   <span class="token number">0</span>     <span class="token number">0</span> <span class="token operator">|</span>  <span class="token number">46</span>   <span class="token number">147</span>
+  <span class="token number">0</span>   <span class="token number">0</span>   <span class="token number">2</span>  <span class="token number">98</span>   <span class="token number">0</span><span class="token operator">|</span>  34M    <span class="token number">0</span> <span class="token operator">|</span>  66B  342B<span class="token operator">|</span>   <span class="token number">0</span>     <span class="token number">0</span> <span class="token operator">|</span>  <span class="token number">45</span>   <span class="token number">134</span>
+  <span class="token number">0</span>   <span class="token number">0</span>   <span class="token number">0</span> <span class="token number">100</span>   <span class="token number">0</span><span class="token operator">|</span>  34M    <span class="token number">0</span> <span class="token operator">|</span>  66B  342B<span class="token operator">|</span>   <span class="token number">0</span>     <span class="token number">0</span> <span class="token operator">|</span>  <span class="token number">39</span>   <span class="token number">131</span>
+  <span class="token number">0</span>   <span class="token number">0</span>  <span class="token number">83</span>  <span class="token number">17</span>   <span class="token number">0</span><span class="token operator">|</span>5633k    <span class="token number">0</span> <span class="token operator">|</span>  66B  342B<span class="token operator">|</span>   <span class="token number">0</span>     <span class="token number">0</span> <span class="token operator">|</span>  <span class="token number">46</span>   <span class="token number">168</span>
+  <span class="token number">0</span>   <span class="token number">3</span>  <span class="token number">39</span>  <span class="token number">59</span>   <span class="token number">0</span><span class="token operator">|</span>  22M    <span class="token number">0</span> <span class="token operator">|</span>  66B  342B<span class="token operator">|</span>   <span class="token number">0</span>     <span class="token number">0</span> <span class="token operator">|</span>  <span class="token number">37</span>   <span class="token number">134</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p> 从 dstat 的输出，我们可以看到，每当 iowait 升高（wai）时，磁盘的读请求（read）都会很大。这说明 iowait 的升高跟磁盘的读请求有关，很可能就是磁盘读导致的。</p>
+<p> 那到底是哪个进程在读磁盘呢？不知道你还记不记得，上节在 top 里看到的不可中断状态进程，我觉得它就很可疑，我们试着来分析下。</p>
+</li>
+<li><p>继续在刚才的终端中，运行 top 命令，观察 D 状态的进程：</p>
+ <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token comment"># 观察一会儿按 Ctrl+C 结束</span>
+$ <span class="token function">top</span>
+<span class="token punctuation">..</span>.
+ PID <span class="token environment constant">USER</span>      PR  NI    VIRT    RES    SHR S  %CPU %MEM     TIME+ COMMAND
+<span class="token number">4340</span> root      <span class="token number">20</span>   <span class="token number">0</span>   <span class="token number">44676</span>   <span class="token number">4048</span>   <span class="token number">3432</span> R   <span class="token number">0.3</span>  <span class="token number">0.0</span>   <span class="token number">0</span>:00.05 <span class="token function">top</span>
+<span class="token number">4345</span> root      <span class="token number">20</span>   <span class="token number">0</span>   <span class="token number">37280</span>  <span class="token number">33624</span>    <span class="token number">860</span> D   <span class="token number">0.3</span>  <span class="token number">0.0</span>   <span class="token number">0</span>:00.01 app
+<span class="token number">4344</span> root      <span class="token number">20</span>   <span class="token number">0</span>   <span class="token number">37280</span>  <span class="token number">33624</span>    <span class="token number">860</span> D   <span class="token number">0.3</span>  <span class="token number">0.4</span>   <span class="token number">0</span>:00.01 app
+<span class="token punctuation">..</span>.<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p> 我们从 top 的输出找到 D 状态进程的 PID，你可以发现，这个界面里有两个 D 状态的进程，PID 分别是 4344 和 4345。</p>
+<p> 一般要查看某一个进程的资源使用情况，都可以用我们的老朋友 pidstat，不过这次记得加上 -d 参数，以便输出 I/O 使用情况。</p>
+</li>
+<li><p>以 4344 为例，我们在终端里运行下面的 pidstat 命令，并用 -p 4344 参数指定进程号：</p>
+ <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token comment"># -d 展示 I/O 统计数据，-p 指定进程号，间隔 1 秒输出 3 组数据</span>
+$ pidstat -d -p <span class="token number">4344</span> <span class="token number">1</span> <span class="token number">3</span>
+06:38:50      <span class="token environment constant">UID</span>       PID   kB_rd/s   kB_wr/s kB_ccwr/s iodelay  Command
+06:38:51        <span class="token number">0</span>      <span class="token number">4344</span>      <span class="token number">0.00</span>      <span class="token number">0.00</span>      <span class="token number">0.00</span>       <span class="token number">0</span>  app
+06:38:52        <span class="token number">0</span>      <span class="token number">4344</span>      <span class="token number">0.00</span>      <span class="token number">0.00</span>      <span class="token number">0.00</span>       <span class="token number">0</span>  app
+06:38:53        <span class="token number">0</span>      <span class="token number">4344</span>      <span class="token number">0.00</span>      <span class="token number">0.00</span>      <span class="token number">0.00</span>       <span class="token number">0</span>  app<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p> 在这个输出中， kB_rd 表示每秒读的 KB 数， kB_wr 表示每秒写的 KB 数，iodelay 表示 I/O 的延迟（单位是时钟周期）。它们都是 0，那就表示此时没有任何的读写，说明问题不是 4344 进程导致的。</p>
+<p> 可是，用同样的方法分析进程 4345，你会发现，它也没有任何磁盘读写。</p>
+<p> 那要怎么知道，到底是哪个进程在进行磁盘读写呢？我们继续使用 pidstat，但这次去掉进程号，干脆就来观察所有进程的 I/O 使用情况。</p>
+</li>
+<li><p>在终端中运行下面的 pidstat 命令：</p>
+ <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token comment"># 间隔 1 秒输出多组数据 (这里是 20 组)</span>
+$ pidstat -d <span class="token number">1</span> <span class="token number">20</span>
+<span class="token punctuation">..</span>.
+06:48:46      <span class="token environment constant">UID</span>       PID   kB_rd/s   kB_wr/s kB_ccwr/s iodelay  Command
+06:48:47        <span class="token number">0</span>      <span class="token number">4615</span>      <span class="token number">0.00</span>      <span class="token number">0.00</span>      <span class="token number">0.00</span>       <span class="token number">1</span>  kworker/u4:1
+06:48:47        <span class="token number">0</span>      <span class="token number">6080</span>  <span class="token number">32768.00</span>      <span class="token number">0.00</span>      <span class="token number">0.00</span>     <span class="token number">170</span>  app
+06:48:47        <span class="token number">0</span>      <span class="token number">6081</span>  <span class="token number">32768.00</span>      <span class="token number">0.00</span>      <span class="token number">0.00</span>     <span class="token number">184</span>  app
+
+06:48:47      <span class="token environment constant">UID</span>       PID   kB_rd/s   kB_wr/s kB_ccwr/s iodelay  Command
+06:48:48        <span class="token number">0</span>      <span class="token number">6080</span>      <span class="token number">0.00</span>      <span class="token number">0.00</span>      <span class="token number">0.00</span>     <span class="token number">110</span>  app
+
+06:48:48      <span class="token environment constant">UID</span>       PID   kB_rd/s   kB_wr/s kB_ccwr/s iodelay  Command
+06:48:49        <span class="token number">0</span>      <span class="token number">6081</span>      <span class="token number">0.00</span>      <span class="token number">0.00</span>      <span class="token number">0.00</span>     <span class="token number">191</span>  app
+
+06:48:49      <span class="token environment constant">UID</span>       PID   kB_rd/s   kB_wr/s kB_ccwr/s iodelay  Command
+
+06:48:50      <span class="token environment constant">UID</span>       PID   kB_rd/s   kB_wr/s kB_ccwr/s iodelay  Command
+06:48:51        <span class="token number">0</span>      <span class="token number">6082</span>  <span class="token number">32768.00</span>      <span class="token number">0.00</span>      <span class="token number">0.00</span>       <span class="token number">0</span>  app
+06:48:51        <span class="token number">0</span>      <span class="token number">6083</span>  <span class="token number">32768.00</span>      <span class="token number">0.00</span>      <span class="token number">0.00</span>       <span class="token number">0</span>  app
+
+06:48:51      <span class="token environment constant">UID</span>       PID   kB_rd/s   kB_wr/s kB_ccwr/s iodelay  Command
+06:48:52        <span class="token number">0</span>      <span class="token number">6082</span>  <span class="token number">32768.00</span>      <span class="token number">0.00</span>      <span class="token number">0.00</span>     <span class="token number">184</span>  app
+06:48:52        <span class="token number">0</span>      <span class="token number">6083</span>  <span class="token number">32768.00</span>      <span class="token number">0.00</span>      <span class="token number">0.00</span>     <span class="token number">175</span>  app
+
+06:48:52      <span class="token environment constant">UID</span>       PID   kB_rd/s   kB_wr/s kB_ccwr/s iodelay  Command
+06:48:53        <span class="token number">0</span>      <span class="token number">6083</span>      <span class="token number">0.00</span>      <span class="token number">0.00</span>      <span class="token number">0.00</span>     <span class="token number">105</span>  app
+<span class="token punctuation">..</span>.<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p> 观察一会儿可以发现，的确是 app 进程在进行磁盘读，并且每秒读的数据有 32 MB，看来就是 app 的问题。不过，app 进程到底在执行啥 I/O 操作呢？</p>
+<p> 这里，我们需要回顾一下进程用户态和内核态的区别。进程想要访问磁盘，就必须使用系统调用，所以接下来，重点就是找出 app 进程的系统调用了。</p>
+</li>
+<li><p>strace 正是最常用的跟踪进程系统调用的工具。所以，我们从 pidstat 的输出中拿到进程的 PID 号，比如 6082，然后在终端中运行 strace 命令，并用 -p 参数指定 PID 号：</p>
+ <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ <span class="token function">strace</span> -p <span class="token number">6082</span>
+strace: attach: ptrace<span class="token punctuation">(</span>PTRACE_SEIZE, <span class="token number">6082</span><span class="token punctuation">)</span>: Operation not permitted<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre>
+<p> <strong>一般遇到这种问题时，我会先检查一下进程的状态是否正常。</strong> 比如，继续在终端中运行 ps 命令，并使用 grep 找出刚才的 6082 号进程：</p>
+ <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ <span class="token function">ps</span> aux <span class="token operator">|</span> <span class="token function">grep</span> <span class="token number">6082</span>
+root      <span class="token number">6082</span>  <span class="token number">0.0</span>  <span class="token number">0.0</span>      <span class="token number">0</span>     <span class="token number">0</span> pts/0    Z+   <span class="token number">13</span>:43   <span class="token number">0</span>:00 <span class="token punctuation">[</span>app<span class="token punctuation">]</span> <span class="token operator">&lt;</span>defunct<span class="token operator">&gt;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre>
+<p> 果然，进程 6082 已经变成了 Z 状态，也就是僵尸进程。僵尸进程都是已经退出的进程，所以就没法儿继续分析它的系统调用。关于僵尸进程的处理方法，我们一会儿再说，现在还是继续分析 iowait 的问题。</p>
+<p> 到这一步，你应该注意到了，系统 iowait 的问题还在继续，但是 top、pidstat 这类工具已经不能给出更多的信息了。这时，我们就应该求助那些基于事件记录的动态追踪工具了。</p>
+</li>
+<li><p>你可以用 perf top 看看有没有新发现。再或者，可以像我一样，在终端中运行 perf record，持续一会儿（例如 15 秒），然后按 Ctrl+C 退出，再运行 perf report 查看报告：</p>
+ <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ perf record -g
+$ perf report<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre>
+<p> 接着，找到我们关注的 app 进程，按回车键展开调用栈，你就会得到下面这张调用关系图：</p>
+<p> <img src="/images/《Linux性能优化实战》学习笔记/大量不可中断进程和僵尸进程案例iowait分析perf截图.png" alt="大量不可中断进程和僵尸进程案例iowait分析perf截图"></p>
+<p> 这个图里的 swapper 是内核中的调度进程，你可以先忽略掉。</p>
+<p> 我们来看其他信息，你可以发现， app 的确在通过系统调用 sys_read() 读取数据。并且从 new_sync_read 和 blkdev_direct_IO 能看出，进程正在对磁盘进行<strong>直接读</strong>，也就是绕过了系统缓存，每个读请求都会从磁盘直接读，这就可以解释我们观察到的 iowait 升高了。</p>
+<p> 看来，罪魁祸首是 app 内部进行了磁盘的直接 I/O 啊！</p>
+<p> 查看源码文件 <a target="_blank" rel="noopener" href="https://github.com/feiskyer/linux-perf-examples/blob/master/high-iowait-process/app.c">app.c</a>，你会发现它果然使用了 O_DIRECT 选项打开磁盘，于是绕过了系统缓存，直接对磁盘进行读写。</p>
+ <pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token function">open</span><span class="token punctuation">(</span>disk<span class="token punctuation">,</span> O_RDONLY<span class="token operator">|</span>O_DIRECT<span class="token operator">|</span>O_LARGEFILE<span class="token punctuation">,</span> <span class="token number">0755</span><span class="token punctuation">)</span><span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p> 直接读写磁盘，对 I/O 敏感型应用（比如数据库系统）是很友好的，因为你可以在应用中，直接控制磁盘的读写。但在大部分情况下，我们最好还是通过系统缓存来优化磁盘 I/O，换句话说，删除 O_DIRECT 这个选项就是了。</p>
+<p> <a target="_blank" rel="noopener" href="https://github.com/feiskyer/linux-perf-examples/blob/master/high-iowait-process/app-fix1.c">app-fix1.c</a> 就是修改后的文件，我也打包成了一个镜像文件，运行下面的命令，你就可以启动它了：</p>
+ <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token comment"># 首先删除原来的应用</span>
+$ docker <span class="token function">rm</span> -f app
+<span class="token comment"># 运行新的应用</span>
+$ docker run --privileged --name<span class="token operator">=</span>app -itd feisky/app:iowait-fix1<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span></span></code></pre></li>
+<li><p>最后，再用 top 检查一下：</p>
+ <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ <span class="token function">top</span>
+<span class="token function">top</span> - <span class="token number">14</span>:59:32 up <span class="token number">19</span> min,  <span class="token number">1</span> user,  load average: <span class="token number">0.15</span>, <span class="token number">0.07</span>, <span class="token number">0.05</span>
+Tasks: <span class="token number">137</span> total,   <span class="token number">1</span> running,  <span class="token number">72</span> sleeping,   <span class="token number">0</span> stopped,  <span class="token number">12</span> zombie
+%Cpu0  <span class="token builtin class-name">:</span>  <span class="token number">0.0</span> us,  <span class="token number">1.7</span> sy,  <span class="token number">0.0</span> ni, <span class="token number">98.0</span> id,  <span class="token number">0.3</span> wa,  <span class="token number">0.0</span> hi,  <span class="token number">0.0</span> si,  <span class="token number">0.0</span> st
+%Cpu1  <span class="token builtin class-name">:</span>  <span class="token number">0.0</span> us,  <span class="token number">1.3</span> sy,  <span class="token number">0.0</span> ni, <span class="token number">98.7</span> id,  <span class="token number">0.0</span> wa,  <span class="token number">0.0</span> hi,  <span class="token number">0.0</span> si,  <span class="token number">0.0</span> st
+<span class="token punctuation">..</span>.
+
+ PID <span class="token environment constant">USER</span>      PR  NI    VIRT    RES    SHR S  %CPU %MEM     TIME+ COMMAND
+<span class="token number">3084</span> root      <span class="token number">20</span>   <span class="token number">0</span>       <span class="token number">0</span>      <span class="token number">0</span>      <span class="token number">0</span> Z   <span class="token number">1.3</span>  <span class="token number">0.0</span>   <span class="token number">0</span>:00.04 app
+<span class="token number">3085</span> root      <span class="token number">20</span>   <span class="token number">0</span>       <span class="token number">0</span>      <span class="token number">0</span>      <span class="token number">0</span> Z   <span class="token number">1.3</span>  <span class="token number">0.0</span>   <span class="token number">0</span>:00.04 app
+    <span class="token number">1</span> root      <span class="token number">20</span>   <span class="token number">0</span>  <span class="token number">159848</span>   <span class="token number">9120</span>   <span class="token number">6724</span> S   <span class="token number">0.0</span>  <span class="token number">0.1</span>   <span class="token number">0</span>:09.03 systemd
+    <span class="token number">2</span> root      <span class="token number">20</span>   <span class="token number">0</span>       <span class="token number">0</span>      <span class="token number">0</span>      <span class="token number">0</span> S   <span class="token number">0.0</span>  <span class="token number">0.0</span>   <span class="token number">0</span>:00.00 kthreadd
+    <span class="token number">3</span> root<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p> 你会发现， iowait 已经非常低了，只有 0.3%，说明刚才的改动已经成功修复了 iowait 高的问题。</p>
+</li>
+</ol>
+<h4 id="8-2-僵尸进程"><a href="#8-2-僵尸进程" class="headerlink" title="8.2 僵尸进程"></a>8.2 僵尸进程</h4><p>既然僵尸进程是因为父进程没有回收子进程的资源而出现的，那么，要解决掉它们，就要找到它们的根儿，也就是找出父进程，然后在父进程里解决。</p>
+<ol>
+<li><p>父进程的找法我们前面讲过，最简单的就是运行 pstree 命令：</p>
+ <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token comment"># -a 表示输出命令行选项</span>
+<span class="token comment"># p 表 PID</span>
+<span class="token comment"># s 表示指定进程的父进程</span>
+$ pstree -aps <span class="token number">3084</span>
+systemd,1
+└─dockerd,15006 -H fd://
+    └─docker-containe,15024 --config /var/run/docker/containerd/containerd.toml
+        └─docker-containe,3991 -namespace moby -workdir<span class="token punctuation">..</span>.
+            └─app,4009
+                └─<span class="token punctuation">(</span>app,3084<span class="token punctuation">)</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p> 运行完，你会发现 3084 号进程的父进程是 4009，也就是 app 应用。</p>
+<p> 所以，我们接着查看 app 应用程序的代码，看看子进程结束的处理是否正确，比如有没有调用 wait() 或 waitpid() ，抑或是，有没有注册 SIGCHLD 信号的处理函数。</p>
+</li>
+<li><p>现在我们查看修复 iowait 后的源码文件 <a target="_blank" rel="noopener" href="https://github.com/feiskyer/linux-perf-examples/blob/master/high-iowait-process/app-fix1.c">app-fix1.c</a> ，找到子进程的创建和清理的地方：</p>
+ <pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">int</span> status <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span>
+<span class="token keyword">for</span> <span class="token punctuation">(</span><span class="token punctuation">;</span><span class="token punctuation">;</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+    <span class="token keyword">for</span> <span class="token punctuation">(</span><span class="token keyword">int</span> i <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span> i <span class="token operator">&lt;</span> <span class="token number">2</span><span class="token punctuation">;</span> i<span class="token operator">++</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+    <span class="token keyword">if</span><span class="token punctuation">(</span><span class="token function">fork</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token operator">==</span> <span class="token number">0</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+        <span class="token function">sub_process</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+    <span class="token punctuation">}</span>
+    <span class="token function">sleep</span><span class="token punctuation">(</span><span class="token number">5</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+
+<span class="token keyword">while</span><span class="token punctuation">(</span><span class="token function">wait</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>status<span class="token punctuation">)</span><span class="token operator">&gt;</span><span class="token number">0</span><span class="token punctuation">)</span><span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p> 循环语句本来就容易出错，你能找到这里的问题吗？这段代码虽然看起来调用了 wait() 函数等待子进程结束，但却错误地把 wait() 放到了 for 死循环的外面，也就是说，wait() 函数实际上并没被调用到，我们把它挪到 for 循环的里面就可以了。</p>
+</li>
+<li><p>修改后的文件我放到了 <a target="_blank" rel="noopener" href="https://github.com/feiskyer/linux-perf-examples/blob/master/high-iowait-process/app-fix2.c">app-fix2.c</a> 中，也打包成了一个 Docker 镜像，运行下面的命令，你就可以启动它：</p>
+ <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token comment"># 先停止产生僵尸进程的 app</span>
+$ docker <span class="token function">rm</span> -f app
+<span class="token comment"># 然后启动新的 app</span>
+$ docker run --privileged --name<span class="token operator">=</span>app -itd feisky/app:iowait-fix2
+<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span></span></code></pre></li>
+<li><p>启动后，再用 top 最后来检查一遍：</p>
+ <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ <span class="token function">top</span>
+<span class="token function">top</span> - <span class="token number">15</span>:00:44 up <span class="token number">20</span> min,  <span class="token number">1</span> user,  load average: <span class="token number">0.05</span>, <span class="token number">0.05</span>, <span class="token number">0.04</span>
+Tasks: <span class="token number">125</span> total,   <span class="token number">1</span> running,  <span class="token number">72</span> sleeping,   <span class="token number">0</span> stopped,   <span class="token number">0</span> zombie
+%Cpu0  <span class="token builtin class-name">:</span>  <span class="token number">0.0</span> us,  <span class="token number">1.7</span> sy,  <span class="token number">0.0</span> ni, <span class="token number">98.3</span> id,  <span class="token number">0.0</span> wa,  <span class="token number">0.0</span> hi,  <span class="token number">0.0</span> si,  <span class="token number">0.0</span> st
+%Cpu1  <span class="token builtin class-name">:</span>  <span class="token number">0.0</span> us,  <span class="token number">1.3</span> sy,  <span class="token number">0.0</span> ni, <span class="token number">98.7</span> id,  <span class="token number">0.0</span> wa,  <span class="token number">0.0</span> hi,  <span class="token number">0.0</span> si,  <span class="token number">0.0</span> st
+<span class="token punctuation">..</span>.
+
+PID <span class="token environment constant">USER</span>      PR  NI    VIRT    RES    SHR S  %CPU %MEM     TIME+ COMMAND
+<span class="token number">3198</span> root      <span class="token number">20</span>   <span class="token number">0</span>    <span class="token number">4376</span>    <span class="token number">840</span>    <span class="token number">780</span> S   <span class="token number">0.3</span>  <span class="token number">0.0</span>   <span class="token number">0</span>:00.01 app
+    <span class="token number">2</span> root      <span class="token number">20</span>   <span class="token number">0</span>       <span class="token number">0</span>      <span class="token number">0</span>      <span class="token number">0</span> S   <span class="token number">0.0</span>  <span class="token number">0.0</span>   <span class="token number">0</span>:00.00 kthreadd
+    <span class="token number">3</span> root      <span class="token number">20</span>   <span class="token number">0</span>       <span class="token number">0</span>      <span class="token number">0</span>      <span class="token number">0</span> I   <span class="token number">0.0</span>  <span class="token number">0.0</span>   <span class="token number">0</span>:00.41 kworker/0:0
+<span class="token punctuation">..</span>.<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p> 好了，僵尸进程（Z 状态）没有了， iowait 也是 0，问题终于全部解决了。</p>
+</li>
+</ol>
+<h4 id="8-3-小结"><a href="#8-3-小结" class="headerlink" title="8.3 小结"></a>8.3 小结</h4><p>虽然这个案例是磁盘 I/O 导致了 iowait 升高，不过， <strong>iowait 高不一定代表 I/O 有性能瓶颈。当系统中只有 I/O 类型的进程在运行时，iowait 也会很高，但实际上，磁盘的读写远没有达到性能瓶颈的程度。</strong></p>
+<p>因此，碰到 iowait 升高时，需要先用 dstat、pidstat 等工具，确认是不是磁盘 I/O 的问题，然后再找是哪些进程导致了 I/O。</p>
+<p>等待 I/O 的进程一般是不可中断状态，所以用 ps 命令找到的 D 状态（即不可中断状态）的进程，多为可疑进程。但这个案例中，在 I/O 操作后，进程又变成了僵尸进程，所以不能用 strace 直接分析这个进程的系统调用。</p>
+<p>这种情况下，我们用了 perf 工具，来分析系统的 CPU 时钟事件，最终发现是直接 I/O 导致的问题。这时，再检查源码中对应位置的问题，就很轻松了。</p>
+<p>而僵尸进程的问题相对容易排查，使用 pstree 找出父进程后，去查看父进程的代码，检查 wait() / waitpid() 的调用，或是 SIGCHLD 信号处理函数的注册就行了。</p>
 
                 
             </div>
@@ -1602,7 +1879,7 @@ execsnoop 所用的 ftrace 是一种常用的动态追踪技术，一般用于�
             <br>
             
             &nbsp;<i class="fas fa-chart-area"></i>&nbsp;站点总字数:&nbsp;<span
-                class="white-color">245.6k</span>&nbsp;字
+                class="white-color">251.4k</span>&nbsp;字
             
             
             
