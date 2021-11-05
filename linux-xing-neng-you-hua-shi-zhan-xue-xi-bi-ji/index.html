@@ -442,14 +442,14 @@
                 
                 <div class="info-break-policy">
                     <i class="far fa-file-word fa-fw"></i>文章字数:&nbsp;&nbsp;
-                    11.2k
+                    15.3k
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-clock fa-fw"></i>阅读时长:&nbsp;&nbsp;
-                    44 分
+                    62 分
                 </div>
                 
 
@@ -993,6 +993,214 @@ Transfer rate:          <span class="token number">375.75</span> <span class="to
 <li>软中断和硬中断高，说明软中断或硬中断的处理程序占用了较多的 CPU，所以应该着重排查内核中的中断服务程序。</li>
 </ul>
 <p>碰到 CPU 使用率升高的问题，你可以借助 top、pidstat 等工具，确认引发 CPU 性能问题的来源；再使用 perf 等工具，排查出引起性能问题的具体函数。</p>
+<h3 id="06-案例篇：系统的-CPU-使用率很高，但为啥却找不到高-CPU-的应用？"><a href="#06-案例篇：系统的-CPU-使用率很高，但为啥却找不到高-CPU-的应用？" class="headerlink" title="06 | 案例篇：系统的 CPU 使用率很高，但为啥却找不到高 CPU 的应用？"></a>06 | 案例篇：系统的 CPU 使用率很高，但为啥却找不到高 CPU 的应用？</h3><p>系统的 CPU 使用率，不仅包括进程用户态和内核态的运行，还包括中断处理、等待 I/O 以及内核线程等。所以，当你发现系统的 CPU 使用率很高的时候，不一定能找到相对应的高 CPU 使用率的进程。</p>
+<p>今天，我就用一个 Nginx + PHP 的 Web 服务的案例，带你来分析这种情况。</p>
+<h4 id="6-1-案例分析"><a href="#6-1-案例分析" class="headerlink" title="6.1 案例分析"></a>6.1 案例分析</h4><blockquote>
+<p>机器配置：2 CPU，8GB 内存。</p>
+<p>安装软件：<code>apt install docker.io sysstat linux-tools-common apache2-utils</code>。</p>
+</blockquote>
+<ol>
+<li><p>在第一个终端，执行下面的命令运行 Nginx 和 PHP 应用：</p>
+ <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ docker run --name nginx -p <span class="token number">10000</span>:80 -itd feisky/nginx:sp
+$ docker run --name phpfpm -itd --network container:nginx feisky/php-fpm:sp<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre></li>
+<li><p>第二个终端，使用 curl 访问 <a href="http://[VM1">http://[VM1</a> 的 IP]:10000，确认 Nginx 已正常启动。你应该可以看到 It works! 的响应。</p>
+ <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token comment"># 192.168.0.10 是第一台虚拟机的 IP 地址</span>
+$ <span class="token function">curl</span> http://192.168.0.10:10000/
+It works<span class="token operator">!</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span></span></code></pre></li>
+<li><p>来测试一下这个 Nginx 服务的性能。在第二个终端运行下面的 ab 命令。要注意，与上次操作不同的是，这次我们需要并发 100 个请求测试 Nginx 性能，总共测试 1000 个请求。</p>
+ <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token comment"># 并发 100 个请求测试 Nginx 性能，总共测试 1000 个请求</span>
+$ ab -c <span class="token number">100</span> -n <span class="token number">1000</span> http://192.168.0.10:10000/
+This is ApacheBench, Version <span class="token number">2.3</span> <span class="token operator">&lt;</span><span class="token variable">$Revision</span><span class="token builtin class-name">:</span> <span class="token number">1706008</span> $<span class="token operator">&gt;</span>
+Copyright <span class="token number">1996</span> Adam Twiss, Zeus Technology Ltd,
+<span class="token punctuation">..</span>.
+Requests per second:    <span class="token number">87.86</span> <span class="token punctuation">[</span><span class="token comment">#/sec] (mean)</span>
+Time per request:       <span class="token number">1138.229</span> <span class="token punctuation">[</span>ms<span class="token punctuation">]</span> <span class="token punctuation">(</span>mean<span class="token punctuation">)</span>
+<span class="token punctuation">..</span>.<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p> 从 ab 的输出结果我们可以看到，Nginx 能承受的每秒平均请求数，只有 87 多一点，是不是感觉它的性能有点差呀。那么，到底是哪里出了问题呢？我们再用 top 和 pidstat 来观察一下。</p>
+<p> 这次，我们在第二个终端，将测试的并发请求数改成 5，同时把请求时长设置为 10 分钟（-t 600）。这样，当你在第一个终端使用性能分析工具时， Nginx 的压力还是继续的。</p>
+</li>
+<li><p>继续在第二个终端运行 ab 命令：</p>
+ <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ ab -c <span class="token number">5</span> -t <span class="token number">600</span> http://192.168.0.10:10000/<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre></li>
+<li><p>然后，我们在第一个终端运行 top 命令，观察系统的 CPU 使用情况：</p>
+ <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ <span class="token function">top</span>
+<span class="token punctuation">..</span>.
+%Cpu<span class="token punctuation">(</span>s<span class="token punctuation">)</span>: <span class="token number">80.8</span> us, <span class="token number">15.1</span> sy,  <span class="token number">0.0</span> ni,  <span class="token number">2.8</span> id,  <span class="token number">0.0</span> wa,  <span class="token number">0.0</span> hi,  <span class="token number">1.3</span> si,  <span class="token number">0.0</span> st
+<span class="token punctuation">..</span>.
+
+PID <span class="token environment constant">USER</span>      PR  NI    VIRT    RES    SHR S  %CPU %MEM     TIME+ COMMAND
+<span class="token number">6882</span> root      <span class="token number">20</span>   <span class="token number">0</span>    <span class="token number">8456</span>   <span class="token number">5052</span>   <span class="token number">3884</span> S   <span class="token number">2.7</span>  <span class="token number">0.1</span>   <span class="token number">0</span>:04.78 docker-containe
+<span class="token number">6947</span> systemd+  <span class="token number">20</span>   <span class="token number">0</span>   <span class="token number">33104</span>   <span class="token number">3716</span>   <span class="token number">2340</span> S   <span class="token number">2.7</span>  <span class="token number">0.0</span>   <span class="token number">0</span>:04.92 nginx
+<span class="token number">7494</span> daemon    <span class="token number">20</span>   <span class="token number">0</span>  <span class="token number">336696</span>  <span class="token number">15012</span>   <span class="token number">7332</span> S   <span class="token number">2.0</span>  <span class="token number">0.2</span>   <span class="token number">0</span>:03.55 php-fpm
+<span class="token number">7495</span> daemon    <span class="token number">20</span>   <span class="token number">0</span>  <span class="token number">336696</span>  <span class="token number">15160</span>   <span class="token number">7480</span> S   <span class="token number">2.0</span>  <span class="token number">0.2</span>   <span class="token number">0</span>:03.55 php-fpm
+<span class="token number">10547</span> daemon    <span class="token number">20</span>   <span class="token number">0</span>  <span class="token number">336696</span>  <span class="token number">16200</span>   <span class="token number">8520</span> S   <span class="token number">2.0</span>  <span class="token number">0.2</span>   <span class="token number">0</span>:03.13 php-fpm
+<span class="token number">10155</span> daemon    <span class="token number">20</span>   <span class="token number">0</span>  <span class="token number">336696</span>  <span class="token number">16200</span>   <span class="token number">8520</span> S   <span class="token number">1.7</span>  <span class="token number">0.2</span>   <span class="token number">0</span>:03.12 php-fpm
+<span class="token number">10552</span> daemon    <span class="token number">20</span>   <span class="token number">0</span>  <span class="token number">336696</span>  <span class="token number">16200</span>   <span class="token number">8520</span> S   <span class="token number">1.7</span>  <span class="token number">0.2</span>   <span class="token number">0</span>:03.12 php-fpm
+<span class="token number">15006</span> root      <span class="token number">20</span>   <span class="token number">0</span> <span class="token number">1168608</span>  <span class="token number">66264</span>  <span class="token number">37536</span> S   <span class="token number">1.0</span>  <span class="token number">0.8</span>   <span class="token number">9</span>:39.51 dockerd
+<span class="token number">4323</span> root      <span class="token number">20</span>   <span class="token number">0</span>       <span class="token number">0</span>      <span class="token number">0</span>      <span class="token number">0</span> I   <span class="token number">0.3</span>  <span class="token number">0.0</span>   <span class="token number">0</span>:00.87 kworker/u4:1
+<span class="token punctuation">..</span>.<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p> 观察 top 输出的进程列表可以发现，CPU 使用率最高的进程也只不过才 2.7%，看起来并不高。</p>
+<p> 然而，再看系统 CPU 使用率（ %Cpu ）这一行，你会发现，系统的整体 CPU 使用率是比较高的：用户 CPU 使用率（us）已经到了 80%，系统 CPU 为 15.1%，而空闲 CPU （id）则只有 2.8%。</p>
+<p> 为什么用户 CPU 使用率这么高呢？我们再重新分析一下进程列表，看看有没有可疑进程：</p>
+<ul>
+<li>docker-containerd 进程是用来运行容器的，2.7% 的 CPU 使用率看起来正常；</li>
+<li>Nginx 和 php-fpm 是运行 Web 服务的，它们会占用一些 CPU 也不意外，并且 2% 的 CPU 使用率也不算高；</li>
+<li><p>再往下看，后面的进程呢，只有 0.3% 的 CPU 使用率，看起来不太像会导致用户 CPU 使用率达到 80%。</p>
+<p>看来 top 是不管用了，那还有其他工具可以查看进程 CPU 使用情况吗？</p>
+</li>
+</ul>
+</li>
+<li><p>接下来，我们还是在第一个终端，运行 pidstat 命令：</p>
+ <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token comment"># 间隔 1 秒输出一组数据（按 Ctrl+C 结束）</span>
+$ pidstat <span class="token number">1</span>
+<span class="token punctuation">..</span>.
+04:36:24      <span class="token environment constant">UID</span>       PID    %usr %system  %guest   %wait    %CPU   CPU  Command
+04:36:25        <span class="token number">0</span>      <span class="token number">6882</span>    <span class="token number">1.00</span>    <span class="token number">3.00</span>    <span class="token number">0.00</span>    <span class="token number">0.00</span>    <span class="token number">4.00</span>     <span class="token number">0</span>  docker-containe
+04:36:25      <span class="token number">101</span>      <span class="token number">6947</span>    <span class="token number">1.00</span>    <span class="token number">2.00</span>    <span class="token number">0.00</span>    <span class="token number">1.00</span>    <span class="token number">3.00</span>     <span class="token number">1</span>  nginx
+04:36:25        <span class="token number">1</span>     <span class="token number">14834</span>    <span class="token number">1.00</span>    <span class="token number">1.00</span>    <span class="token number">0.00</span>    <span class="token number">1.00</span>    <span class="token number">2.00</span>     <span class="token number">0</span>  php-fpm
+04:36:25        <span class="token number">1</span>     <span class="token number">14835</span>    <span class="token number">1.00</span>    <span class="token number">1.00</span>    <span class="token number">0.00</span>    <span class="token number">1.00</span>    <span class="token number">2.00</span>     <span class="token number">0</span>  php-fpm
+04:36:25        <span class="token number">1</span>     <span class="token number">14845</span>    <span class="token number">0.00</span>    <span class="token number">2.00</span>    <span class="token number">0.00</span>    <span class="token number">2.00</span>    <span class="token number">2.00</span>     <span class="token number">1</span>  php-fpm
+04:36:25        <span class="token number">1</span>     <span class="token number">14855</span>    <span class="token number">0.00</span>    <span class="token number">1.00</span>    <span class="token number">0.00</span>    <span class="token number">1.00</span>    <span class="token number">1.00</span>     <span class="token number">1</span>  php-fpm
+04:36:25        <span class="token number">1</span>     <span class="token number">14857</span>    <span class="token number">1.00</span>    <span class="token number">2.00</span>    <span class="token number">0.00</span>    <span class="token number">1.00</span>    <span class="token number">3.00</span>     <span class="token number">0</span>  php-fpm
+04:36:25        <span class="token number">0</span>     <span class="token number">15006</span>    <span class="token number">0.00</span>    <span class="token number">1.00</span>    <span class="token number">0.00</span>    <span class="token number">0.00</span>    <span class="token number">1.00</span>     <span class="token number">0</span>  dockerd
+04:36:25        <span class="token number">0</span>     <span class="token number">15801</span>    <span class="token number">0.00</span>    <span class="token number">1.00</span>    <span class="token number">0.00</span>    <span class="token number">0.00</span>    <span class="token number">1.00</span>     <span class="token number">1</span>  pidstat
+04:36:25        <span class="token number">1</span>     <span class="token number">17084</span>    <span class="token number">1.00</span>    <span class="token number">0.00</span>    <span class="token number">0.00</span>    <span class="token number">2.00</span>    <span class="token number">1.00</span>     <span class="token number">0</span>  stress
+04:36:25        <span class="token number">0</span>     <span class="token number">31116</span>    <span class="token number">0.00</span>    <span class="token number">1.00</span>    <span class="token number">0.00</span>    <span class="token number">0.00</span>    <span class="token number">1.00</span>     <span class="token number">0</span>  atopacctd
+<span class="token punctuation">..</span>.<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p> 观察一会儿，你是不是发现，所有进程的 CPU 使用率也都不高啊，最高的 Docker 和 Nginx 也只有 4% 和 3%，即使所有进程的 CPU 使用率都加起来，也不过是 21%，离 80% 还差得远呢！</p>
+<p> 后来我发现，会出现这种情况，很可能是因为前面的分析漏了一些关键信息。你可以先暂停一下，自己往上翻，重新操作检查一遍。或者，我们一起返回去分析 top 的输出，看看能不能有新发现。</p>
+<p> 现在，我们回到第一个终端，重新运行 top 命令，并观察一会儿：</p>
+ <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ <span class="token function">top</span>
+<span class="token function">top</span> - 04:58:24 up <span class="token number">14</span> days, <span class="token number">15</span>:47,  <span class="token number">1</span> user,  load average: <span class="token number">3.39</span>, <span class="token number">3.82</span>, <span class="token number">2.74</span>
+Tasks: <span class="token number">149</span> total,   <span class="token number">6</span> running,  <span class="token number">93</span> sleeping,   <span class="token number">0</span> stopped,   <span class="token number">0</span> zombie
+%Cpu<span class="token punctuation">(</span>s<span class="token punctuation">)</span>: <span class="token number">77.7</span> us, <span class="token number">19.3</span> sy,  <span class="token number">0.0</span> ni,  <span class="token number">2.0</span> id,  <span class="token number">0.0</span> wa,  <span class="token number">0.0</span> hi,  <span class="token number">1.0</span> si,  <span class="token number">0.0</span> st
+KiB Mem <span class="token builtin class-name">:</span>  <span class="token number">8169348</span> total,  <span class="token number">2543916</span> free,   <span class="token number">457976</span> used,  <span class="token number">5167456</span> buff/cache
+KiB Swap:        <span class="token number">0</span> total,        <span class="token number">0</span> free,        <span class="token number">0</span> used.  <span class="token number">7363908</span> avail Mem
+
+PID <span class="token environment constant">USER</span>      PR  NI    VIRT    RES    SHR S  %CPU %MEM     TIME+ COMMAND
+<span class="token number">6947</span> systemd+  <span class="token number">20</span>   <span class="token number">0</span>   <span class="token number">33104</span>   <span class="token number">3764</span>   <span class="token number">2340</span> S   <span class="token number">4.0</span>  <span class="token number">0.0</span>   <span class="token number">0</span>:32.69 nginx
+<span class="token number">6882</span> root      <span class="token number">20</span>   <span class="token number">0</span>   <span class="token number">12108</span>   <span class="token number">8360</span>   <span class="token number">3884</span> S   <span class="token number">2.0</span>  <span class="token number">0.1</span>   <span class="token number">0</span>:31.40 docker-containe
+<span class="token number">15465</span> daemon    <span class="token number">20</span>   <span class="token number">0</span>  <span class="token number">336696</span>  <span class="token number">15256</span>   <span class="token number">7576</span> S   <span class="token number">2.0</span>  <span class="token number">0.2</span>   <span class="token number">0</span>:00.62 php-fpm
+<span class="token number">15466</span> daemon    <span class="token number">20</span>   <span class="token number">0</span>  <span class="token number">336696</span>  <span class="token number">15196</span>   <span class="token number">7516</span> S   <span class="token number">2.0</span>  <span class="token number">0.2</span>   <span class="token number">0</span>:00.62 php-fpm
+<span class="token number">15489</span> daemon    <span class="token number">20</span>   <span class="token number">0</span>  <span class="token number">336696</span>  <span class="token number">16200</span>   <span class="token number">8520</span> S   <span class="token number">2.0</span>  <span class="token number">0.2</span>   <span class="token number">0</span>:00.62 php-fpm
+<span class="token number">6948</span> systemd+  <span class="token number">20</span>   <span class="token number">0</span>   <span class="token number">33104</span>   <span class="token number">3764</span>   <span class="token number">2340</span> S   <span class="token number">1.0</span>  <span class="token number">0.0</span>   <span class="token number">0</span>:00.95 nginx
+<span class="token number">15006</span> root      <span class="token number">20</span>   <span class="token number">0</span> <span class="token number">1168608</span>  <span class="token number">65632</span>  <span class="token number">37536</span> S   <span class="token number">1.0</span>  <span class="token number">0.8</span>   <span class="token number">9</span>:51.09 dockerd
+<span class="token number">15476</span> daemon    <span class="token number">20</span>   <span class="token number">0</span>  <span class="token number">336696</span>  <span class="token number">16200</span>   <span class="token number">8520</span> S   <span class="token number">1.0</span>  <span class="token number">0.2</span>   <span class="token number">0</span>:00.61 php-fpm
+<span class="token number">15477</span> daemon    <span class="token number">20</span>   <span class="token number">0</span>  <span class="token number">336696</span>  <span class="token number">16200</span>   <span class="token number">8520</span> S   <span class="token number">1.0</span>  <span class="token number">0.2</span>   <span class="token number">0</span>:00.61 php-fpm
+<span class="token number">24340</span> daemon    <span class="token number">20</span>   <span class="token number">0</span>    <span class="token number">8184</span>   <span class="token number">1616</span>    <span class="token number">536</span> R   <span class="token number">1.0</span>  <span class="token number">0.0</span>   <span class="token number">0</span>:00.01 stress
+<span class="token number">24342</span> daemon    <span class="token number">20</span>   <span class="token number">0</span>    <span class="token number">8196</span>   <span class="token number">1580</span>    <span class="token number">492</span> R   <span class="token number">1.0</span>  <span class="token number">0.0</span>   <span class="token number">0</span>:00.01 stress
+<span class="token number">24344</span> daemon    <span class="token number">20</span>   <span class="token number">0</span>    <span class="token number">8188</span>   <span class="token number">1056</span>    <span class="token number">492</span> R   <span class="token number">1.0</span>  <span class="token number">0.0</span>   <span class="token number">0</span>:00.01 stress
+<span class="token number">24347</span> daemon    <span class="token number">20</span>   <span class="token number">0</span>    <span class="token number">8184</span>   <span class="token number">1356</span>    <span class="token number">540</span> R   <span class="token number">1.0</span>  <span class="token number">0.0</span>   <span class="token number">0</span>:00.01 stress
+<span class="token punctuation">..</span>.<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p> 这次从头开始看 top 的每行输出，咦？Tasks 这一行看起来有点奇怪，就绪队列中居然有 6 个 Running 状态的进程（6 running），是不是有点多呢？</p>
+<p> 回想一下 ab 测试的参数，并发请求数是 5。再看进程列表里， php-fpm 的数量也是 5，再加上 Nginx，好像同时有 6 个进程也并不奇怪。但真的是这样吗？</p>
+<p> 再仔细看进程列表，这次主要看 Running（R） 状态的进程。你有没有发现， Nginx 和所有的 php-fpm 都处于 Sleep（S）状态，而真正处于 Running（R）状态的，却是几个 stress 进程。这几个 stress 进程就比较奇怪了，需要我们做进一步的分析。</p>
+<p> 我们还是使用 pidstat 来分析这几个进程，并且使用 -p 选项指定进程的 PID。首先，从上面 top 的结果中，找到这几个进程的 PID。比如，先随便找一个 24344，然后用 pidstat 命令看一下它的 CPU 使用情况：</p>
+ <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ pidstat -p <span class="token number">24344</span>
+
+<span class="token number">16</span>:14:55      <span class="token environment constant">UID</span>       PID    %usr %system  %guest   %wait    %CPU   CPU  Command<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span></span></code></pre>
+<p> 奇怪，居然没有任何输出。难道是 pidstat 命令出问题了吗？之前我说过，<strong>在怀疑性能工具出问题前，最好还是先用其他工具交叉确认一下。</strong>那用什么工具呢？ ps 应该是最简单易用的。我们在终端里运行下面的命令，看看 24344 进程的状态：</p>
+ <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token comment"># 从所有进程中查找 PID 是 24344 的进程</span>
+$ <span class="token function">ps</span> aux <span class="token operator">|</span> <span class="token function">grep</span> <span class="token number">24344</span>
+root      <span class="token number">9628</span>  <span class="token number">0.0</span>  <span class="token number">0.0</span>  <span class="token number">14856</span>  <span class="token number">1096</span> pts/0    S+   <span class="token number">16</span>:15   <span class="token number">0</span>:00 <span class="token function">grep</span> --color<span class="token operator">=</span>auto <span class="token number">24344</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span></span></code></pre>
+<p> 还是没有输出。现在终于发现问题，原来这个进程已经不存在了，所以 pidstat 就没有任何输出。既然进程都没了，那性能问题应该也跟着没了吧。我们再用 top 命令确认一下：</p>
+ <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ <span class="token function">top</span>
+<span class="token punctuation">..</span>.
+%Cpu<span class="token punctuation">(</span>s<span class="token punctuation">)</span>: <span class="token number">80.9</span> us, <span class="token number">14.9</span> sy,  <span class="token number">0.0</span> ni,  <span class="token number">2.8</span> id,  <span class="token number">0.0</span> wa,  <span class="token number">0.0</span> hi,  <span class="token number">1.3</span> si,  <span class="token number">0.0</span> st
+<span class="token punctuation">..</span>.
+
+PID <span class="token environment constant">USER</span>      PR  NI    VIRT    RES    SHR S  %CPU %MEM     TIME+ COMMAND
+<span class="token number">6882</span> root      <span class="token number">20</span>   <span class="token number">0</span>   <span class="token number">12108</span>   <span class="token number">8360</span>   <span class="token number">3884</span> S   <span class="token number">2.7</span>  <span class="token number">0.1</span>   <span class="token number">0</span>:45.63 docker-containe
+<span class="token number">6947</span> systemd+  <span class="token number">20</span>   <span class="token number">0</span>   <span class="token number">33104</span>   <span class="token number">3764</span>   <span class="token number">2340</span> R   <span class="token number">2.7</span>  <span class="token number">0.0</span>   <span class="token number">0</span>:47.79 nginx
+<span class="token number">3865</span> daemon    <span class="token number">20</span>   <span class="token number">0</span>  <span class="token number">336696</span>  <span class="token number">15056</span>   <span class="token number">7376</span> S   <span class="token number">2.0</span>  <span class="token number">0.2</span>   <span class="token number">0</span>:00.15 php-fpm
+<span class="token number">6779</span> daemon    <span class="token number">20</span>   <span class="token number">0</span>    <span class="token number">8184</span>   <span class="token number">1112</span>    <span class="token number">556</span> R   <span class="token number">0.3</span>  <span class="token number">0.0</span>   <span class="token number">0</span>:00.01 stress
+<span class="token punctuation">..</span>.<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p> 好像又错了。结果还跟原来一样，用户 CPU 使用率还是高达 80.9%，系统 CPU 接近 15%，而空闲 CPU 只有 2.8%，Running 状态的进程有 Nginx、stress 等。</p>
+<p> 可是，刚刚我们看到 stress 进程不存在了，怎么现在还在运行呢？再细看一下 top 的输出，原来，这次 stress 进程的 PID 跟前面不一样了，原来的 PID 24344 不见了，现在的是 6779。</p>
+<p> 进程的 PID 在变，这说明什么呢？在我看来，要么是这些进程在不停地重启，要么就是全新的进程，这无非也就两个原因：</p>
+<ul>
+<li>第一个原因，进程在不停地崩溃重启，比如因为段错误、配置错误等等，这时，进程在退出后可能又被监控系统自动重启了。</li>
+<li><p>第二个原因，这些进程都是短时进程，也就是在其他应用内部通过 exec 调用的外面命令。这些命令一般都只运行很短的时间就会结束，你很难用 top 这种间隔时间比较长的工具发现（上面的案例，我们碰巧发现了）。</p>
+<p>至于 stress，我们前面提到过，它是一个常用的压力测试工具。它的 PID 在不断变化中，看起来像是被其他进程调用的短时进程。要想继续分析下去，还得找到它们的父进程。</p>
+<p>要怎么查找一个进程的父进程呢？没错，用 pstree 就可以用树状形式显示所有进程之间的关系：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ pstree <span class="token operator">|</span> <span class="token function">grep</span> stress
+        <span class="token operator">|</span>-docker-containe-+-php-fpm-+-php-fpm---sh---stress
+        <span class="token operator">|</span>         <span class="token operator">|</span>-3*<span class="token punctuation">[</span>php-fpm---sh---stress---stress<span class="token punctuation">]</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span></span></code></pre>
+<p>从这里可以看到，stress 是被 php-fpm 调用的子进程，并且进程数量不止一个（这里是 3 个）。找到父进程后，我们能进入 app 的内部分析了。</p>
+<p>首先，当然应该去看看它的源码。运行下面的命令，把案例应用的源码拷贝到 app 目录，然后再执行 grep 查找是不是有代码再调用 stress 命令：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token comment"># 拷贝源码到本地</span>
+$ docker <span class="token function">cp</span> phpfpm:/app <span class="token builtin class-name">.</span>
+
+<span class="token comment"># grep 查找看看是不是有代码在调用 stress 命令</span>
+$ <span class="token function">grep</span> stress -r app
+app/index.php:// fake I/O with stress <span class="token punctuation">(</span>via write<span class="token punctuation">(</span><span class="token punctuation">)</span>/unlink<span class="token punctuation">(</span><span class="token punctuation">))</span>.
+app/index.php:<span class="token variable">$result</span> <span class="token operator">=</span> exec<span class="token punctuation">(</span><span class="token string">"/usr/local/bin/stress -t 1 -d 1 2&gt;&amp;1"</span>, <span class="token variable">$output</span>, <span class="token variable">$status</span><span class="token punctuation">)</span><span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>找到了，果然是 <a target="_blank" rel="noopener" href="https://github.com/feiskyer/linux-perf-examples/blob/master/nginx-short-process/app/index.php">app/index.php</a> 文件中直接调用了 stress 命令。</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ <span class="token function">cat</span> app/index.php
+<span class="token operator">&lt;</span>?php
+// fake I/O with stress <span class="token punctuation">(</span>via write<span class="token punctuation">(</span><span class="token punctuation">)</span>/unlink<span class="token punctuation">(</span><span class="token punctuation">))</span>.
+<span class="token variable">$result</span> <span class="token operator">=</span> exec<span class="token punctuation">(</span><span class="token string">"/usr/local/bin/stress -t 1 -d 1 2&gt;&amp;1"</span>, <span class="token variable">$output</span>, <span class="token variable">$status</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token keyword">if</span> <span class="token punctuation">(</span>isset<span class="token punctuation">(</span><span class="token variable">$_GET</span><span class="token punctuation">[</span><span class="token string">"verbose"</span><span class="token punctuation">]</span><span class="token punctuation">)</span> <span class="token operator">&amp;&amp;</span> <span class="token variable">$_GET</span><span class="token punctuation">[</span><span class="token string">"verbose"</span><span class="token punctuation">]</span><span class="token operator">==</span><span class="token number">1</span> <span class="token operator">&amp;&amp;</span> <span class="token variable">$status</span> <span class="token operator">!=</span> <span class="token number">0</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+<span class="token builtin class-name">echo</span> <span class="token string">"Server internal error: "</span><span class="token punctuation">;</span>
+print_r<span class="token punctuation">(</span><span class="token variable">$output</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span> <span class="token keyword">else</span> <span class="token punctuation">{</span>
+<span class="token builtin class-name">echo</span> <span class="token string">"It works!"</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+?<span class="token operator">&gt;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>可以看到，源码里对每个请求都会调用一个 stress 命令，模拟 I/O 压力。从注释上看，stress 会通过 write() 和 unlink() 对 I/O 进程进行压测，看来，这应该就是系统 CPU 使用率升高的根源了。</p>
+<p>不过，stress 模拟的是 I/O 压力，而之前在 top 的输出中看到的，却一直是用户 CPU 和系统 CPU 升高，并没见到 iowait 升高。这又是怎么回事呢？stress 到底是不是 CPU 使用率升高的原因呢？</p>
+<p>我们还得继续往下走。从代码中可以看到，给请求加入 verbose=1 参数后，就可以查看 stress 的输出。你先试试看，在第二个终端运行：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ <span class="token function">curl</span> http://192.168.0.10:10000?verbose<span class="token operator">=</span><span class="token number">1</span>
+Server internal error: Array
+<span class="token punctuation">(</span>
+    <span class="token punctuation">[</span><span class="token number">0</span><span class="token punctuation">]</span> <span class="token operator">=</span><span class="token operator">&gt;</span> stress: info: <span class="token punctuation">[</span><span class="token number">19607</span><span class="token punctuation">]</span> dispatching hogs: <span class="token number">0</span> cpu, <span class="token number">0</span> io, <span class="token number">0</span> vm, <span class="token number">1</span> hdd
+    <span class="token punctuation">[</span><span class="token number">1</span><span class="token punctuation">]</span> <span class="token operator">=</span><span class="token operator">&gt;</span> stress: FAIL: <span class="token punctuation">[</span><span class="token number">19608</span><span class="token punctuation">]</span> <span class="token punctuation">(</span><span class="token number">563</span><span class="token punctuation">)</span> mkstemp failed: Permission denied
+    <span class="token punctuation">[</span><span class="token number">2</span><span class="token punctuation">]</span> <span class="token operator">=</span><span class="token operator">&gt;</span> stress: FAIL: <span class="token punctuation">[</span><span class="token number">19607</span><span class="token punctuation">]</span> <span class="token punctuation">(</span><span class="token number">394</span><span class="token punctuation">)</span> <span class="token operator">&lt;</span>-- worker <span class="token number">19608</span> returned error <span class="token number">1</span>
+    <span class="token punctuation">[</span><span class="token number">3</span><span class="token punctuation">]</span> <span class="token operator">=</span><span class="token operator">&gt;</span> stress: WARN: <span class="token punctuation">[</span><span class="token number">19607</span><span class="token punctuation">]</span> <span class="token punctuation">(</span><span class="token number">396</span><span class="token punctuation">)</span> now reaping child worker processes
+    <span class="token punctuation">[</span><span class="token number">4</span><span class="token punctuation">]</span> <span class="token operator">=</span><span class="token operator">&gt;</span> stress: FAIL: <span class="token punctuation">[</span><span class="token number">19607</span><span class="token punctuation">]</span> <span class="token punctuation">(</span><span class="token number">400</span><span class="token punctuation">)</span> <span class="token function">kill</span> error: No such process
+    <span class="token punctuation">[</span><span class="token number">5</span><span class="token punctuation">]</span> <span class="token operator">=</span><span class="token operator">&gt;</span> stress: FAIL: <span class="token punctuation">[</span><span class="token number">19607</span><span class="token punctuation">]</span> <span class="token punctuation">(</span><span class="token number">451</span><span class="token punctuation">)</span> failed run completed <span class="token keyword">in</span> 0s
+<span class="token punctuation">)</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>看错误消息 <strong>mkstemp failed: Permission denied</strong> ，以及 <strong>failed run completed in 0s</strong>。原来 stress 命令并没有成功，它因为权限问题失败退出了。看来，我们发现了一个 PHP 调用外部 stress 命令的 bug：没有权限创建临时文件。</p>
+<p>从这里我们可以猜测，正是由于权限错误，大量的 stress 进程在启动时初始化失败，进而导致用户 CPU 使用率的升高。</p>
+<p>分析出问题来源，下一步是不是就要开始优化了呢？当然不是！既然只是猜测，那就需要再确认一下，这个猜测到底对不对，是不是真的有大量的 stress 进程。该用什么工具或指标呢？</p>
+<p>我们前面已经用了 top、pidstat、pstree 等工具，没有发现大量的 stress 进程。那么，还有什么其他的工具可以用吗？</p>
+<p>还记得上一期提到的 perf 吗？它可以用来分析 CPU 性能事件，用在这里就很合适。依旧在第一个终端中运行 perf record -g 命令 ，并等待一会儿（比如 15 秒）后按 Ctrl+C 退出。然后再运行 perf report 查看报告：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token comment"># 记录性能事件，等待大约 15 秒后按 Ctrl+C 退出</span>
+$ perf record -g
+
+<span class="token comment"># 查看报告</span>
+$ perf report<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>这样，你就可以看到下图这个性能报告：</p>
+<p><img src="/images/《Linux性能优化实战》学习笔记/系统CPU很高但找不到应该案例分析perf截图.png" alt="系统CPU很高但找不到应该案例分析perf截图"></p>
+<p>你看，stress 占了所有 CPU 时钟事件的 77%，而 stress 调用调用栈中比例最高的，是随机数生成函数 random()，看来它的确就是 CPU 使用率升高的元凶了。随后的优化就很简单了，只要修复权限问题，并减少或删除 stress 的调用，就可以减轻系统的 CPU 压力。</p>
+</li>
+</ul>
+</li>
+</ol>
+<h4 id="6-2-execsnoop"><a href="#6-2-execsnoop" class="headerlink" title="6.2 execsnoop"></a>6.2 execsnoop</h4><pre><code>在这个案例中，我们使用了 top、pidstat、pstree 等工具分析了系统 CPU 使用率高的问题，并发现 CPU 升高是短时进程 stress 导致的，但是整个分析过程还是比较复杂的。对于这类问题，有没有更好的方法监控呢？
+
+[execsnoop](https://github.com/brendangregg/perf-tools/blob/master/execsnoop) 就是一个专为短时进程设计的工具。它通过 ftrace 实时监控进程的 exec() 行为，并输出短时进程的基本信息，包括进程 PID、父进程 PID、命令行参数以及执行的结果。
+
+比如，用 execsnoop 监控上述案例，就可以直接得到 stress 进程的父进程 PID 以及它的命令行参数，并可以发现大量的 stress 进程在不停启动：
+
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token comment"># 按 Ctrl+C 结束</span>
+$ execsnoop
+PCOMM            PID    <span class="token environment constant">PPID</span>   RET ARGS
+<span class="token function">sh</span>               <span class="token number">30394</span>  <span class="token number">30393</span>    <span class="token number">0</span>
+stress           <span class="token number">30396</span>  <span class="token number">30394</span>    <span class="token number">0</span> /usr/local/bin/stress -t <span class="token number">1</span> -d <span class="token number">1</span>
+<span class="token function">sh</span>               <span class="token number">30398</span>  <span class="token number">30393</span>    <span class="token number">0</span>
+stress           <span class="token number">30399</span>  <span class="token number">30398</span>    <span class="token number">0</span> /usr/local/bin/stress -t <span class="token number">1</span> -d <span class="token number">1</span>
+<span class="token function">sh</span>               <span class="token number">30402</span>  <span class="token number">30400</span>    <span class="token number">0</span>
+stress           <span class="token number">30403</span>  <span class="token number">30402</span>    <span class="token number">0</span> /usr/local/bin/stress -t <span class="token number">1</span> -d <span class="token number">1</span>
+<span class="token function">sh</span>               <span class="token number">30405</span>  <span class="token number">30393</span>    <span class="token number">0</span>
+stress           <span class="token number">30407</span>  <span class="token number">30405</span>    <span class="token number">0</span> /usr/local/bin/stress -t <span class="token number">1</span> -d <span class="token number">1</span>
+<span class="token punctuation">..</span>.<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+execsnoop 所用的 ftrace 是一种常用的动态追踪技术，一般用于分析 Linux 内核的运行时行为，后面课程我也会详细介绍并带你使用。
+</code></pre><h4 id="6-3-小结"><a href="#6-3-小结" class="headerlink" title="6.3 小结"></a>6.3 小结</h4><p>碰到常规问题无法解释的 CPU 使用率情况时，首先要想到有可能是短时应用导致的问题，比如有可能是下面这两种情况。</p>
+<ul>
+<li>第一，应用里直接调用了其他二进制程序，这些程序通常运行时间比较短，通过 top 等工具也不容易发现。</li>
+<li>第二，应用本身在不停地崩溃重启，而启动过程的资源初始化，很可能会占用相当多的 CPU。</li>
+</ul>
+<p>对于这类进程，我们可以用 pstree 或者 execsnoop 找到它们的父进程，再从父进程所在的应用入手，排查问题的根源。</p>
 
                 
             </div>
@@ -1394,7 +1602,7 @@ Transfer rate:          <span class="token number">375.75</span> <span class="to
             <br>
             
             &nbsp;<i class="fas fa-chart-area"></i>&nbsp;站点总字数:&nbsp;<span
-                class="white-color">241.5k</span>&nbsp;字
+                class="white-color">245.6k</span>&nbsp;字
             
             
             
