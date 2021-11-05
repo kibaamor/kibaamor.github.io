@@ -442,14 +442,14 @@
                 
                 <div class="info-break-policy">
                     <i class="far fa-file-word fa-fw"></i>文章字数:&nbsp;&nbsp;
-                    21.1k
+                    28.2k
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-clock fa-fw"></i>阅读时长:&nbsp;&nbsp;
-                    86 分
+                    113 分
                 </div>
                 
 
@@ -1478,6 +1478,274 @@ PID <span class="token environment constant">USER</span>      PR  NI    VIRT    
 <p>等待 I/O 的进程一般是不可中断状态，所以用 ps 命令找到的 D 状态（即不可中断状态）的进程，多为可疑进程。但这个案例中，在 I/O 操作后，进程又变成了僵尸进程，所以不能用 strace 直接分析这个进程的系统调用。</p>
 <p>这种情况下，我们用了 perf 工具，来分析系统的 CPU 时钟事件，最终发现是直接 I/O 导致的问题。这时，再检查源码中对应位置的问题，就很轻松了。</p>
 <p>而僵尸进程的问题相对容易排查，使用 pstree 找出父进程后，去查看父进程的代码，检查 wait() / waitpid() 的调用，或是 SIGCHLD 信号处理函数的注册就行了。</p>
+<h3 id="09-基础篇：怎么理解Linux软中断？"><a href="#09-基础篇：怎么理解Linux软中断？" class="headerlink" title="09 | 基础篇：怎么理解Linux软中断？"></a>09 | 基础篇：怎么理解Linux软中断？</h3><h4 id="9-1-从“取外卖”看中断"><a href="#9-1-从“取外卖”看中断" class="headerlink" title="9.1 从“取外卖”看中断"></a>9.1 从“取外卖”看中断</h4><p>中断是系统用来响应硬件设备请求的一种机制，它会打断进程的正常调度和执行，然后调用内核中的中断处理程序来响应设备的请求。</p>
+<p>为什么要有中断呢？</p>
+<p>比如说你订了一份外卖，但是不确定外卖什么时候送到，也没有别的方法了解外卖的进度，但是，配送员送外卖是不等人的，到了你这儿没人取的话，就直接走人了。所以你只能苦苦等着，时不时去门口看看外卖送到没，而不能干其他事情。</p>
+<p>不过呢，如果在订外卖的时候，你就跟配送员约定好，让他送到后给你打个电话，那你就不用苦苦等待了，就可以去忙别的事情，直到电话一响，接电话、取外卖就可以了。</p>
+<p>这里的“打电话”，其实就是一个中断。没接到电话的时候，你可以做其他的事情；只有接到了电话（也就是发生中断），你才要进行另一个动作：取外卖。</p>
+<p>可以发现，<strong>中断其实是一种异步的事件处理机制，可以提高系统的并发处理能力。</strong></p>
+<p>由于中断处理程序会打断其他进程的运行，所以，<strong>为了减少对正常进程运行调度的影响，中断处理程序就需要尽可能快地运行</strong>。如果中断本身要做的事情不多，那么处理起来也不会有太大问题；但如果中断要处理的事情很多，中断服务程序就有可能要运行很长时间。</p>
+<p>特别是，中断处理程序在响应中断时，还会临时关闭中断。这就会导致上一次中断处理完成之前，其他中断都不能响应，也就是说中断有可能会丢失。</p>
+<h4 id="9-2-软中断"><a href="#9-2-软中断" class="headerlink" title="9.2 软中断"></a>9.2 软中断</h4><p>为了解决中断处理程序执行过长和中断丢失的问题，Linux 将中断处理过程分成了两个阶段，也就是<strong>上半部和下半部</strong>：</p>
+<ul>
+<li>上半部用来快速处理中断，它在中断禁止模式下运行，主要处理跟硬件紧密相关的或时间敏感的工作。</li>
+<li>下半部用来延迟处理上半部未完成的工作，通常以内核线程的方式运行。</li>
+</ul>
+<p>举个最常见的网卡接收数据包的例子。</p>
+<p>网卡接收到数据包后，会通过<strong>硬件中断</strong>的方式，通知内核有新的数据到了。这时，内核就应该调用中断处理程序来响应它。</p>
+<p>对上半部来说，既然是快速处理，其实就是要把网卡的数据读到内存中，然后更新一下硬件寄存器的状态（表示数据已经读好了），最后再发送一个<strong>软中断</strong>信号，通知下半部做进一步的处理。</p>
+<p>而下半部被软中断信号唤醒后，需要从内存中找到网络数据，再按照网络协议栈，对数据进行逐层解析和处理，直到把它送给应用程序。</p>
+<p>所以，这两个阶段你也可以这样理解：</p>
+<ul>
+<li>上半部直接处理硬件请求，也就是我们常说的硬中断，特点是快速执行；</li>
+<li>而下半部则是由内核触发，也就是我们常说的软中断，特点是延迟执行。</li>
+</ul>
+<p>实际上，上半部会打断 CPU 正在执行的任务，然后立即执行中断处理程序。而下半部以内核线程的方式执行，并且每个 CPU 都对应一个软中断内核线程，名字为 “ksoftirqd/CPU 编号”，比如说， 0 号 CPU 对应的软中断内核线程的名字就是 ksoftirqd/0。</p>
+<p>不过要注意的是，软中断不只包括了刚刚所讲的硬件设备中断处理程序的下半部，一些内核自定义的事件也属于软中断，比如内核调度和 RCU 锁（Read-Copy Update 的缩写，RCU 是 Linux 内核中最常用的锁之一）等。</p>
+<h4 id="9-3-查看软中断和内核线程"><a href="#9-3-查看软中断和内核线程" class="headerlink" title="9.3 查看软中断和内核线程"></a>9.3 查看软中断和内核线程</h4><p>proc 文件系统可以用来查看内核的数据结构，或者用来动态修改内核的配置。其中：</p>
+<ul>
+<li>/proc/softirqs 提供了软中断的运行情况；</li>
+<li>/proc/interrupts 提供了硬中断的运行情况。</li>
+</ul>
+<p>运行下面的命令，查看 /proc/softirqs 文件的内容，你就可以看到各种类型软中断在不同 CPU 上的累积运行次数：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ <span class="token function">cat</span> /proc/softirqs
+                    CPU0       CPU1
+          HI:          <span class="token number">0</span>          <span class="token number">0</span>
+       TIMER:     <span class="token number">811613</span>    <span class="token number">1972736</span>
+      NET_TX:         <span class="token number">49</span>          <span class="token number">7</span>
+      NET_RX:    <span class="token number">1136736</span>    <span class="token number">1506885</span>
+       BLOCK:          <span class="token number">0</span>          <span class="token number">0</span>
+    IRQ_POLL:          <span class="token number">0</span>          <span class="token number">0</span>
+     TASKLET:     <span class="token number">304787</span>       <span class="token number">3691</span>
+       SCHED:     <span class="token number">689718</span>    <span class="token number">1897539</span>
+     HRTIMER:          <span class="token number">0</span>          <span class="token number">0</span>
+         RCU:    <span class="token number">1330771</span>    <span class="token number">1354737</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>在查看 /proc/softirqs 文件内容时，你要特别注意以下这两点。</p>
+<ul>
+<li>第一，要注意软中断的类型，也就是这个界面中第一列的内容。从第一列你可以看到，软中断包括了 10 个类别，分别对应不同的工作类型。比如 NET_RX 表示网络接收中断，而 NET_TX 表示网络发送中断。</li>
+<li>第二，要注意同一种软中断在不同 CPU 上的分布情况，也就是同一行的内容。正常情况下，同一种中断在不同 CPU 上的累积次数应该差不多。比如这个界面中，NET_RX 在 CPU0 和 CPU1 上的中断次数基本是同一个数量级，相差不大。</li>
+</ul>
+<p>不过你可能发现，TASKLET 在不同 CPU 上的分布并不均匀。TASKLET 是最常用的软中断实现机制，每个 TASKLET 只运行一次就会结束 ，并且只在调用它的函数所在的 CPU 上运行。</p>
+<p>因此，使用 TASKLET 特别简便，当然也会存在一些问题，比如说由于只在一个 CPU 上运行导致的调度不均衡，再比如因为不能在多个 CPU 上并行运行带来了性能限制。</p>
+<p>另外，刚刚提到过，软中断实际上是以内核线程的方式运行的，每个 CPU 都对应一个软中断内核线程，这个软中断内核线程就叫做 ksoftirqd/CPU 编号。那要怎么查看这些线程的运行状况呢？</p>
+<p>其实用 ps 命令就可以做到，比如执行下面的指令：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ <span class="token function">ps</span> aux <span class="token operator">|</span> <span class="token function">grep</span> softirq
+root         <span class="token number">7</span>  <span class="token number">0.0</span>  <span class="token number">0.0</span>      <span class="token number">0</span>     <span class="token number">0</span> ?        S    Oct10   <span class="token number">0</span>:01 <span class="token punctuation">[</span>ksoftirqd/0<span class="token punctuation">]</span>
+root        <span class="token number">16</span>  <span class="token number">0.0</span>  <span class="token number">0.0</span>      <span class="token number">0</span>     <span class="token number">0</span> ?        S    Oct10   <span class="token number">0</span>:01 <span class="token punctuation">[</span>ksoftirqd/1<span class="token punctuation">]</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span></span></code></pre>
+<p>注意，这些线程的名字外面都有中括号，这说明 ps 无法获取它们的命令行参数（cmline）。一般来说，ps 的输出中，名字括在中括号里的，一般都是内核线程。</p>
+<h3 id="10-案例篇：系统的软中断CPU使用率升高，我该怎么办？"><a href="#10-案例篇：系统的软中断CPU使用率升高，我该怎么办？" class="headerlink" title="10 | 案例篇：系统的软中断CPU使用率升高，我该怎么办？"></a>10 | 案例篇：系统的软中断CPU使用率升高，我该怎么办？</h3><h4 id="10-1-案例"><a href="#10-1-案例" class="headerlink" title="10.1 案例"></a>10.1 案例</h4><blockquote>
+<p>机器配置： 2 CPU, 8 GB 内存。</p>
+<p>安装软件：<code>apt-get install docker.io sysstat hping3 tcpdump</code>。</p>
+<ul>
+<li>sar 是一个系统活动报告工具，既可以实时查看系统的当前活动，又可以配置保存和报告历史统计数据。</li>
+<li>hping3 是一个可以构造 TCP/IP 协议数据包的工具，可以对系统进行安全审计、防火墙测试等。</li>
+<li>tcpdump 是一个常用的网络抓包工具，常用来分析各种网络问题。</li>
+</ul>
+</blockquote>
+<ol>
+<li><p>在第一个终端，执行下面的命令运行案例，也就是一个最基本的 Nginx 应用：</p>
+ <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token comment"># 运行 Nginx 服务并对外开放 80 端口</span>
+$ docker run -itd --name<span class="token operator">=</span>nginx -p <span class="token number">80</span>:80 nginx<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre></li>
+<li><p>在第二个终端，使用 curl 访问 Nginx 监听的端口，确认 Nginx 正常启动。假设 192.168.0.30 是 Nginx 所在虚拟机的 IP 地址，运行 curl 命令后你应该会看到下面这个输出界面：</p>
+ <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ <span class="token function">curl</span> http://192.168.0.30/
+<span class="token operator">&lt;</span><span class="token operator">!</span>DOCTYPE html<span class="token operator">&gt;</span>
+<span class="token operator">&lt;</span>html<span class="token operator">&gt;</span>
+<span class="token operator">&lt;</span>head<span class="token operator">&gt;</span>
+<span class="token operator">&lt;</span>title<span class="token operator">&gt;</span>Welcome to nginx<span class="token operator">!</span><span class="token operator">&lt;</span>/title<span class="token operator">&gt;</span>
+<span class="token punctuation">..</span>.<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre></li>
+<li><p>还是在第二个终端，我们运行 hping3 命令，来模拟 Nginx 的客户端请求：</p>
+ <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token comment"># -S 参数表示设置 TCP 协议的 SYN（同步序列号），-p 表示目的端口为 80</span>
+<span class="token comment"># -i u100 表示每隔 100 微秒发送一个网络帧</span>
+<span class="token comment"># 注：如果你在实践过程中现象不明显，可以尝试把 100 调小，比如调成 10 甚至 1</span>
+$ hping3 -S -p <span class="token number">80</span> -i u100 <span class="token number">192.168</span>.0.30<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span></span></code></pre>
+<p> 现在我们再回到第一个终端，你应该发现了异常。是不是感觉系统响应明显变慢了，即便只是在终端中敲几个回车，都得很久才能得到响应？这个时候应该怎么办呢？</p>
+</li>
+<li><p>先看看系统的整体资源使用情况应该是个不错的注意，比如执行下 top 看看是不是出现了 CPU 的瓶颈。我们在第一个终端运行 top 命令，看一下系统整体的资源使用情况。</p>
+ <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token comment"># top 运行后按数字 1 切换到显示所有 CPU</span>
+$ <span class="token function">top</span>
+<span class="token function">top</span> - <span class="token number">10</span>:50:58 up <span class="token number">1</span> days, <span class="token number">22</span>:10,  <span class="token number">1</span> user,  load average: <span class="token number">0.00</span>, <span class="token number">0.00</span>, <span class="token number">0.00</span>
+Tasks: <span class="token number">122</span> total,   <span class="token number">1</span> running,  <span class="token number">71</span> sleeping,   <span class="token number">0</span> stopped,   <span class="token number">0</span> zombie
+%Cpu0  <span class="token builtin class-name">:</span>  <span class="token number">0.0</span> us,  <span class="token number">0.0</span> sy,  <span class="token number">0.0</span> ni, <span class="token number">96.7</span> id,  <span class="token number">0.0</span> wa,  <span class="token number">0.0</span> hi,  <span class="token number">3.3</span> si,  <span class="token number">0.0</span> st
+%Cpu1  <span class="token builtin class-name">:</span>  <span class="token number">0.0</span> us,  <span class="token number">0.0</span> sy,  <span class="token number">0.0</span> ni, <span class="token number">95.6</span> id,  <span class="token number">0.0</span> wa,  <span class="token number">0.0</span> hi,  <span class="token number">4.4</span> si,  <span class="token number">0.0</span> st
+<span class="token punctuation">..</span>.
+
+  PID <span class="token environment constant">USER</span>      PR  NI    VIRT    RES    SHR S  %CPU %MEM     TIME+ COMMAND
+    <span class="token number">7</span> root      <span class="token number">20</span>   <span class="token number">0</span>       <span class="token number">0</span>      <span class="token number">0</span>      <span class="token number">0</span> S   <span class="token number">0.3</span>  <span class="token number">0.0</span>   <span class="token number">0</span>:01.64 ksoftirqd/0
+   <span class="token number">16</span> root      <span class="token number">20</span>   <span class="token number">0</span>       <span class="token number">0</span>      <span class="token number">0</span>      <span class="token number">0</span> S   <span class="token number">0.3</span>  <span class="token number">0.0</span>   <span class="token number">0</span>:01.97 ksoftirqd/1
+ <span class="token number">2663</span> root      <span class="token number">20</span>   <span class="token number">0</span>  <span class="token number">923480</span>  <span class="token number">28292</span>  <span class="token number">13996</span> S   <span class="token number">0.3</span>  <span class="token number">0.3</span>   <span class="token number">4</span>:58.66 docker-containe
+ <span class="token number">3699</span> root      <span class="token number">20</span>   <span class="token number">0</span>       <span class="token number">0</span>      <span class="token number">0</span>      <span class="token number">0</span> I   <span class="token number">0.3</span>  <span class="token number">0.0</span>   <span class="token number">0</span>:00.13 kworker/u4:0
+ <span class="token number">3708</span> root      <span class="token number">20</span>   <span class="token number">0</span>   <span class="token number">44572</span>   <span class="token number">4176</span>   <span class="token number">3512</span> R   <span class="token number">0.3</span>  <span class="token number">0.1</span>   <span class="token number">0</span>:00.07 <span class="token function">top</span>
+    <span class="token number">1</span> root      <span class="token number">20</span>   <span class="token number">0</span>  <span class="token number">225384</span>   <span class="token number">9136</span>   <span class="token number">6724</span> S   <span class="token number">0.0</span>  <span class="token number">0.1</span>   <span class="token number">0</span>:23.25 systemd
+    <span class="token number">2</span> root      <span class="token number">20</span>   <span class="token number">0</span>       <span class="token number">0</span>      <span class="token number">0</span>      <span class="token number">0</span> S   <span class="token number">0.0</span>  <span class="token number">0.0</span>   <span class="token number">0</span>:00.03 kthreadd
+<span class="token punctuation">..</span>.<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p> 我们从第一行开始，逐个看一下：</p>
+<ul>
+<li>平均负载全是 0，就绪队列里面只有一个进程（1 running）。</li>
+<li>每个 CPU 的使用率都挺低，最高的 CPU1 的使用率也只有 4.4%，并不算高。</li>
+<li><p>再看进程列表，CPU 使用率最高的进程也只有 0.3%，还是不高呀。</p>
+<p>仔细看 top 的输出，两个 CPU 的使用率虽然分别只有 3.3% 和 4.4%，但都用在了软中断上；而从进程列表上也可以看到，CPU 使用率最高的也是软中断进程 ksoftirqd。看起来，软中断有点可疑了。</p>
+<p>根据上一期的内容，既然软中断可能有问题，那你先要知道，究竟是哪类软中断的问题。停下来想想，上一节我们用了什么方法，来判断软中断类型呢？没错，还是 proc 文件系统。观察 /proc/softirqs 文件的内容，你就能知道各种软中断类型的次数。</p>
+<p>不过，这里的各类软中断次数，又是什么时间段里的次数呢？它是系统运行以来的累积中断次数。所以我们直接查看文件内容，得到的只是累积中断次数，对这里的问题并没有直接参考意义。因为，这些中断次数的变化速率才是我们需要关注的。</p>
+<p>那什么工具可以观察命令输出的变化情况呢？我想你应该想起来了，在前面案例中用过的 watch 命令，就可以定期运行一个命令来查看输出；如果再加上 -d 参数，还可以高亮出变化的部分，从高亮部分我们就可以直观看出，哪些内容变化得更快。</p>
+</li>
+</ul>
+</li>
+<li><p>在第一个终端，我们运行下面的命令：</p>
+ <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ <span class="token function">watch</span> -d <span class="token function">cat</span> /proc/softirqs
+                    CPU0       CPU1
+          HI:          <span class="token number">0</span>          <span class="token number">0</span>
+       TIMER:    <span class="token number">1083906</span>    <span class="token number">2368646</span>
+      NET_TX:         <span class="token number">53</span>          <span class="token number">9</span>
+      NET_RX:    <span class="token number">1550643</span>    <span class="token number">1916776</span>
+       BLOCK:          <span class="token number">0</span>          <span class="token number">0</span>
+    IRQ_POLL:          <span class="token number">0</span>          <span class="token number">0</span>
+     TASKLET:     <span class="token number">333637</span>       <span class="token number">3930</span>
+       SCHED:     <span class="token number">963675</span>    <span class="token number">2293171</span>
+     HRTIMER:          <span class="token number">0</span>          <span class="token number">0</span>
+         RCU:    <span class="token number">1542111</span>    <span class="token number">1590625</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p> 通过 /proc/softirqs 文件内容的变化情况，你可以发现， TIMER（定时中断）、NET_RX（网络接收）、SCHED（内核调度）、RCU（RCU 锁）等这几个软中断都在不停变化。</p>
+<p> 其中，NET_RX，也就是网络数据包接收软中断的变化速率最快。而其他几种类型的软中断，是保证 Linux 调度、时钟和临界区保护这些正常工作所必需的，所以它们有一定的变化倒是正常的。</p>
+<p> 那么接下来，我们就从网络接收的软中断着手，继续分析。既然是网络接收的软中断，第一步应该就是观察系统的网络接收情况。这里你可能想起了很多网络工具，不过，我推荐今天的主人公工具 sar 。</p>
+<p> sar 可以用来查看系统的网络收发情况，还有一个好处是，不仅可以观察网络收发的吞吐量（BPS，每秒收发的字节数），还可以观察网络收发的 PPS，即每秒收发的网络帧数。</p>
+</li>
+<li><p>在第一个终端中运行 sar 命令，并添加 -n DEV 参数显示网络收发的报告：</p>
+ <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token comment"># -n DEV 表示显示网络收发的报告，间隔 1 秒输出一组数据</span>
+$ sar -n DEV <span class="token number">1</span>
+<span class="token number">15</span>:03:46        IFACE   rxpck/s   txpck/s    rxkB/s    txkB/s   rxcmp/s   txcmp/s  rxmcst/s   %ifutil
+<span class="token number">15</span>:03:47         eth0  <span class="token number">12607.00</span>   <span class="token number">6304.00</span>    <span class="token number">664.86</span>    <span class="token number">358.11</span>      <span class="token number">0.00</span>      <span class="token number">0.00</span>      <span class="token number">0.00</span>      <span class="token number">0.01</span>
+<span class="token number">15</span>:03:47      docker0   <span class="token number">6302.00</span>  <span class="token number">12604.00</span>    <span class="token number">270.79</span>    <span class="token number">664.66</span>      <span class="token number">0.00</span>      <span class="token number">0.00</span>      <span class="token number">0.00</span>      <span class="token number">0.00</span>
+<span class="token number">15</span>:03:47           lo      <span class="token number">0.00</span>      <span class="token number">0.00</span>      <span class="token number">0.00</span>      <span class="token number">0.00</span>      <span class="token number">0.00</span>      <span class="token number">0.00</span>      <span class="token number">0.00</span>      <span class="token number">0.00</span>
+<span class="token number">15</span>:03:47  veth9f6bbcd   <span class="token number">6302.00</span>  <span class="token number">12604.00</span>    <span class="token number">356.95</span>    <span class="token number">664.66</span>      <span class="token number">0.00</span>      <span class="token number">0.00</span>      <span class="token number">0.00</span>      <span class="token number">0.05</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p> 对于 sar 的输出界面，我先来简单介绍一下，从左往右依次是：</p>
+<ul>
+<li>第一列：表示报告的时间。</li>
+<li>第二列：IFACE 表示网卡。</li>
+<li>第三、四列：rxpck/s 和 txpck/s 分别表示每秒接收、发送的网络帧数，也就是 PPS。</li>
+<li><p>第五、六列：rxkB/s 和 txkB/s 分别表示每秒接收、发送的千字节数，也就是 BPS。</p>
+<p>后面的其他参数基本接近 0，显然跟今天的问题没有直接关系，你可以先忽略掉。</p>
+<p>我们具体来看输出的内容，你可以发现：</p>
+</li>
+<li><p>对网卡 eth0 来说，每秒接收的网络帧数比较大，达到了 12607，而发送的网络帧数则比较小，只有 6304；每秒接收的千字节数只有 664 KB，而发送的千字节数更小，只有 358 KB。</p>
+</li>
+<li><p>docker0 和 veth9f6bbcd 的数据跟 eth0 基本一致，只是发送和接收相反，发送的数据较大而接收的数据较小。这是 Linux 内部网桥转发导致的，你暂且不用深究，只要知道这是系统把 eth0 收到的包转发给 Nginx 服务即可。具体工作原理，我会在后面的网络部分详细介绍。</p>
+<p>既然怀疑是网络接收中断的问题，我们还是重点来看 eth0 ：接收的 PPS 比较大，达到 12607，而接收的 BPS 却很小，只有 664 KB。直观来看网络帧应该都是比较小的，我们稍微计算一下，664*1024/12607 = 54 字节，说明平均每个网络帧只有 54 字节，这显然是很小的网络帧，也就是我们通常所说的小包问题。</p>
+<p>那么，有没有办法知道这是一个什么样的网络帧，以及从哪里发过来的呢？</p>
+<p>使用 tcpdump 抓取 eth0 上的包就可以了。我们事先已经知道， Nginx 监听在 80 端口，它所提供的 HTTP 服务是基于 TCP 协议的，所以我们可以指定 TCP 协议和 80 端口精确抓包。</p>
+</li>
+</ul>
+</li>
+<li><p>接下来，我们在第一个终端中运行 tcpdump 命令，通过 -i eth0 选项指定网卡 eth0，并通过 tcp port 80 选项指定 TCP 协议的 80 端口：</p>
+ <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token comment"># -i eth0 只抓取 eth0 网卡，-n 不解析协议名和主机名</span>
+<span class="token comment"># tcp port 80 表示只抓取 tcp 协议并且端口号为 80 的网络帧</span>
+$ tcpdump -i eth0 -n tcp port <span class="token number">80</span>
+<span class="token number">15</span>:11:32.678966 IP <span class="token number">192.168</span>.0.2.18238 <span class="token operator">&gt;</span> <span class="token number">192.168</span>.0.30.80: Flags <span class="token punctuation">[</span>S<span class="token punctuation">]</span>, <span class="token function">seq</span> <span class="token number">458303614</span>, win <span class="token number">512</span>, length <span class="token number">0</span>
+<span class="token punctuation">..</span>.<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p> 从 tcpdump 的输出中，你可以发现：</p>
+<ul>
+<li>192.168.0.2.18238 &gt; 192.168.0.30.80 ，表示网络帧从 192.168.0.2 的 18238 端口发送到 192.168.0.30 的 80 端口，也就是从运行 hping3 机器的 18238 端口发送网络帧，目的为 Nginx 所在机器的 80 端口。</li>
+<li><p>Flags [S] 则表示这是一个 SYN 包。</p>
+<p>再加上前面用 sar 发现的， PPS 超过 12000 的现象，现在我们可以确认，这就是从 192.168.0.2 这个地址发送过来的 SYN FLOOD 攻击。</p>
+<p>SYN FLOOD 问题最简单的解决方法，就是从交换机或者硬件防火墙中封掉来源 IP，这样 SYN FLOOD 网络帧就不会发送到服务器中。</p>
+</li>
+</ul>
+</li>
+</ol>
+<h4 id="10-2-终端卡顿的问题"><a href="#10-2-终端卡顿的问题" class="headerlink" title="10.2 终端卡顿的问题"></a>10.2 终端卡顿的问题</h4><p>这个是由于网络延迟增大（甚至是丢包）导致的。比如你可以再拿另外一台机器（也就是第三台）在 hping3 运行的前后 ping 一下案例机器，ping -c3 <ip></ip></p>
+<p>hping3 运行前，你可能看到最长的也不超过 1 ms：</p>
+<pre class="line-numbers language-text" data-language="text"><code class="language-text">3 packets transmitted, 3 received, 0% packet loss, time 2028ms
+rtt min/avg/max/mdev = 0.815/0.914/0.989/0.081 ms<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre>
+<p>而 hping3 运行时，不仅平均延迟增长到了 245 ms，而且还会有丢包的发生：</p>
+<pre class="line-numbers language-text" data-language="text"><code class="language-text">3 packets transmitted, 2 received, 33% packet loss, time 2026ms
+rtt min/avg/max/mdev = 240.637/245.758/250.880/5.145 ms<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre>
+<h3 id="11-套路篇：如何迅速分析出系统CPU的瓶颈在哪里？"><a href="#11-套路篇：如何迅速分析出系统CPU的瓶颈在哪里？" class="headerlink" title="11 | 套路篇：如何迅速分析出系统CPU的瓶颈在哪里？"></a>11 | 套路篇：如何迅速分析出系统CPU的瓶颈在哪里？</h3><h4 id="11-1-CPU-性能指标"><a href="#11-1-CPU-性能指标" class="headerlink" title="11.1 CPU 性能指标"></a>11.1 CPU 性能指标</h4><ol>
+<li><p>最容易想到的应该是 CPU 使用率。</p>
+<p> CPU 使用率描述了非空闲时间占总 CPU 时间的百分比，根据 CPU 上运行任务的不同，又被分为用户 CPU、系统 CPU、等待 I/O CPU、软中断和硬中断等。</p>
+<ul>
+<li>用户 CPU 使用率，包括用户态 CPU 使用率（user）和低优先级用户态 CPU 使用率（nice），表示 CPU 在用户态运行的时间百分比。用户 CPU 使用率高，通常说明有应用程序比较繁忙。</li>
+<li>系统 CPU 使用率，表示 CPU 在内核态运行的时间百分比（不包括中断）。系统 CPU 使用率高，说明内核比较繁忙。</li>
+<li>等待 I/O 的 CPU 使用率，通常也称为 iowait，表示等待 I/O 的时间百分比。iowait 高，通常说明系统与硬件设备的 I/O 交互时间比较长。</li>
+<li>软中断和硬中断的 CPU 使用率，分别表示内核调用软中断处理程序、硬中断处理程序的时间百分比。它们的使用率高，通常说明系统发生了大量的中断。</li>
+<li>除了上面这些，还有在虚拟化环境中会用到的窃取 CPU 使用率（steal）和客户 CPU 使用率（guest），分别表示被其他虚拟机占用的 CPU 时间百分比，和运行客户虚拟机的 CPU 时间百分比。</li>
+</ul>
+</li>
+<li><p>第二个比较容易想到的，应该是平均负载（Load Average）。</p>
+<p> 平均负载（Load Average），也就是系统的平均活跃进程数。它反应了系统的整体负载情况，主要包括三个数值，分别指过去 1 分钟、过去 5 分钟和过去 15 分钟的平均负载。</p>
+<p> 理想情况下，平均负载等于逻辑 CPU 个数，这表示每个 CPU 都恰好被充分利用。如果平均负载大于逻辑 CPU 个数，就表示负载比较重了。</p>
+</li>
+<li><p>第三个，也是在专栏学习前你估计不太会注意到的，进程上下文切换。</p>
+<p> 包括：</p>
+<ul>
+<li>无法获取资源而导致的自愿上下文切换；</li>
+<li><p>被系统强制调度导致的非自愿上下文切换。</p>
+<p>上下文切换，本身是保证 Linux 正常运行的一项核心功能。但过多的上下文切换，会将原本运行进程的 CPU 时间，消耗在寄存器、内核栈以及虚拟内存等数据的保存和恢复上，缩短进程真正运行的时间，成为性能瓶颈。</p>
+</li>
+</ul>
+</li>
+<li><p>还有一个指标，CPU 缓存的命中率。</p>
+<p> 由于 CPU 发展的速度远快于内存的发展，CPU 的处理速度就比内存的访问速度快得多。这样，CPU 在访问内存的时候，免不了要等待内存的响应。为了协调这两者巨大的性能差距，CPU 缓存（通常是多级缓存）就出现了。</p>
+<p> <img src="/images/《Linux性能优化实战》学习笔记/CPU缓存架构.png" alt="CPU缓存架构"></p>
+<p> 就像上面这张图显示的，CPU 缓存的速度介于 CPU 和内存之间，缓存的是热点的内存数据。根据不断增长的热点数据，这些缓存按照大小不同分为 L1、L2、L3 等三级缓存，其中 L1 和 L2 常用在单核中， L3 则用在多核中。</p>
+<p> 从 L1 到 L3，三级缓存的大小依次增大，相应的，性能依次降低（当然比内存还是好得多）。而它们的命中率，衡量的是 CPU 缓存的复用情况，命中率越高，则表示性能越好。</p>
+</li>
+</ol>
+<p><img src="/images/《Linux性能优化实战》学习笔记/CPU性能指标筛选清单.png" alt="CPU性能指标筛选清单"></p>
+<h4 id="11-2-性能工具"><a href="#11-2-性能工具" class="headerlink" title="11.2 性能工具"></a>11.2 性能工具</h4><ol>
+<li><p>平均负载的案例。</p>
+<p> 我们先用 uptime， 查看了系统的平均负载；而在平均负载升高后，又用 mpstat 和 pidstat ，分别观察了每个 CPU 和每个进程 CPU 的使用情况，进而找出了导致平均负载升高的进程，也就是我们的压测工具 stress。</p>
+</li>
+<li><p>上下文切换的案例。</p>
+<p> 我们先用 vmstat ，查看了系统的上下文切换次数和中断次数；然后通过 pidstat ，观察了进程的自愿上下文切换和非自愿上下文切换情况；最后通过 pidstat ，观察了线程的上下文切换情况，找出了上下文切换次数增多的根源，也就是我们的基准测试工具 sysbench。</p>
+</li>
+<li><p>进程 CPU 使用率升高的案例。</p>
+<p> 我们先用 top ，查看了系统和进程的 CPU 使用情况，发现 CPU 使用率升高的进程是 php-fpm；再用 perf top ，观察 php-fpm 的调用链，最终找出 CPU 升高的根源，也就是库函数 sqrt() 。</p>
+</li>
+<li><p>系统的 CPU 使用率升高的案例。</p>
+<p> 我们先用 top 观察到了系统 CPU 升高，但通过 top 和 pidstat ，却找不出高 CPU 使用率的进程。于是，我们重新审视 top 的输出，又从 CPU 使用率不高但处于 Running 状态的进程入手，找出了可疑之处，最终通过 perf record 和 perf report ，发现原来是短时进程在捣鬼。</p>
+<p> 另外，对于短时进程，我还介绍了一个专门的工具 execsnoop，它可以实时监控进程调用的外部命令。</p>
+</li>
+<li><p>不可中断进程和僵尸进程的案例。</p>
+<p> 我们先用 top 观察到了 iowait 升高的问题，并发现了大量的不可中断进程和僵尸进程；接着我们用 dstat 发现是这是由磁盘读导致的，于是又通过 pidstat 找出了相关的进程。但我们用 strace 查看进程系统调用却失败了，最终还是用 perf 分析进程调用链，才发现根源在于磁盘直接 I/O 。</p>
+</li>
+<li><p>软中断的案例。</p>
+<p> 我们通过 top 观察到，系统的软中断 CPU 使用率升高；接着查看 /proc/softirqs， 找到了几种变化速率较快的软中断；然后通过 sar 命令，发现是网络小包的问题，最后再用 tcpdump ，找出网络帧的类型和来源，确定是一个 SYN FLOOD 攻击导致的。</p>
+</li>
+</ol>
+<h4 id="11-3-活学活用，把性能指标和性能工具联系起来"><a href="#11-3-活学活用，把性能指标和性能工具联系起来" class="headerlink" title="11.3 活学活用，把性能指标和性能工具联系起来"></a>11.3 活学活用，把性能指标和性能工具联系起来</h4><ol>
+<li><p>第一个维度，从 CPU 的性能指标出发。也就是说，当你要查看某个性能指标时，要清楚知道哪些工具可以做到。</p>
+<p> 根据不同的性能指标，对提供指标的性能工具进行分类和理解。这样，在实际排查性能问题时，你就可以清楚知道，什么工具可以提供你想要的指标，而不是毫无根据地挨个尝试，撞运气。</p>
+<p> 比如用 top 发现了软中断 CPU 使用率高后，下一步自然就想知道具体的软中断类型。那在哪里可以观察各类软中断的运行情况呢？当然是 proc 文件系统中的 /proc/softirqs 这个文件。</p>
+<p> 紧接着，比如说，我们找到的软中断类型是网络接收，那就要继续往网络接收方向思考。系统的网络接收情况是什么样的？什么工具可以查到网络接收情况呢？在我们案例中，用的正是 dstat。</p>
+<p> <img src="/images/《Linux性能优化实战》学习笔记/根据指标找工具（CPU性能）.png" alt="根据指标找工具（CPU性能）"></p>
+</li>
+<li><p>第二个维度，从工具出发。也就是当你已经安装了某个工具后，要知道这个工具能提供哪些指标。</p>
+<p> <img src="/images/《Linux性能优化实战》学习笔记/根据工具查指标（CPU性能）.png" alt="根据工具查指标（CPU性能）"></p>
+</li>
+</ol>
+<h4 id="11-4-如何迅速分析-CPU-的性能瓶颈"><a href="#11-4-如何迅速分析-CPU-的性能瓶颈" class="headerlink" title="11.4 如何迅速分析 CPU 的性能瓶颈"></a>11.4 如何迅速分析 CPU 的性能瓶颈</h4><p>虽然 CPU 的性能指标比较多，但要知道，既然都是描述系统的 CPU 性能，它们就不会是完全孤立的，很多指标间都有一定的关联。<strong>想弄清楚性能指标的关联性，就要通晓每种性能指标的工作原理</strong>。这也是为什么我在介绍每个性能指标时，都要穿插讲解相关的系统原理，希望你能记住这一点。</p>
+<p>举个例子，用户 CPU 使用率高，我们应该去排查进程的用户态而不是内核态。因为用户 CPU 使用率反映的就是用户态的 CPU 使用情况，而内核态的 CPU 使用情况只会反映到系统 CPU 使用率上。</p>
+<p>所以，<strong>为了缩小排查范围，我通常会先运行几个支持指标较多的工具，如 top、vmstat 和 pidstat</strong>。为什么是这三个工具呢？仔细看看下面这张图，你就清楚了。</p>
+<p><img src="/images/《Linux性能优化实战》学习笔记/使用top、vmstat和pidstat缩小排查范围.png" alt="使用top、vmstat和pidstat缩小排查范围"></p>
+<p>这张图里，我列出了 top、vmstat 和 pidstat 分别提供的重要的 CPU 指标，并用虚线表示关联关系，对应出了性能分析下一步的方向。</p>
+<p>通过这张图你可以发现，这三个命令，几乎包含了所有重要的 CPU 性能指标，比如：</p>
+<ul>
+<li>从 top 的输出可以得到各种 CPU 使用率以及僵尸进程和平均负载等信息。</li>
+<li>从 vmstat 的输出可以得到上下文切换次数、中断次数、运行状态和不可中断状态的进程数。</li>
+<li>从 pidstat 的输出可以得到进程的用户 CPU 使用率、系统 CPU 使用率、以及自愿上下文切换和非自愿上下文切换情况。</li>
+</ul>
+<p>另外，这三个工具输出的很多指标是相互关联的，所以，我也用虚线表示了它们的关联关系，举几个例子你可能会更容易理解。</p>
+<ol>
+<li><p>第一个例子，pidstat 输出的进程用户 CPU 使用率升高，会导致 top 输出的用户 CPU 使用率升高。所以，当发现 top 输出的用户 CPU 使用率有问题时，可以跟 pidstat 的输出做对比，观察是否是某个进程导致的问题。</p>
+<p> 而找出导致性能问题的进程后，就要用进程分析工具来分析进程的行为，比如使用 strace 分析系统调用情况，以及使用 perf 分析调用链中各级函数的执行情况。</p>
+</li>
+<li><p>第二个例子，top 输出的平均负载升高，可以跟 vmstat 输出的运行状态和不可中断状态的进程数做对比，观察是哪种进程导致的负载升高。</p>
+<ul>
+<li>如果是不可中断进程数增多了，那么就需要做 I/O 的分析，也就是用 dstat 或 sar 等工具，进一步分析 I/O 的情况。</li>
+<li>如果是运行状态进程数增多了，那就需要回到 top 和 pidstat，找出这些处于运行状态的到底是什么进程，然后再用进程分析工具，做进一步分析。</li>
+</ul>
+</li>
+<li><p>最后一个例子，当发现 top 输出的软中断 CPU 使用率升高时，可以查看 /proc/softirqs 文件中各种类型软中断的变化情况，确定到底是哪种软中断出的问题。比如，发现是网络接收中断导致的问题，那就可以继续用网络分析工具 sar 和 tcpdump 来分析。</p>
+</li>
+</ol>
 
                 
             </div>
@@ -1879,7 +2147,7 @@ PID <span class="token environment constant">USER</span>      PR  NI    VIRT    
             <br>
             
             &nbsp;<i class="fas fa-chart-area"></i>&nbsp;站点总字数:&nbsp;<span
-                class="white-color">251.4k</span>&nbsp;字
+                class="white-color">258.5k</span>&nbsp;字
             
             
             
