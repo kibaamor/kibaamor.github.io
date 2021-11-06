@@ -435,21 +435,21 @@
                 
                 <div class="post-date info-break-policy">
                     <i class="far fa-calendar-check fa-fw"></i>更新日期:&nbsp;&nbsp;
-                    2021-11-05
+                    2021-11-06
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-file-word fa-fw"></i>文章字数:&nbsp;&nbsp;
-                    69.8k
+                    77.6k
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-clock fa-fw"></i>阅读时长:&nbsp;&nbsp;
-                    270 分
+                    303 分
                 </div>
                 
 
@@ -3426,6 +3426,453 @@ sda              <span class="token number">0.00</span>    <span class="token nu
 </li>
 </ol>
 <h4 id="26-2-问答区"><a href="#26-2-问答区" class="headerlink" title="26.2 问答区"></a>26.2 问答区</h4><p>“日志回滚文件”，打印日志的过程中从直觉来看很容易误认为日志是在“回滚”，我也犯过这样的错误；rotating英文直译为“旋转”或“轮流”，实际的日志打印过程中，日志名称是“旋转”的，例如log.1(当前打印的日志文件并且一直会打印这个文件)，log.2(较早日志)，log.3(更早日志)，当触发“旋转”条件时，日志名称会发生变更，假如log.3是上限数，那么log.3发生“旋转”就被remove，log.2被rename为log.3。更形象一点的描述是，日志名称发生了滚动，log.1=&gt;log.2=&gt;log.3不断的更新。</p>
+<h3 id="27-案例篇：为什么我的磁盘I-O延迟很高？"><a href="#27-案例篇：为什么我的磁盘I-O延迟很高？" class="headerlink" title="27 | 案例篇：为什么我的磁盘I/O延迟很高？"></a>27 | 案例篇：为什么我的磁盘I/O延迟很高？</h3><h4 id="27-1-案例"><a href="#27-1-案例" class="headerlink" title="27.1 案例"></a>27.1 案例</h4><blockquote>
+<p>机器配置： 2 CPU, 8 GB 内存。</p>
+<p>安装软件：<code>apt install docker.io sysstat</code>。</p>
+</blockquote>
+<ol>
+<li><p>在第一个终端中执行下面的命令，运行本次案例要分析的目标应用：</p>
+ <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ docker run --name<span class="token operator">=</span>app -p <span class="token number">10000</span>:80 -itd feisky/word-pop<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre></li>
+<li><p>在第二个终端中运行 curl 命令，访问 <a target="_blank" rel="noopener" href="http://192.168.0.10:1000/，确认案例正常启动。你应该可以在">http://192.168.0.10:1000/，确认案例正常启动。你应该可以在</a> curl 的输出界面里，看到一个 hello world 的输出：</p>
+ <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ <span class="token function">curl</span> http://192.168.0.10:10000/
+hello world<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre></li>
+<li><p>接下来，在第二个终端中，访问案例应用的单词热度接口，也就是 <a target="_blank" rel="noopener" href="http://192.168.0.10:1000/popularity/word。">http://192.168.0.10:1000/popularity/word。</a></p>
+ <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ <span class="token function">curl</span> http://192.168.0.10:1000/popularity/word<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p> 稍等一会儿，你会发现，这个接口居然这么长时间都没响应，究竟是怎么回事呢？我们先回到终端一来分析一下。</p>
+<p> 我们试试在第一个终端里，随便执行一个命令，比如执行 df 命令，查看一下文件系统的使用情况。奇怪的是，这么简单的命令，居然也要等好久才有输出。</p>
+ <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ <span class="token function">df</span>
+Filesystem     1K-blocks    Used Available Use% Mounted on
+udev             <span class="token number">4073376</span>       <span class="token number">0</span>   <span class="token number">4073376</span>   <span class="token number">0</span>% /dev
+tmpfs             <span class="token number">816932</span>    <span class="token number">1188</span>    <span class="token number">815744</span>   <span class="token number">1</span>% /run
+/dev/sda1       <span class="token number">30308240</span> <span class="token number">8713640</span>  <span class="token number">21578216</span>  <span class="token number">29</span>% /<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p> 通过 df 我们知道，系统还有足够多的磁盘空间。那为什么响应会变慢呢？看来还是得观察一下，系统的资源使用情况，像是 CPU、内存和磁盘 I/O 等的具体使用情况。</p>
+<p> 这里的思路其实跟上一个案例比较类似，我们可以先用 top 来观察 CPU 和内存的使用情况，然后再用 iostat 来观察磁盘的 I/O 情况。</p>
+</li>
+<li><p>为了避免分析过程中 curl 请求突然结束，我们回到终端二，按 Ctrl+C 停止刚才的应用程序；然后，把 curl 命令放到一个循环里执行；这次我们还要加一个 time 命令，观察每次的执行时间：</p>
+ <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ <span class="token keyword">while</span> <span class="token boolean">true</span><span class="token punctuation">;</span> <span class="token keyword">do</span> <span class="token function">time</span> <span class="token function">curl</span> http://192.168.0.10:10000/popularity/word<span class="token punctuation">;</span> <span class="token function">sleep</span> <span class="token number">1</span><span class="token punctuation">;</span> <span class="token keyword">done</span><span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre></li>
+<li><p>继续回到终端一来分析性能。我们在终端一中运行 top 命令，观察 CPU 和内存的使用情况：</p>
+ <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ <span class="token function">top</span>
+<span class="token function">top</span> - <span class="token number">14</span>:27:02 up <span class="token number">10</span>:30,  <span class="token number">1</span> user,  load average: <span class="token number">1.82</span>, <span class="token number">1.26</span>, <span class="token number">0.76</span>
+Tasks: <span class="token number">129</span> total,   <span class="token number">1</span> running,  <span class="token number">74</span> sleeping,   <span class="token number">0</span> stopped,   <span class="token number">0</span> zombie
+%Cpu0  <span class="token builtin class-name">:</span>  <span class="token number">3.5</span> us,  <span class="token number">2.1</span> sy,  <span class="token number">0.0</span> ni,  <span class="token number">0.0</span> id, <span class="token number">94.4</span> wa,  <span class="token number">0.0</span> hi,  <span class="token number">0.0</span> si,  <span class="token number">0.0</span> st
+%Cpu1  <span class="token builtin class-name">:</span>  <span class="token number">2.4</span> us,  <span class="token number">0.7</span> sy,  <span class="token number">0.0</span> ni, <span class="token number">70.4</span> id, <span class="token number">26.5</span> wa,  <span class="token number">0.0</span> hi,  <span class="token number">0.0</span> si,  <span class="token number">0.0</span> st
+KiB Mem <span class="token builtin class-name">:</span>  <span class="token number">8169300</span> total,  <span class="token number">3323248</span> free,   <span class="token number">436748</span> used,  <span class="token number">4409304</span> buff/cache
+KiB Swap:        <span class="token number">0</span> total,        <span class="token number">0</span> free,        <span class="token number">0</span> used.  <span class="token number">7412556</span> avail Mem
+
+  PID <span class="token environment constant">USER</span>      PR  NI    VIRT    RES    SHR S  %CPU %MEM     TIME+ COMMAND
+<span class="token number">12280</span> root      <span class="token number">20</span>   <span class="token number">0</span>  <span class="token number">103304</span>  <span class="token number">28824</span>   <span class="token number">7276</span> S  <span class="token number">14.0</span>  <span class="token number">0.4</span>   <span class="token number">0</span>:08.77 python
+   <span class="token number">16</span> root      <span class="token number">20</span>   <span class="token number">0</span>       <span class="token number">0</span>      <span class="token number">0</span>      <span class="token number">0</span> S   <span class="token number">0.3</span>  <span class="token number">0.0</span>   <span class="token number">0</span>:09.22 ksoftirqd/1
+<span class="token number">1549</span> root      <span class="token number">20</span>   <span class="token number">0</span>  <span class="token number">236712</span>  <span class="token number">24480</span>   <span class="token number">9864</span> S   <span class="token number">0.3</span>  <span class="token number">0.3</span>   <span class="token number">3</span>:31.38 python3<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p> 观察 top 的输出可以发现，两个 CPU 的 iowait 都非常高。特别是 CPU0， iowait 已经高达 94 %，而剩余内存还有 3GB，看起来也是充足的。</p>
+<p> 再往下看，进程部分有一个 python 进程的 CPU 使用率稍微有点高，达到了 14%。虽然 14% 并不能成为性能瓶颈，不过有点嫌疑——可能跟 iowait 的升高有关。</p>
+<p> 那这个 PID 号为 12280 的 python 进程，到底是不是我们的案例应用呢？</p>
+</li>
+<li><p>我们在第一个终端中，按下 Ctrl+C，停止 top 命令；然后执行下面的 ps 命令，查找案例应用 app.py 的 PID 号：</p>
+ <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ <span class="token function">ps</span> aux <span class="token operator">|</span> <span class="token function">grep</span> app.py
+root     <span class="token number">12222</span>  <span class="token number">0.4</span>  <span class="token number">0.2</span>  <span class="token number">96064</span> <span class="token number">23452</span> pts/0    Ss+  <span class="token number">14</span>:37   <span class="token number">0</span>:00 python /app.py
+root     <span class="token number">12280</span> <span class="token number">13.9</span>  <span class="token number">0.3</span> <span class="token number">102424</span> <span class="token number">27904</span> pts/0    Sl+  <span class="token number">14</span>:37   <span class="token number">0</span>:09 /usr/local/bin/python /app.py<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span></span></code></pre>
+<p> 从 ps 的输出，你可以看到，这个 CPU 使用率较高的进程，正是我们的案例应用。不过先别着急分析 CPU 问题，毕竟 iowait 已经高达 94%， I/O 问题才是我们首要解决的。</p>
+</li>
+<li><p>接下来，我们在终端一中，运行下面的 iostat 命令，其中:</p>
+<ul>
+<li>-d 选项是指显示出 I/O 的性能指标；</li>
+<li><p>-x 选项是指显示出扩展统计信息（即显示所有 I/O 指标）。</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ iostat -d -x <span class="token number">1</span>
+Device            r/s     w/s     rkB/s     wkB/s   rrqm/s   wrqm/s  %rrqm  %wrqm r_await w_await aqu-sz rareq-sz wareq-sz  svctm  %util
+loop0            <span class="token number">0.00</span>    <span class="token number">0.00</span>      <span class="token number">0.00</span>      <span class="token number">0.00</span>     <span class="token number">0.00</span>     <span class="token number">0.00</span>   <span class="token number">0.00</span>   <span class="token number">0.00</span>    <span class="token number">0.00</span>    <span class="token number">0.00</span>   <span class="token number">0.00</span>     <span class="token number">0.00</span>     <span class="token number">0.00</span>   <span class="token number">0.00</span>   <span class="token number">0.00</span>
+sda              <span class="token number">0.00</span>   <span class="token number">71.00</span>      <span class="token number">0.00</span>  <span class="token number">32912.00</span>     <span class="token number">0.00</span>     <span class="token number">0.00</span>   <span class="token number">0.00</span>   <span class="token number">0.00</span>    <span class="token number">0.00</span> <span class="token number">18118.31</span> <span class="token number">241.89</span>     <span class="token number">0.00</span>   <span class="token number">463.55</span>  <span class="token number">13.86</span>  <span class="token number">98.40</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span></span></code></pre>
+<p>可以发现，磁盘 sda 的 I/O 使用率已经达到 98% ，接近饱和了。而且，写请求的响应时间高达 18 秒，每秒的写数据为 32 MB，显然写磁盘碰到了瓶颈。</p>
+<p>那要怎么知道，这些 I/O 请求到底是哪些进程导致的呢？</p>
+</li>
+</ul>
+</li>
+<li><p>在终端一中，运行下面的 pidstat 命令，观察进程的 I/O 情况：</p>
+ <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ pidstat -d <span class="token number">1</span>
+<span class="token number">14</span>:39:14      <span class="token environment constant">UID</span>       PID   kB_rd/s   kB_wr/s kB_ccwr/s iodelay  Command
+<span class="token number">14</span>:39:15        <span class="token number">0</span>     <span class="token number">12280</span>      <span class="token number">0.00</span> <span class="token number">335716.00</span>      <span class="token number">0.00</span>       <span class="token number">0</span>  python<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span></span></code></pre>
+<p> 从 pidstat 的输出，我们再次看到了 PID 号为 12280 的结果。这说明，正是案例应用引发 I/O 的性能瓶颈。</p>
+<p> 走到这一步，你估计觉得，接下来就很简单了，上一个案例不刚刚学过吗？无非就是，先用 strace 确认它是不是在写文件，再用 lsof 找出文件描述符对应的文件即可。</p>
+</li>
+<li><p>到底是不是这样呢？我们不妨来试试。还是在终端一中，执行下面的 strace 命令：</p>
+ <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ <span class="token function">strace</span> -p <span class="token number">12280</span>
+strace: Process <span class="token number">12280</span> attached
+select<span class="token punctuation">(</span><span class="token number">0</span>, NULL, NULL, NULL, <span class="token punctuation">{</span>tv_sec<span class="token operator">=</span><span class="token number">0</span>, <span class="token assign-left variable">tv_usec</span><span class="token operator">=</span><span class="token number">567708</span><span class="token punctuation">}</span><span class="token punctuation">)</span> <span class="token operator">=</span> <span class="token number">0</span> <span class="token punctuation">(</span>Timeout<span class="token punctuation">)</span>
+stat<span class="token punctuation">(</span><span class="token string">"/usr/local/lib/python3.7/importlib/_bootstrap.py"</span>, <span class="token punctuation">{</span>st_mode<span class="token operator">=</span>S_IFREG<span class="token operator">|</span>0644, <span class="token assign-left variable">st_size</span><span class="token operator">=</span><span class="token number">39278</span>, <span class="token punctuation">..</span>.<span class="token punctuation">}</span><span class="token punctuation">)</span> <span class="token operator">=</span> <span class="token number">0</span>
+stat<span class="token punctuation">(</span><span class="token string">"/usr/local/lib/python3.7/importlib/_bootstrap.py"</span>, <span class="token punctuation">{</span>st_mode<span class="token operator">=</span>S_IFREG<span class="token operator">|</span>0644, <span class="token assign-left variable">st_size</span><span class="token operator">=</span><span class="token number">39278</span>, <span class="token punctuation">..</span>.<span class="token punctuation">}</span><span class="token punctuation">)</span> <span class="token operator">=</span> <span class="token number">0</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p> 从 strace 中，你可以看到大量的 stat 系统调用，并且大都为 python 的文件，但是，请注意，这里并没有任何 write 系统调用。</p>
+<p> 由于 strace 的输出比较多，我们可以用 grep ，来过滤一下 write，比如：</p>
+ <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ <span class="token function">strace</span> -p <span class="token number">12280</span> <span class="token operator"><span class="token file-descriptor important">2</span>&gt;</span><span class="token file-descriptor important">&amp;1</span> <span class="token operator">|</span> <span class="token function">grep</span> <span class="token function">write</span><span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p> 遗憾的是，这里仍然没有任何输出。</p>
+<p> 难道此时已经没有性能问题了吗？重新执行刚才的 top 和 iostat 命令，你会不幸地发现，性能问题仍然存在。</p>
+<p> 我们只好综合 strace、pidstat 和 iostat 这三个结果来分析了。很明显，你应该发现了这里的矛盾：iostat 已经证明磁盘 I/O 有性能瓶颈，而 pidstat 也证明了，这个瓶颈是由 12280 号进程导致的，但 strace 跟踪这个进程，却没有找到任何 write 系统调用。</p>
+<p> 这就奇怪了。难道因为案例使用的编程语言是 Python ，而 Python 是解释型的，所以找不到？还是说，因为案例运行在 Docker 中呢？这里留个悬念，你自己想想。</p>
+<p> 文件写，明明应该有相应的 write 系统调用，但用现有工具却找不到痕迹，这时就该想想换工具的问题了。怎样才能知道哪里在写文件呢？</p>
+<p> 这里我给你介绍一个新工具， <a target="_blank" rel="noopener" href="https://github.com/iovisor/bcc/blob/master/tools/filetop.py">filetop</a> 。它是 <a target="_blank" rel="noopener" href="https://github.com/iovisor/bcc">bcc</a> 软件包的一部分，基于 Linux 内核的 eBPF（extended Berkeley Packet Filters）机制，主要跟踪内核中文件的读写情况，并输出线程 ID（TID）、读写大小、读写类型以及文件名称。</p>
+</li>
+<li><p>首先，在终端一中运行下面的命令：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token comment"># 切换到工具目录</span>
+$ <span class="token builtin class-name">cd</span> /usr/share/bcc/tools
+
+<span class="token comment"># -C 选项表示输出新内容时不清空屏幕</span>
+$ ./filetop -C
+
+TID    COMM             READS  WRITES R_Kb    W_Kb    T FILE
+<span class="token number">514</span>    python           <span class="token number">0</span>      <span class="token number">1</span>      <span class="token number">0</span>       <span class="token number">2832</span>    R <span class="token number">669</span>.txt
+<span class="token number">514</span>    python           <span class="token number">0</span>      <span class="token number">1</span>      <span class="token number">0</span>       <span class="token number">2490</span>    R <span class="token number">667</span>.txt
+<span class="token number">514</span>    python           <span class="token number">0</span>      <span class="token number">1</span>      <span class="token number">0</span>       <span class="token number">2685</span>    R <span class="token number">671</span>.txt
+<span class="token number">514</span>    python           <span class="token number">0</span>      <span class="token number">1</span>      <span class="token number">0</span>       <span class="token number">2392</span>    R <span class="token number">670</span>.txt
+<span class="token number">514</span>    python           <span class="token number">0</span>      <span class="token number">1</span>      <span class="token number">0</span>       <span class="token number">2050</span>    R <span class="token number">672</span>.txt
+
+<span class="token punctuation">..</span>.
+
+TID    COMM             READS  WRITES R_Kb    W_Kb    T FILE
+<span class="token number">514</span>    python           <span class="token number">2</span>      <span class="token number">0</span>      <span class="token number">5957</span>    <span class="token number">0</span>       R <span class="token number">651</span>.txt
+<span class="token number">514</span>    python           <span class="token number">2</span>      <span class="token number">0</span>      <span class="token number">5371</span>    <span class="token number">0</span>       R <span class="token number">112</span>.txt
+<span class="token number">514</span>    python           <span class="token number">2</span>      <span class="token number">0</span>      <span class="token number">4785</span>    <span class="token number">0</span>       R <span class="token number">861</span>.txt
+<span class="token number">514</span>    python           <span class="token number">2</span>      <span class="token number">0</span>      <span class="token number">4736</span>    <span class="token number">0</span>       R <span class="token number">213</span>.txt
+<span class="token number">514</span>    python           <span class="token number">2</span>      <span class="token number">0</span>      <span class="token number">4443</span>    <span class="token number">0</span>       R <span class="token number">45</span>.txt<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>你会看到，filetop 输出了 8 列内容，分别是线程 ID、线程命令行、读写次数、读写的大小（单位 KB）、文件类型以及读写的文件名称。</p>
+<p>这些内容里，你可能会看到很多动态链接库，不过这不是我们的重点，暂且忽略即可。我们的重点，是一个 python 应用，所以要特别关注 python 相关的内容。</p>
+<p>多观察一会儿，你就会发现，每隔一段时间，线程号为 514 的 python 应用就会先写入大量的 txt 文件，再大量地读。</p>
+</li>
+<li><p>线程号为 514 的线程，属于哪个进程呢？我们可以用 ps 命令查看。先在终端一中，按下 Ctrl+C ，停止 filetop ；然后，运行下面的 ps 命令。这个输出的第二列内容，就是我们想知道的进程号：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ <span class="token function">ps</span> -efT <span class="token operator">|</span> <span class="token function">grep</span> <span class="token number">514</span>
+root     <span class="token number">12280</span>  <span class="token number">514</span> <span class="token number">14626</span> <span class="token number">33</span> <span class="token number">14</span>:47 pts/0    00:00:05 /usr/local/bin/python /app.py<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre>
+<p>我们看到，这个线程正是案例应用 12280 的线程。终于可以先松一口气，不过还没完，filetop 只给出了文件名称，却没有文件路径，还得继续找啊。</p>
+<p>我再介绍一个好用的工具，opensnoop 。它同属于 bcc 软件包，可以动态跟踪内核中的 open 系统调用。这样，我们就可以找出这些 txt 文件的路径。</p>
+</li>
+<li><p>接下来，在终端一中，运行下面的 opensnoop 命令：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ opensnoop
+<span class="token number">12280</span>  python              <span class="token number">6</span>   <span class="token number">0</span> /tmp/9046db9e-fe25-11e8-b13f-0242ac110002/650.txt
+<span class="token number">12280</span>  python              <span class="token number">6</span>   <span class="token number">0</span> /tmp/9046db9e-fe25-11e8-b13f-0242ac110002/651.txt
+<span class="token number">12280</span>  python              <span class="token number">6</span>   <span class="token number">0</span> /tmp/9046db9e-fe25-11e8-b13f-0242ac110002/652.txt<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span></span></code></pre>
+<p>这次，通过 opensnoop 的输出，你可以看到，这些 txt 路径位于 /tmp 目录下。你还能看到，它打开的文件数量，按照数字编号，从 0.txt 依次增大到 999.txt，这可远多于前面用 filetop 看到的数量。</p>
+</li>
+<li><p>综合 filetop 和 opensnoop ，我们就可以进一步分析了。我们可以大胆猜测，案例应用在写入 1000 个 txt 文件后，又把这些内容读到内存中进行处理。我们来检查一下，这个目录中是不是真的有 1000 个文件：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ <span class="token function">ls</span> /tmp/9046db9e-fe25-11e8-b13f-0242ac110002 <span class="token operator">|</span> <span class="token function">wc</span> -l
+ls: cannot access <span class="token string">'/tmp/9046db9e-fe25-11e8-b13f-0242ac110002'</span><span class="token builtin class-name">:</span> No such <span class="token function">file</span> or directory
+<span class="token number">0</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span></span></code></pre></li>
+<li><p>操作后却发现，目录居然不存在了。怎么回事呢？我们回到 opensnoop 再观察一会儿：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ opensnoop
+<span class="token number">12280</span>  python              <span class="token number">6</span>   <span class="token number">0</span> /tmp/defee970-fe25-11e8-b13f-0242ac110002/261.txt
+<span class="token number">12280</span>  python              <span class="token number">6</span>   <span class="token number">0</span> /tmp/defee970-fe25-11e8-b13f-0242ac110002/840.txt
+<span class="token number">12280</span>  python              <span class="token number">6</span>   <span class="token number">0</span> /tmp/defee970-fe25-11e8-b13f-0242ac110002/136.txt<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span></span></code></pre>
+<p>原来，这时的路径已经变成了另一个目录。这说明，这些目录都是应用程序动态生成的，用完就删了。</p>
+<p>结合前面的所有分析，我们基本可以判断，案例应用会动态生成一批文件，用来临时存储数据，用完就会删除它们。但不幸的是，正是这些文件读写，引发了 I/O 的性能瓶颈，导致整个处理过程非常慢。</p>
+</li>
+<li><p>当然，我们还需要验证这个猜想。老办法，还是查看应用程序的源码 app.py，</p>
+<pre class="line-numbers language-python" data-language="python"><code class="language-python"><span class="token decorator annotation punctuation">@app<span class="token punctuation">.</span>route</span><span class="token punctuation">(</span><span class="token string">"/popularity/&lt;word&gt;"</span><span class="token punctuation">)</span>
+<span class="token keyword">def</span> <span class="token function">word_popularity</span><span class="token punctuation">(</span>word<span class="token punctuation">)</span><span class="token punctuation">:</span>
+dir_path <span class="token operator">=</span> <span class="token string">'/tmp/{}'</span><span class="token punctuation">.</span><span class="token builtin">format</span><span class="token punctuation">(</span>uuid<span class="token punctuation">.</span>uuid1<span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span>
+count <span class="token operator">=</span> <span class="token number">0</span>
+sample_size <span class="token operator">=</span> <span class="token number">1000</span>
+
+<span class="token keyword">def</span> <span class="token function">save_to_file</span><span class="token punctuation">(</span>file_name<span class="token punctuation">,</span> content<span class="token punctuation">)</span><span class="token punctuation">:</span>
+    <span class="token keyword">with</span> <span class="token builtin">open</span><span class="token punctuation">(</span>file_name<span class="token punctuation">,</span> <span class="token string">'w'</span><span class="token punctuation">)</span> <span class="token keyword">as</span> f<span class="token punctuation">:</span>
+    f<span class="token punctuation">.</span>write<span class="token punctuation">(</span>content<span class="token punctuation">)</span>
+
+<span class="token keyword">try</span><span class="token punctuation">:</span>
+    <span class="token comment"># initial directory firstly</span>
+    os<span class="token punctuation">.</span>mkdir<span class="token punctuation">(</span>dir_path<span class="token punctuation">)</span>
+
+    <span class="token comment"># save article to files</span>
+    <span class="token keyword">for</span> i <span class="token keyword">in</span> <span class="token builtin">range</span><span class="token punctuation">(</span>sample_size<span class="token punctuation">)</span><span class="token punctuation">:</span>
+        file_name <span class="token operator">=</span> <span class="token string">'{}/{}.txt'</span><span class="token punctuation">.</span><span class="token builtin">format</span><span class="token punctuation">(</span>dir_path<span class="token punctuation">,</span> i<span class="token punctuation">)</span>
+        article <span class="token operator">=</span> generate_article<span class="token punctuation">(</span><span class="token punctuation">)</span>
+        save_to_file<span class="token punctuation">(</span>file_name<span class="token punctuation">,</span> article<span class="token punctuation">)</span>
+
+    <span class="token comment"># count word popularity</span>
+    <span class="token keyword">for</span> root<span class="token punctuation">,</span> dirs<span class="token punctuation">,</span> files <span class="token keyword">in</span> os<span class="token punctuation">.</span>walk<span class="token punctuation">(</span>dir_path<span class="token punctuation">)</span><span class="token punctuation">:</span>
+        <span class="token keyword">for</span> file_name <span class="token keyword">in</span> files<span class="token punctuation">:</span>
+            <span class="token keyword">with</span> <span class="token builtin">open</span><span class="token punctuation">(</span><span class="token string">'{}/{}'</span><span class="token punctuation">.</span><span class="token builtin">format</span><span class="token punctuation">(</span>dir_path<span class="token punctuation">,</span> file_name<span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token keyword">as</span> f<span class="token punctuation">:</span>
+                <span class="token keyword">if</span> validate<span class="token punctuation">(</span>word<span class="token punctuation">,</span> f<span class="token punctuation">.</span>read<span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">:</span>
+                    count <span class="token operator">+=</span> <span class="token number">1</span>
+    <span class="token keyword">finally</span><span class="token punctuation">:</span>
+        <span class="token comment"># clean files</span>
+        shutil<span class="token punctuation">.</span>rmtree<span class="token punctuation">(</span>dir_path<span class="token punctuation">,</span> ignore_errors<span class="token operator">=</span><span class="token boolean">True</span><span class="token punctuation">)</span>
+
+    <span class="token keyword">return</span> jsonify<span class="token punctuation">(</span><span class="token punctuation">{</span><span class="token string">'popularity'</span><span class="token punctuation">:</span> count <span class="token operator">/</span> sample_size <span class="token operator">*</span> <span class="token number">100</span><span class="token punctuation">,</span> <span class="token string">'word'</span><span class="token punctuation">:</span> word<span class="token punctuation">}</span><span class="token punctuation">)</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>源码中可以看到，这个案例应用，在每个请求的处理过程中，都会生成一批临时文件，然后读入内存处理，最后再把整个目录删除掉。</p>
+<p>这是一种常见的利用磁盘空间处理大量数据的技巧，不过，本次案例中的 I/O 请求太重，导致磁盘 I/O 利用率过高。</p>
+<p>要解决这一点，其实就是算法优化问题了。比如在内存充足时，就可以把所有数据都放到内存中处理，这样就能避免 I/O 的性能问题。</p>
+</li>
+</ol>
+<h4 id="27-2-思考"><a href="#27-2-思考" class="headerlink" title="27.2 思考"></a>27.2 思考</h4><p>今天的案例中，iostat 已经证明，磁盘 I/O 出现了性能瓶颈， pidstat 也证明了这个瓶颈是由 12280 号进程导致的。但是，strace 跟踪这个进程，却没有发现任何 write 系统调用。</p>
+<p>答案：在strace -p PID后加上-f，多进程和多线程都可以跟踪。</p>
+<h3 id="28-案例篇：一个SQL查询要15秒，这是怎么回事？"><a href="#28-案例篇：一个SQL查询要15秒，这是怎么回事？" class="headerlink" title="28 | 案例篇：一个SQL查询要15秒，这是怎么回事？"></a>28 | 案例篇：一个SQL查询要15秒，这是怎么回事？</h3><h4 id="28-1-案例"><a href="#28-1-案例" class="headerlink" title="28.1 案例"></a>28.1 案例</h4><blockquote>
+<p>机器配置： 2 CPU, 8 GB 内存。</p>
+<p>安装软件：<code>apt install docker.io sysstat make git</code>。</p>
+</blockquote>
+<p>案例总共由三个容器组成，包括一个 MySQL 数据库应用、一个商品搜索应用以及一个数据处理的应用。其中，商品搜索应用以 HTTP 的形式提供了一个接口：</p>
+<ul>
+<li>/：返回 Index Page；</li>
+<li>/db/insert/products/：插入指定数量的商品信息；</li>
+<li>/products/：查询指定商品的信息，并返回处理时间。</li>
+</ul>
+<ol>
+<li><p>在第一个终端中执行下面命令，拉取本次案例所需脚本：</p>
+ <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ <span class="token function">git</span> clone https://github.com/feiskyer/linux-perf-examples
+$ <span class="token builtin class-name">cd</span> linux-perf-examples/mysql-slow<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre></li>
+<li><p>接着，执行下面的命令，运行本次的目标应用。正常情况下，你应该可以看到下面的输出：</p>
+ <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token comment"># 注意下面的随机字符串是容器 ID，每次运行均会不同，并且你不需要关注它，因为我们只会用到名字</span>
+$ <span class="token function">make</span> run
+docker run --name<span class="token operator">=</span>mysql -itd -p <span class="token number">10000</span>:80 -m 800m feisky/mysql:5.6
+WARNING: Your kernel does not support swap limit capabilities or the cgroup is not mounted. Memory limited without swap.
+4156780da5be0b9026bcf27a3fa56abc15b8408e358fa327f472bcc5add4453f
+docker run --name<span class="token operator">=</span>dataservice -itd --privileged feisky/mysql-dataservice
+f724d0816d7e47c0b2b1ff701e9a39239cb9b5ce70f597764c793b68131122bb
+docker run --name<span class="token operator">=</span>app --network<span class="token operator">=</span>container:mysql -itd feisky/mysql-slow
+81d3392ba25bb8436f6151662a13ff6182b6bc6f2a559fc2e9d873cd07224ab6<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre></li>
+<li><p>然后，再运行 docker ps 命令，确认三个容器都处在运行（Up）状态：</p>
+ <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ docker <span class="token function">ps</span>
+CONTAINER ID        IMAGE                      COMMAND                  CREATED             STATUS              PORTS                             NAMES
+9a4e3c580963        feisky/mysql-slow          <span class="token string">"python /app.py"</span>         <span class="token number">42</span> seconds ago      Up <span class="token number">36</span> seconds                                         app
+2a47aab18082        feisky/mysql-dataservice   <span class="token string">"python /dataservice…"</span>   <span class="token number">46</span> seconds ago      Up <span class="token number">41</span> seconds                                         dataservice
+4c3ff7b24748        feisky/mysql:5.6           <span class="token string">"docker-entrypoint.s…"</span>   <span class="token number">47</span> seconds ago      Up <span class="token number">46</span> seconds       <span class="token number">3306</span>/tcp, <span class="token number">0.0</span>.0.0:10000-<span class="token operator">&gt;</span><span class="token number">80</span>/tcp   mysql<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p> MySQL 数据库的启动过程，需要做一些初始化工作，这通常需要花费几分钟时间。你可以运行 docker logs 命令，查看它的启动过程。</p>
+</li>
+<li><p>当你看到下面这个输出时，说明 MySQL 初始化完成，可以接收外部请求了：</p>
+ <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ docker logs -f mysql
+<span class="token punctuation">..</span>.
+<span class="token punctuation">..</span>. <span class="token punctuation">[</span>Note<span class="token punctuation">]</span> mysqld: ready <span class="token keyword">for</span> connections.
+Version: <span class="token string">'5.6.42-log'</span>  socket: <span class="token string">'/var/run/mysqld/mysqld.sock'</span>  port: <span class="token number">3306</span>  MySQL Community Server <span class="token punctuation">(</span>GPL<span class="token punctuation">)</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span></span></code></pre></li>
+<li><p>而商品搜索应用则是在 10000 端口监听。你可以按 Ctrl+C ，停止 docker logs 命令；然后，执行下面的命令，确认它也已经正常运行。如果一切正常，你会看到 Index Page 的输出：</p>
+ <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ <span class="token function">curl</span> http://127.0.0.1:10000/
+Index Page<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre></li>
+<li><p>接下来，运行 make init 命令，初始化数据库，并插入 10000 条商品信息。这个过程比较慢，比如在我的机器中，就花了十几分钟时间。耐心等待一段时间后，你会看到如下的输出：</p>
+ <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ <span class="token function">make</span> init
+docker <span class="token builtin class-name">exec</span> -i mysql mysql -uroot -P3306 <span class="token operator">&lt;</span> tables.sql
+<span class="token function">curl</span> http://127.0.0.1:10000/db/insert/products/10000
+insert <span class="token number">10000</span> lines<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span></span></code></pre></li>
+<li><p>接着，我们切换到第二个终端，访问一下商品搜索的接口，看看能不能找到想要的商品。执行如下的 curl 命令：</p>
+ <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ <span class="token function">curl</span> http://192.168.0.10:10000/products/geektime
+Got data: <span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token keyword">in</span> <span class="token number">15.364538192749023</span> sec<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre>
+<p> 稍等一会儿，你会发现，这个接口返回的是空数据，而且处理时间超过 15 秒。这么慢的响应速度让人无法忍受，到底出了什么问题呢？</p>
+<p> 既然今天用了 MySQL，你估计会猜到是慢查询的问题。</p>
+<p> 不过别急，在具体分析前，为了避免在分析过程中客户端的请求结束，我们把 curl 命令放到一个循环里执行。同时，为了避免给系统过大压力，我们设置在每次查询后，都先等待 5 秒，然后再开始新的请求。</p>
+</li>
+<li><p>所以，你可以在终端二中，继续执行下面的命令：</p>
+ <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ <span class="token keyword">while</span> <span class="token boolean">true</span><span class="token punctuation">;</span> <span class="token keyword">do</span> <span class="token function">curl</span> http://192.168.0.10:10000/products/geektime<span class="token punctuation">;</span> <span class="token function">sleep</span> <span class="token number">5</span><span class="token punctuation">;</span> <span class="token keyword">done</span><span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p> 接下来，重新回到终端一中，分析接口响应速度慢的原因。不过，重回终端一后，你会发现系统响应也明显变慢了，随便执行一个命令，都得停顿一会儿才能看到输出。</p>
+</li>
+<li><p>首先，我们在终端一执行 top 命令，分析系统的 CPU 使用情况：</p>
+ <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ <span class="token function">top</span>
+<span class="token function">top</span> - <span class="token number">12</span>:02:15 up <span class="token number">6</span> days,  <span class="token number">8</span>:05,  <span class="token number">1</span> user,  load average: <span class="token number">0.66</span>, <span class="token number">0.72</span>, <span class="token number">0.59</span>
+Tasks: <span class="token number">137</span> total,   <span class="token number">1</span> running,  <span class="token number">81</span> sleeping,   <span class="token number">0</span> stopped,   <span class="token number">0</span> zombie
+%Cpu0  <span class="token builtin class-name">:</span>  <span class="token number">0.7</span> us,  <span class="token number">1.3</span> sy,  <span class="token number">0.0</span> ni, <span class="token number">35.9</span> id, <span class="token number">62.1</span> wa,  <span class="token number">0.0</span> hi,  <span class="token number">0.0</span> si,  <span class="token number">0.0</span> st
+%Cpu1  <span class="token builtin class-name">:</span>  <span class="token number">0.3</span> us,  <span class="token number">0.7</span> sy,  <span class="token number">0.0</span> ni, <span class="token number">84.7</span> id, <span class="token number">14.3</span> wa,  <span class="token number">0.0</span> hi,  <span class="token number">0.0</span> si,  <span class="token number">0.0</span> st
+KiB Mem <span class="token builtin class-name">:</span>  <span class="token number">8169300</span> total,  <span class="token number">7238472</span> free,   <span class="token number">546132</span> used,   <span class="token number">384696</span> buff/cache
+KiB Swap:        <span class="token number">0</span> total,        <span class="token number">0</span> free,        <span class="token number">0</span> used.  <span class="token number">7316952</span> avail Mem
+
+  PID <span class="token environment constant">USER</span>      PR  NI    VIRT    RES    SHR S  %CPU %MEM     TIME+ COMMAND
+<span class="token number">27458</span> <span class="token number">999</span>       <span class="token number">20</span>   <span class="token number">0</span>  <span class="token number">833852</span>  <span class="token number">57968</span>  <span class="token number">13176</span> S   <span class="token number">1.7</span>  <span class="token number">0.7</span>   <span class="token number">0</span>:12.40 mysqld
+<span class="token number">27617</span> root      <span class="token number">20</span>   <span class="token number">0</span>   <span class="token number">24348</span>   <span class="token number">9216</span>   <span class="token number">4692</span> S   <span class="token number">1.0</span>  <span class="token number">0.1</span>   <span class="token number">0</span>:04.40 python
+ <span class="token number">1549</span> root      <span class="token number">20</span>   <span class="token number">0</span>  <span class="token number">236716</span>  <span class="token number">24568</span>   <span class="token number">9864</span> S   <span class="token number">0.3</span>  <span class="token number">0.3</span>  <span class="token number">51</span>:46.57 python3
+<span class="token number">22421</span> root      <span class="token number">20</span>   <span class="token number">0</span>       <span class="token number">0</span>      <span class="token number">0</span>      <span class="token number">0</span> I   <span class="token number">0.3</span>  <span class="token number">0.0</span>   <span class="token number">0</span>:01.16 kworker/u<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p> 观察 top 的输出，我们发现，两个 CPU 的 iowait 都比较高，特别是 CPU0，iowait 已经超过 60%。而具体到各个进程， CPU 使用率并不高，最高的也只有 1.7%。</p>
+</li>
+<li><p>既然 CPU 的嫌疑不大，那问题应该还是出在了 I/O 上。我们仍然在第一个终端，按下 Ctrl+C，停止 top 命令；然后，执行下面的 iostat 命令，看看有没有 I/O 性能问题：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ iostat -d -x <span class="token number">1</span>
+Device            r/s     w/s     rkB/s     wkB/s   rrqm/s   wrqm/s  %rrqm  %wrqm r_await w_await aqu-sz rareq-sz wareq-sz  svctm  %util
+<span class="token punctuation">..</span>.
+sda            <span class="token number">273.00</span>    <span class="token number">0.00</span>  <span class="token number">32568.00</span>      <span class="token number">0.00</span>     <span class="token number">0.00</span>     <span class="token number">0.00</span>   <span class="token number">0.00</span>   <span class="token number">0.00</span>    <span class="token number">7.90</span>    <span class="token number">0.00</span>   <span class="token number">1.16</span>   <span class="token number">119.30</span>     <span class="token number">0.00</span>   <span class="token number">3.56</span>  <span class="token number">97.20</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span></span></code></pre>
+<p>iostat 的输出你应该非常熟悉。观察这个界面，我们发现，磁盘 sda 每秒的读数据为 32 MB， 而 I/O 使用率高达 97% ，接近饱和，这说明，磁盘 sda 的读取确实碰到了性能瓶颈。</p>
+</li>
+<li><p>那要怎么知道，这些 I/O 请求到底是哪些进程导致的呢？当然可以找我们的老朋友， pidstat。接下来，在终端一中，按下 Ctrl+C 停止 iostat 命令，然后运行下面的 pidstat 命令，观察进程的 I/O 情况：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token comment"># -d 选项表示展示进程的 I/O 情况</span>
+$ pidstat -d <span class="token number">1</span>
+<span class="token number">12</span>:04:11      <span class="token environment constant">UID</span>       PID   kB_rd/s   kB_wr/s kB_ccwr/s iodelay  Command
+<span class="token number">12</span>:04:12      <span class="token number">999</span>     <span class="token number">27458</span>  <span class="token number">32640.00</span>      <span class="token number">0.00</span>      <span class="token number">0.00</span>       <span class="token number">0</span>  mysqld
+<span class="token number">12</span>:04:12        <span class="token number">0</span>     <span class="token number">27617</span>      <span class="token number">4.00</span>      <span class="token number">4.00</span>      <span class="token number">0.00</span>       <span class="token number">3</span>  python
+<span class="token number">12</span>:04:12        <span class="token number">0</span>     <span class="token number">27864</span>      <span class="token number">0.00</span>      <span class="token number">4.00</span>      <span class="token number">0.00</span>       <span class="token number">0</span>  systemd-journal<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>从 pidstat 的输出可以看到，PID 为 27458 的 mysqld 进程正在进行大量的读，而且读取速度是 32 MB/s，跟刚才 iostat 的发现一致。两个结果一对比，我们自然就找到了磁盘 I/O 瓶颈的根源，即 mysqld 进程。</p>
+<p>不过，这事儿还没完。我们自然要怀疑一下，为什么 mysqld 会去读取大量的磁盘数据呢？按照前面猜测，我们提到过，这有可能是个慢查询问题。</p>
+<p>可是，回想一下，慢查询的现象大多是 CPU 使用率高（比如 100% ），但这里看到的却是 I/O 问题。看来，这并不是一个单纯的慢查询问题，我们有必要分析一下 MySQL 读取的数据。</p>
+<p>要分析进程的数据读取，当然还要靠上一节用到过的 strace+ lsof 组合。</p>
+</li>
+<li><p>接下来，还是在终端一中，执行 strace 命令，并且指定 mysqld 的进程号 27458。我们知道，MySQL 是一个多线程的数据库应用，为了不漏掉这些线程的数据读取情况，你要记得在执行 stace 命令时，加上 -f 参数：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ <span class="token function">strace</span> -f -p <span class="token number">27458</span>
+<span class="token punctuation">[</span>pid <span class="token number">28014</span><span class="token punctuation">]</span> read<span class="token punctuation">(</span><span class="token number">38</span>, <span class="token string">"934EiwT363aak7VtqF1mHGa4LL4Dhbks"</span><span class="token punctuation">..</span>., <span class="token number">131072</span><span class="token punctuation">)</span> <span class="token operator">=</span> <span class="token number">131072</span>
+<span class="token punctuation">[</span>pid <span class="token number">28014</span><span class="token punctuation">]</span> read<span class="token punctuation">(</span><span class="token number">38</span>, <span class="token string">"hSs7KBDepBqA6m4ce6i6iUfFTeG9Ot9z"</span><span class="token punctuation">..</span>., <span class="token number">20480</span><span class="token punctuation">)</span> <span class="token operator">=</span> <span class="token number">20480</span>
+<span class="token punctuation">[</span>pid <span class="token number">28014</span><span class="token punctuation">]</span> read<span class="token punctuation">(</span><span class="token number">38</span>, <span class="token string">"NRhRjCSsLLBjTfdqiBRLvN9K6FRfqqLm"</span><span class="token punctuation">..</span>., <span class="token number">131072</span><span class="token punctuation">)</span> <span class="token operator">=</span> <span class="token number">131072</span>
+<span class="token punctuation">[</span>pid <span class="token number">28014</span><span class="token punctuation">]</span> read<span class="token punctuation">(</span><span class="token number">38</span>, <span class="token string">"AKgsik4BilLb7y6OkwQUjjqGeCTQTaRl"</span><span class="token punctuation">..</span>., <span class="token number">24576</span><span class="token punctuation">)</span> <span class="token operator">=</span> <span class="token number">24576</span>
+<span class="token punctuation">[</span>pid <span class="token number">28014</span><span class="token punctuation">]</span> read<span class="token punctuation">(</span><span class="token number">38</span>, <span class="token string">"hFMHx7FzUSqfFI22fQxWCpSnDmRjamaW"</span><span class="token punctuation">..</span>., <span class="token number">131072</span><span class="token punctuation">)</span> <span class="token operator">=</span> <span class="token number">131072</span>
+<span class="token punctuation">[</span>pid <span class="token number">28014</span><span class="token punctuation">]</span> read<span class="token punctuation">(</span><span class="token number">38</span>, <span class="token string">"ajUzLmKqivcDJSkiw7QWf2ETLgvQIpfC"</span><span class="token punctuation">..</span>., <span class="token number">20480</span><span class="token punctuation">)</span> <span class="token operator">=</span> <span class="token number">20480</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre></li>
+<li><p>观察一会，你会发现，线程 28014 正在读取大量数据，且读取文件的描述符编号为 38。这儿的 38 又对应着哪个文件呢？我们可以执行下面的 lsof 命令，并且指定线程号 28014 ，具体查看这个可疑线程和可疑文件：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ <span class="token function">lsof</span> -p <span class="token number">28014</span><span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>奇怪的是，lsof 并没有给出任何输出。实际上，如果你查看 lsof 命令的返回值，就会发现，这个命令的执行失败了。</p>
+<p>我们知道，在 SHELL 中，特殊标量 $? 表示上一条命令退出时的返回值。查看这个特殊标量，你会发现它的返回值是 1。可是别忘了，在 Linux 中，返回值为 0 ，才表示命令执行成功。返回值为 1，显然表明执行失败。</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ <span class="token builtin class-name">echo</span> <span class="token variable">$?</span>
+<span class="token number">1</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre>
+<p>事实上，通过查询 lsof 的文档，你会发现，-p 参数需要指定进程号，而我们刚才传入的是线程号，所以 lsof 失败了。你看，任何一个细节都可能成为性能分析的“拦路虎”。</p>
+</li>
+<li><p>回过头我们看，mysqld 的进程号是 27458，而 28014 只是它的一个线程。而且，如果你观察 一下 mysqld 进程的线程，你会发现，mysqld 其实还有很多正在运行的其他线程：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token comment"># -t 表示显示线程，-a 表示显示命令行参数</span>
+$ pstree -t -a -p <span class="token number">27458</span>
+mysqld,27458 --log_bin<span class="token operator">=</span>on --sync_binlog<span class="token operator">=</span><span class="token number">1</span>
+<span class="token punctuation">..</span>.
+  ├─<span class="token punctuation">{</span>mysqld<span class="token punctuation">}</span>,27922
+  ├─<span class="token punctuation">{</span>mysqld<span class="token punctuation">}</span>,27923
+  └─<span class="token punctuation">{</span>mysqld<span class="token punctuation">}</span>,28014<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre></li>
+<li><p>找到了原因，lsof 的问题就容易解决了。把线程号换成进程号，继续执行 lsof 命令：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ <span class="token function">lsof</span> -p <span class="token number">27458</span>
+COMMAND  PID <span class="token environment constant">USER</span>   FD   TYPE DEVICE SIZE/OFF NODE NAME
+<span class="token punctuation">..</span>.
+​mysqld  <span class="token number">27458</span>      <span class="token number">999</span>   38u   REG    <span class="token number">8,1</span> <span class="token number">512440000</span> <span class="token number">2601895</span> /var/lib/mysql/test/products.MYD<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span></span></code></pre>
+<p>这次我们得到了 lsof 的输出。从输出中可以看到， mysqld 进程确实打开了大量文件，而根据文件描述符（FD）的编号，我们知道，描述符为 38 的是一个路径为 /var/lib/mysql/test/products.MYD 的文件。这里注意， 38 后面的 u 表示， mysqld 以读写的方式访问文件。</p>
+<p>看到这个文件，熟悉 MySQL 的你可能笑了：</p>
+<ul>
+<li>MYD 文件，是 MyISAM 引擎用来存储表数据的文件；</li>
+<li>文件名就是数据表的名字；</li>
+<li>而这个文件的父目录，也就是数据库的名字。</li>
+</ul>
+<p>换句话说，这个文件告诉我们，mysqld 在读取数据库 test 中的 products 表。</p>
+</li>
+<li><p>实际上，你可以执行下面的命令，查看 mysqld 在管理数据库 test 时的存储文件。不过要注意，由于 MySQL 运行在容器中，你需要通过 docker exec 到容器中查看：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ docker <span class="token builtin class-name">exec</span> -it mysql <span class="token function">ls</span> /var/lib/mysql/test/
+db.opt    products.MYD  products.MYI  products.frm<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre>
+<p>从这里你可以发现，/var/lib/mysql/test/ 目录中有四个文件，每个文件的作用分别是：</p>
+<ul>
+<li>MYD 文件用来存储表的数据；</li>
+<li>MYI 文件用来存储表的索引；</li>
+<li>frm 文件用来存储表的元信息（比如表结构）；</li>
+<li>opt 文件则用来存储数据库的元信息（比如字符集、字符校验规则等）。</li>
+</ul>
+<p>当然，看到这些，你可能还有一个疑问，那就是，这些文件到底是不是 mysqld 正在使用的数据库文件呢？有没有可能是不再使用的旧数据呢？其实，这个很容易确认，查一下 mysqld 配置的数据路径即可。</p>
+</li>
+<li><p>你可以在终端一中，继续执行下面的命令：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ docker <span class="token builtin class-name">exec</span> -i -t mysql mysql -e <span class="token string">'show global variables like "%datadir%";'</span>
++---------------+-----------------+
+<span class="token operator">|</span> Variable_name <span class="token operator">|</span> Value           <span class="token operator">|</span>
++---------------+-----------------+
+<span class="token operator">|</span> datadir       <span class="token operator">|</span> /var/lib/mysql/ <span class="token operator">|</span>
++---------------+-----------------+<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>这里可以看到，/var/lib/mysql/ 确实是 mysqld 正在使用的数据存储目录。刚才分析得出的数据库 test 和数据表 products ，都是正在使用。</p>
+<blockquote>
+<p>注：其实 lsof 的结果已经可以确认，它们都是 mysqld 正在访问的文件。再查询 datadir ，只是想换一个思路，进一步确认一下。</p>
+</blockquote>
+</li>
+<li><p>既然已经找出了数据库和表，接下来要做的，就是弄清楚数据库中正在执行什么样的 SQL 了。我们继续在终端一中，运行下面的 docker exec 命令，进入 MySQL 的命令行界面：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ docker <span class="token builtin class-name">exec</span> -i -t mysql mysql
+<span class="token punctuation">..</span>.
+​
+Type <span class="token string">'help;'</span> or <span class="token string">'\h'</span> <span class="token keyword">for</span> help. Type <span class="token string">'<span class="token entity" title="\c">\c</span>'</span> to <span class="token function">clear</span> the current input statement.
+​
+mysql<span class="token operator">&gt;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre></li>
+<li><p>为了保证 SQL 语句不截断，这里我们可以执行 show full processlist 命令。如果一切正常，你应该可以看到如下输出：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">mysql<span class="token operator">&gt;</span> show full processlist<span class="token punctuation">;</span>
++----+------+-----------------+------+---------+------+--------------+-----------------------------------------------------+
+<span class="token operator">|</span> Id <span class="token operator">|</span> User <span class="token operator">|</span> Host            <span class="token operator">|</span> db   <span class="token operator">|</span> Command <span class="token operator">|</span> Time <span class="token operator">|</span> State        <span class="token operator">|</span> Info                                                <span class="token operator">|</span>
++----+------+-----------------+------+---------+------+--------------+-----------------------------------------------------+
+<span class="token operator">|</span> <span class="token number">27</span> <span class="token operator">|</span> root <span class="token operator">|</span> localhost       <span class="token operator">|</span> <span class="token builtin class-name">test</span> <span class="token operator">|</span> Query   <span class="token operator">|</span>    <span class="token number">0</span> <span class="token operator">|</span> init         <span class="token operator">|</span> show full processlist                               <span class="token operator">|</span>
+<span class="token operator">|</span> <span class="token number">28</span> <span class="token operator">|</span> root <span class="token operator">|</span> <span class="token number">127.0</span>.0.1:42262 <span class="token operator">|</span> <span class="token builtin class-name">test</span> <span class="token operator">|</span> Query   <span class="token operator">|</span>    <span class="token number">1</span> <span class="token operator">|</span> Sending data <span class="token operator">|</span> <span class="token keyword">select</span> * from products where <span class="token assign-left variable">productName</span><span class="token operator">=</span><span class="token string">'geektime'</span> <span class="token operator">|</span>
++----+------+-----------------+------+---------+------+--------------+-----------------------------------------------------+
+<span class="token number">2</span> rows <span class="token keyword">in</span> <span class="token builtin class-name">set</span> <span class="token punctuation">(</span><span class="token number">0.00</span> sec<span class="token punctuation">)</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>这个输出中，</p>
+<ul>
+<li>db 表示数据库的名字；</li>
+<li>Command 表示 SQL 类型；</li>
+<li>Time 表示执行时间；</li>
+<li>State 表示状态；</li>
+<li>而 Info 则包含了完整的 SQL 语句。</li>
+</ul>
+<p>多执行几次 show full processlist 命令，你可看到 select * from products where productName=‘geektime’ 这条 SQL 语句的执行时间比较长。</p>
+<p>再回忆一下，案例开始时，我们在终端二查询的产品名称 <a target="_blank" rel="noopener" href="http://192.168.0.10:10000/products/geektime，其中的">http://192.168.0.10:10000/products/geektime，其中的</a> geektime 也符合这条查询语句的条件。</p>
+<p>我们知道，MySQL 的慢查询问题，很可能是没有利用好索引导致的，那这条查询语句是不是这样呢？我们又该怎么确认，查询语句是否利用了索引呢？</p>
+</li>
+<li><p>其实，MySQL 内置的 explain 命令，就可以帮你解决这个问题。继续在 MySQL 终端中，运行下面的 explain 命令：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token comment"># 切换到 test 库</span>
+mysql<span class="token operator">&gt;</span> use <span class="token builtin class-name">test</span><span class="token punctuation">;</span>
+<span class="token comment"># 执行 explain 命令</span>
+mysql<span class="token operator">&gt;</span> explain <span class="token keyword">select</span> * from products where <span class="token assign-left variable">productName</span><span class="token operator">=</span><span class="token string">'geektime'</span><span class="token punctuation">;</span>
++----+-------------+----------+------+---------------+------+---------+------+-------+-------------+
+<span class="token operator">|</span> <span class="token function">id</span> <span class="token operator">|</span> select_type <span class="token operator">|</span> table    <span class="token operator">|</span> <span class="token builtin class-name">type</span> <span class="token operator">|</span> possible_keys <span class="token operator">|</span> key  <span class="token operator">|</span> key_len <span class="token operator">|</span> ref  <span class="token operator">|</span> rows  <span class="token operator">|</span> Extra       <span class="token operator">|</span>
++----+-------------+----------+------+---------------+------+---------+------+-------+-------------+
+<span class="token operator">|</span>  <span class="token number">1</span> <span class="token operator">|</span> SIMPLE      <span class="token operator">|</span> products <span class="token operator">|</span> ALL  <span class="token operator">|</span> NULL          <span class="token operator">|</span> NULL <span class="token operator">|</span> NULL    <span class="token operator">|</span> NULL <span class="token operator">|</span> <span class="token number">10000</span> <span class="token operator">|</span> Using where <span class="token operator">|</span>
++----+-------------+----------+------+---------------+------+---------+------+-------+-------------+
+<span class="token number">1</span> row <span class="token keyword">in</span> <span class="token builtin class-name">set</span> <span class="token punctuation">(</span><span class="token number">0.00</span> sec<span class="token punctuation">)</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>观察这次的输出。这个界面中，有几个比较重要的字段需要你注意，我就以这个输出为例，分别解释一下：</p>
+<ul>
+<li>select_type 表示查询类型，而这里的 SIMPLE 表示此查询不包括 UNION 查询或者子查询；</li>
+<li>table 表示数据表的名字，这里是 products；</li>
+<li>type 表示查询类型，这里的 ALL 表示全表查询，但索引查询应该是 index 类型才对；</li>
+<li>possible_keys 表示可能选用的索引，这里是 NULL；</li>
+<li>key 表示确切会使用的索引，这里也是 NULL；</li>
+<li>rows 表示查询扫描的行数，这里是 10000。</li>
+</ul>
+<p>根据这些信息，我们可以确定，这条查询语句压根儿没有使用索引，所以查询时，会扫描全表，并且扫描行数高达 10000 行。响应速度那么慢也就难怪了。</p>
+<p>走到这一步，你应该很容易想到优化方法，没有索引那我们就自己建立，给 productName 建立索引就可以了。不过，增加索引前，你需要先弄清楚，这个表结构到底长什么样儿。</p>
+</li>
+<li><p>执行下面的 MySQL 命令，查询 products 表的结构，你会看到，它只有一个 id 主键，并不包括 productName 的索引：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">mysql<span class="token operator">&gt;</span> show create table products<span class="token punctuation">;</span>
+<span class="token punctuation">..</span>.
+<span class="token operator">|</span> products <span class="token operator">|</span> CREATE TABLE <span class="token variable"><span class="token variable">`</span>products<span class="token variable">`</span></span> <span class="token punctuation">(</span>
+  <span class="token variable"><span class="token variable">`</span><span class="token function">id</span><span class="token variable">`</span></span> int<span class="token punctuation">(</span><span class="token number">11</span><span class="token punctuation">)</span> NOT NULL,
+  <span class="token variable"><span class="token variable">`</span>productCode<span class="token variable">`</span></span> text NOT NULL COMMENT <span class="token string">'产品代码'</span>,
+  <span class="token variable"><span class="token variable">`</span>productName<span class="token variable">`</span></span> text NOT NULL COMMENT <span class="token string">'产品名称'</span>,
+<span class="token punctuation">..</span>.
+  PRIMARY KEY <span class="token punctuation">(</span><span class="token variable"><span class="token variable">`</span><span class="token function">id</span><span class="token variable">`</span></span><span class="token punctuation">)</span>
+<span class="token punctuation">)</span> <span class="token assign-left variable">ENGINE</span><span class="token operator">=</span>MyISAM DEFAULT <span class="token assign-left variable">CHARSET</span><span class="token operator">=</span>utf8 <span class="token assign-left variable">ROW_FORMAT</span><span class="token operator">=</span>DYNAMIC <span class="token operator">|</span>
+<span class="token punctuation">..</span>.<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre></li>
+<li><p>接下来，我们就可以给 productName 建立索引了，也就是执行下面的 CREATE INDEX 命令：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">mysql<span class="token operator">&gt;</span> CREATE INDEX products_index ON products <span class="token punctuation">(</span>productName<span class="token punctuation">)</span><span class="token punctuation">;</span>
+ERROR <span class="token number">1170</span> <span class="token punctuation">(</span><span class="token number">42000</span><span class="token punctuation">)</span>: BLOB/TEXT <span class="token function">column</span> <span class="token string">'productName'</span> used <span class="token keyword">in</span> key specification without a key length<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre>
+<p>不过，醒目的 ERROR 告诉我们，这条命令运行失败了。根据错误信息，productName 是一个 BLOB/TEXT 类型，需要设置一个长度。所以，想要创建索引，就必须为 productName 指定一个前缀长度。</p>
+</li>
+<li><p>那前缀长度设置为多大比较合适呢？这里其实有专门的算法，即通过计算前缀长度的选择性，来确定索引的长度。不过，我们可以稍微简化一下，直接使用一个固定数值（比如 64），执行下面的命令创建索引：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">mysql<span class="token operator">&gt;</span> CREATE INDEX products_index ON products <span class="token punctuation">(</span>productName<span class="token punctuation">(</span><span class="token number">64</span><span class="token punctuation">))</span><span class="token punctuation">;</span>
+Query OK, <span class="token number">10000</span> rows affected <span class="token punctuation">(</span><span class="token number">14.45</span> sec<span class="token punctuation">)</span>
+Records: <span class="token number">10000</span>  Duplicates: <span class="token number">0</span>  Warnings: <span class="token number">0</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span></span></code></pre></li>
+<li><p>我们切换到终端二中，查看还在执行的 curl 命令的结果：</p>
+<pre class="line-numbers language-text" data-language="text"><code class="language-text">Got data: ()in 15.383180141448975 sec
+Got data: ()in 15.384996891021729 sec
+Got data: ()in 0.0021054744720458984 sec
+Got data: ()in 0.003951072692871094 sec<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span></span></code></pre>
+<p>显然，查询时间已经从 15 秒缩短到了 3 毫秒。看来，没有索引果然就是这次性能问题的罪魁祸首，解决了索引，就解决了查询慢的问题。</p>
+</li>
+</ol>
+<h4 id="28-2-案例思考"><a href="#28-2-案例思考" class="headerlink" title="28.2 案例思考"></a>28.2 案例思考</h4><p>案例开始时，我们启动的几个容器应用。除了 MySQL 和商品搜索应用外，还有一个 DataService 应用。为什么这个案例开始时，要运行一个看起来毫不相关的应用呢？</p>
+<p>实际上，DataService 是一个严重影响 MySQL 性能的干扰应用。抛开上述索引优化方法不说，这个案例还有一种优化方法，也就是停止 DataService 应用。</p>
+<p>接下来，我们就删除数据库索引，回到原来的状态；然后停止 DataService 应用，看看优化效果如何。</p>
+<ol>
+<li><p>在终端二中停止 curl 命令，然后回到终端一中，执行下面的命令删除索引：</p>
+ <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token comment"># 删除索引</span>
+$ docker <span class="token builtin class-name">exec</span> -i -t mysql mysql
+​
+mysql<span class="token operator">&gt;</span> use <span class="token builtin class-name">test</span><span class="token punctuation">;</span>
+mysql<span class="token operator">&gt;</span> DROP INDEX products_index ON products<span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span></span></code></pre></li>
+<li><p>在终端二中重新运行 curl 命令。当然，这次你会发现，处理时间又变慢了：</p>
+ <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ <span class="token keyword">while</span> <span class="token boolean">true</span><span class="token punctuation">;</span> <span class="token keyword">do</span> <span class="token function">curl</span> http://192.168.0.10:10000/products/geektime<span class="token punctuation">;</span> <span class="token function">sleep</span> <span class="token number">5</span><span class="token punctuation">;</span> <span class="token keyword">done</span>
+Got data: <span class="token punctuation">(</span><span class="token punctuation">)</span>in <span class="token number">16.884345054626465</span> sec<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre></li>
+<li><p>再次回到终端一中，执行下面的命令，停止 DataService 应用：</p>
+ <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token comment"># 停止 DataService 应用</span>
+$ docker <span class="token function">rm</span> -f dataservice<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre></li>
+<li><p>最后，我们回到终端二中，观察 curl 的结果：</p>
+ <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">Got data: <span class="token punctuation">(</span><span class="token punctuation">)</span>in <span class="token number">16.884345054626465</span> sec
+Got data: <span class="token punctuation">(</span><span class="token punctuation">)</span>in <span class="token number">15.238174200057983</span> sec
+Got data: <span class="token punctuation">(</span><span class="token punctuation">)</span>in <span class="token number">0.12604427337646484</span> sec
+Got data: <span class="token punctuation">(</span><span class="token punctuation">)</span>in <span class="token number">0.1101069450378418</span> sec
+Got data: <span class="token punctuation">(</span><span class="token punctuation">)</span>in <span class="token number">0.11235237121582031</span> sec<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p> 果然，停止 DataService 后，处理时间从 15 秒缩短到了 0.1 秒，虽然比不上增加索引后的 3 毫秒，但相对于 15 秒来说，优化效果还是非常明显的。</p>
+<p> 那么，这种情况下，还有没有 I/O 瓶颈了呢？</p>
+</li>
+<li><p>我们切换到终端一中，运行下面的 vmstat 命令（注意不是 iostat，稍后解释原因），观察 I/O 的变化情况：</p>
+ <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ <span class="token function">vmstat</span> <span class="token number">1</span>
+procs -----------memory---------- ---swap-- -----io---- -system-- ------cpu-----
+ r  b   swpd   <span class="token function">free</span>   buff  cache   si   so    bi    bo   <span class="token keyword">in</span>   cs us sy <span class="token function">id</span> wa st
+ <span class="token number">0</span>  <span class="token number">1</span>      <span class="token number">0</span> <span class="token number">6809304</span>   <span class="token number">1368</span> <span class="token number">856744</span>    <span class="token number">0</span>    <span class="token number">0</span> <span class="token number">32640</span>     <span class="token number">0</span>   <span class="token number">52</span>  <span class="token number">478</span>  <span class="token number">1</span>  <span class="token number">0</span> <span class="token number">50</span> <span class="token number">49</span>  <span class="token number">0</span>
+ <span class="token number">0</span>  <span class="token number">1</span>      <span class="token number">0</span> <span class="token number">6776620</span>   <span class="token number">1368</span> <span class="token number">889456</span>    <span class="token number">0</span>    <span class="token number">0</span> <span class="token number">32640</span>     <span class="token number">0</span>   <span class="token number">33</span>  <span class="token number">490</span>  <span class="token number">0</span>  <span class="token number">0</span> <span class="token number">50</span> <span class="token number">49</span>  <span class="token number">0</span>
+ <span class="token number">0</span>  <span class="token number">0</span>      <span class="token number">0</span> <span class="token number">6747540</span>   <span class="token number">1368</span> <span class="token number">918576</span>    <span class="token number">0</span>    <span class="token number">0</span> <span class="token number">29056</span>     <span class="token number">0</span>   <span class="token number">42</span>  <span class="token number">568</span>  <span class="token number">0</span>  <span class="token number">0</span> <span class="token number">56</span> <span class="token number">44</span>  <span class="token number">0</span>
+ <span class="token number">0</span>  <span class="token number">0</span>      <span class="token number">0</span> <span class="token number">6747540</span>   <span class="token number">1368</span> <span class="token number">918576</span>    <span class="token number">0</span>    <span class="token number">0</span>     <span class="token number">0</span>     <span class="token number">0</span>   <span class="token number">40</span>  <span class="token number">141</span>  <span class="token number">1</span>  <span class="token number">0</span> <span class="token number">100</span>  <span class="token number">0</span>  <span class="token number">0</span>
+ <span class="token number">0</span>  <span class="token number">0</span>      <span class="token number">0</span> <span class="token number">6747160</span>   <span class="token number">1368</span> <span class="token number">918576</span>    <span class="token number">0</span>    <span class="token number">0</span>     <span class="token number">0</span>     <span class="token number">0</span>   <span class="token number">40</span>  <span class="token number">148</span>  <span class="token number">0</span>  <span class="token number">1</span> <span class="token number">99</span>  <span class="token number">0</span>  <span class="token number">0</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<blockquote>
+<p>在查看 I/O 情况时，我并没用 iostat 命令，而是用了 vmstat。其实，相对于 iostat 来说，vmstat 可以同时提供 CPU、内存和 I/O 的使用情况。</p>
+</blockquote>
+</li>
+</ol>
+<h4 id="28-3-思考"><a href="#28-3-思考" class="headerlink" title="28.3 思考"></a>28.3 思考</h4><p>停止 DataService 后，商品搜索应用的处理时间，从 15 秒缩短到了 0.1 秒。这是为什么呢？</p>
+<p>我给个小小的提示。你可以先查看 <a target="_blank" rel="noopener" href="https://github.com/feiskyer/linux-perf-examples/blob/master/mysql-slow/dataservice.py">dataservice.py</a>，你会发现，DataService 实际上是在读写一个仅包括 “data” 字符串的小文件。不过在读取文件前，它会先把 /proc/sys/vm/drop_caches 改成 1。</p>
+<p>答案：echo 1&gt;/proc/sys/vm/drop_caches表示释放pagecache，也就是文件缓存，而mysql读书的数据就是文件缓存，dataservice不停的释放文件缓存，就导致MySQL都无法利用磁盘缓存，也就慢了。</p>
 
                 
             </div>
@@ -3827,7 +4274,7 @@ sda              <span class="token number">0.00</span>    <span class="token nu
             <br>
             
             &nbsp;<i class="fas fa-chart-area"></i>&nbsp;站点总字数:&nbsp;<span
-                class="white-color">300.1k</span>&nbsp;字
+                class="white-color">307.9k</span>&nbsp;字
             
             
             
