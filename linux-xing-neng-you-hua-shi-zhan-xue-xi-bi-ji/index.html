@@ -442,14 +442,14 @@
                 
                 <div class="info-break-policy">
                     <i class="far fa-file-word fa-fw"></i>文章字数:&nbsp;&nbsp;
-                    77.6k
+                    89.6k
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-clock fa-fw"></i>阅读时长:&nbsp;&nbsp;
-                    303 分
+                    352 分
                 </div>
                 
 
@@ -3873,6 +3873,494 @@ procs -----------memory---------- ---swap-- -----io---- -system-- ------cpu-----
 <h4 id="28-3-思考"><a href="#28-3-思考" class="headerlink" title="28.3 思考"></a>28.3 思考</h4><p>停止 DataService 后，商品搜索应用的处理时间，从 15 秒缩短到了 0.1 秒。这是为什么呢？</p>
 <p>我给个小小的提示。你可以先查看 <a target="_blank" rel="noopener" href="https://github.com/feiskyer/linux-perf-examples/blob/master/mysql-slow/dataservice.py">dataservice.py</a>，你会发现，DataService 实际上是在读写一个仅包括 “data” 字符串的小文件。不过在读取文件前，它会先把 /proc/sys/vm/drop_caches 改成 1。</p>
 <p>答案：echo 1&gt;/proc/sys/vm/drop_caches表示释放pagecache，也就是文件缓存，而mysql读书的数据就是文件缓存，dataservice不停的释放文件缓存，就导致MySQL都无法利用磁盘缓存，也就慢了。</p>
+<h3 id="29-案例篇：Redis响应严重延迟，如何解决？"><a href="#29-案例篇：Redis响应严重延迟，如何解决？" class="headerlink" title="29 | 案例篇：Redis响应严重延迟，如何解决？"></a>29 | 案例篇：Redis响应严重延迟，如何解决？</h3><h4 id="29-1-案例"><a href="#29-1-案例" class="headerlink" title="29.1 案例"></a>29.1 案例</h4><blockquote>
+<p>机器配置： 2 CPU, 8 GB 内存。</p>
+<p>安装软件：<code>apt install docker.io sysstat</code>。</p>
+</blockquote>
+<p>今天的案例由 Python 应用 +Redis 两部分组成。其中，Python 应用是一个基于 Flask 的应用，它会利用 Redis ，来管理应用程序的缓存，并对外提供三个 HTTP 接口：</p>
+<ul>
+<li><p>/：返回 hello redis；</p>
+</li>
+<li><p>/init/：插入指定数量的缓存数据，如果不指定数量，默认的是 5000 条；</p>
+<p>  缓存的键格式为 uuid；</p>
+<p>  缓存的值为 good、bad 或 normal 三者之一。</p>
+</li>
+<li><p>/get_cache/<type_name>：查询指定值的缓存数据，并返回处理时间。其中，type_name 参数只支持 good, bad 和 normal（也就是找出具有相同 value 的 key 列表）。</type_name></p>
+</li>
+</ul>
+<ol>
+<li><p>在第一个终端中，执行下面的命令，运行本次案例要分析的目标应用。正常情况下，你应该可以看到下面的输出：</p>
+ <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token comment"># 注意下面的随机字符串是容器 ID，每次运行均会不同，并且你不需要关注它</span>
+$ docker run --name<span class="token operator">=</span>redis -itd -p <span class="token number">10000</span>:80 feisky/redis-server
+ec41cb9e4dd5cb7079e1d9f72b7cee7de67278dbd3bd0956b4c0846bff211803
+$ docker run --name<span class="token operator">=</span>app --network<span class="token operator">=</span>container:redis -itd feisky/redis-app
+2c54eb252d0552448320d9155a2618b799a1e71d7289ec7277a61e72a9de5fd0<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span></span></code></pre></li>
+<li><p>然后，再运行 docker ps 命令，确认两个容器都处于运行（Up）状态：</p>
+ <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ docker <span class="token function">ps</span>
+CONTAINER ID        IMAGE                 COMMAND                  CREATED             STATUS              PORTS                             NAMES
+2c54eb252d05        feisky/redis-app      <span class="token string">"python /app.py"</span>         <span class="token number">48</span> seconds ago      Up <span class="token number">47</span> seconds                                         app
+ec41cb9e4dd5        feisky/redis-server   <span class="token string">"docker-entrypoint.s…"</span>   <span class="token number">49</span> seconds ago      Up <span class="token number">48</span> seconds       <span class="token number">6379</span>/tcp, <span class="token number">0.0</span>.0.0:10000-<span class="token operator">&gt;</span><span class="token number">80</span>/tcp   redis<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span></span></code></pre></li>
+<li><p>我们切换到第二个终端，使用 curl 工具，访问应用首页。如果你看到 hello redis 的输出，说明应用正常启动：</p>
+ <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ <span class="token function">curl</span> http://192.168.0.10:10000/
+hello redis<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre></li>
+<li><p>接下来，继续在终端二中，执行下面的 curl 命令，来调用应用的 /init 接口，初始化 Redis 缓存，并且插入 5000 条缓存信息。这个过程比较慢，比如我的机器就花了十几分钟时间。耐心等一会儿后，你会看到下面这行输出：</p>
+ <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token comment"># 案例插入 5000 条数据，在实践时可以根据磁盘的类型适当调整，比如使用 SSD 时可以调大，而 HDD 可以适当调小</span>
+$ <span class="token function">curl</span> http://192.168.0.10:10000/init/5000
+<span class="token punctuation">{</span><span class="token string">"elapsed_seconds"</span>:30.26814079284668,<span class="token string">"keys_initialized"</span>:5000<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span></span></code></pre></li>
+<li><p>继续执行下一个命令，访问应用的缓存查询接口。如果一切正常，你会看到如下输出：</p>
+ <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ <span class="token function">curl</span> http://192.168.0.10:10000/get_cache
+<span class="token punctuation">{</span><span class="token string">"count"</span>:1677,<span class="token string">"data"</span>:<span class="token punctuation">[</span><span class="token string">"d97662fa-06ac-11e9-92c7-0242ac110002"</span>,<span class="token punctuation">..</span>.<span class="token punctuation">]</span>,<span class="token string">"elapsed_seconds"</span>:10.545469760894775,<span class="token string">"type"</span><span class="token builtin class-name">:</span><span class="token string">"good"</span><span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre></li>
+<li><p>为了避免分析过程中客户端的请求结束，在进行性能分析前，我们先要把 curl 命令放到一个循环里来执行。你可以在终端二中，继续执行下面的命令：</p>
+ <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ <span class="token keyword">while</span> <span class="token boolean">true</span><span class="token punctuation">;</span> <span class="token keyword">do</span> <span class="token function">curl</span> http://192.168.0.10:10000/get_cache<span class="token punctuation">;</span> <span class="token keyword">done</span><span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre></li>
+<li><p>在终端一中执行 top 命令，分析系统的 CPU 使用情况：</p>
+ <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ <span class="token function">top</span>
+<span class="token function">top</span> - <span class="token number">12</span>:46:18 up <span class="token number">11</span> days,  <span class="token number">8</span>:49,  <span class="token number">1</span> user,  load average: <span class="token number">1.36</span>, <span class="token number">1.36</span>, <span class="token number">1.04</span>
+Tasks: <span class="token number">137</span> total,   <span class="token number">1</span> running,  <span class="token number">79</span> sleeping,   <span class="token number">0</span> stopped,   <span class="token number">0</span> zombie
+%Cpu0  <span class="token builtin class-name">:</span>  <span class="token number">6.0</span> us,  <span class="token number">2.7</span> sy,  <span class="token number">0.0</span> ni,  <span class="token number">5.7</span> id, <span class="token number">84.7</span> wa,  <span class="token number">0.0</span> hi,  <span class="token number">1.0</span> si,  <span class="token number">0.0</span> st
+%Cpu1  <span class="token builtin class-name">:</span>  <span class="token number">1.0</span> us,  <span class="token number">3.0</span> sy,  <span class="token number">0.0</span> ni, <span class="token number">94.7</span> id,  <span class="token number">0.0</span> wa,  <span class="token number">0.0</span> hi,  <span class="token number">1.3</span> si,  <span class="token number">0.0</span> st
+KiB Mem <span class="token builtin class-name">:</span>  <span class="token number">8169300</span> total,  <span class="token number">7342244</span> free,   <span class="token number">432912</span> used,   <span class="token number">394144</span> buff/cache
+KiB Swap:        <span class="token number">0</span> total,        <span class="token number">0</span> free,        <span class="token number">0</span> used.  <span class="token number">7478748</span> avail Mem
+
+  PID <span class="token environment constant">USER</span>      PR  NI    VIRT    RES    SHR S  %CPU %MEM     TIME+ COMMAND
+ <span class="token number">9181</span> root      <span class="token number">20</span>   <span class="token number">0</span>  <span class="token number">193004</span>  <span class="token number">27304</span>   <span class="token number">8716</span> S   <span class="token number">8.6</span>  <span class="token number">0.3</span>   <span class="token number">0</span>:07.15 python
+ <span class="token number">9085</span> systemd+  <span class="token number">20</span>   <span class="token number">0</span>   <span class="token number">28352</span>   <span class="token number">9760</span>   <span class="token number">1860</span> D   <span class="token number">5.0</span>  <span class="token number">0.1</span>   <span class="token number">0</span>:04.34 redis-server
+  <span class="token number">368</span> root      <span class="token number">20</span>   <span class="token number">0</span>       <span class="token number">0</span>      <span class="token number">0</span>      <span class="token number">0</span> D   <span class="token number">1.0</span>  <span class="token number">0.0</span>   <span class="token number">0</span>:33.88 jbd2/sda1-8
+  <span class="token number">149</span> root       <span class="token number">0</span> -20       <span class="token number">0</span>      <span class="token number">0</span>      <span class="token number">0</span> I   <span class="token number">0.3</span>  <span class="token number">0.0</span>   <span class="token number">0</span>:10.63 kworker/0:1H
+ <span class="token number">1549</span> root      <span class="token number">20</span>   <span class="token number">0</span>  <span class="token number">236716</span>  <span class="token number">24576</span>   <span class="token number">9864</span> S   <span class="token number">0.3</span>  <span class="token number">0.3</span>  <span class="token number">91</span>:37.30 python3<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p> 观察 top 的输出可以发现，CPU0 的 iowait 比较高，已经达到了 84%；而各个进程的 CPU 使用率都不太高，最高的 python 和 redis-server ，也分别只有 8% 和 5%。再看内存，总内存 8GB，剩余内存还有 7GB 多，显然内存也没啥问题。</p>
+<p> 综合 top 的信息，最有嫌疑的就是 iowait。所以，接下来还是要继续分析，是不是 I/O 问题。</p>
+</li>
+<li><p>还在第一个终端中，先按下 Ctrl+C，停止 top 命令；然后，执行下面的 iostat 命令，查看有没有 I/O 性能问题：</p>
+ <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ iostat -d -x <span class="token number">1</span>
+Device            r/s     w/s     rkB/s     wkB/s   rrqm/s   wrqm/s  %rrqm  %wrqm r_await w_await aqu-sz rareq-sz wareq-sz  svctm  %util
+<span class="token punctuation">..</span>.
+sda              <span class="token number">0.00</span>  <span class="token number">492.00</span>      <span class="token number">0.00</span>   <span class="token number">2672.00</span>     <span class="token number">0.00</span>   <span class="token number">176.00</span>   <span class="token number">0.00</span>  <span class="token number">26.35</span>    <span class="token number">0.00</span>    <span class="token number">1.76</span>   <span class="token number">0.00</span>     <span class="token number">0.00</span>     <span class="token number">5.43</span>   <span class="token number">0.00</span>   <span class="token number">0.00</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span></span></code></pre>
+<p> 观察 iostat 的输出，我们发现，磁盘 sda 每秒的写数据（wkB/s）为 2.5MB，I/O 使用率（%util）是 0。看来，虽然有些 I/O 操作，但并没导致磁盘的 I/O 瓶颈。</p>
+<p> 排查一圈儿下来，CPU 和内存使用没问题，I/O 也没有瓶颈，接下来好像就没啥分析方向了？</p>
+<p> 回想一下，今天的案例问题是从 Redis 缓存中查询数据慢。对查询来说，对应的 I/O 应该是磁盘的读操作，但刚才我们用 iostat 看到的却是写操作。虽说 I/O 本身并没有性能瓶颈，但这里的磁盘写也是比较奇怪的。为什么会有磁盘写呢？那我们就得知道，到底是哪个进程在写磁盘。</p>
+</li>
+<li><p>要知道 I/O 请求来自哪些进程，还是要靠我们的老朋友 pidstat。在终端一中运行下面的 pidstat 命令，观察进程的 I/O 情况：</p>
+ <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ pidstat -d <span class="token number">1</span>
+<span class="token number">12</span>:49:35      <span class="token environment constant">UID</span>       PID   kB_rd/s   kB_wr/s kB_ccwr/s iodelay  Command
+<span class="token number">12</span>:49:36        <span class="token number">0</span>       <span class="token number">368</span>      <span class="token number">0.00</span>     <span class="token number">16.00</span>      <span class="token number">0.00</span>      <span class="token number">86</span>  jbd2/sda1-8
+<span class="token number">12</span>:49:36      <span class="token number">100</span>      <span class="token number">9085</span>      <span class="token number">0.00</span>    <span class="token number">636.00</span>      <span class="token number">0.00</span>       <span class="token number">1</span>  redis-server<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span></span></code></pre>
+<p> 从 pidstat 的输出，我们看到，I/O 最多的进程是 PID 为 9085 的 redis-server，并且它也刚好是在写磁盘。这说明，确实是 redis-server 在进行磁盘写。</p>
+<p> 当然，光找到读写磁盘的进程还不够，我们还要再用 strace+lsof 组合，看看 redis-server 到底在写什么。</p>
+</li>
+<li><p>接下来，还是在终端一中，执行 strace 命令，并且指定 redis-server 的进程号 9085：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token comment"># -f 表示跟踪子进程和子线程，-T 表示显示系统调用的时长，-tt 表示显示跟踪时间</span>
+$ <span class="token function">strace</span> -f -T -tt -p <span class="token number">9085</span>
+<span class="token punctuation">[</span>pid  <span class="token number">9085</span><span class="token punctuation">]</span> <span class="token number">14</span>:20:16.826131 epoll_pwait<span class="token punctuation">(</span><span class="token number">5</span>, <span class="token punctuation">[</span><span class="token punctuation">{</span>EPOLLIN, <span class="token punctuation">{</span>u32<span class="token operator">=</span><span class="token number">8</span>, <span class="token assign-left variable">u64</span><span class="token operator">=</span><span class="token number">8</span><span class="token punctuation">}</span><span class="token punctuation">}</span><span class="token punctuation">]</span>, <span class="token number">10128</span>, <span class="token number">65</span>, NULL, <span class="token number">8</span><span class="token punctuation">)</span> <span class="token operator">=</span> <span class="token number">1</span> <span class="token operator">&lt;</span><span class="token number">0.00005</span><span class="token operator"><span class="token file-descriptor important">5</span>&gt;</span>
+<span class="token punctuation">[</span>pid  <span class="token number">9085</span><span class="token punctuation">]</span> <span class="token number">14</span>:20:16.826301 read<span class="token punctuation">(</span><span class="token number">8</span>, <span class="token string">"*2<span class="token entity" title="\r">\r</span><span class="token entity" title="\n">\n</span><span class="token variable">$3</span><span class="token entity" title="\r">\r</span><span class="token entity" title="\n">\n</span>GET<span class="token entity" title="\r">\r</span><span class="token entity" title="\n">\n</span><span class="token variable">$41</span><span class="token entity" title="\r">\r</span><span class="token entity" title="\n">\n</span>uuid:5b2e76cc-"</span><span class="token punctuation">..</span>., <span class="token number">16384</span><span class="token punctuation">)</span> <span class="token operator">=</span> <span class="token number">61</span> <span class="token operator">&lt;</span><span class="token number">0.00007</span><span class="token operator"><span class="token file-descriptor important">1</span>&gt;</span>
+<span class="token punctuation">[</span>pid  <span class="token number">9085</span><span class="token punctuation">]</span> <span class="token number">14</span>:20:16.826477 read<span class="token punctuation">(</span><span class="token number">3</span>, 0x7fff366a5747, <span class="token number">1</span><span class="token punctuation">)</span> <span class="token operator">=</span> -1 EAGAIN <span class="token punctuation">(</span>Resource temporarily unavailable<span class="token punctuation">)</span> <span class="token operator">&lt;</span><span class="token number">0.00006</span><span class="token operator"><span class="token file-descriptor important">3</span>&gt;</span>
+<span class="token punctuation">[</span>pid  <span class="token number">9085</span><span class="token punctuation">]</span> <span class="token number">14</span>:20:16.826645 write<span class="token punctuation">(</span><span class="token number">8</span>, <span class="token string">"<span class="token variable">$3</span><span class="token entity" title="\r">\r</span><span class="token entity" title="\n">\n</span>bad<span class="token entity" title="\r">\r</span><span class="token entity" title="\n">\n</span>"</span>, <span class="token number">9</span><span class="token punctuation">)</span> <span class="token operator">=</span> <span class="token number">9</span> <span class="token operator">&lt;</span><span class="token number">0.00017</span><span class="token operator"><span class="token file-descriptor important">3</span>&gt;</span>
+<span class="token punctuation">[</span>pid  <span class="token number">9085</span><span class="token punctuation">]</span> <span class="token number">14</span>:20:16.826907 epoll_pwait<span class="token punctuation">(</span><span class="token number">5</span>, <span class="token punctuation">[</span><span class="token punctuation">{</span>EPOLLIN, <span class="token punctuation">{</span>u32<span class="token operator">=</span><span class="token number">8</span>, <span class="token assign-left variable">u64</span><span class="token operator">=</span><span class="token number">8</span><span class="token punctuation">}</span><span class="token punctuation">}</span><span class="token punctuation">]</span>, <span class="token number">10128</span>, <span class="token number">65</span>, NULL, <span class="token number">8</span><span class="token punctuation">)</span> <span class="token operator">=</span> <span class="token number">1</span> <span class="token operator">&lt;</span><span class="token number">0.00003</span><span class="token operator"><span class="token file-descriptor important">2</span>&gt;</span>
+<span class="token punctuation">[</span>pid  <span class="token number">9085</span><span class="token punctuation">]</span> <span class="token number">14</span>:20:16.827030 read<span class="token punctuation">(</span><span class="token number">8</span>, <span class="token string">"*2<span class="token entity" title="\r">\r</span><span class="token entity" title="\n">\n</span><span class="token variable">$3</span><span class="token entity" title="\r">\r</span><span class="token entity" title="\n">\n</span>GET<span class="token entity" title="\r">\r</span><span class="token entity" title="\n">\n</span><span class="token variable">$41</span><span class="token entity" title="\r">\r</span><span class="token entity" title="\n">\n</span>uuid:55862ada-"</span><span class="token punctuation">..</span>., <span class="token number">16384</span><span class="token punctuation">)</span> <span class="token operator">=</span> <span class="token number">61</span> <span class="token operator">&lt;</span><span class="token number">0.00004</span><span class="token operator"><span class="token file-descriptor important">4</span>&gt;</span>
+<span class="token punctuation">[</span>pid  <span class="token number">9085</span><span class="token punctuation">]</span> <span class="token number">14</span>:20:16.827149 read<span class="token punctuation">(</span><span class="token number">3</span>, 0x7fff366a5747, <span class="token number">1</span><span class="token punctuation">)</span> <span class="token operator">=</span> -1 EAGAIN <span class="token punctuation">(</span>Resource temporarily unavailable<span class="token punctuation">)</span> <span class="token operator">&lt;</span><span class="token number">0.00004</span><span class="token operator"><span class="token file-descriptor important">3</span>&gt;</span>
+<span class="token punctuation">[</span>pid  <span class="token number">9085</span><span class="token punctuation">]</span> <span class="token number">14</span>:20:16.827285 write<span class="token punctuation">(</span><span class="token number">8</span>, <span class="token string">"<span class="token variable">$3</span><span class="token entity" title="\r">\r</span><span class="token entity" title="\n">\n</span>bad<span class="token entity" title="\r">\r</span><span class="token entity" title="\n">\n</span>"</span>, <span class="token number">9</span><span class="token punctuation">)</span> <span class="token operator">=</span> <span class="token number">9</span> <span class="token operator">&lt;</span><span class="token number">0.00014</span><span class="token operator"><span class="token file-descriptor important">1</span>&gt;</span>
+<span class="token punctuation">[</span>pid  <span class="token number">9085</span><span class="token punctuation">]</span> <span class="token number">14</span>:20:16.827514 epoll_pwait<span class="token punctuation">(</span><span class="token number">5</span>, <span class="token punctuation">[</span><span class="token punctuation">{</span>EPOLLIN, <span class="token punctuation">{</span>u32<span class="token operator">=</span><span class="token number">8</span>, <span class="token assign-left variable">u64</span><span class="token operator">=</span><span class="token number">8</span><span class="token punctuation">}</span><span class="token punctuation">}</span><span class="token punctuation">]</span>, <span class="token number">10128</span>, <span class="token number">64</span>, NULL, <span class="token number">8</span><span class="token punctuation">)</span> <span class="token operator">=</span> <span class="token number">1</span> <span class="token operator">&lt;</span><span class="token number">0.00004</span><span class="token operator"><span class="token file-descriptor important">9</span>&gt;</span>
+<span class="token punctuation">[</span>pid  <span class="token number">9085</span><span class="token punctuation">]</span> <span class="token number">14</span>:20:16.827641 read<span class="token punctuation">(</span><span class="token number">8</span>, <span class="token string">"*2<span class="token entity" title="\r">\r</span><span class="token entity" title="\n">\n</span><span class="token variable">$3</span><span class="token entity" title="\r">\r</span><span class="token entity" title="\n">\n</span>GET<span class="token entity" title="\r">\r</span><span class="token entity" title="\n">\n</span><span class="token variable">$41</span><span class="token entity" title="\r">\r</span><span class="token entity" title="\n">\n</span>uuid:53522908-"</span><span class="token punctuation">..</span>., <span class="token number">16384</span><span class="token punctuation">)</span> <span class="token operator">=</span> <span class="token number">61</span> <span class="token operator">&lt;</span><span class="token number">0.00004</span><span class="token operator"><span class="token file-descriptor important">3</span>&gt;</span>
+<span class="token punctuation">[</span>pid  <span class="token number">9085</span><span class="token punctuation">]</span> <span class="token number">14</span>:20:16.827784 read<span class="token punctuation">(</span><span class="token number">3</span>, 0x7fff366a5747, <span class="token number">1</span><span class="token punctuation">)</span> <span class="token operator">=</span> -1 EAGAIN <span class="token punctuation">(</span>Resource temporarily unavailable<span class="token punctuation">)</span> <span class="token operator">&lt;</span><span class="token number">0.00003</span><span class="token operator"><span class="token file-descriptor important">4</span>&gt;</span>
+<span class="token punctuation">[</span>pid  <span class="token number">9085</span><span class="token punctuation">]</span> <span class="token number">14</span>:20:16.827945 write<span class="token punctuation">(</span><span class="token number">8</span>, <span class="token string">"<span class="token variable">$4</span><span class="token entity" title="\r">\r</span><span class="token entity" title="\n">\n</span>good<span class="token entity" title="\r">\r</span><span class="token entity" title="\n">\n</span>"</span>, <span class="token number">10</span><span class="token punctuation">)</span> <span class="token operator">=</span> <span class="token number">10</span> <span class="token operator">&lt;</span><span class="token number">0.00028</span><span class="token operator"><span class="token file-descriptor important">8</span>&gt;</span>
+<span class="token punctuation">[</span>pid  <span class="token number">9085</span><span class="token punctuation">]</span> <span class="token number">14</span>:20:16.828339 epoll_pwait<span class="token punctuation">(</span><span class="token number">5</span>, <span class="token punctuation">[</span><span class="token punctuation">{</span>EPOLLIN, <span class="token punctuation">{</span>u32<span class="token operator">=</span><span class="token number">8</span>, <span class="token assign-left variable">u64</span><span class="token operator">=</span><span class="token number">8</span><span class="token punctuation">}</span><span class="token punctuation">}</span><span class="token punctuation">]</span>, <span class="token number">10128</span>, <span class="token number">63</span>, NULL, <span class="token number">8</span><span class="token punctuation">)</span> <span class="token operator">=</span> <span class="token number">1</span> <span class="token operator">&lt;</span><span class="token number">0.00005</span><span class="token operator"><span class="token file-descriptor important">7</span>&gt;</span>
+<span class="token punctuation">[</span>pid  <span class="token number">9085</span><span class="token punctuation">]</span> <span class="token number">14</span>:20:16.828486 read<span class="token punctuation">(</span><span class="token number">8</span>, <span class="token string">"*3<span class="token entity" title="\r">\r</span><span class="token entity" title="\n">\n</span><span class="token variable">$4</span><span class="token entity" title="\r">\r</span><span class="token entity" title="\n">\n</span>SADD<span class="token entity" title="\r">\r</span><span class="token entity" title="\n">\n</span><span class="token variable">$4</span><span class="token entity" title="\r">\r</span><span class="token entity" title="\n">\n</span>good<span class="token entity" title="\r">\r</span><span class="token entity" title="\n">\n</span><span class="token variable">$36</span><span class="token entity" title="\r">\r</span><span class="token entity" title="\n">\n</span>535"</span><span class="token punctuation">..</span>., <span class="token number">16384</span><span class="token punctuation">)</span> <span class="token operator">=</span> <span class="token number">67</span> <span class="token operator">&lt;</span><span class="token number">0.00004</span><span class="token operator"><span class="token file-descriptor important">0</span>&gt;</span>
+<span class="token punctuation">[</span>pid  <span class="token number">9085</span><span class="token punctuation">]</span> <span class="token number">14</span>:20:16.828623 read<span class="token punctuation">(</span><span class="token number">3</span>, 0x7fff366a5747, <span class="token number">1</span><span class="token punctuation">)</span> <span class="token operator">=</span> -1 EAGAIN <span class="token punctuation">(</span>Resource temporarily unavailable<span class="token punctuation">)</span> <span class="token operator">&lt;</span><span class="token number">0.00005</span><span class="token operator"><span class="token file-descriptor important">2</span>&gt;</span>
+<span class="token punctuation">[</span>pid  <span class="token number">9085</span><span class="token punctuation">]</span> <span class="token number">14</span>:20:16.828760 write<span class="token punctuation">(</span><span class="token number">7</span>, <span class="token string">"*3<span class="token entity" title="\r">\r</span><span class="token entity" title="\n">\n</span><span class="token variable">$4</span><span class="token entity" title="\r">\r</span><span class="token entity" title="\n">\n</span>SADD<span class="token entity" title="\r">\r</span><span class="token entity" title="\n">\n</span><span class="token variable">$4</span><span class="token entity" title="\r">\r</span><span class="token entity" title="\n">\n</span>good<span class="token entity" title="\r">\r</span><span class="token entity" title="\n">\n</span><span class="token variable">$36</span><span class="token entity" title="\r">\r</span><span class="token entity" title="\n">\n</span>535"</span><span class="token punctuation">..</span>., <span class="token number">67</span><span class="token punctuation">)</span> <span class="token operator">=</span> <span class="token number">67</span> <span class="token operator">&lt;</span><span class="token number">0.00006</span><span class="token operator"><span class="token file-descriptor important">0</span>&gt;</span>
+<span class="token punctuation">[</span>pid  <span class="token number">9085</span><span class="token punctuation">]</span> <span class="token number">14</span>:20:16.828970 fdatasync<span class="token punctuation">(</span><span class="token number">7</span><span class="token punctuation">)</span> <span class="token operator">=</span> <span class="token number">0</span> <span class="token operator">&lt;</span><span class="token number">0.00541</span><span class="token operator"><span class="token file-descriptor important">5</span>&gt;</span>
+<span class="token punctuation">[</span>pid  <span class="token number">9085</span><span class="token punctuation">]</span> <span class="token number">14</span>:20:16.834493 write<span class="token punctuation">(</span><span class="token number">8</span>, <span class="token string">":1<span class="token entity" title="\r">\r</span><span class="token entity" title="\n">\n</span>"</span>, <span class="token number">4</span><span class="token punctuation">)</span> <span class="token operator">=</span> <span class="token number">4</span> <span class="token operator">&lt;</span><span class="token number">0.00025</span><span class="token operator"><span class="token file-descriptor important">0</span>&gt;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>事实上，从系统调用来看， epoll_pwait、read、write、fdatasync 这些系统调用都比较频繁。那么，刚才观察到的写磁盘，应该就是 write 或者 fdatasync 导致的了。</p>
+</li>
+<li><p>接着再来运行 lsof 命令，找出这些系统调用的操作对象：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ <span class="token function">lsof</span> -p <span class="token number">9085</span>
+redis-ser <span class="token number">9085</span> systemd-network    3r     FIFO   <span class="token number">0,12</span>      0t0 <span class="token number">15447970</span> pipe
+redis-ser <span class="token number">9085</span> systemd-network    4w     FIFO   <span class="token number">0,12</span>      0t0 <span class="token number">15447970</span> pipe
+redis-ser <span class="token number">9085</span> systemd-network    5u  a_inode   <span class="token number">0,13</span>        <span class="token number">0</span>    <span class="token number">10179</span> <span class="token punctuation">[</span>eventpoll<span class="token punctuation">]</span>
+redis-ser <span class="token number">9085</span> systemd-network    6u     sock    <span class="token number">0,9</span>      0t0 <span class="token number">15447972</span> protocol: TCP
+redis-ser <span class="token number">9085</span> systemd-network    7w      REG    <span class="token number">8,1</span>  <span class="token number">8830146</span>  <span class="token number">2838532</span> /data/appendonly.aof
+redis-ser <span class="token number">9085</span> systemd-network    8u     sock    <span class="token number">0,9</span>      0t0 <span class="token number">15448709</span> protocol: TCP<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>现在你会发现，描述符编号为 3 的是一个 pipe 管道，5 号是 eventpoll，7 号是一个普通文件，而 8 号是一个 TCP socket。</p>
+<p>结合磁盘写的现象，我们知道，只有 7 号普通文件才会产生磁盘写，而它操作的文件路径是 /data/appendonly.aof，相应的系统调用包括 write 和 fdatasync。</p>
+<p>如果你对 Redis 的持久化配置比较熟，看到这个文件路径以及 fdatasync 的系统调用，你应该能想到，这对应着正是 Redis 持久化配置中的 appendonly 和 appendfsync 选项。很可能是因为它们的配置不合理，导致磁盘写比较多。</p>
+<p>接下来就验证一下这个猜测，我们可以通过 Redis 的命令行工具，查询这两个选项的配置。</p>
+</li>
+<li><p>继续在终端一中，运行下面的命令，查询 appendonly 和 appendfsync 的配置：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ docker <span class="token builtin class-name">exec</span> -it redis redis-cli config get <span class="token string">'append*'</span>
+<span class="token number">1</span><span class="token punctuation">)</span> <span class="token string">"appendfsync"</span>
+<span class="token number">2</span><span class="token punctuation">)</span> <span class="token string">"always"</span>
+<span class="token number">3</span><span class="token punctuation">)</span> <span class="token string">"appendonly"</span>
+<span class="token number">4</span><span class="token punctuation">)</span> <span class="token string">"yes"</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>从这个结果你可以发现，appendfsync 配置的是 always，而 appendonly 配置的是 yes。这两个选项的详细含义，你可以从 <a target="_blank" rel="noopener" href="https://redis.io/topics/persistence">Redis Persistence</a> 的文档中查到，这里我做一下简单介绍。</p>
+<p>Redis 提供了两种数据持久化的方式，分别是快照和追加文件。</p>
+<ol>
+<li><p>快照方式，会按照指定的时间间隔，生成数据的快照，并且保存到磁盘文件中。为了避免阻塞主进程，Redis 还会 fork 出一个子进程，来负责快照的保存。这种方式的性能好，无论是备份还是恢复，都比追加文件好很多。</p>
+<p> 不过，它的缺点也很明显。在数据量大时，fork 子进程需要用到比较大的内存，保存数据也很耗时。所以，你需要设置一个比较长的时间间隔来应对，比如至少 5 分钟。这样，如果发生故障，你丢失的就是几分钟的数据。</p>
+</li>
+<li><p>追加文件，则是用在文件末尾追加记录的方式，对 Redis 写入的数据，依次进行持久化，所以它的持久化也更安全。</p>
+<p> 此外，它还提供了一个用 appendfsync 选项设置 fsync 的策略，确保写入的数据都落到磁盘中，具体选项包括 always、everysec、no 等。</p>
+<ul>
+<li>always 表示，每个操作都会执行一次 fsync，是最为安全的方式；</li>
+<li>everysec 表示，每秒钟调用一次 fsync ，这样可以保证即使是最坏情况下，也只丢失 1 秒的数据；</li>
+<li>而 no 表示交给操作系统来处理。</li>
+</ul>
+</li>
+</ol>
+<p>回忆一下我们刚刚看到的配置，appendfsync 配置的是 always，意味着每次写数据时，都会调用一次 fsync，从而造成比较大的磁盘 I/O 压力。</p>
+<p>当然，你还可以用 strace ，观察这个系统调用的执行情况。比如通过 -e 选项指定 fdatasync 后，你就会得到下面的结果：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ <span class="token function">strace</span> -f -p <span class="token number">9085</span> -T -tt -e fdatasync
+strace: Process <span class="token number">9085</span> attached with <span class="token number">4</span> threads
+<span class="token punctuation">[</span>pid  <span class="token number">9085</span><span class="token punctuation">]</span> <span class="token number">14</span>:22:52.013547 fdatasync<span class="token punctuation">(</span><span class="token number">7</span><span class="token punctuation">)</span> <span class="token operator">=</span> <span class="token number">0</span> <span class="token operator">&lt;</span><span class="token number">0.00711</span><span class="token operator"><span class="token file-descriptor important">2</span>&gt;</span>
+<span class="token punctuation">[</span>pid  <span class="token number">9085</span><span class="token punctuation">]</span> <span class="token number">14</span>:22:52.022467 fdatasync<span class="token punctuation">(</span><span class="token number">7</span><span class="token punctuation">)</span> <span class="token operator">=</span> <span class="token number">0</span> <span class="token operator">&lt;</span><span class="token number">0.00857</span><span class="token operator"><span class="token file-descriptor important">2</span>&gt;</span>
+<span class="token punctuation">[</span>pid  <span class="token number">9085</span><span class="token punctuation">]</span> <span class="token number">14</span>:22:52.032223 fdatasync<span class="token punctuation">(</span><span class="token number">7</span><span class="token punctuation">)</span> <span class="token operator">=</span> <span class="token number">0</span> <span class="token operator">&lt;</span><span class="token number">0.00676</span><span class="token operator"><span class="token file-descriptor important">9</span>&gt;</span>
+<span class="token punctuation">..</span>.
+<span class="token punctuation">[</span>pid  <span class="token number">9085</span><span class="token punctuation">]</span> <span class="token number">14</span>:22:52.139629 fdatasync<span class="token punctuation">(</span><span class="token number">7</span><span class="token punctuation">)</span> <span class="token operator">=</span> <span class="token number">0</span> <span class="token operator">&lt;</span><span class="token number">0.00818</span><span class="token operator"><span class="token file-descriptor important">3</span>&gt;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>从这里你可以看到，每隔 10ms 左右，就会有一次 fdatasync 调用，并且每次调用本身也要消耗 7~8ms。</p>
+<p>不管哪种方式，都可以验证我们的猜想，配置确实不合理。这样，我们就找出了 Redis 正在进行写入的文件，也知道了产生大量 I/O 的原因。</p>
+</li>
+<li><p>不过，回到最初的疑问，为什么查询时会有磁盘写呢？按理来说不应该只有数据的读取吗？这就需要我们再来审查一下 strace -f -T -tt -p 9085 的结果。</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">read<span class="token punctuation">(</span><span class="token number">8</span>, <span class="token string">"*2<span class="token entity" title="\r">\r</span><span class="token entity" title="\n">\n</span><span class="token variable">$3</span><span class="token entity" title="\r">\r</span><span class="token entity" title="\n">\n</span>GET<span class="token entity" title="\r">\r</span><span class="token entity" title="\n">\n</span><span class="token variable">$41</span><span class="token entity" title="\r">\r</span><span class="token entity" title="\n">\n</span>uuid:53522908-"</span><span class="token punctuation">..</span>., <span class="token number">16384</span><span class="token punctuation">)</span>
+write<span class="token punctuation">(</span><span class="token number">8</span>, <span class="token string">"<span class="token variable">$4</span><span class="token entity" title="\r">\r</span><span class="token entity" title="\n">\n</span>good<span class="token entity" title="\r">\r</span><span class="token entity" title="\n">\n</span>"</span>, <span class="token number">10</span><span class="token punctuation">)</span>
+read<span class="token punctuation">(</span><span class="token number">8</span>, <span class="token string">"*3<span class="token entity" title="\r">\r</span><span class="token entity" title="\n">\n</span><span class="token variable">$4</span><span class="token entity" title="\r">\r</span><span class="token entity" title="\n">\n</span>SADD<span class="token entity" title="\r">\r</span><span class="token entity" title="\n">\n</span><span class="token variable">$4</span><span class="token entity" title="\r">\r</span><span class="token entity" title="\n">\n</span>good<span class="token entity" title="\r">\r</span><span class="token entity" title="\n">\n</span><span class="token variable">$36</span><span class="token entity" title="\r">\r</span><span class="token entity" title="\n">\n</span>535"</span><span class="token punctuation">..</span>., <span class="token number">16384</span><span class="token punctuation">)</span>
+write<span class="token punctuation">(</span><span class="token number">7</span>, <span class="token string">"*3<span class="token entity" title="\r">\r</span><span class="token entity" title="\n">\n</span><span class="token variable">$4</span><span class="token entity" title="\r">\r</span><span class="token entity" title="\n">\n</span>SADD<span class="token entity" title="\r">\r</span><span class="token entity" title="\n">\n</span><span class="token variable">$4</span><span class="token entity" title="\r">\r</span><span class="token entity" title="\n">\n</span>good<span class="token entity" title="\r">\r</span><span class="token entity" title="\n">\n</span><span class="token variable">$36</span><span class="token entity" title="\r">\r</span><span class="token entity" title="\n">\n</span>535"</span><span class="token punctuation">..</span>., <span class="token number">67</span><span class="token punctuation">)</span>
+write<span class="token punctuation">(</span><span class="token number">8</span>, <span class="token string">":1<span class="token entity" title="\r">\r</span><span class="token entity" title="\n">\n</span>"</span>, <span class="token number">4</span><span class="token punctuation">)</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>细心的你应该记得，根据 lsof 的分析，文件描述符编号为 7 的是一个普通文件 /data/appendonly.aof，而编号为 8 的是 TCP socket。而观察上面的内容，8 号对应的 TCP 读写，是一个标准的“请求 - 响应”格式，即：</p>
+<ul>
+<li>从 socket 读取 GET uuid:53522908-… 后，响应 good；</li>
+<li>再从 socket 读取 SADD good 535… 后，响应 1。</li>
+</ul>
+<p>对 Redis 来说，SADD 是一个写操作，所以 Redis 还会把它保存到用于持久化的 appendonly.aof 文件中。</p>
+<p>观察更多的 strace 结果，你会发现，每当 GET 返回 good 时，随后都会有一个 SADD 操作，这也就导致了，明明是查询接口，Redis 却有大量的磁盘写。</p>
+<p>到这里，我们就找出了 Redis 写磁盘的原因。不过，在下最终结论前，我们还是要确认一下，8 号 TCP socket 对应的 Redis 客户端，到底是不是我们的案例应用。</p>
+<p>我们可以给 lsof 命令加上 -i 选项，找出 TCP socket 对应的 TCP 连接信息。不过，由于 Redis 和 Python 应用都在容器中运行，我们需要进入容器的网络命名空间内部，才能看到完整的 TCP 连接。</p>
+</li>
+<li><p>还是在终端一中，运行下面的命令：</p>
+<blockquote>
+<p>注意：下面的命令用到的 <a target="_blank" rel="noopener" href="http://man7.org/linux/man-pages/man1/nsenter.1.html">nsenter</a> 工具，可以进入容器命名空间。如果你的系统没有安装，请运行下面命令安装 nsenter：</p>
+<p>docker run —rm -v /usr/local/bin:/target jpetazzo/nsenter</p>
+</blockquote>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token comment"># 由于这两个容器共享同一个网络命名空间，所以我们只需要进入 app 的网络命名空间即可</span>
+$ <span class="token assign-left variable">PID</span><span class="token operator">=</span><span class="token variable"><span class="token variable">$(</span>docker inspect --format <span class="token punctuation">{</span><span class="token punctuation">{</span>.State.Pid<span class="token punctuation">}</span><span class="token punctuation">}</span> app<span class="token variable">)</span></span>
+<span class="token comment"># -i 表示显示网络套接字信息</span>
+$ nsenter --target <span class="token variable">$PID</span> --net -- <span class="token function">lsof</span> -i
+COMMAND    PID            <span class="token environment constant">USER</span>   FD   TYPE   DEVICE SIZE/OFF NODE NAME
+redis-ser <span class="token number">9085</span> systemd-network    6u  IPv4 <span class="token number">15447972</span>      0t0  TCP localhost:6379 <span class="token punctuation">(</span>LISTEN<span class="token punctuation">)</span>
+redis-ser <span class="token number">9085</span> systemd-network    8u  IPv4 <span class="token number">15448709</span>      0t0  TCP localhost:6379-<span class="token operator">&gt;</span>localhost:32996 <span class="token punctuation">(</span>ESTABLISHED<span class="token punctuation">)</span>
+python    <span class="token number">9181</span>            root    3u  IPv4 <span class="token number">15448677</span>      0t0  TCP *:http <span class="token punctuation">(</span>LISTEN<span class="token punctuation">)</span>
+python    <span class="token number">9181</span>            root    5u  IPv4 <span class="token number">15449632</span>      0t0  TCP localhost:32996-<span class="token operator">&gt;</span>localhost:6379 <span class="token punctuation">(</span>ESTABLISHED<span class="token punctuation">)</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>可以看到，redis-server 的 8 号文件描述符，对应 TCP 连接 localhost:6379-&gt;localhost:32996。其中， localhost:6379 是 redis-server 自己的监听端口，自然 localhost:32996 就是 redis 的客户端。再观察最后一行，localhost:32996 对应的，正是我们的 Python 应用程序（进程号为 9181）。</p>
+<p>历经各种波折，我们总算找出了 Redis 响应延迟的潜在原因。总结一下，我们找到两个问题。</p>
+<ul>
+<li>第一个问题，Redis 配置的 appendfsync 是 always，这就导致 Redis 每次的写操作，都会触发 fdatasync 系统调用。今天的案例，没必要用这么高频的同步写，使用默认的 1s 时间间隔，就足够了。</li>
+<li>第二个问题，Python 应用在查询接口中会调用 Redis 的 SADD 命令，这很可能是不合理使用缓存导致的。</li>
+</ul>
+</li>
+<li><p>对于第一个配置问题，我们可以执行下面的命令，把 appendfsync 改成 everysec：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ docker <span class="token builtin class-name">exec</span> -it redis redis-cli config <span class="token builtin class-name">set</span> appendfsync everysec
+OK<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre></li>
+<li><p>改完后，切换到终端二中查看，你会发现，现在的请求时间，已经缩短到了 0.9s：</p>
+<pre class="line-numbers language-text" data-language="text"><code class="language-text">{..., "elapsed_seconds":0.9368953704833984,"type":"good"}<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre></li>
+<li><p>而第二个问题，就要查看应用的源码了。点击 <a target="_blank" rel="noopener" href="https://github.com/feiskyer/linux-perf-examples/blob/master/redis-slow/app.py">Github</a> ，你就可以查看案例应用的源代码：</p>
+<pre class="line-numbers language-python" data-language="python"><code class="language-python"><span class="token keyword">def</span> <span class="token function">get_cache</span><span class="token punctuation">(</span>type_name<span class="token punctuation">)</span><span class="token punctuation">:</span>
+    <span class="token triple-quoted-string string">'''handler for /get_cache'''</span>
+    <span class="token keyword">for</span> key <span class="token keyword">in</span> redis_client<span class="token punctuation">.</span>scan_iter<span class="token punctuation">(</span><span class="token string">"uuid:*"</span><span class="token punctuation">)</span><span class="token punctuation">:</span>
+        value <span class="token operator">=</span> redis_client<span class="token punctuation">.</span>get<span class="token punctuation">(</span>key<span class="token punctuation">)</span>
+        <span class="token keyword">if</span> value <span class="token operator">==</span> type_name<span class="token punctuation">:</span>
+            redis_client<span class="token punctuation">.</span>sadd<span class="token punctuation">(</span>type_name<span class="token punctuation">,</span> key<span class="token punctuation">[</span><span class="token number">5</span><span class="token punctuation">:</span><span class="token punctuation">]</span><span class="token punctuation">)</span>
+    data <span class="token operator">=</span> <span class="token builtin">list</span><span class="token punctuation">(</span>redis_client<span class="token punctuation">.</span>smembers<span class="token punctuation">(</span>type_name<span class="token punctuation">)</span><span class="token punctuation">)</span>
+    redis_client<span class="token punctuation">.</span>delete<span class="token punctuation">(</span>type_name<span class="token punctuation">)</span>
+    <span class="token keyword">return</span> jsonify<span class="token punctuation">(</span><span class="token punctuation">{</span><span class="token string">"type"</span><span class="token punctuation">:</span> type_name<span class="token punctuation">,</span> <span class="token string">'count'</span><span class="token punctuation">:</span> <span class="token builtin">len</span><span class="token punctuation">(</span>data<span class="token punctuation">)</span><span class="token punctuation">,</span> <span class="token string">'data'</span><span class="token punctuation">:</span> data<span class="token punctuation">}</span><span class="token punctuation">)</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>果然，Python 应用把 Redis 当成临时空间，用来存储查询过程中找到的数据。不过我们知道，这些数据放内存中就可以了，完全没必要再通过网络调用存储到 Redis 中。</p>
+<p>基于这个思路，我把修改后的代码也推送到了相同的源码文件中，你可以通过 <a target="_blank" rel="noopener" href="http://192.168.0.10:10000/get_cache_data">http://192.168.0.10:10000/get_cache_data</a> 这个接口来访问它。</p>
+</li>
+<li><p>我们切换到终端二，按 Ctrl+C 停止之前的 curl 命令；然后执行下面的 curl 命令，调用 <a target="_blank" rel="noopener" href="http://192.168.0.10:10000/get_cache_data">http://192.168.0.10:10000/get_cache_data</a> 新接口：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ <span class="token keyword">while</span> <span class="token boolean">true</span><span class="token punctuation">;</span> <span class="token keyword">do</span> <span class="token function">curl</span> http://192.168.0.10:10000/get_cache_data<span class="token punctuation">;</span> <span class="token keyword">done</span>
+<span class="token punctuation">{</span><span class="token punctuation">..</span>.,<span class="token string">"elapsed_seconds"</span>:0.16034674644470215,<span class="token string">"type"</span><span class="token builtin class-name">:</span><span class="token string">"good"</span><span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre>
+<h3 id="30-套路篇：如何迅速分析出系统I-O的瓶颈在哪里？"><a href="#30-套路篇：如何迅速分析出系统I-O的瓶颈在哪里？" class="headerlink" title="30 | 套路篇：如何迅速分析出系统I/O的瓶颈在哪里？"></a>30 | 套路篇：如何迅速分析出系统I/O的瓶颈在哪里？</h3></li>
+</ol>
+<h4 id="30-1-性能指标"><a href="#30-1-性能指标" class="headerlink" title="30.1 性能指标"></a>30.1 性能指标</h4><p><img src="/images/《Linux性能优化实战》学习笔记/Linux存储系统的IO栈全景图.png" alt="Linux存储系统的IO栈全景图.png"></p>
+<ol>
+<li><p>文件系统 I/O 性能指标</p>
+<ol>
+<li><p><strong>首先，最容易想到的是存储空间的使用情况，包括容量、使用量以及剩余空间等。</strong></p>
+<p> 不过要注意，这些只是文件系统向外展示的空间使用，而非在磁盘空间的真实用量，因为文件系统的元数据也会占用磁盘空间。</p>
+<p> 而且，如果你配置了 RAID，从文件系统看到的使用量跟实际磁盘的占用空间，也会因为 RAID 级别的不同而不一样。比方说，配置 RAID10 后，你从文件系统最多也只能看到所有磁盘容量的一半。</p>
+<p> 除了数据本身的存储空间，还有一个<strong>容易忽略的是索引节点的使用情况，它也包括容量、使用量以及剩余量等三个指标</strong>。如果文件系统中存储过多的小文件，就可能碰到索引节点容量已满的问题。</p>
+</li>
+<li><p><strong>其次，你应该想到的是前面多次提到过的缓存使用情况，包括页缓存、目录项缓存、索引节点缓存以及各个具体文件系统（如 ext4、XFS 等）的缓存</strong>。这些缓存会使用速度更快的内存，用来临时存储文件数据或者文件系统的元数据，从而可以减少访问慢速磁盘的次数。</p>
+</li>
+<li><p>除了以上这两点，文件 I/O 也是很重要的性能指标，包括 IOPS（包括 r/s 和 w/s）、响应时间（延迟）以及吞吐量（B/s）等。在考察这类指标时，通常还要考虑实际文件的读写情况。比如，结合文件大小、文件数量、I/O 类型等，综合分析文件 I/O 的性能。</p>
+</li>
+</ol>
+</li>
+<li><p>磁盘 I/O 性能指标</p>
+<p> 在磁盘 I/O 原理的文章中，我曾提到过四个核心的磁盘 I/O 指标。</p>
+<ol>
+<li>使用率，是指磁盘忙处理 I/O 请求的百分比。过高的使用率（比如超过 60%）通常意味着磁盘 I/O 存在性能瓶颈。</li>
+<li>IOPS（Input/Output Per Second），是指每秒的 I/O 请求数。</li>
+<li>吞吐量，是指每秒的 I/O 请求大小。</li>
+<li><p>响应时间，是指从发出 I/O 请求到收到响应的间隔时间。</p>
+<p>考察这些指标时，一定要注意综合 I/O 的具体场景来分析，比如读写类型（顺序还是随机）、读写比例、读写大小、存储类型（有无 RAID 以及 RAID 级别、本地存储还是网络存储）等。</p>
+<p>不过，这里有个大忌，就是把不同场景的 I/O 性能指标，直接进行分析对比。这是很常见的一个误区，你一定要避免。</p>
+</li>
+</ol>
+</li>
+</ol>
+<p><img src="/images/《Linux性能优化实战》学习笔记/IO性能指标思维导图.png" alt="IO性能指标思维导图"></p>
+<h4 id="30-2-性能工具"><a href="#30-2-性能工具" class="headerlink" title="30.2 性能工具"></a>30.2 性能工具</h4><ol>
+<li><p>在文件系统的原理中，我介绍了查看文件系统容量的工具 df。它既可以查看文件系统数据的空间容量，也可以查看索引节点的容量。至于文件系统缓存，我们通过 /proc/meminfo、/proc/slabinfo 以及 slabtop 等各种来源，观察页缓存、目录项缓存、索引节点缓存以及具体文件系统的缓存情况。</p>
+</li>
+<li><p>在磁盘 I/O 的原理中，我们分别用 iostat 和 pidstat 观察了磁盘和进程的 I/O 情况。它们都是最常用的 I/O 性能分析工具。通过 iostat ，我们可以得到磁盘的 I/O 使用率、吞吐量、响应时间以及 IOPS 等性能指标；而通过 pidstat ，则可以观察到进程的 I/O 吞吐量以及块设备 I/O 的延迟等。</p>
+</li>
+<li><p>在狂打日志的案例中，我们先用 top 查看系统的 CPU 使用情况，发现 iowait 比较高；然后，又用 iostat 发现了磁盘的 I/O 使用率瓶颈，并用 pidstat 找出了大量 I/O 的进程；最后，通过 strace 和 lsof，我们找出了问题进程正在读写的文件，并最终锁定性能问题的来源——原来是进程在狂打日志。</p>
+</li>
+<li><p>在磁盘 I/O 延迟的单词热度案例中，我们同样先用 top、iostat ，发现磁盘有 I/O 瓶颈，并用 pidstat 找出了大量 I/O 的进程。可接下来，想要照搬上次操作的我们失败了。在随后的 strace 命令中，我们居然没看到 write 系统调用。于是，我们换了一个思路，用新工具 filetop 和 opensnoop ，从内核中跟踪系统调用，最终找出瓶颈的来源。</p>
+</li>
+<li><p>在 MySQL 和 Redis 的案例中，同样的思路，我们先用 top、iostat 以及 pidstat ，确定并找出 I/O 性能问题的瓶颈来源，它们正是 mysqld 和 redis-server。随后，我们又用 strace+lsof 找出了它们正在读写的文件。</p>
+<p> 关于 MySQL 案例，根据 mysqld 正在读写的文件路径，再结合 MySQL 数据库引擎的原理，我们不仅找出了数据库和数据表的名称，还进一步发现了慢查询的问题，最终通过优化索引解决了性能瓶颈。</p>
+<p> 至于 Redis 案例，根据 redis-server 读写的文件，以及正在进行网络通信的 TCP Socket，再结合 Redis 的工作原理，我们发现 Redis 持久化选项配置有问题；从 TCP Socket 通信的数据中，我们还发现了客户端的不合理行为。于是，我们修改 Redis 配置选项，并优化了客户端使用 Redis 的方式，从而减少网络通信次数，解决性能问题。</p>
+</li>
+</ol>
+<h4 id="30-3-性能指标和工具的联系"><a href="#30-3-性能指标和工具的联系" class="headerlink" title="30.3 性能指标和工具的联系"></a>30.3 性能指标和工具的联系</h4><p>同前面 CPU 和内存板块的学习一样，我建议从指标和工具两个不同维度出发，整理记忆。</p>
+<ul>
+<li>从 I/O 指标出发，你更容易把性能工具同系统工作原理关联起来，对性能问题有宏观的认识和把握。</li>
+<li>而从性能工具出发，可以让你更快上手使用工具，迅速找出我们想观察的性能指标。特别是在工具有限的情况下，我们更要充分利用好手头的每一个工具，少量工具也要尽力挖掘出大量信息。</li>
+</ul>
+<ol>
+<li><p><strong>第一个维度，从文件系统和磁盘 I/O 的性能指标出发。换句话说，当你想查看某个性能指标时，要清楚知道，哪些工具可以做到。</strong></p>
+<p> 根据不同的性能指标，对提供指标的性能工具进行分类和理解。这样，在实际排查性能问题时，你就可以清楚知道，什么工具可以提供你想要的指标，而不是毫无根据地挨个尝试，撞运气。</p>
+<p> <img src="/images/《Linux性能优化实战》学习笔记/根据指标找工具（文件系统和磁盘IO）.png" alt="根据指标找工具（文件系统和磁盘IO）"></p>
+</li>
+<li><p><strong>第二个维度，从工具出发。也就是当你已经安装了某个工具后，要知道这个工具能提供哪些指标。</strong></p>
+<p> 这在实际环境中，特别是生产环境中也是非常重要的。因为很多情况下，你并没有权限安装新的工具包，只能最大化地利用好系统已有的工具，而这就需要你对它们有足够的了解。</p>
+<p> 具体到每个工具的使用方法，一般都支持丰富的配置选项。不过不用担心，这些配置选项并不用背下来。你只要知道有哪些工具，以及这些工具的基本功能是什么就够了。真正要用到的时候， 通过 man 命令，查它们的使用手册就可以了。</p>
+<p> <img src="/images/《Linux性能优化实战》学习笔记/根据工具查指标（文件系统和磁盘IO）.png" alt="根据工具查指标（文件系统和磁盘IO）"></p>
+</li>
+</ol>
+<h4 id="30-4-如何迅速分析-I-O-的性能瓶颈"><a href="#30-4-如何迅速分析-I-O-的性能瓶颈" class="headerlink" title="30.4 如何迅速分析 I/O 的性能瓶颈"></a>30.4 如何迅速分析 I/O 的性能瓶颈</h4><p>虽然文件系统和磁盘的 I/O 性能指标仍比较多，但核心的性能工具，其实就是那么几个。熟练掌握它们，再根据实际系统的现象，并配合系统和应用程序的原理， I/O 性能分析就很清晰了。</p>
+<p><strong>想弄清楚性能指标的关联性，就要通晓每种性能指标的工作原理。</strong></p>
+<p>以我们前面几期的案例为例，如果你仔细对比前面的几个案例，从 I/O 延迟的案例到 MySQL 和 Redis 的案例，就会发现，虽然这些问题千差万别，但从 I/O 角度来分析，最开始的分析思路基本上类似，都是：</p>
+<ol>
+<li>先用 iostat 发现磁盘 I/O 性能瓶颈；</li>
+<li>再借助 pidstat ，定位出导致瓶颈的进程；</li>
+<li>随后分析进程的 I/O 行为；</li>
+<li>最后，结合应用程序的原理，分析这些 I/O 的来源。</li>
+</ol>
+<p><strong>所以，为了缩小排查范围，我通常会先运行那几个支持指标较多的工具，如 iostat、vmstat、pidstat 等</strong>。然后再根据观察到的现象，结合系统和应用程序的原理，寻找下一步的分析方向。</p>
+<p><img src="/images/《Linux性能优化实战》学习笔记/如何迅速分析IO的性能瓶颈.png" alt="如何迅速分析IO的性能瓶颈"></p>
+<p>图中列出了最常用的几个文件系统和磁盘 I/O 性能分析工具，以及相应的分析流程，箭头则表示分析方向。这其中，iostat、vmstat、pidstat 是最核心的几个性能工具，它们也提供了最重要的 I/O 性能指标。举几个例子你可能更容易理解。</p>
+<p>例如，在前面讲过的 MySQL 和 Redis 案例中，我们就是通过 iostat 确认磁盘出现 I/O 性能瓶颈，然后用 pidstat 找出 I/O 最大的进程，接着借助 strace 找出该进程正在读写的文件，最后结合应用程序的原理，找出大量 I/O 的原因。</p>
+<p>再如，当你用 iostat 发现磁盘有 I/O 性能瓶颈后，再用 pidstat 和 vmstat 检查，可能会发现 I/O 来自内核线程，如 Swap 使用大量升高。这种情况下，你就得进行内存分析了，先找出占用大量内存的进程，再设法减少内存的使用。</p>
+<h3 id="31-套路篇：磁盘-I-O-性能优化的几个思路"><a href="#31-套路篇：磁盘-I-O-性能优化的几个思路" class="headerlink" title="31 | 套路篇：磁盘 I/O 性能优化的几个思路"></a>31 | 套路篇：磁盘 I/O 性能优化的几个思路</h3><h4 id="31-1-I-O-基准测试"><a href="#31-1-I-O-基准测试" class="headerlink" title="31.1 I/O 基准测试"></a>31.1 I/O 基准测试</h4><p>按照我的习惯，优化之前，我会先问自己， I/O 性能优化的目标是什么？换句话说，我们观察的这些 I/O 性能指标（比如 IOPS、吞吐量、延迟等），要达到多少才合适呢？</p>
+<p>事实上，I/O 性能指标的具体标准，每个人估计会有不同的答案，因为我们每个人的应用场景、使用的文件系统和物理磁盘等，都有可能不一样。</p>
+<p>为了更客观合理地评估优化效果，我们首先应该对磁盘和文件系统进行基准测试，得到文件系统或者磁盘 I/O 的极限性能。</p>
+<p><a target="_blank" rel="noopener" href="https://github.com/axboe/fio">fio</a>（Flexible I/O Tester）正是最常用的文件系统和磁盘 I/O 性能基准测试工具。它提供了大量的可定制化选项，可以用来测试，裸盘或者文件系统在各种场景下的 I/O 性能，包括了不同块大小、不同 I/O 引擎以及是否使用缓存等场景。</p>
+<p>fio 的选项非常多， 我会通过几个常见场景的测试方法，介绍一些最常用的选项。这些常见场景包括随机读、随机写、顺序读以及顺序写等，你可以执行下面这些命令来测试：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token comment"># 随机读</span>
+fio -name<span class="token operator">=</span>randread -direct<span class="token operator">=</span><span class="token number">1</span> -iodepth<span class="token operator">=</span><span class="token number">64</span> -rw<span class="token operator">=</span>randread -ioengine<span class="token operator">=</span>libaio -bs<span class="token operator">=</span>4k -size<span class="token operator">=</span>1G -numjobs<span class="token operator">=</span><span class="token number">1</span> -runtime<span class="token operator">=</span><span class="token number">1000</span> -group_reporting -filename<span class="token operator">=</span>/dev/sdb
+
+<span class="token comment"># 随机写</span>
+fio -name<span class="token operator">=</span>randwrite -direct<span class="token operator">=</span><span class="token number">1</span> -iodepth<span class="token operator">=</span><span class="token number">64</span> -rw<span class="token operator">=</span>randwrite -ioengine<span class="token operator">=</span>libaio -bs<span class="token operator">=</span>4k -size<span class="token operator">=</span>1G -numjobs<span class="token operator">=</span><span class="token number">1</span> -runtime<span class="token operator">=</span><span class="token number">1000</span> -group_reporting -filename<span class="token operator">=</span>/dev/sdb
+
+<span class="token comment"># 顺序读</span>
+fio -name<span class="token operator">=</span>read -direct<span class="token operator">=</span><span class="token number">1</span> -iodepth<span class="token operator">=</span><span class="token number">64</span> -rw<span class="token operator">=</span>read -ioengine<span class="token operator">=</span>libaio -bs<span class="token operator">=</span>4k -size<span class="token operator">=</span>1G -numjobs<span class="token operator">=</span><span class="token number">1</span> -runtime<span class="token operator">=</span><span class="token number">1000</span> -group_reporting -filename<span class="token operator">=</span>/dev/sdb
+
+<span class="token comment"># 顺序写</span>
+fio -name<span class="token operator">=</span>write -direct<span class="token operator">=</span><span class="token number">1</span> -iodepth<span class="token operator">=</span><span class="token number">64</span> -rw<span class="token operator">=</span>write -ioengine<span class="token operator">=</span>libaio -bs<span class="token operator">=</span>4k -size<span class="token operator">=</span>1G -numjobs<span class="token operator">=</span><span class="token number">1</span> -runtime<span class="token operator">=</span><span class="token number">1000</span> -group_reporting -filename<span class="token operator">=</span>/dev/sdb<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>在这其中，有几个参数需要你重点关注一下。</p>
+<ul>
+<li>direct，表示是否跳过系统缓存。上面示例中，我设置的 1 ，就表示跳过系统缓存。</li>
+<li>iodepth，表示使用异步 I/O（asynchronous I/O，简称 AIO）时，同时发出的 I/O 请求上限。在上面的示例中，我设置的是 64。</li>
+<li>rw，表示 I/O 模式。我的示例中， read/write 分别表示顺序读 / 写，而 randread/randwrite 则分别表示随机读 / 写。</li>
+<li>ioengine，表示 I/O 引擎，它支持同步（sync）、异步（libaio）、内存映射（mmap）、网络（net）等各种 I/O 引擎。上面示例中，我设置的 libaio 表示使用异步 I/O。</li>
+<li>bs，表示 I/O 的大小。示例中，我设置成了 4K（这也是默认值）。</li>
+<li>filename，表示文件路径，当然，它可以是磁盘路径（测试磁盘性能），也可以是文件路径（测试文件系统性能）。示例中，我把它设置成了磁盘 /dev/sdb。不过注意，用磁盘路径测试写，会破坏这个磁盘中的文件系统，所以在使用前，你一定要事先做好数据备份。</li>
+</ul>
+<p>下面就是我使用 fio 测试顺序读的一个报告示例。</p>
+<pre class="line-numbers language-text" data-language="text"><code class="language-text">read: (g=0): rw=read, bs=(R) 4096B-4096B, (W) 4096B-4096B, (T) 4096B-4096B, ioengine=libaio, iodepth=64
+fio-3.1
+Starting 1 process
+Jobs: 1 (f=1): [R(1)][100.0%][r=16.7MiB/s,w=0KiB/s][r=4280,w=0 IOPS][eta 00m:00s]
+read: (groupid=0, jobs=1): err= 0: pid=17966: Sun Dec 30 08:31:48 2018
+   read: IOPS=4257, BW=16.6MiB/s (17.4MB/s)(1024MiB/61568msec)
+    slat (usec): min=2, max=2566, avg= 4.29, stdev=21.76
+    clat (usec): min=228, max=407360, avg=15024.30, stdev=20524.39
+     lat (usec): min=243, max=407363, avg=15029.12, stdev=20524.26
+    clat percentiles (usec):
+     |  1.00th=[   498],  5.00th=[  1020], 10.00th=[  1319], 20.00th=[  1713],
+     | 30.00th=[  1991], 40.00th=[  2212], 50.00th=[  2540], 60.00th=[  2933],
+     | 70.00th=[  5407], 80.00th=[ 44303], 90.00th=[ 45351], 95.00th=[ 45876],
+     | 99.00th=[ 46924], 99.50th=[ 46924], 99.90th=[ 48497], 99.95th=[ 49021],
+     | 99.99th=[404751]
+   bw (  KiB/s): min= 8208, max=18832, per=99.85%, avg=17005.35, stdev=998.94, samples=123
+   iops        : min= 2052, max= 4708, avg=4251.30, stdev=249.74, samples=123
+  lat (usec)   : 250=0.01%, 500=1.03%, 750=1.69%, 1000=2.07%
+  lat (msec)   : 2=25.64%, 4=37.58%, 10=2.08%, 20=0.02%, 50=29.86%
+  lat (msec)   : 100=0.01%, 500=0.02%
+  cpu          : usr=1.02%, sys=2.97%, ctx=33312, majf=0, minf=75
+  IO depths    : 1=0.1%, 2=0.1%, 4=0.1%, 8=0.1%, 16=0.1%, 32=0.1%, &gt;=64=100.0%
+     submit    : 0=0.0%, 4=100.0%, 8=0.0%, 16=0.0%, 32=0.0%, 64=0.0%, &gt;=64=0.0%
+     complete  : 0=0.0%, 4=100.0%, 8=0.0%, 16=0.0%, 32=0.0%, 64=0.1%, &gt;=64=0.0%
+     issued rwt: total=262144,0,0, short=0,0,0, dropped=0,0,0
+     latency   : target=0, window=0, percentile=100.00%, depth=64
+
+Run status group 0 (all jobs):
+   READ: bw=16.6MiB/s (17.4MB/s), 16.6MiB/s-16.6MiB/s (17.4MB/s-17.4MB/s), io=1024MiB (1074MB), run=61568-61568msec
+
+Disk stats (read/write):
+  sdb: ios=261897/0, merge=0/0, ticks=3912108/0, in_queue=3474336, util=90.09%<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>这个报告中，需要我们重点关注的是， slat、clat、lat ，以及 bw 和 iops 这几行。</p>
+<p>先来看刚刚提到的前三个参数。事实上，slat、clat、lat 都是指 I/O 延迟（latency）。不同之处在于：</p>
+<ul>
+<li>slat ，是指从 I/O 提交到实际执行 I/O 的时长（Submission latency）；</li>
+<li>clat ，是指从 I/O 提交到 I/O 完成的时长（Completion latency）；</li>
+<li>而 lat ，指的是从 fio 创建 I/O 到 I/O 完成的总时长。</li>
+</ul>
+<p>这里需要注意的是，对同步 I/O 来说，由于 I/O 提交和 I/O 完成是一个动作，所以 slat 实际上就是 I/O 完成的时间，而 clat 是 0。而从示例可以看到，使用异步 I/O（libaio）时，lat 近似等于 slat + clat 之和。</p>
+<p>再来看 bw ，它代表吞吐量。在我上面的示例中，你可以看到，平均吞吐量大约是 16 MB（17005 KiB/1024）。</p>
+<p>最后的 iops ，其实就是每秒 I/O 的次数，上面示例中的平均 IOPS 为 4250。</p>
+<p>通常情况下，应用程序的 I/O 都是读写并行的，而且每次的 I/O 大小也不一定相同。所以，刚刚说的这几种场景，并不能精确模拟应用程序的 I/O 模式。那怎么才能精确模拟应用程序的 I/O 模式呢？</p>
+<p>幸运的是，fio 支持 I/O 的重放。借助前面提到过的 blktrace，再配合上 fio，就可以实现对应用程序 I/O 模式的基准测试。你需要先用 blktrace ，记录磁盘设备的 I/O 访问情况；然后使用 fio ，重放 blktrace 的记录。</p>
+<p>比如你可以运行下面的命令来操作：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token comment"># 使用 blktrace 跟踪磁盘 I/O，注意指定应用程序正在操作的磁盘</span>
+$ blktrace /dev/sdb
+
+<span class="token comment"># 查看 blktrace 记录的结果</span>
+<span class="token comment"># ls</span>
+sdb.blktrace.0  sdb.blktrace.1
+
+<span class="token comment"># 将结果转化为二进制文件</span>
+$ blkparse sdb -d sdb.bin
+
+<span class="token comment"># 使用 fio 重放日志</span>
+$ fio --name<span class="token operator">=</span>replay --filename<span class="token operator">=</span>/dev/sdb --direct<span class="token operator">=</span><span class="token number">1</span> --read_iolog<span class="token operator">=</span>sdb.bin<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>这样，我们就通过 blktrace+fio 的组合使用，得到了应用程序 I/O 模式的基准测试报告。</p>
+<h4 id="31-2-I-O-性能优化"><a href="#31-2-I-O-性能优化" class="headerlink" title="31.2 I/O 性能优化"></a>31.2 I/O 性能优化</h4><p>得到 I/O 基准测试报告后，再用上我们上一节总结的性能分析套路，找出 I/O 的性能瓶颈并优化，就是水到渠成的事情了。当然， 想要优化 I/O 性能，肯定离不开 Linux 系统的 I/O 栈图的思路辅助。你可以结合下面的 I/O 栈图再回顾一下。</p>
+<p><img src="/images/《Linux性能优化实战》学习笔记/Linux存储系统的IO栈全景图.png" alt="Linux存储系统的IO栈全景图.png"></p>
+<ol>
+<li><p>应用程序优化</p>
+<p> 应用程序处于整个 I/O 栈的最上端，它可以通过系统调用，来调整 I/O 模式（如顺序还是随机、同步还是异步）， 同时，它也是 I/O 数据的最终来源。在我看来，可以有这么几种方式来优化应用程序的 I/O 性能。</p>
+<ol>
+<li>第一，可以用追加写代替随机写，减少寻址开销，加快 I/O 写的速度。</li>
+<li>第二，可以借助缓存 I/O ，充分利用系统缓存，降低实际 I/O 的次数。</li>
+<li><p>第三，可以在应用程序内部构建自己的缓存，或者用 Redis 这类外部缓存系统。这样，一方面，能在应用程序内部，控制缓存的数据和生命周期；另一方面，也能降低其他应用程序使用缓存对自身的影响。</p>
+<p> 比如，在前面的 MySQL 案例中，我们已经见识过，只是因为一个干扰应用清理了系统缓存，就会导致 MySQL 查询有数百倍的性能差距（0.1s vs 15s）。</p>
+<p> 再如， C 标准库提供的 fopen、fread 等库函数，都会利用标准库的缓存，减少磁盘的操作。而你直接使用 open、read 等系统调用时，就只能利用操作系统提供的页缓存和缓冲区等，而没有库函数的缓存可用。</p>
+</li>
+<li><p>第四，在需要频繁读写同一块磁盘空间时，可以用 mmap 代替 read/write，减少内存的拷贝次数。</p>
+</li>
+<li>第五，在需要同步写的场景中，尽量将写请求合并，而不是让每个请求都同步写入磁盘，即可以用 fsync() 取代 O_SYNC。</li>
+<li>第六，在多个应用程序共享相同磁盘时，为了保证 I/O 不被某个应用完全占用，推荐你使用 cgroups 的 I/O 子系统，来限制进程 / 进程组的 IOPS 以及吞吐量。</li>
+<li>最后，在使用 CFQ 调度器时，可以用 ionice 来调整进程的 I/O 调度优先级，特别是提高核心应用的 I/O 优先级。ionice 支持三个优先级类：Idle、Best-effort 和 Realtime。其中， Best-effort 和 Realtime 还分别支持 0-7 的级别，数值越小，则表示优先级别越高。</li>
+</ol>
+</li>
+<li><p>文件系统优化</p>
+<p> 应用程序访问普通文件时，实际是由文件系统间接负责，文件在磁盘中的读写。所以，跟文件系统中相关的也有很多优化 I/O 性能的方式。</p>
+<ol>
+<li><p>第一，你可以根据实际负载场景的不同，选择最适合的文件系统。比如 Ubuntu 默认使用 ext4 文件系统，而 CentOS 7 默认使用 xfs 文件系统。</p>
+<p> 相比于 ext4 ，xfs 支持更大的磁盘分区和更大的文件数量，如 xfs 支持大于 16TB 的磁盘。但是 xfs 文件系统的缺点在于无法收缩，而 ext4 则可以。</p>
+</li>
+<li><p>第二，在选好文件系统后，还可以进一步优化文件系统的配置选项，包括文件系统的特性（如 ext_attr、dir_index）、日志模式（如 journal、ordered、writeback）、挂载选项（如 noatime）等等。</p>
+<p> 比如， 使用 tune2fs 这个工具，可以调整文件系统的特性（tune2fs 也常用来查看文件系统超级块的内容）。 而通过 /etc/fstab ，或者 mount 命令行参数，我们可以调整文件系统的日志模式和挂载选项等。</p>
+</li>
+<li><p>第三，可以优化文件系统的缓存。</p>
+<p> 比如，你可以优化 pdflush 脏页的刷新频率（比如设置 dirty_expire_centisecs 和 dirty_writeback_centisecs）以及脏页的限额（比如调整 dirty_background_ratio 和 dirty_ratio 等）。</p>
+<p> 再如，你还可以优化内核回收目录项缓存和索引节点缓存的倾向，即调整 vfs_cache_pressure（/proc/sys/vm/vfs_cache_pressure，默认值 100），数值越大，就表示越容易回收。</p>
+</li>
+<li>最后，在不需要持久化时，你还可以用内存文件系统 tmpfs，以获得更好的 I/O 性能 。tmpfs 把数据直接保存在内存中，而不是磁盘中。比如 /dev/shm/ ，就是大多数 Linux 默认配置的一个内存文件系统，它的大小默认为总内存的一半。</li>
+</ol>
+</li>
+<li><p>磁盘优化</p>
+<p> 数据的持久化存储，最终还是要落到具体的物理磁盘中，同时，磁盘也是整个 I/O 栈的最底层。从磁盘角度出发，自然也有很多有效的性能优化方法。</p>
+<ol>
+<li><p>第一，最简单有效的优化方法，就是换用性能更好的磁盘，比如用 SSD 替代 HDD。</p>
+</li>
+<li><p>第二，我们可以使用 RAID ，把多块磁盘组合成一个逻辑磁盘，构成冗余独立磁盘阵列。这样做既可以提高数据的可靠性，又可以提升数据的访问性能。</p>
+</li>
+<li><p>第三，针对磁盘和应用程序 I/O 模式的特征，我们可以选择最适合的 I/O 调度算法。比方说，SSD 和虚拟机中的磁盘，通常用的是 noop 调度算法。而数据库应用，我更推荐使用 deadline 算法。</p>
+</li>
+<li><p>第四，我们可以对应用程序的数据，进行磁盘级别的隔离。比如，我们可以为日志、数据库等 I/O 压力比较重的应用，配置单独的磁盘。</p>
+</li>
+<li><p>第五，在顺序读比较多的场景中，我们可以增大磁盘的预读数据，比如，你可以通过下面两种方法，调整 /dev/sdb 的预读大小。</p>
+<ul>
+<li>调整内核选项 /sys/block/sdb/queue/read_ahead_kb，默认大小是 128 KB，单位为 KB。</li>
+<li>使用 blockdev 工具设置，比如 blockdev —setra 8192 /dev/sdb，注意这里的单位是 512B（0.5KB），所以它的数值总是 read_ahead_kb 的两倍。</li>
+</ul>
+</li>
+<li><p>第六，我们可以优化内核块设备 I/O 的选项。比如，可以调整磁盘队列的长度 /sys/block/sdb/queue/nr_requests，适当增大队列长度，可以提升磁盘的吞吐量（当然也会导致 I/O 延迟增大）。</p>
+</li>
+<li><p>最后，要注意，磁盘本身出现硬件错误，也会导致 I/O 性能急剧下降，所以发现磁盘性能急剧下降时，你还需要确认，磁盘本身是不是出现了硬件错误。</p>
+<p> 比如，你可以查看 dmesg 中是否有硬件 I/O 故障的日志。 还可以使用 badblocks、smartctl 等工具，检测磁盘的硬件问题，或用 e2fsck 等来检测文件系统的错误。如果发现问题，你可以使用 fsck 等工具来修复。</p>
+</li>
+</ol>
+</li>
+</ol>
+<h3 id="32-答疑（四）：阻塞、非阻塞-I-O-与同步、异步-I-O-的区别和联系"><a href="#32-答疑（四）：阻塞、非阻塞-I-O-与同步、异步-I-O-的区别和联系" class="headerlink" title="32 | 答疑（四）：阻塞、非阻塞 I/O 与同步、异步 I/O 的区别和联系"></a>32 | 答疑（四）：阻塞、非阻塞 I/O 与同步、异步 I/O 的区别和联系</h3><h4 id="32-1-问题-1：阻塞、非阻塞-I-O-与同步、异步-I-O-的区别和联系"><a href="#32-1-问题-1：阻塞、非阻塞-I-O-与同步、异步-I-O-的区别和联系" class="headerlink" title="32.1 问题 1：阻塞、非阻塞 I/O 与同步、异步 I/O 的区别和联系"></a>32.1 问题 1：阻塞、非阻塞 I/O 与同步、异步 I/O 的区别和联系</h4><p>首先我们来看阻塞和非阻塞 I/O。根据应用程序是否阻塞自身运行，可以把 I/O 分为阻塞 I/O 和非阻塞 I/O。</p>
+<ul>
+<li>所谓阻塞 I/O，是指应用程序在执行 I/O 操作后，如果没有获得响应，就会阻塞当前线程，不能执行其他任务。</li>
+<li>所谓非阻塞 I/O，是指应用程序在执行 I/O 操作后，不会阻塞当前的线程，可以继续执行其他的任务。</li>
+</ul>
+<p>再来看同步 I/O 和异步 I/O。根据 I/O 响应的通知方式的不同，可以把文件 I/O 分为同步 I/O 和异步 I/O。</p>
+<ul>
+<li>所谓同步 I/O，是指收到 I/O 请求后，系统不会立刻响应应用程序；等到处理完成，系统才会通过系统调用的方式，告诉应用程序 I/O 结果。</li>
+<li>所谓异步 I/O，是指收到 I/O 请求后，系统会先告诉应用程序 I/O 请求已经收到，随后再去异步处理；等处理完成后，系统再通过事件通知的方式，告诉应用程序结果。</li>
+</ul>
+<p>你可以看出，阻塞 / 非阻塞和同步 / 异步，其实就是两个不同角度的 I/O 划分方式。它们描述的对象也不同，阻塞 / 非阻塞针对的是 I/O 调用者（即应用程序），而同步 / 异步针对的是 I/O 执行者（即系统）。</p>
+<p>我举个例子来进一步解释下。比如在 Linux I/O 调用中，</p>
+<ul>
+<li>系统调用 read 是同步读，所以，在没有得到磁盘数据前，read 不会响应应用程序。</li>
+<li>而 aio_read 是异步读，系统收到 AIO 读请求后不等处理就返回了，而具体的 read 结果，再通过回调异步通知应用程序。</li>
+</ul>
+<p>再如，在网络套接字的接口中，</p>
+<ul>
+<li>使用 send() 直接向套接字发送数据时，如果套接字没有设置 O_NONBLOCK 标识，那么 send() 操作就会一直阻塞，当前线程也没法去做其他事情。</li>
+<li>当然，如果你用了 epoll，系统会告诉你这个套接字的状态，那就可以用非阻塞的方式使用。当这个套接字不可写的时候，你可以去做其他事情，比如读写其他套接字。</li>
+</ul>
+<h4 id="32-2-“文件系统”课后思考"><a href="#32-2-“文件系统”课后思考" class="headerlink" title="32.2 “文件系统”课后思考"></a>32.2 “文件系统”课后思考</h4><p>执行 find 命令时，会不会导致系统的缓存升高呢？如果会导致，升高的又是哪种类型的缓存呢？</p>
+<p>通过学习 Linux 文件系统的原理，我们知道，文件名以及文件之间的目录关系，都放在目录项缓存中。而这是一个基于内存的数据结构，会根据需要动态构建。所以，查找文件时，Linux 就会动态构建不在缓存中的目录项结构，导致 dentry 缓存升高。</p>
+<p><img src="/images/《Linux性能优化实战》学习笔记/执行find命令导致系统的缓存升高答案1.png" alt="执行find命令导致系统的缓存升高答案1"></p>
+<p><img src="/images/《Linux性能优化实战》学习笔记/执行find命令导致系统的缓存升高答案2.png" alt="执行find命令导致系统的缓存升高答案2"></p>
+<p>事实上，除了目录项缓存增加，Buffer 的使用也会增加。如果你用 vmstat 观察一下，会发现 Buffer 和 Cache 都在增长：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ <span class="token function">vmstat</span> <span class="token number">1</span>
+procs -----------memory---------- ---swap-- -----io---- -system-- ------cpu-----
+ r  b   swpd   <span class="token function">free</span>   buff  cache   si   so    bi    bo   <span class="token keyword">in</span>   cs us sy <span class="token function">id</span> wa st
+ <span class="token number">0</span>  <span class="token number">1</span>      <span class="token number">0</span> <span class="token number">7563744</span>   <span class="token number">6024</span> <span class="token number">225944</span>    <span class="token number">0</span>    <span class="token number">0</span>  <span class="token number">3736</span>     <span class="token number">0</span>  <span class="token number">574</span> <span class="token number">3249</span>  <span class="token number">3</span>  <span class="token number">5</span> <span class="token number">89</span>  <span class="token number">3</span>  <span class="token number">0</span>
+ <span class="token number">1</span>  <span class="token number">0</span>      <span class="token number">0</span> <span class="token number">7542792</span>  <span class="token number">14736</span> <span class="token number">236856</span>    <span class="token number">0</span>    <span class="token number">0</span>  <span class="token number">8708</span>     <span class="token number">0</span> <span class="token number">13494</span> <span class="token number">32335</span>  <span class="token number">8</span> <span class="token number">19</span> <span class="token number">66</span>  <span class="token number">7</span>  <span class="token number">0</span>
+ <span class="token number">0</span>  <span class="token number">1</span>      <span class="token number">0</span> <span class="token number">7494452</span>  <span class="token number">27280</span> <span class="token number">272284</span>    <span class="token number">0</span>    <span class="token number">0</span> <span class="token number">12544</span>     <span class="token number">0</span> <span class="token number">4550</span> <span class="token number">17084</span>  <span class="token number">5</span> <span class="token number">15</span> <span class="token number">68</span> <span class="token number">13</span>  <span class="token number">0</span>
+ <span class="token number">0</span>  <span class="token number">1</span>      <span class="token number">0</span> <span class="token number">7475084</span>  <span class="token number">42380</span> <span class="token number">276320</span>    <span class="token number">0</span>    <span class="token number">0</span> <span class="token number">15096</span>     <span class="token number">0</span> <span class="token number">2541</span> <span class="token number">14253</span>  <span class="token number">2</span>  <span class="token number">6</span> <span class="token number">78</span> <span class="token number">13</span>  <span class="token number">0</span>
+ <span class="token number">0</span>  <span class="token number">1</span>      <span class="token number">0</span> <span class="token number">7455728</span>  <span class="token number">57600</span> <span class="token number">280436</span>    <span class="token number">0</span>    <span class="token number">0</span> <span class="token number">15220</span>     <span class="token number">0</span> <span class="token number">2025</span> <span class="token number">14518</span>  <span class="token number">2</span>  <span class="token number">6</span> <span class="token number">70</span> <span class="token number">22</span>  <span class="token number">0</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>这里，Buffer 的增长是因为，构建目录项缓存所需的元数据（比如文件名称、索引节点等），需要从文件系统中读取。</p>
+<h4 id="32-3-问题-3：“磁盘-I-O-延迟”课后思考"><a href="#32-3-问题-3：“磁盘-I-O-延迟”课后思考" class="headerlink" title="32.3 问题 3：“磁盘 I/O 延迟”课后思考"></a>32.3 问题 3：“磁盘 I/O 延迟”课后思考</h4><p>我们通过 iostat ，确认磁盘 I/O 已经出现了性能瓶颈，还用 pidstat 找出了大量磁盘 I/O 的进程。但是，随后使用 strace 跟踪这个进程，却找不到任何 write 系统调用。这是为什么呢？</p>
+<p>strace -p PID 后面需要加 -f 选项，以便跟踪多进程和多线程的系统调用情况。</p>
+<h4 id="32-4-问题-4：“MySQL-案例”课后思考"><a href="#32-4-问题-4：“MySQL-案例”课后思考" class="headerlink" title="32.4 问题 4：“MySQL 案例”课后思考"></a>32.4 问题 4：“MySQL 案例”课后思考</h4><p>为什么 DataService 应用停止后，即使仍没有索引，MySQL 的查询速度还是快了很多，并且磁盘 I/O 瓶颈也消失了呢？</p>
+<p>ninuxer 的留言基本解释了这个问题，不过还不够完善。</p>
+<blockquote>
+<p>ninuxer 的留言：echo 1&gt;/proc/sys/vm/drop_caches表示释放pagecache，也就是文件缓存，而mysql读书的数据就是文件缓存，dataservice不停的释放文件缓存，就导致MySQL都无法利用磁盘缓存，也就慢了。</p>
+</blockquote>
+<p>事实上，当你看到 DataService 在修改 /proc/sys/vm/drop_caches 时，就应该想到前面学过的 Cache 的作用。</p>
+<p>我们知道，案例应用访问的数据表，基于 MyISAM 引擎，而 MyISAM 的一个特点，就是只在内存中缓存索引，并不缓存数据。所以，在查询语句无法使用索引时，就需要数据表从数据库文件读入内存，然后再进行处理。</p>
+<p>所以，如果你用 vmstat 工具，观察缓存和 I/O 的变化趋势，就会发现下面这样的结果：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ <span class="token function">vmstat</span> <span class="token number">1</span>
+
+procs -----------memory---------- ---swap-- -----io---- -system-- ------cpu-----
+ r  b   swpd   <span class="token function">free</span>   buff  cache   si   so    bi    bo   <span class="token keyword">in</span>   cs us sy <span class="token function">id</span> wa st
+
+<span class="token comment"># 备注： DataService 正在运行</span>
+<span class="token number">0</span>  <span class="token number">1</span>      <span class="token number">0</span> <span class="token number">7293416</span>    <span class="token number">132</span> <span class="token number">366704</span>    <span class="token number">0</span>    <span class="token number">0</span> <span class="token number">32516</span>    <span class="token number">12</span>   <span class="token number">36</span>  <span class="token number">546</span>  <span class="token number">1</span>  <span class="token number">3</span> <span class="token number">49</span> <span class="token number">48</span>  <span class="token number">0</span>
+ <span class="token number">0</span>  <span class="token number">1</span>      <span class="token number">0</span> <span class="token number">7260772</span>    <span class="token number">132</span> <span class="token number">399256</span>    <span class="token number">0</span>    <span class="token number">0</span> <span class="token number">32640</span>     <span class="token number">0</span>   <span class="token number">37</span>  <span class="token number">463</span>  <span class="token number">1</span>  <span class="token number">1</span> <span class="token number">49</span> <span class="token number">48</span>  <span class="token number">0</span>
+ <span class="token number">0</span>  <span class="token number">1</span>      <span class="token number">0</span> <span class="token number">7228088</span>    <span class="token number">132</span> <span class="token number">432088</span>    <span class="token number">0</span>    <span class="token number">0</span> <span class="token number">32640</span>     <span class="token number">0</span>   <span class="token number">30</span>  <span class="token number">477</span>  <span class="token number">0</span>  <span class="token number">1</span> <span class="token number">49</span> <span class="token number">49</span>  <span class="token number">0</span>
+ <span class="token number">0</span>  <span class="token number">0</span>      <span class="token number">0</span> <span class="token number">7306560</span>    <span class="token number">132</span> <span class="token number">353084</span>    <span class="token number">0</span>    <span class="token number">0</span> <span class="token number">20572</span>     <span class="token number">4</span>   <span class="token number">90</span>  <span class="token number">574</span>  <span class="token number">1</span>  <span class="token number">4</span> <span class="token number">69</span> <span class="token number">27</span>  <span class="token number">0</span>
+ <span class="token number">0</span>  <span class="token number">2</span>      <span class="token number">0</span> <span class="token number">7282300</span>    <span class="token number">132</span> <span class="token number">368536</span>    <span class="token number">0</span>    <span class="token number">0</span> <span class="token number">15468</span>     <span class="token number">0</span>   <span class="token number">32</span>  <span class="token number">304</span>  <span class="token number">0</span>  <span class="token number">0</span> <span class="token number">79</span> <span class="token number">20</span>  <span class="token number">0</span>
+
+<span class="token comment"># 备注：DataService 从这里开始停止</span>
+ <span class="token number">0</span>  <span class="token number">0</span>      <span class="token number">0</span> <span class="token number">7241852</span>   <span class="token number">1360</span> <span class="token number">424164</span>    <span class="token number">0</span>    <span class="token number">0</span>   <span class="token number">864</span>   <span class="token number">320</span>  <span class="token number">133</span> <span class="token number">1266</span>  <span class="token number">1</span>  <span class="token number">1</span> <span class="token number">94</span>  <span class="token number">5</span>  <span class="token number">0</span>
+ <span class="token number">0</span>  <span class="token number">1</span>      <span class="token number">0</span> <span class="token number">7228956</span>   <span class="token number">1368</span> <span class="token number">437400</span>    <span class="token number">0</span>    <span class="token number">0</span> <span class="token number">13328</span>     <span class="token number">0</span>   <span class="token number">45</span>  <span class="token number">366</span>  <span class="token number">0</span>  <span class="token number">0</span> <span class="token number">83</span> <span class="token number">17</span>  <span class="token number">0</span>
+ <span class="token number">0</span>  <span class="token number">1</span>      <span class="token number">0</span> <span class="token number">7196320</span>   <span class="token number">1368</span> <span class="token number">470148</span>    <span class="token number">0</span>    <span class="token number">0</span> <span class="token number">32640</span>     <span class="token number">0</span>   <span class="token number">33</span>  <span class="token number">413</span>  <span class="token number">1</span>  <span class="token number">1</span> <span class="token number">50</span> <span class="token number">49</span>  <span class="token number">0</span>
+<span class="token punctuation">..</span>.
+ <span class="token number">0</span>  <span class="token number">0</span>      <span class="token number">0</span> <span class="token number">6747540</span>   <span class="token number">1368</span> <span class="token number">918576</span>    <span class="token number">0</span>    <span class="token number">0</span> <span class="token number">29056</span>     <span class="token number">0</span>   <span class="token number">42</span>  <span class="token number">568</span>  <span class="token number">0</span>  <span class="token number">0</span> <span class="token number">56</span> <span class="token number">44</span>  <span class="token number">0</span>
+ <span class="token number">0</span>  <span class="token number">0</span>      <span class="token number">0</span> <span class="token number">6747540</span>   <span class="token number">1368</span> <span class="token number">918576</span>    <span class="token number">0</span>    <span class="token number">0</span>     <span class="token number">0</span>     <span class="token number">0</span>   <span class="token number">40</span>  <span class="token number">141</span>  <span class="token number">1</span>  <span class="token number">0</span> <span class="token number">100</span>  <span class="token number">0</span>  <span class="token number">0</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>在 DataService 停止前，cache 会连续增长三次后再降回去，这正是因为 DataService 每隔 3 秒清理一次页缓存。而 DataService 停止后，cache 就会不停地增长，直到增长为 918576 后，就不再变了。</p>
+<p>这时，磁盘的读（bi）降低到 0，同时，iowait（wa）也降低到 0，这说明，此时的所有数据都已经在系统的缓存中了。我们知道，缓存是内存的一部分，它的访问速度比磁盘快得多，这也就能解释，为什么 MySQL 的查询速度变快了很多。</p>
+<p>从这个案例，你会发现，MySQL 的 MyISAM 引擎，本身并不缓存数据，而要依赖系统缓存来加速磁盘 I/O 的访问。一旦系统中还有其他应用同时运行，MyISAM 引擎就很难充分利用系统缓存。因为系统缓存可能被其他应用程序占用，甚至直接被清理掉。</p>
+<p>所以，一般来说，我并不建议，把应用程序的性能优化完全建立在系统缓存上。还是那句话，最好能在应用程序的内部分配内存，构建完全自主控制的缓存，比如 MySQL 的 InnoDB 引擎，就同时缓存了索引和数据；或者，可以使用第三方的缓存应用，比如 Memcached、Redis 等。</p>
 
                 
             </div>
@@ -4274,7 +4762,7 @@ procs -----------memory---------- ---swap-- -----io---- -system-- ------cpu-----
             <br>
             
             &nbsp;<i class="fas fa-chart-area"></i>&nbsp;站点总字数:&nbsp;<span
-                class="white-color">307.9k</span>&nbsp;字
+                class="white-color">319.9k</span>&nbsp;字
             
             
             
