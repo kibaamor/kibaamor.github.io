@@ -442,14 +442,14 @@
                 
                 <div class="info-break-policy">
                     <i class="far fa-file-word fa-fw"></i>文章字数:&nbsp;&nbsp;
-                    98.2k
+                    102.4k
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-clock fa-fw"></i>阅读时长:&nbsp;&nbsp;
-                    384 分
+                    401 分
                 </div>
                 
 
@@ -4690,6 +4690,238 @@ rtt min/avg/max/mdev <span class="token operator">=</span> <span class="token nu
 <p>从 C10K 到 C100K ，可能只需要增加系统的物理资源就可以满足；但从 C100K 到 C1000K ，就不仅仅是增加物理资源就能解决的问题了。这时，就需要多方面的优化工作了，从硬件的中断处理和网络功能卸载、到网络协议栈的文件描述符数量、连接状态跟踪、缓存队列等内核的优化，再到应用程序的工作模型优化，都是考虑的重点。</p>
 <p>再进一步，要实现 C10M ，就不只是增加物理资源，或者优化内核和应用程序可以解决的问题了。这时候，就需要用 XDP 的方式，在内核协议栈之前处理网络包；或者用 DPDK 直接跳过网络协议栈，在用户空间通过轮询的方式直接处理网络包。</p>
 <p>当然了，实际上，在大多数场景中，我们并不需要单机并发 1000 万的请求。通过调整系统架构，把这些请求分发到多台服务器中来处理，通常是更简单和更容易扩展的方案。</p>
+<h3 id="36-套路篇：怎么评估系统的网络性能？"><a href="#36-套路篇：怎么评估系统的网络性能？" class="headerlink" title="36 | 套路篇：怎么评估系统的网络性能？"></a>36 | 套路篇：怎么评估系统的网络性能？</h3><h4 id="36-1-性能指标回顾"><a href="#36-1-性能指标回顾" class="headerlink" title="36.1 性能指标回顾"></a>36.1 性能指标回顾</h4><ol>
+<li><p>首先，<strong>带宽</strong>，表示链路的最大传输速率，单位是 b/s（比特 / 秒）。在你为服务器选购网卡时，带宽就是最核心的参考指标。常用的带宽有 1000M、10G、40G、100G 等。</p>
+</li>
+<li><p>第二，<strong>吞吐量</strong>，表示没有丢包时的最大数据传输速率，单位通常为 b/s （比特 / 秒）或者 B/s（字节 / 秒）。吞吐量受带宽的限制，吞吐量 / 带宽也就是该网络链路的使用率。</p>
+</li>
+<li><p>第三，<strong>延时</strong>，表示从网络请求发出后，一直到收到远端响应，所需要的时间延迟。这个指标在不同场景中可能会有不同的含义。它可以表示建立连接需要的时间（比如 TCP 握手延时），或者一个数据包往返所需时间（比如 RTT）。</p>
+</li>
+<li><p>最后，<strong>PPS</strong>，是 Packet Per Second（包 / 秒）的缩写，表示以网络包为单位的传输速率。PPS 通常用来评估网络的转发能力，而基于 Linux 服务器的转发，很容易受到网络包大小的影响（交换机通常不会受到太大影响，即交换机可以线性转发）。</p>
+</li>
+</ol>
+<p>这四个指标中，带宽跟物理网卡配置是直接关联的。一般来说，网卡确定后，带宽也就确定了（当然，实际带宽会受限于整个网络链路中最小的那个模块）。</p>
+<p>另外，你可能在很多地方听说过“网络带宽测试”，这里测试的实际上不是带宽，而是网络吞吐量。Linux 服务器的网络吞吐量一般会比带宽小，而对交换机等专门的网络设备来说，吞吐量一般会接近带宽。</p>
+<p>最后的 PPS，则是以网络包为单位的网络传输速率，通常用在需要大量转发的场景中。而对 TCP 或者 Web 服务来说，更多会用并发连接数和每秒请求数（QPS，Query per Second）等指标，它们更能反应实际应用程序的性能。</p>
+<h4 id="36-2-网络基准测试"><a href="#36-2-网络基准测试" class="headerlink" title="36.2 网络基准测试"></a>36.2 网络基准测试</h4><p>测试之前，你应该弄清楚，你要评估的网络性能，究竟属于协议栈的哪一层？换句话说，你的应用程序基于协议栈的哪一层呢？</p>
+<p>根据前面学过的 TCP/IP 协议栈的原理，这个问题应该不难回答。比如：</p>
+<ul>
+<li>基于 HTTP 或者 HTTPS 的 Web 应用程序，显然属于应用层，需要我们测试 HTTP/HTTPS 的性能；</li>
+<li>而对大多数游戏服务器来说，为了支持更大的同时在线人数，通常会基于 TCP 或 UDP ，与客户端进行交互，这时就需要我们测试 TCP/UDP 的性能；</li>
+<li>当然，还有一些场景，是把 Linux 作为一个软交换机或者路由器来用的。这种情况下，你更关注网络包的处理能力（即 PPS），重点关注网络层的转发性能。</li>
+</ul>
+<p>接下来，我就带你从下往上，了解不同协议层的网络性能测试方法。不过要注意，低层协议是其上的各层网络协议的基础。自然，低层协议的性能，也就决定了高层的网络性能。</p>
+<h4 id="36-3-各协议层的性能测试"><a href="#36-3-各协议层的性能测试" class="headerlink" title="36.3 各协议层的性能测试"></a>36.3 各协议层的性能测试</h4><ol>
+<li><p>转发性能</p>
+<p> 我们首先来看，网络接口层和网络层，它们主要负责网络包的封装、寻址、路由以及发送和接收。在这两个网络协议层中，每秒可处理的网络包数 PPS，就是最重要的性能指标。特别是 64B 小包的处理能力，值得我们特别关注。那么，如何来测试网络包的处理能力呢？</p>
+<p> 说到网络包相关的测试，你可能会觉得陌生。不过，其实在专栏开头的 CPU 性能篇中，我们就接触过一个相关工具，也就是软中断案例中的 hping3。</p>
+<p> 在那个案例中，hping3 作为一个 SYN 攻击的工具来使用。实际上， hping3 更多的用途，是作为一个测试网络包处理能力的性能工具。</p>
+<p> 今天我再来介绍另一个更常用的工具，Linux 内核自带的高性能网络测试工具 pktgen。pktgen 支持丰富的自定义选项，方便你根据实际需要构造所需网络包，从而更准确地测试出目标服务器的性能。</p>
+<p> 不过，在 Linux 系统中，你并不能直接找到 pktgen 命令。因为 pktgen 作为一个内核线程来运行，需要你加载 pktgen 内核模块后，再通过 /proc 文件系统来交互。下面就是 pktgen 启动的两个内核线程和 /proc 文件系统的交互文件：</p>
+ <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ modprobe pktgen
+$ <span class="token function">ps</span> -ef <span class="token operator">|</span> <span class="token function">grep</span> pktgen <span class="token operator">|</span> <span class="token function">grep</span> -v <span class="token function">grep</span>
+root     <span class="token number">26384</span>     <span class="token number">2</span>  <span class="token number">0</span> 06:17 ?        00:00:00 <span class="token punctuation">[</span>kpktgend_0<span class="token punctuation">]</span>
+root     <span class="token number">26385</span>     <span class="token number">2</span>  <span class="token number">0</span> 06:17 ?        00:00:00 <span class="token punctuation">[</span>kpktgend_1<span class="token punctuation">]</span>
+$ <span class="token function">ls</span> /proc/net/pktgen/
+kpktgend_0  kpktgend_1  pgctrl<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p> pktgen 在每个 CPU 上启动一个内核线程，并可以通过 /proc/net/pktgen 下面的同名文件，跟这些线程交互；而 pgctrl 则主要用来控制这次测试的开启和停止。</p>
+<blockquote>
+<p>如果 modprobe 命令执行失败，说明你的内核没有配置 CONFIG_NET_PKTGEN 选项。这就需要你配置 pktgen 内核模块（即 CONFIG_NET_PKTGEN=m）后，重新编译内核，才可以使用。</p>
+</blockquote>
+<p> 在使用 pktgen 测试网络性能时，需要先给每个内核线程 kpktgend_X 以及测试网卡，配置 pktgen 选项，然后再通过 pgctrl 启动测试。</p>
+<p> 以发包测试为例，假设发包机器使用的网卡是 eth0，而目标机器的 IP 地址为 192.168.0.30，MAC 地址为 11:11:11:11:11:11。</p>
+<p> 接下来，就是一个发包测试的示例。</p>
+ <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token comment"># 定义一个工具函数，方便后面配置各种测试选项</span>
+<span class="token keyword">function</span> <span class="token function-name function">pgset</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+    <span class="token builtin class-name">local</span> result
+    <span class="token builtin class-name">echo</span> <span class="token variable">$1</span> <span class="token operator">&gt;</span> <span class="token variable">$PGDEV</span>
+
+    <span class="token assign-left variable">result</span><span class="token operator">=</span><span class="token variable"><span class="token variable">`</span><span class="token function">cat</span> $PGDEV <span class="token operator">|</span> <span class="token function">fgrep</span> <span class="token string">"Result: OK:"</span><span class="token variable">`</span></span>
+    <span class="token keyword">if</span> <span class="token punctuation">[</span> <span class="token string">"<span class="token variable">$result</span>"</span> <span class="token operator">=</span> <span class="token string">""</span> <span class="token punctuation">]</span><span class="token punctuation">;</span> <span class="token keyword">then</span>
+         <span class="token function">cat</span> <span class="token variable">$PGDEV</span> <span class="token operator">|</span> <span class="token function">fgrep</span> Result:
+    <span class="token keyword">fi</span>
+<span class="token punctuation">}</span>
+
+<span class="token comment"># 为 0 号线程绑定 eth0 网卡</span>
+<span class="token assign-left variable">PGDEV</span><span class="token operator">=</span>/proc/net/pktgen/kpktgend_0
+pgset <span class="token string">"rem_device_all"</span>   <span class="token comment"># 清空网卡绑定</span>
+pgset <span class="token string">"add_device eth0"</span>  <span class="token comment"># 添加 eth0 网卡</span>
+
+<span class="token comment"># 配置 eth0 网卡的测试选项</span>
+<span class="token assign-left variable">PGDEV</span><span class="token operator">=</span>/proc/net/pktgen/eth0
+pgset <span class="token string">"count 1000000"</span>    <span class="token comment"># 总发包数量</span>
+pgset <span class="token string">"delay 5000"</span>       <span class="token comment"># 不同包之间的发送延迟 (单位纳秒)</span>
+pgset <span class="token string">"clone_skb 0"</span>      <span class="token comment"># SKB 包复制</span>
+pgset <span class="token string">"pkt_size 64"</span>      <span class="token comment"># 网络包大小</span>
+pgset <span class="token string">"dst 192.168.0.30"</span> <span class="token comment"># 目的 IP</span>
+pgset <span class="token string">"dst_mac 11:11:11:11:11:11"</span>  <span class="token comment"># 目的 MAC</span>
+
+<span class="token comment"># 启动测试</span>
+<span class="token assign-left variable">PGDEV</span><span class="token operator">=</span>/proc/net/pktgen/pgctrl
+pgset <span class="token string">"start"</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p> 稍等一会儿，测试完成后，结果可以从 /proc 文件系统中获取。通过下面代码段中的内容，我们可以查看刚才的测试报告：</p>
+ <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ <span class="token function">cat</span> /proc/net/pktgen/eth0
+Params: count <span class="token number">1000000</span>  min_pkt_size: <span class="token number">64</span>  max_pkt_size: <span class="token number">64</span>
+    frags: <span class="token number">0</span>  delay: <span class="token number">0</span>  clone_skb: <span class="token number">0</span>  ifname: eth0
+    flows: <span class="token number">0</span> flowlen: <span class="token number">0</span>
+<span class="token punctuation">..</span>.
+Current:
+    pkts-sofar: <span class="token number">1000000</span>  errors: <span class="token number">0</span>
+    started: 1534853256071us  stopped: 1534861576098us idle: 70673us
+<span class="token punctuation">..</span>.
+Result: OK: <span class="token number">8320027</span><span class="token punctuation">(</span>c8249354+d70673<span class="token punctuation">)</span> usec, <span class="token number">1000000</span> <span class="token punctuation">(</span>64byte,0frags<span class="token punctuation">)</span>
+120191pps 61Mb/sec <span class="token punctuation">(</span>61537792bps<span class="token punctuation">)</span> errors: <span class="token number">0</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p> 你可以看到，测试报告主要分为三个部分：</p>
+<ul>
+<li>第一部分的 Params 是测试选项；</li>
+<li>第二部分的 Current 是测试进度，其中， packts so far（pkts-sofar）表示已经发送了 100 万个包，也就表明测试已完成。</li>
+<li><p>第三部分的 Result 是测试结果，包含测试所用时间、网络包数量和分片、PPS、吞吐量以及错误数。</p>
+<p>根据上面的结果，我们发现，PPS 为 12 万，吞吐量为 61 Mb/s，没有发生错误。那么，12 万的 PPS 好不好呢？</p>
+<p>作为对比，你可以计算一下千兆交换机的 PPS。交换机可以达到线速（满负载时，无差错转发），它的 PPS 就是 1000Mbit 除以以太网帧的大小，即 1000Mbps/((64+20)*8bit) = 1.5 Mpps（其中，20B 为以太网帧前导和帧间距的大小）。</p>
+<p>你看，即使是千兆交换机的 PPS，也可以达到 150 万 PPS，比我们测试得到的 12 万大多了。所以，看到这个数值你并不用担心，现在的多核服务器和万兆网卡已经很普遍了，稍做优化就可以达到数百万的 PPS。而且，如果你用了上节课讲到的 DPDK 或 XDP ，还能达到千万数量级。</p>
+</li>
+</ul>
+</li>
+<li><p>TCP/UDP 性能</p>
+<p> 掌握了 PPS 的测试方法，接下来，我们再来看 TCP 和 UDP 的性能测试方法。说到 TCP 和 UDP 的测试，我想你已经很熟悉了，甚至可能一下子就能想到相应的测试工具，比如 iperf 或者 netperf。</p>
+<p> 特别是现在的云计算时代，在你刚拿到一批虚拟机时，首先要做的，应该就是用 iperf ，测试一下网络性能是否符合预期。</p>
+<p> iperf 和 netperf 都是最常用的网络性能测试工具，测试 TCP 和 UDP 的吞吐量。它们都以客户端和服务器通信的方式，测试一段时间内的平均吞吐量。</p>
+<p> 接下来，我们就以 iperf 为例，看一下 TCP 性能的测试方法。目前，iperf 的最新版本为 iperf3，你可以运行下面的命令来安装：</p>
+ <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token comment"># Ubuntu</span>
+<span class="token function">apt-get</span> <span class="token function">install</span> iperf3
+<span class="token comment"># CentOS</span>
+yum <span class="token function">install</span> iperf3<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span></span></code></pre>
+<p> 然后，在目标机器上启动 iperf 服务端：</p>
+ <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token comment"># -s 表示启动服务端，-i 表示汇报间隔，-p 表示监听端口</span>
+$ iperf3 -s -i <span class="token number">1</span> -p <span class="token number">10000</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre>
+<p> 接着，在另一台机器上运行 iperf 客户端，运行测试：</p>
+ <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token comment"># -c 表示启动客户端，192.168.0.30 为目标服务器的 IP</span>
+<span class="token comment"># -b 表示目标带宽 (单位是 bits/s)</span>
+<span class="token comment"># -t 表示测试时间</span>
+<span class="token comment"># -P 表示并发数，-p 表示目标服务器监听端口</span>
+$ iperf3 -c <span class="token number">192.168</span>.0.30 -b 1G -t <span class="token number">15</span> -P <span class="token number">2</span> -p <span class="token number">10000</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p> 稍等一会儿（15 秒）测试结束后，回到目标服务器，查看 iperf 的报告：</p>
+ <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token punctuation">[</span> ID<span class="token punctuation">]</span> Interval           Transfer     Bandwidth
+<span class="token punctuation">..</span>.
+<span class="token punctuation">[</span>SUM<span class="token punctuation">]</span>   <span class="token number">0.00</span>-15.04  sec  <span class="token number">0.00</span> Bytes  <span class="token number">0.00</span> bits/sec                  sender
+<span class="token punctuation">[</span>SUM<span class="token punctuation">]</span>   <span class="token number">0.00</span>-15.04  sec  <span class="token number">1.51</span> GBytes   <span class="token number">860</span> Mbits/sec                  receiver<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span></span></code></pre>
+<p> 最后的 SUM 行就是测试的汇总结果，包括测试时间、数据传输量以及带宽等。按照发送和接收，这一部分又分为了 sender 和 receiver 两行。</p>
+<p> 从测试结果你可以看到，这台机器 TCP 接收的带宽（吞吐量）为 860 Mb/s， 跟目标的 1Gb/s 相比，还是有些差距的。</p>
+</li>
+<li><p>HTTP 性能</p>
+<p> 要测试 HTTP 的性能，也有大量的工具可以使用，比如 ab、webbench 等，都是常用的 HTTP 压力测试工具。其中，ab 是 Apache 自带的 HTTP 压测工具，主要测试 HTTP 服务的每秒请求数、请求延迟、吞吐量以及请求延迟的分布情况等。</p>
+<p> 运行下面的命令，你就可以安装 ab 工具：</p>
+ <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token comment"># Ubuntu</span>
+$ <span class="token function">apt-get</span> <span class="token function">install</span> -y apache2-utils
+<span class="token comment"># CentOS</span>
+$ yum <span class="token function">install</span> -y httpd-tools<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span></span></code></pre>
+<p> 接下来，在目标机器上，使用 Docker 启动一个 Nginx 服务，然后用 ab 来测试它的性能。首先，在目标机器上运行下面的命令：</p>
+ <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ docker run -p <span class="token number">80</span>:80 -itd nginx<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p> 而在另一台机器上，运行 ab 命令，测试 Nginx 的性能：</p>
+ <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token comment"># -c 表示并发请求数为 1000，-n 表示总的请求数为 10000</span>
+$ ab -c <span class="token number">1000</span> -n <span class="token number">10000</span> http://192.168.0.30/
+<span class="token punctuation">..</span>.
+Server Software:        nginx/1.15.8
+Server Hostname:        <span class="token number">192.168</span>.0.30
+Server Port:            <span class="token number">80</span>
+
+<span class="token punctuation">..</span>.
+
+Requests per second:    <span class="token number">1078.54</span> <span class="token punctuation">[</span><span class="token comment">#/sec] (mean)</span>
+Time per request:       <span class="token number">927.183</span> <span class="token punctuation">[</span>ms<span class="token punctuation">]</span> <span class="token punctuation">(</span>mean<span class="token punctuation">)</span>
+Time per request:       <span class="token number">0.927</span> <span class="token punctuation">[</span>ms<span class="token punctuation">]</span> <span class="token punctuation">(</span>mean, across all concurrent requests<span class="token punctuation">)</span>
+Transfer rate:          <span class="token number">890.00</span> <span class="token punctuation">[</span>Kbytes/sec<span class="token punctuation">]</span> received
+
+Connection Times <span class="token punctuation">(</span>ms<span class="token punctuation">)</span>
+              min  mean<span class="token punctuation">[</span>+/-sd<span class="token punctuation">]</span> median   max
+Connect:        <span class="token number">0</span>   <span class="token number">27</span> <span class="token number">152.1</span>      <span class="token number">1</span>    <span class="token number">1038</span>
+Processing:     <span class="token number">9</span>  <span class="token number">207</span> <span class="token number">843.0</span>     <span class="token number">22</span>    <span class="token number">9242</span>
+Waiting:        <span class="token number">8</span>  <span class="token number">207</span> <span class="token number">843.0</span>     <span class="token number">22</span>    <span class="token number">9242</span>
+Total:         <span class="token number">15</span>  <span class="token number">233</span> <span class="token number">857.7</span>     <span class="token number">23</span>    <span class="token number">9268</span>
+
+Percentage of the requests served within a certain <span class="token function">time</span> <span class="token punctuation">(</span>ms<span class="token punctuation">)</span>
+  <span class="token number">50</span>%     <span class="token number">23</span>
+  <span class="token number">66</span>%     <span class="token number">24</span>
+  <span class="token number">75</span>%     <span class="token number">24</span>
+  <span class="token number">80</span>%     <span class="token number">26</span>
+  <span class="token number">90</span>%    <span class="token number">274</span>
+  <span class="token number">95</span>%   <span class="token number">1195</span>
+  <span class="token number">98</span>%   <span class="token number">2335</span>
+  <span class="token number">99</span>%   <span class="token number">4663</span>
+ <span class="token number">100</span>%   <span class="token number">9268</span> <span class="token punctuation">(</span>longest request<span class="token punctuation">)</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p> 可以看到，ab 的测试结果分为三个部分，分别是请求汇总、连接时间汇总还有请求延迟汇总。以上面的结果为例，我们具体来看。</p>
+<p> 在请求汇总部分，你可以看到：</p>
+<ul>
+<li>Requests per second 为 1074；</li>
+<li>每个请求的延迟（Time per request）分为两行，第一行的 927 ms 表示平均延迟，包括了线程运行的调度时间和网络请求响应时间，而下一行的 0.927ms ，则表示实际请求的响应时间；</li>
+<li><p>Transfer rate 表示吞吐量（BPS）为 890 KB/s。</p>
+<p>连接时间汇总部分，则是分别展示了建立连接、请求、等待以及汇总等的各类时间，包括最小、最大、平均以及中值处理时间。</p>
+<p>最后的请求延迟汇总部分，则给出了不同时间段内处理请求的百分比，比如， 90% 的请求，都可以在 274ms 内完成。</p>
+</li>
+</ul>
+</li>
+<li><p>应用负载性能</p>
+<p> 当你用 iperf 或者 ab 等测试工具，得到 TCP、HTTP 等的性能数据后，这些数据是否就能表示应用程序的实际性能呢？我想，你的答案应该是否定的。</p>
+<p> 比如，你的应用程序基于 HTTP 协议，为最终用户提供一个 Web 服务。这时，使用 ab 工具，可以得到某个页面的访问性能，但这个结果跟用户的实际请求，很可能不一致。因为用户请求往往会附带着各种各种的负载（payload），而这些负载会影响 Web 应用程序内部的处理逻辑，从而影响最终性能。</p>
+<p> 那么，为了得到应用程序的实际性能，就要求性能工具本身可以模拟用户的请求负载，而 iperf、ab 这类工具就无能为力了。幸运的是，我们还可以用 wrk、TCPCopy、Jmeter 或者 LoadRunner 等实现这个目标。</p>
+<p> 以 <a target="_blank" rel="noopener" href="https://github.com/wg/wrk">wrk</a> 为例，它是一个 HTTP 性能测试工具，内置了 LuaJIT，方便你根据实际需求，生成所需的请求负载，或者自定义响应的处理方法。</p>
+<p> wrk 工具本身不提供 yum 或 apt 的安装方法，需要通过源码编译来安装。比如，你可以运行下面的命令，来编译和安装 wrk：</p>
+ <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ https://github.com/wg/wrk
+$ <span class="token builtin class-name">cd</span> wrk
+$ <span class="token function">apt-get</span> <span class="token function">install</span> build-essential -y
+$ <span class="token function">make</span>
+$ <span class="token function">sudo</span> <span class="token function">cp</span> wrk /usr/local/bin/<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p> wrk 的命令行参数比较简单。比如，我们可以用 wrk ，来重新测一下前面已经启动的 Nginx 的性能。</p>
+ <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token comment"># -c 表示并发连接数 1000，-t 表示线程数为 2</span>
+$ wrk -c <span class="token number">1000</span> -t <span class="token number">2</span> http://192.168.0.30/
+Running 10s <span class="token builtin class-name">test</span> @ http://192.168.0.30/
+  <span class="token number">2</span> threads and <span class="token number">1000</span> connections
+  Thread Stats   Avg      Stdev     Max   +/- Stdev
+    Latency    <span class="token number">65</span>.83ms  <span class="token number">174</span>.06ms   <span class="token number">1</span>.99s    <span class="token number">95.85</span>%
+    Req/Sec     <span class="token number">4</span>.87k   <span class="token number">628.73</span>     <span class="token number">6</span>.78k    <span class="token number">69.00</span>%
+  <span class="token number">96954</span> requests <span class="token keyword">in</span> <span class="token number">10</span>.06s, <span class="token number">78</span>.59MB <span class="token builtin class-name">read</span>
+  Socket errors: connect <span class="token number">0</span>, <span class="token builtin class-name">read</span> <span class="token number">0</span>, <span class="token function">write</span> <span class="token number">0</span>, <span class="token function">timeout</span> <span class="token number">179</span>
+Requests/sec:   <span class="token number">9641.31</span>
+Transfer/sec:      <span class="token number">7</span>.82MB<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p> 这里使用 2 个线程、并发 1000 连接，重新测试了 Nginx 的性能。你可以看到，每秒请求数为 9641，吞吐量为 7.82MB，平均延迟为 65ms，比前面 ab 的测试结果要好很多。</p>
+<p> 这也说明，性能工具本身的性能，对性能测试也是至关重要的。不合适的性能工具，并不能准确测出应用程序的最佳性能。</p>
+<p> 当然，wrk 最大的优势，是其内置的 LuaJIT，可以用来实现复杂场景的性能测试。wrk 在调用 Lua 脚本时，可以将 HTTP 请求分为三个阶段，即 setup、running、done，如下图所示：</p>
+<p> <img src="/images/《Linux性能优化实战》学习笔记/wrk脚本执行流程.png" alt="wrk脚本执行流程.png"></p>
+<blockquote>
+<p>图片来自<a target="_blank" rel="noopener" href="https://sq.163yun.com/blog/article/200008406328934400">网易云博客</a></p>
+</blockquote>
+<p> 比如，你可以在 setup 阶段，为请求设置认证参数（来自于 wrk 官方<a target="_blank" rel="noopener" href="https://github.com/wg/wrk/blob/master/scripts/auth.lua">示例</a>）：</p>
+ <pre class="line-numbers language-lua" data-language="lua"><code class="language-lua"><span class="token comment">-- example script that demonstrates response handling and</span>
+<span class="token comment">-- retrieving an authentication token to set on all future</span>
+<span class="token comment">-- requests</span>
+
+token <span class="token operator">=</span> <span class="token keyword">nil</span>
+path  <span class="token operator">=</span> <span class="token string">"/authenticate"</span>
+
+request <span class="token operator">=</span> <span class="token keyword">function</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+   <span class="token keyword">return</span> wrk<span class="token punctuation">.</span><span class="token function">format</span><span class="token punctuation">(</span><span class="token string">"GET"</span><span class="token punctuation">,</span> path<span class="token punctuation">)</span>
+<span class="token keyword">end</span>
+
+response <span class="token operator">=</span> <span class="token keyword">function</span><span class="token punctuation">(</span>status<span class="token punctuation">,</span> headers<span class="token punctuation">,</span> body<span class="token punctuation">)</span>
+   <span class="token keyword">if</span> <span class="token keyword">not</span> token <span class="token keyword">and</span> status <span class="token operator">==</span> <span class="token number">200</span> <span class="token keyword">then</span>
+      token <span class="token operator">=</span> headers<span class="token punctuation">[</span><span class="token string">"X-Token"</span><span class="token punctuation">]</span>
+      path  <span class="token operator">=</span> <span class="token string">"/resource"</span>
+      wrk<span class="token punctuation">.</span>headers<span class="token punctuation">[</span><span class="token string">"X-Token"</span><span class="token punctuation">]</span> <span class="token operator">=</span> token
+   <span class="token keyword">end</span>
+<span class="token keyword">end</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p> 而在执行测试时，通过 -s 选项，执行脚本的路径：</p>
+ <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ wrk -c <span class="token number">1000</span> -t <span class="token number">2</span> -s auth.lua http://192.168.0.30/<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p> wrk 需要你用 Lua 脚本，来构造请求负载。这对于大部分场景来说，可能已经足够了 。不过，它的缺点也正是，所有东西都需要代码来构造，并且工具本身不提供 GUI 环境。</p>
+<p> 像 Jmeter 或者 LoadRunner（商业产品），则针对复杂场景提供了脚本录制、回放、GUI 等更丰富的功能，使用起来也更加方便。</p>
+</li>
+</ol>
+<h4 id="36-4-小结"><a href="#36-4-小结" class="headerlink" title="36.4 小结"></a>36.4 小结</h4><p>性能评估是优化网络性能的前提，只有在你发现网络性能瓶颈时，才需要进行网络性能优化。根据 TCP/IP 协议栈的原理，不同协议层关注的性能重点不完全一样，也就对应不同的性能测试方法。比如，</p>
+<ul>
+<li>在应用层，你可以使用 wrk、Jmeter 等模拟用户的负载，测试应用程序的每秒请求数、处理延迟、错误数等；</li>
+<li>而在传输层，则可以使用 iperf 等工具，测试 TCP 的吞吐情况；</li>
+<li>再向下，你还可以用 Linux 内核自带的 pktgen ，测试服务器的 PPS。</li>
+</ul>
+<p>由于低层协议是高层协议的基础。所以，一般情况下，我们需要从上到下，对每个协议层进行性能测试，然后根据性能测试的结果，结合 Linux 网络协议栈的原理，找出导致性能瓶颈的根源，进而优化网络性能。</p>
 
                 
             </div>
@@ -5091,7 +5323,7 @@ rtt min/avg/max/mdev <span class="token operator">=</span> <span class="token nu
             <br>
             
             &nbsp;<i class="fas fa-chart-area"></i>&nbsp;站点总字数:&nbsp;<span
-                class="white-color">328.5k</span>&nbsp;字
+                class="white-color">332.8k</span>&nbsp;字
             
             
             
