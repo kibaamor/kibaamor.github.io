@@ -442,14 +442,14 @@
                 
                 <div class="info-break-policy">
                     <i class="far fa-file-word fa-fw"></i>文章字数:&nbsp;&nbsp;
-                    113.4k
+                    114.9k
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-clock fa-fw"></i>阅读时长:&nbsp;&nbsp;
-                    446 分
+                    452 分
                 </div>
                 
 
@@ -5499,7 +5499,60 @@ Transfer/sec:     <span class="token number">10</span>.04MB<span aria-hidden="tr
 <li>使用 tcpdump 和 Wireshark，确认网络包的收发是否正常。</li>
 <li>使用 strace 等，观察应用程序对网络套接字的调用情况是否正常。</li>
 </ul>
-
+<h3 id="41-案例篇：如何优化-NAT-性能？（上）"><a href="#41-案例篇：如何优化-NAT-性能？（上）" class="headerlink" title="41 | 案例篇：如何优化 NAT 性能？（上）"></a>41 | 案例篇：如何优化 NAT 性能？（上）</h3><h4 id="41-1-NAT-原理"><a href="#41-1-NAT-原理" class="headerlink" title="41.1 NAT 原理"></a>41.1 NAT 原理</h4><p>NAT 技术可以重写 IP 数据包的源 IP 或者目的 IP，被普遍地用来解决公网 IP 地址短缺的问题。它的主要原理就是，网络中的多台主机，通过共享同一个公网 IP 地址，来访问外网资源。同时，由于 NAT 屏蔽了内网网络，自然也就为局域网中的机器提供了安全隔离。</p>
+<p>你既可以在支持网络地址转换的路由器（称为 NAT 网关）中配置 NAT，也可以在 Linux 服务器中配置 NAT。如果采用第二种方式，Linux 服务器实际上充当的是“软”路由器的角色。</p>
+<p>NAT 的主要目的，是实现地址转换。根据实现方式的不同，NAT 可以分为三类：</p>
+<ul>
+<li>静态 NAT，即内网 IP 与公网 IP 是一对一的永久映射关系；</li>
+<li>动态 NAT，即内网 IP 从公网 IP 池中，动态选择一个进行映射；</li>
+<li>网络地址端口转换 NAPT（Network Address and Port Translation），即把内网 IP 映射到公网 IP 的不同端口上，让多个内网 IP 可以共享同一个公网 IP 地址。</li>
+</ul>
+<p>NAPT 是目前最流行的 NAT 类型，我们在 Linux 中配置的 NAT 也是这种类型。而根据转换方式的不同，我们又可以把 NAPT 分为三类。</p>
+<ul>
+<li>第一类是源地址转换 SNAT，即目的地址不变，只替换源 IP 或源端口。SNAT 主要用于，多个内网 IP 共享同一个公网 IP ，来访问外网资源的场景。</li>
+<li>第二类是目的地址转换 DNAT，即源 IP 保持不变，只替换目的 IP 或者目的端口。DNAT 主要通过公网 IP 的不同端口号，来访问内网的多种服务，同时会隐藏后端服务器的真实 IP 地址。</li>
+<li><p>第三类是双向地址转换，即同时使用 SNAT 和 DNAT。当接收到网络包时，执行 DNAT，把目的 IP 转换为内网 IP；而在发送网络包时，执行 SNAT，把源 IP 替换为外部 IP。</p>
+<p>  双向地址转换，其实就是外网 IP 与内网 IP 的一对一映射关系，所以常用在虚拟化环境中，为虚拟机分配浮动的公网 IP 地址。</p>
+</li>
+</ul>
+<h4 id="41-2-iptables-与-NAT"><a href="#41-2-iptables-与-NAT" class="headerlink" title="41.2 iptables 与 NAT"></a>41.2 iptables 与 NAT</h4><p>Linux 内核提供的 Netfilter 框架，允许对网络数据包进行修改（比如 NAT）和过滤（比如防火墙）。在这个基础上，iptables、ip6tables、ebtables 等工具，又提供了更易用的命令行接口，以便系统管理员配置和管理 NAT、防火墙的规则。</p>
+<p>其中，iptables 就是最常用的一种配置工具。要掌握 iptables 的原理和使用方法，最核心的就是弄清楚，网络数据包通过 Netfilter 时的工作流向，下面这张图就展示了这一过程。</p>
+<p><img src="/images/《Linux性能优化实战》学习笔记/iptables.png" alt="iptables.png"></p>
+<p>在这张图中，绿色背景的方框，表示表（table），用来管理链。Linux 支持 4 种表，包括 filter（用于过滤）、nat（用于 NAT）、mangle（用于修改分组数据） 和 raw（用于原始数据包）等。</p>
+<p>跟 table 一起的白色背景方框，则表示链（chain），用来管理具体的 iptables 规则。每个表中可以包含多条链，比如：</p>
+<ul>
+<li>filter 表中，内置 INPUT、OUTPUT 和 FORWARD 链；</li>
+<li>nat 表中，内置 PREROUTING、POSTROUTING、OUTPUT 等。</li>
+</ul>
+<p>当然，你也可以根据需要，创建你自己的链。</p>
+<p>灰色的 conntrack，表示连接跟踪模块。它通过内核中的连接跟踪表（也就是哈希表），记录网络连接的状态，是 iptables 状态过滤（-m state）和 NAT 的实现基础。</p>
+<p>iptables 的所有规则，就会放到这些表和链中，并按照图中顺序和规则的优先级顺序来执行。</p>
+<p>针对今天的主题，要实现 NAT 功能，主要是在 nat 表进行操作。而 nat 表内置了三个链：</p>
+<ul>
+<li>PREROUTING，用于路由判断前所执行的规则，比如，对接收到的数据包进行 DNAT。</li>
+<li>POSTROUTING，用于路由判断后所执行的规则，比如，对发送或转发的数据包进行 SNAT 或 MASQUERADE。</li>
+<li>OUTPUT，类似于 PREROUTING，但只处理从本机发送出去的包。</li>
+</ul>
+<h4 id="41-3-SNAT"><a href="#41-3-SNAT" class="headerlink" title="41.3 SNAT"></a>41.3 SNAT</h4><p>SNAT 需要在 nat 表的 POSTROUTING 链中配置。我们常用两种方式来配置它。</p>
+<ol>
+<li><p>第一种方法，是为一个子网统一配置 SNAT，并由 Linux 选择默认的出口 IP。这实际上就是经常说的 MASQUERADE：</p>
+ <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ iptables -t nat -A POSTROUTING -s <span class="token number">192.168</span>.0.0/16 -j MASQUERADE<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre></li>
+<li><p>第二种方法，是为具体的 IP 地址配置 SNAT，并指定转换后的源地址：</p>
+ <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ iptables -t nat -A POSTROUTING -s <span class="token number">192.168</span>.0.2 -j SNAT --to-source <span class="token number">100.100</span>.100.100<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<h4 id="41-4-DNAT"><a href="#41-4-DNAT" class="headerlink" title="41.4 DNAT"></a>41.4 DNAT</h4></li>
+</ol>
+<p>再来看 DNAT，显然，DNAT 需要在 nat 表的 PREROUTING 或者 OUTPUT 链中配置，其中， PREROUTING 链更常用一些（因为它还可以用于转发的包）。</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ iptables -t nat -A PREROUTING -d <span class="token number">100.100</span>.100.100 -j DNAT --to-destination <span class="token number">192.168</span>.0.2<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<h4 id="41-5-双向地址转换"><a href="#41-5-双向地址转换" class="headerlink" title="41.5 双向地址转换"></a>41.5 双向地址转换</h4><p>双向地址转换，就是同时添加 SNAT 和 DNAT 规则，为公网 IP 和内网 IP 实现一对一的映射关系，即：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ iptables -t nat -A POSTROUTING -s <span class="token number">192.168</span>.0.2 -j SNAT --to-source <span class="token number">100.100</span>.100.100
+$ iptables -t nat -A PREROUTING -d <span class="token number">100.100</span>.100.100 -j DNAT --to-destination <span class="token number">192.168</span>.0.2<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre>
+<p>在使用 iptables 配置 NAT 规则时，Linux 需要转发来自其他 IP 的网络包，所以你千万不要忘记开启 Linux 的 IP 转发功能。</p>
+<p>你可以执行下面的命令，查看这一功能是否开启。如果输出的结果是 1，就表示已经开启了 IP 转发：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ sysctl net.ipv4.ip_forward
+net.ipv4.ip_forward <span class="token operator">=</span> <span class="token number">1</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre>
+<p>如果还没开启，你可以执行下面的命令，手动开启：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ sysctl -w net.ipv4.ip_forward<span class="token operator">=</span><span class="token number">1</span>
+net.ipv4.ip_forward <span class="token operator">=</span> <span class="token number">1</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre>
                 
             </div>
             <hr/>
@@ -5900,7 +5953,7 @@ Transfer/sec:     <span class="token number">10</span>.04MB<span aria-hidden="tr
             <br>
             
             &nbsp;<i class="fas fa-chart-area"></i>&nbsp;站点总字数:&nbsp;<span
-                class="white-color">343.8k</span>&nbsp;字
+                class="white-color">345.2k</span>&nbsp;字
             
             
             
