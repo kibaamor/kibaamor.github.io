@@ -442,14 +442,14 @@
                 
                 <div class="info-break-policy">
                     <i class="far fa-file-word fa-fw"></i>文章字数:&nbsp;&nbsp;
-                    133.4k
+                    143.7k
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-clock fa-fw"></i>阅读时长:&nbsp;&nbsp;
-                    527 分
+                    568 分
                 </div>
                 
 
@@ -6531,6 +6531,549 @@ lo       <span class="token number">65536</span>        <span class="token numbe
 <span class="token punctuation">..</span>.
 <span class="token operator">&lt;</span>p<span class="token operator">&gt;</span><span class="token operator">&lt;</span>em<span class="token operator">&gt;</span>Thank you <span class="token keyword">for</span> using nginx.<span class="token operator">&lt;</span>/em<span class="token operator">&gt;</span><span class="token operator">&lt;</span>/p<span class="token operator">&gt;</span>
 <span class="token operator">&lt;</span>/body<span class="token operator">&gt;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<h3 id="49-案例篇：内核线程-CPU-利用率太高，我该怎么办？"><a href="#49-案例篇：内核线程-CPU-利用率太高，我该怎么办？" class="headerlink" title="49 | 案例篇：内核线程 CPU 利用率太高，我该怎么办？"></a>49 | 案例篇：内核线程 CPU 利用率太高，我该怎么办？</h3><h4 id="49-1-内核线程"><a href="#49-1-内核线程" class="headerlink" title="49.1 内核线程"></a>49.1 内核线程</h4><p>在 Linux 中，用户态进程的“祖先”，都是 PID 号为 1 的 init 进程。比如，现在主流的 Linux 发行版中，init 都是 systemd 进程；而其他的用户态进程，会通过 systemd 来进行管理。</p>
+<p>实际上，Linux 在启动过程中，有三个特殊的进程，也就是 PID 号最小的三个进程。</p>
+<ul>
+<li>0 号进程为 idle 进程，这也是系统创建的第一个进程，它在初始化 1 号和 2 号进程后，演变为空闲任务。当 CPU 上没有其他任务执行时，就会运行它。</li>
+<li>1 号进程为 init 进程，通常是 systemd 进程，在用户态运行，用来管理其他用户态进程。</li>
+<li>2 号进程为 kthreadd 进程，在内核态运行，用来管理内核线程。</li>
+</ul>
+<p>所以，要查找内核线程，我们只需要从 2 号进程开始，查找它的子孙进程即可。比如，你可以使用 ps 命令，来查找 kthreadd 的子进程：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ <span class="token function">ps</span> -f --ppid <span class="token number">2</span> -p <span class="token number">2</span>
+<span class="token environment constant">UID</span>         PID   <span class="token environment constant">PPID</span>  C STIME TTY          TIME CMD
+root          <span class="token number">2</span>      <span class="token number">0</span>  <span class="token number">0</span> <span class="token number">12</span>:02 ?        00:00:01 <span class="token punctuation">[</span>kthreadd<span class="token punctuation">]</span>
+root          <span class="token number">9</span>      <span class="token number">2</span>  <span class="token number">0</span> <span class="token number">12</span>:02 ?        00:00:21 <span class="token punctuation">[</span>ksoftirqd/0<span class="token punctuation">]</span>
+root         <span class="token number">10</span>      <span class="token number">2</span>  <span class="token number">0</span> <span class="token number">12</span>:02 ?        00:11:47 <span class="token punctuation">[</span>rcu_sched<span class="token punctuation">]</span>
+root         <span class="token number">11</span>      <span class="token number">2</span>  <span class="token number">0</span> <span class="token number">12</span>:02 ?        00:00:18 <span class="token punctuation">[</span>migration/0<span class="token punctuation">]</span>
+<span class="token punctuation">..</span>.
+root      <span class="token number">11094</span>      <span class="token number">2</span>  <span class="token number">0</span> <span class="token number">14</span>:20 ?        00:00:00 <span class="token punctuation">[</span>kworker/1:0-eve<span class="token punctuation">]</span>
+root      <span class="token number">11647</span>      <span class="token number">2</span>  <span class="token number">0</span> <span class="token number">14</span>:27 ?        00:00:00 <span class="token punctuation">[</span>kworker/0:2-cgr<span class="token punctuation">]</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>从上面的输出，你能够看到，内核线程的名称（CMD）都在中括号里（这一点，我们前面内容也有提到过）。所以，更简单的方法，就是直接查找名称包含中括号的进程。比如：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ <span class="token function">ps</span> -ef <span class="token operator">|</span> <span class="token function">grep</span> <span class="token string">"\[.*\]"</span>
+root         <span class="token number">2</span>     <span class="token number">0</span>  <span class="token number">0</span> 08:14 ?        00:00:00 <span class="token punctuation">[</span>kthreadd<span class="token punctuation">]</span>
+root         <span class="token number">3</span>     <span class="token number">2</span>  <span class="token number">0</span> 08:14 ?        00:00:00 <span class="token punctuation">[</span>rcu_gp<span class="token punctuation">]</span>
+root         <span class="token number">4</span>     <span class="token number">2</span>  <span class="token number">0</span> 08:14 ?        00:00:00 <span class="token punctuation">[</span>rcu_par_gp<span class="token punctuation">]</span>
+<span class="token punctuation">..</span>.<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>除了刚才看到的 kthreadd 和 ksoftirqd 外，还有很多常见的内核线程，我们在性能分析中都经常会碰到，比如下面这几个内核线程。</p>
+<ul>
+<li>kswapd0：用于内存回收。在 <a target="_blank" rel="noopener" href="https://time.geekbang.org/column/article/75797">Swap 变高</a> 案例中，我曾介绍过它的工作原理。</li>
+<li>kworker：用于执行内核工作队列，分为绑定 CPU （名称格式为 kworker/CPU86330）和未绑定 CPU（名称格式为 kworker/uPOOL86330）两类。</li>
+<li>migration：在负载均衡过程中，把进程迁移到 CPU 上。每个 CPU 都有一个 migration 内核线程。</li>
+<li>jbd2/sda1-8：jbd 是 Journaling Block Device 的缩写，用来为文件系统提供日志功能，以保证数据的完整性；名称中的 sda1-8，表示磁盘分区名称和设备号。每个使用了 ext4 文件系统的磁盘分区，都会有一个 jbd2 内核线程。</li>
+<li>pdflush：用于将内存中的脏页（被修改过，但还未写入磁盘的文件页）写入磁盘（已经在 3.10 中合并入了 kworker 中）。</li>
+</ul>
+<h4 id="49-2-案例"><a href="#49-2-案例" class="headerlink" title="49.2 案例"></a>49.2 案例</h4><blockquote>
+<p>机器配置： 2 CPU, 8 GB 内存。</p>
+<p>安装软件：<code>apt install docker.io linux-tools-common hping3</code>。</p>
+</blockquote>
+<p>打开两个终端，分别登录两台虚拟机。</p>
+<ol>
+<li><p>在第一个终端，执行下面的命令运行案例，也就是一个最基本的 Nginx 应用：</p>
+ <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token comment"># 运行 Nginx 服务并对外开放 80 端口</span>
+$ docker run -itd --name<span class="token operator">=</span>nginx -p <span class="token number">80</span>:80 nginx<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre></li>
+<li><p>在第二个终端，使用 curl 访问 Nginx 监听的端口，确认 Nginx 正常启动。假设 192.168.0.30 是 Nginx 所在虚拟机的 IP 地址，运行 curl 命令后，你应该会看到下面这个输出界面：</p>
+ <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ <span class="token function">curl</span> http://192.168.0.30/
+<span class="token operator">&lt;</span><span class="token operator">!</span>DOCTYPE html<span class="token operator">&gt;</span>
+<span class="token operator">&lt;</span>html<span class="token operator">&gt;</span>
+<span class="token operator">&lt;</span>head<span class="token operator">&gt;</span>
+<span class="token operator">&lt;</span>title<span class="token operator">&gt;</span>Welcome to nginx<span class="token operator">!</span><span class="token operator">&lt;</span>/title<span class="token operator">&gt;</span>
+<span class="token punctuation">..</span>.<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre></li>
+<li><p>在第二个终端中，运行 hping3 命令，模拟 Nginx 的客户端请求：</p>
+ <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token comment"># -S 参数表示设置 TCP 协议的 SYN（同步序列号），-p 表示目的端口为 80</span>
+<span class="token comment"># -i u10 表示每隔 10 微秒发送一个网络帧</span>
+<span class="token comment"># 注：如果你在实践过程中现象不明显，可以尝试把 10 调小，比如调成 5 甚至 1</span>
+$ hping3 -S -p <span class="token number">80</span> -i u10 <span class="token number">192.168</span>.0.30<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span></span></code></pre></li>
+<li><p>回到第一个终端，你应该就会发现异常——系统的响应明显变慢了。我们不妨执行 top，观察一下系统和进程的 CPU 使用情况：</p>
+ <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ <span class="token function">top</span>
+<span class="token function">top</span> - 08:31:43 up <span class="token number">17</span> min,  <span class="token number">1</span> user,  load average: <span class="token number">0.00</span>, <span class="token number">0.00</span>, <span class="token number">0.02</span>
+Tasks: <span class="token number">128</span> total,   <span class="token number">1</span> running,  <span class="token number">69</span> sleeping,   <span class="token number">0</span> stopped,   <span class="token number">0</span> zombie
+%Cpu0  <span class="token builtin class-name">:</span>  <span class="token number">0.3</span> us,  <span class="token number">0.3</span> sy,  <span class="token number">0.0</span> ni, <span class="token number">66.8</span> id,  <span class="token number">0.3</span> wa,  <span class="token number">0.0</span> hi, <span class="token number">32.4</span> si,  <span class="token number">0.0</span> st
+%Cpu1  <span class="token builtin class-name">:</span>  <span class="token number">0.0</span> us,  <span class="token number">0.3</span> sy,  <span class="token number">0.0</span> ni, <span class="token number">65.2</span> id,  <span class="token number">0.0</span> wa,  <span class="token number">0.0</span> hi, <span class="token number">34.5</span> si,  <span class="token number">0.0</span> st
+KiB Mem <span class="token builtin class-name">:</span>  <span class="token number">8167040</span> total,  <span class="token number">7234236</span> free,   <span class="token number">358976</span> used,   <span class="token number">573828</span> buff/cache
+KiB Swap:        <span class="token number">0</span> total,        <span class="token number">0</span> free,        <span class="token number">0</span> used.  <span class="token number">7560460</span> avail Mem
+
+  PID <span class="token environment constant">USER</span>      PR  NI    VIRT    RES    SHR S  %CPU %MEM     TIME+ COMMAND
+    <span class="token number">9</span> root      <span class="token number">20</span>   <span class="token number">0</span>       <span class="token number">0</span>      <span class="token number">0</span>      <span class="token number">0</span> S   <span class="token number">7.0</span>  <span class="token number">0.0</span>   <span class="token number">0</span>:00.48 ksoftirqd/0
+   <span class="token number">18</span> root      <span class="token number">20</span>   <span class="token number">0</span>       <span class="token number">0</span>      <span class="token number">0</span>      <span class="token number">0</span> S   <span class="token number">6.9</span>  <span class="token number">0.0</span>   <span class="token number">0</span>:00.56 ksoftirqd/1
+ <span class="token number">2489</span> root      <span class="token number">20</span>   <span class="token number">0</span>  <span class="token number">876896</span>  <span class="token number">38408</span>  <span class="token number">21520</span> S   <span class="token number">0.3</span>  <span class="token number">0.5</span>   <span class="token number">0</span>:01.50 docker-containe
+ <span class="token number">3008</span> root      <span class="token number">20</span>   <span class="token number">0</span>   <span class="token number">44536</span>   <span class="token number">3936</span>   <span class="token number">3304</span> R   <span class="token number">0.3</span>  <span class="token number">0.0</span>   <span class="token number">0</span>:00.09 <span class="token function">top</span>
+    <span class="token number">1</span> root      <span class="token number">20</span>   <span class="token number">0</span>   <span class="token number">78116</span>   <span class="token number">9000</span>   <span class="token number">6432</span> S   <span class="token number">0.0</span>  <span class="token number">0.1</span>   <span class="token number">0</span>:11.77 systemd
+ <span class="token punctuation">..</span>.<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p> 从 top 的输出中，你可以看到，两个 CPU 的软中断使用率都超过了 30%；而 CPU 使用率最高的进程，正好是软中断内核线程 ksoftirqd/0 和 ksoftirqd/1。</p>
+<p> 虽然，我们已经知道了 ksoftirqd 的基本功能，可以猜测是因为大量网络收发，引起了 CPU 使用率升高；但它到底在执行什么逻辑，我们却并不知道。</p>
+<p> 对于普通进程，我们要观察其行为有很多方法，比如 strace、pstack、lsof 等等。但这些工具并不适合内核线程，比如，如果你用 pstack ，或者通过 /proc/pid/stack 查看 ksoftirqd/0（进程号为 9）的调用栈时，分别可以得到以下输出：</p>
+ <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ pstack <span class="token number">9</span>
+Could not attach to target <span class="token number">9</span>: Operation not permitted.
+detach: No such process<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span></span></code></pre>
+ <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ <span class="token function">cat</span> /proc/9/stack
+<span class="token punctuation">[</span><span class="token operator">&lt;</span><span class="token operator"><span class="token file-descriptor important">0</span>&gt;</span><span class="token punctuation">]</span> smpboot_thread_fn+0x166/0x170
+<span class="token punctuation">[</span><span class="token operator">&lt;</span><span class="token operator"><span class="token file-descriptor important">0</span>&gt;</span><span class="token punctuation">]</span> kthread+0x121/0x140
+<span class="token punctuation">[</span><span class="token operator">&lt;</span><span class="token operator"><span class="token file-descriptor important">0</span>&gt;</span><span class="token punctuation">]</span> ret_from_fork+0x35/0x40
+<span class="token punctuation">[</span><span class="token operator">&lt;</span><span class="token operator"><span class="token file-descriptor important">0</span>&gt;</span><span class="token punctuation">]</span> 0xffffffffffffffff<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p> 显然，pstack 报出的是不允许挂载进程的错误；而 /proc/9/stack 方式虽然有输出，但输出中并没有详细的调用栈情况。</p>
+<p> 那还有没有其他方法，来观察内核线程 ksoftirqd 的行为呢？</p>
+<p> perf 可以对指定的进程或者事件进行采样，并且还可以用调用栈的形式，输出整个调用链上的汇总信息。 我们不妨就用 perf ，来试着分析一下进程号为 9 的 ksoftirqd。</p>
+</li>
+<li><p>继续在终端一中，执行下面的 perf record 命令；并指定进程号 9 ，以便记录 ksoftirqd 的行为:</p>
+ <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token comment"># 采样 30s 后退出</span>
+$ perf record -a -g -p <span class="token number">9</span> -- <span class="token function">sleep</span> <span class="token number">30</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre>
+<p> 稍等一会儿，在上述命令结束后，继续执行 perf report命令，你就可以得到 perf 的汇总报告。按上下方向键以及回车键，展开比例最高的 ksoftirqd 后，你就可以得到下面这个调用关系链图：</p>
+<p> <img src="/images/《Linux性能优化实战》学习笔记/内核线程CPU利用率太高案例perf截图.png" alt="内核线程CPU利用率太高案例perf截图"></p>
+<p> 从这个图中，你可以清楚看到 ksoftirqd 执行最多的调用过程。虽然你可能不太熟悉内核源码，但通过这些函数，我们可以大致看出它的调用栈过程。</p>
+<ul>
+<li>net_rx_action 和 netif_receive_skb，表明这是接收网络包（rx 表示 receive）。</li>
+<li>br_handle_frame ，表明网络包经过了网桥（br 表示 bridge）。</li>
+<li>br_nf_pre_routing ，表明在网桥上执行了 netfilter 的 PREROUTING（nf 表示 netfilter）。而我们已经知道 PREROUTING 主要用来执行 DNAT，所以可以猜测这里有 DNAT 发生。</li>
+<li><p>br_pass_frame_up，表明网桥处理后，再交给桥接的其他桥接网卡进一步处理。比如，在新的网卡上接收网络包、执行 netfilter 过滤规则等等。</p>
+<p>我们的猜测对不对呢？实际上，我们案例最开始用 Docker 启动了容器，而 Docker 会自动为容器创建虚拟网卡、桥接到 docker0 网桥并配置 NAT 规则。这一过程，如下图所示：</p>
+<p><img src="/images/《Linux性能优化实战》学习笔记/内核线程CPU利用率太高案例容器网络结构图.png" alt="内核线程CPU利用率太高案例容器网络结构图"></p>
+<p>当然了，前面 perf report 界面的调用链还可以继续展开。但很不幸，我的屏幕不够大，如果展开更多的层级，最后几个层级会超出屏幕范围。这样，即使我们能看到大部分的调用过程，却也不能说明后面层级就没问题。</p>
+<p>那么，有没有更好的方法，来查看整个调用栈的信息呢？</p>
+</li>
+</ul>
+</li>
+<li><p>火焰图</p>
+<p> 针对 perf 汇总数据的展示问题，Brendan Gragg 发明了<a target="_blank" rel="noopener" href="http://www.brendangregg.com/flamegraphs.html">火焰图</a>，通过矢量图的形式，更直观展示汇总结果。下图就是一个针对 mysql 的火焰图示例。</p>
+<p> <img src="/images/《Linux性能优化实战》学习笔记/mysql的火焰图.png" alt="mysql的火焰图"></p>
+<blockquote>
+<p>图片来自 Brendan Gregg <a target="_blank" rel="noopener" href="http://www.brendangregg.com/flamegraphs.html">博客</a></p>
+</blockquote>
+<p> 这张图看起来像是跳动的火焰，因此也就被称为火焰图。要理解火焰图，我们最重要的是区分清楚横轴和纵轴的含义。</p>
+<ul>
+<li>横轴表示采样数和采样比例。一个函数占用的横轴越宽，就代表它的执行时间越长。同一层的多个函数，则是按照字母来排序。</li>
+<li><p>纵轴表示调用栈，由下往上根据调用关系逐个展开。换句话说，上下相邻的两个函数中，下面的函数，是上面函数的父函数。这样，调用栈越深，纵轴就越高。</p>
+<p>另外，要注意图中的颜色，并没有特殊含义，只是用来区分不同的函数。</p>
+<p>火焰图是动态的矢量图格式，所以它还支持一些动态特性。比如，鼠标悬停到某个函数上时，就会自动显示这个函数的采样数和采样比例。而当你用鼠标点击函数时，火焰图就会把该层及其上的各层放大，方便你观察这些处于火焰图顶部的调用栈的细节。</p>
+<p>上面 mysql 火焰图的示例，就表示了 CPU 的繁忙情况，这种火焰图也被称为 on-CPU 火焰图。如果我们根据性能分析的目标来划分，火焰图可以分为下面这几种。</p>
+</li>
+<li><p>on-CPU 火焰图：表示 CPU 的繁忙情况，用在 CPU 使用率比较高的场景中。</p>
+</li>
+<li>off-CPU 火焰图：表示 CPU 等待 I/O、锁等各种资源的阻塞情况。</li>
+<li>内存火焰图：表示内存的分配和释放情况。</li>
+<li>热 / 冷火焰图：表示将 on-CPU 和 off-CPU 结合在一起综合展示。</li>
+<li>差分火焰图：表示两个火焰图的差分情况，红色表示增长，蓝色表示衰减。差分火焰图常用来比较不同场景和不同时期的火焰图，以便分析系统变化前后对性能的影响情况。</li>
+</ul>
+</li>
+<li><p>火焰图分析</p>
+<p> 首先，我们需要生成火焰图。我们先下载几个能从 perf record 记录生成火焰图的工具，这些工具都放在 <a target="_blank" rel="noopener" href="https://github.com/brendangregg/FlameGraph">https://github.com/brendangregg/FlameGraph</a> 上面。你可以执行下面的命令来下载：</p>
+ <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ <span class="token function">git</span> clone https://github.com/brendangregg/FlameGraph
+$ <span class="token builtin class-name">cd</span> FlameGraph<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre>
+<p> 安装好工具后，要生成火焰图，其实主要需要三个步骤：</p>
+<ul>
+<li>执行 perf script ，将 perf record 的记录转换成可读的采样记录；</li>
+<li>执行 stackcollapse-perf.pl 脚本，合并调用栈信息；</li>
+<li><p>执行 flamegraph.pl 脚本，生成火焰图。</p>
+<p>不过，在 Linux 中，我们可以使用管道，来简化这三个步骤的执行过程。假设刚才用 perf record 生成的文件路径为 /root/perf.data，执行下面的命令，你就可以直接生成火焰图：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ perf script -i /root/perf.data <span class="token operator">|</span> ./stackcollapse-perf.pl --all <span class="token operator">|</span>  ./flamegraph.pl <span class="token operator">&gt;</span> ksoftirqd.svg<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>执行成功后，使用浏览器打开 ksoftirqd.svg ，你就可以看到生成的火焰图了。如下图所示：</p>
+<p><img src="/images/《Linux性能优化实战》学习笔记/内核线程CPU利用率太高案例火焰图.png" alt="内核线程CPU利用率太高案例火焰图"></p>
+<p>根据刚刚讲过的火焰图原理，这个图应该从下往上看，沿着调用栈中最宽的函数来分析执行次数最多的函数。这儿看到的结果，其实跟刚才的 perf report 类似，但直观了很多，中间这一团火，很明显就是最需要我们关注的地方。</p>
+<p>我们顺着调用栈由下往上看（顺着图中蓝色箭头），就可以得到跟刚才 perf report 中一样的结果：</p>
+</li>
+<li><p>最开始，还是 net_rx_action 到 netif_receive_skb 处理网络收包；</p>
+</li>
+<li>然后， br_handle_frame 到 br_nf_pre_routing ，在网桥中接收并执行 netfilter 钩子函数；</li>
+<li><p>再向上， br_pass_frame_up 到 netif_receive_skb ，从网桥转到其他网络设备又一次接收。</p>
+<p>不过最后，到了 ip_forward 这里，已经看不清函数名称了。所以我们需要点击 ip_forward，展开最上面这一块调用栈：</p>
+<p><img src="/images/《Linux性能优化实战》学习笔记/内核线程CPU利用率太高案例火焰图展开.png" alt="内核线程CPU利用率太高案例火焰图展开"></p>
+<p>这样，就可以进一步看到 ip_forward 后的行为，也就是把网络包发送出去。根据这个调用过程，再结合我们前面学习的网络收发和 TCP/IP 协议栈原理，这个流程中的网络接收、网桥以及 netfilter 调用等，都是导致软中断 CPU 升高的重要因素，也就是影响网络性能的潜在瓶颈。</p>
+<p>不过，回想一下网络收发的流程，你可能会觉得它缺了好多步骤。</p>
+<p>比如，这个堆栈中并没有 TCP 相关的调用，也没有连接跟踪 conntrack 相关的函数。实际上，这些流程都在其他更小的火焰中，你可以点击上图左上角的“Reset Zoom”，回到完整火焰图中，再去查看其他小火焰的堆栈。</p>
+<p>所以，在理解这个调用栈时要注意。从任何一个点出发、纵向来看的整个调用栈，其实只是最顶端那一个函数的调用堆栈，而非完整的内核网络执行流程。</p>
+<p>另外，整个火焰图不包含任何时间的因素，所以并不能看出横向各个函数的执行次序。</p>
+<p>到这里，我们就找出了内核线程 ksoftirqd 执行最频繁的函数调用堆栈，而这个堆栈中的各层级函数，就是潜在的性能瓶颈来源。这样，后面想要进一步分析、优化时，也就有了根据。</p>
+</li>
+</ul>
+</li>
+</ol>
+<h3 id="50-案例篇：动态追踪怎么用？（上）"><a href="#50-案例篇：动态追踪怎么用？（上）" class="headerlink" title="50 | 案例篇：动态追踪怎么用？（上）"></a>50 | 案例篇：动态追踪怎么用？（上）</h3><p>动态追踪技术，通过探针机制，来采集内核或者应用程序的运行信息，从而可以不用修改内核和应用程序的代码，就获得丰富的信息，帮你分析、定位想要排查的问题。</p>
+<p>以往，在排查和调试性能问题时，我们往往需要先为应用程序设置一系列的断点（比如使用 GDB），然后以手动或者脚本（比如 GDB 的 Python 扩展）的方式，在这些断点处分析应用程序的状态。或者，增加一系列的日志，从日志中寻找线索。</p>
+<p>不过，断点往往会中断应用的正常运行；而增加新的日志，往往需要重新编译和部署。这些方法虽然在今天依然广泛使用，但在排查复杂的性能问题时，往往耗时耗力，更会对应用的正常运行造成巨大影响。</p>
+<p>此外，这类方式还有大量的性能问题。比如，出现的概率小，只有线上环境才能碰到。这种难以复现的问题，亦是一个巨大挑战。</p>
+<p>而动态追踪技术的出现，就为这些问题提供了完美的方案：它既不需要停止服务，也不需要修改应用程序的代码；所有一切还按照原来的方式正常运行时，就可以帮你分析出问题的根源。</p>
+<p>同时，相比以往的进程级跟踪方法（比如 ptrace），动态追踪往往只会带来很小的性能损耗（通常在 5% 或者更少）。</p>
+<p>既然动态追踪有这么多好处，那么，都有哪些动态追踪的方法，又该如何使用这些动态追踪方法呢？今天，我就带你一起来看看这个问题。由于动态追踪涉及的知识比较多，我将分为上、下两篇为你讲解，先来看今天这部分内容。</p>
+<h4 id="50-1-动态追踪"><a href="#50-1-动态追踪" class="headerlink" title="50.1 动态追踪"></a>50.1 动态追踪</h4><p>说到动态追踪（Dynamic Tracing），就不得不提源于 Solaris 系统的 DTrace。DTrace 是动态追踪技术的鼻祖，它提供了一个通用的观测框架，并可以使用 D 语言进行自由扩展。</p>
+<p>DTrace 的工作原理如下图所示。<strong>它的运行常驻在内核中，用户可以通过 dtrace 命令，把 D 语言编写的追踪脚本，提交到内核中的运行时来执行</strong>。DTrace 可以跟踪用户态和内核态的所有事件，并通过一些列的优化措施，保证最小的性能开销。</p>
+<p><img src="/images/《Linux性能优化实战》学习笔记/dtrace.png" alt="dtrace"></p>
+<blockquote>
+<p>图片来自 <a target="_blank" rel="noopener" href="https://www.bsdcan.org/2017/schedule/attachments/433_dtrace_internals.html#(24">BSDCan</a>)</p>
+</blockquote>
+<p>虽然直到今天，DTrace 本身依然无法在 Linux 中运行，但它同样对 Linux 动态追踪产生了巨大的影响。很多工程师都尝试过把 DTrace 移植到 Linux 中，这其中，最著名的就是 RedHat 主推的 SystemTap。</p>
+<p>同 DTrace 一样，SystemTap 也定义了一种类似的脚本语言，方便用户根据需要自由扩展。不过，不同于 DTrace，SystemTap 并没有常驻内核的运行时，它需要先把脚本编译为内核模块，然后再插入到内核中执行。这也导致 SystemTap 启动比较缓慢，并且依赖于完整的调试符号表。</p>
+<p><img src="/images/《Linux性能优化实战》学习笔记/systemtap.png" alt="systemtap"></p>
+<blockquote>
+<p>图片来自<a target="_blank" rel="noopener" href="https://openresty.org/posts/dynamic-tracing/">动态追踪技术漫谈</a></p>
+</blockquote>
+<p>总的来说，为了追踪内核或用户空间的事件，Dtrace 和 SystemTap 都会把用户传入的追踪处理函数（一般称为 Action），关联到被称为探针的检测点上。这些探针，实际上也就是各种动态追踪技术所依赖的事件源。</p>
+<h4 id="50-2-动态追踪的事件源"><a href="#50-2-动态追踪的事件源" class="headerlink" title="50.2 动态追踪的事件源"></a>50.2 动态追踪的事件源</h4><p>根据事件类型的不同，<strong>动态追踪所使用的事件源，可以分为静态探针、动态探针以及硬件事件等三类</strong>。它们的关系如下图所示：</p>
+<p><img src="/images/《Linux性能优化实战》学习笔记/Linux-perf_events_Event_Sources.png" alt="Linux-perf_events_Event_Sources"></p>
+<p>图片来自 <a target="_blank" rel="noopener" href="http://www.brendangregg.com/perf.html#Events">Brendan Gregg Blog</a></p>
+<p>其中，<strong>硬件事件通常由性能监控计数器 PMC（Performance Monitoring Counter）产生</strong>，包括了各种硬件的性能情况，比如 CPU 的缓存、指令周期、分支预测等等。</p>
+<p><strong>静态探针，是指事先在代码中定义好，并编译到应用程序或者内核中的探针</strong>。这些探针只有在开启探测功能时，才会被执行到；未开启时并不会执行。常见的静态探针包括内核中的跟踪点（tracepoints）和 USDT（Userland Statically Defined Tracing）探针。</p>
+<ul>
+<li><p>跟踪点（tracepoints），实际上就是在源码中插入的一些带有控制条件的探测点，这些探测点允许事后再添加处理函数。比如在内核中，最常见的静态跟踪方法就是 printk，即输出日志。Linux 内核定义了大量的跟踪点，可以通过内核编译选项，来开启或者关闭。</p>
+</li>
+<li><p>USDT 探针，全称是用户级静态定义跟踪，需要在源码中插入 DTRACE_PROBE() 代码，并编译到应用程序中。不过，也有很多应用程序内置了 USDT 探针，比如 MySQL、PostgreSQL 等。</p>
+</li>
+</ul>
+<p><strong>动态探针，则是指没有事先在代码中定义，但却可以在运行时动态添加的探针</strong>，比如函数的调用和返回等。动态探针支持按需在内核或者应用程序中添加探测点，具有更高的灵活性。常见的动态探针有两种，即用于内核态的 kprobes 和用于用户态的 uprobes。</p>
+<ul>
+<li>kprobes 用来跟踪内核态的函数，包括用于函数调用的 kprobe 和用于函数返回的 kretprobe。</li>
+<li>uprobes 用来跟踪用户态的函数，包括用于函数调用的 uprobe 和用于函数返回的 uretprobe。<blockquote>
+<p>注意，kprobes 需要内核编译时开启 CONFIG_KPROBE_EVENTS；而 uprobes 则需要内核编译时开启 CONFIG_UPROBE_EVENTS。</p>
+</blockquote>
+</li>
+</ul>
+<h4 id="50-3-动态追踪机制"><a href="#50-3-动态追踪机制" class="headerlink" title="50.3 动态追踪机制"></a>50.3 动态追踪机制</h4><p>而在这些探针的基础上，Linux 也提供了一系列的动态追踪机制，比如 ftrace、perf、eBPF 等。</p>
+<ol>
+<li><p><strong>ftrace</strong> 最早用于函数跟踪，后来又扩展支持了各种事件跟踪功能。ftrace 的使用接口跟我们之前提到的 procfs 类似，它通过 debugfs（4.1 以后也支持 tracefs），以普通文件的形式，向用户空间提供访问接口。</p>
+<p> 这样，不需要额外的工具，你就可以通过挂载点（通常为 /sys/kernel/debug/tracing 目录）内的文件读写，来跟 ftrace 交互，跟踪内核或者应用程序的运行事件。</p>
+</li>
+<li><p><strong>perf</strong> 是我们的老朋友了，我们在前面的好多案例中，都使用了它的事件记录和分析功能，这实际上只是一种最简单的静态跟踪机制。你也可以通过 perf ，来自定义动态事件（perf probe），只关注真正感兴趣的事件。</p>
+</li>
+<li><p><strong>eBPF</strong> 则在 BPF（Berkeley Packet Filter）的基础上扩展而来，不仅支持事件跟踪机制，还可以通过自定义的 BPF 代码（使用 C 语言）来自由扩展。所以，eBPF 实际上就是常驻于内核的运行时，可以说就是 Linux 版的 DTrace。</p>
+</li>
+<li><p>除此之外，还有很多内核外的工具，也提供了丰富的动态追踪功能。最常见的就是前面提到的 SystemTap，我们之前多次使用过的 BCC（BPF Compiler Collection），以及常用于容器性能分析的 sysdig 等。</p>
+</li>
+</ol>
+<p>而在分析大量事件时，使用我们上节课提到的火焰图，可以将大量数据可视化展示，让你更直观发现潜在的问题。</p>
+<p>接下来，我就通过几个例子，带你来看看，要怎么使用这些机制，来动态追踪内核和应用程序的执行情况。以下案例还是基于 Ubuntu 18.04 系统，同样适用于其他系统。</p>
+<h4 id="50-4-ftrace"><a href="#50-4-ftrace" class="headerlink" title="50.4 ftrace"></a>50.4 ftrace</h4><p>我们先来看 ftrace。刚刚提到过，ftrace 通过 debugfs（或者 tracefs），为用户空间提供接口。所以使用 ftrace，往往是从切换到 debugfs 的挂载点开始。</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ <span class="token builtin class-name">cd</span> /sys/kernel/debug/tracing
+$ <span class="token function">ls</span>
+README                      instances            set_ftrace_notrace  trace_marker_raw
+available_events            kprobe_events        set_ftrace_pid      trace_options
+<span class="token punctuation">..</span>.<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>如果这个目录不存在，则说明你的系统还没有挂载 debugfs，你可以执行下面的命令来挂载它：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ <span class="token function">mount</span> -t debugfs nodev /sys/kernel/debug<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>ftrace 提供了多个跟踪器，用于跟踪不同类型的信息，比如函数调用、中断关闭、进程调度等。具体支持的跟踪器取决于系统配置，你可以执行下面的命令，来查询所有支持的跟踪器：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ <span class="token function">cat</span> available_tracers
+hwlat blk mmiotrace function_graph wakeup_dl wakeup_rt wakeup <span class="token keyword">function</span> nop<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre>
+<p>这其中，function 表示跟踪函数的执行，function_graph 则是跟踪函数的调用关系，也就是生成直观的调用关系图。这便是最常用的两种跟踪器。</p>
+<p>除了跟踪器外，使用 ftrace 前，还需要确认跟踪目标，包括内核函数和内核事件。其中，</p>
+<ul>
+<li>函数就是内核中的函数名。</li>
+<li>而事件，则是内核源码中预先定义的跟踪点。</li>
+</ul>
+<p>同样地，你可以执行下面的命令，来查询支持的函数和事件：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ <span class="token function">cat</span> available_filter_functions
+$ <span class="token function">cat</span> available_events<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre>
+<p>明白了这些基本信息，接下来，我就以 ls 命令为例，带你一起看看 ftrace 的使用方法。</p>
+<p>为了列出文件，ls 命令会通过 open 系统调用打开目录文件，而 open 在内核中对应的函数名为 do_sys_open。 所以，我们要做的第一步，就是把要跟踪的函数设置为 do_sys_open：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ <span class="token builtin class-name">echo</span> do_sys_open <span class="token operator">&gt;</span> set_graph_function<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>接下来，第二步，配置跟踪选项，开启函数调用跟踪，并跟踪调用进程：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ <span class="token builtin class-name">echo</span> function_graph <span class="token operator">&gt;</span> current_tracer
+$ <span class="token builtin class-name">echo</span> funcgraph-proc <span class="token operator">&gt;</span> trace_options<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre>
+<p>接着，第三步，也就是开启跟踪：</p>
+<p>$ echo 1 &gt; tracing_on</p>
+<p>第四步，执行一个 ls 命令后，再关闭跟踪：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ <span class="token function">ls</span>
+$ <span class="token builtin class-name">echo</span> <span class="token number">0</span> <span class="token operator">&gt;</span> tracing_on<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre>
+<p>第五步，也是最后一步，查看跟踪结果：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ <span class="token function">cat</span> trace
+<span class="token comment"># tracer: function_graph</span>
+<span class="token comment">#</span>
+<span class="token comment"># CPU  TASK/PID         DURATION                  FUNCTION CALLS</span>
+<span class="token comment"># |     |    |           |   |                     |   |   |   |</span>
+ <span class="token number">0</span><span class="token punctuation">)</span>    ls-12276    <span class="token operator">|</span>               <span class="token operator">|</span>  <span class="token function-name function">do_sys_open</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+ <span class="token number">0</span><span class="token punctuation">)</span>    ls-12276    <span class="token operator">|</span>               <span class="token operator">|</span>    <span class="token function-name function">getname</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+ <span class="token number">0</span><span class="token punctuation">)</span>    ls-12276    <span class="token operator">|</span>               <span class="token operator">|</span>      <span class="token function-name function">getname_flags</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+ <span class="token number">0</span><span class="token punctuation">)</span>    ls-12276    <span class="token operator">|</span>               <span class="token operator">|</span>        <span class="token function-name function">kmem_cache_alloc</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+ <span class="token number">0</span><span class="token punctuation">)</span>    ls-12276    <span class="token operator">|</span>               <span class="token operator">|</span>          <span class="token function-name function">_cond_resched</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+ <span class="token number">0</span><span class="token punctuation">)</span>    ls-12276    <span class="token operator">|</span>   <span class="token number">0.049</span> us    <span class="token operator">|</span>            rcu_all_qs<span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+ <span class="token number">0</span><span class="token punctuation">)</span>    ls-12276    <span class="token operator">|</span>   <span class="token number">0.791</span> us    <span class="token operator">|</span>          <span class="token punctuation">}</span>
+ <span class="token number">0</span><span class="token punctuation">)</span>    ls-12276    <span class="token operator">|</span>   <span class="token number">0.041</span> us    <span class="token operator">|</span>          should_failslab<span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+ <span class="token number">0</span><span class="token punctuation">)</span>    ls-12276    <span class="token operator">|</span>   <span class="token number">0.040</span> us    <span class="token operator">|</span>          prefetch_freepointer<span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+ <span class="token number">0</span><span class="token punctuation">)</span>    ls-12276    <span class="token operator">|</span>   <span class="token number">0.039</span> us    <span class="token operator">|</span>          memcg_kmem_put_cache<span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+ <span class="token number">0</span><span class="token punctuation">)</span>    ls-12276    <span class="token operator">|</span>   <span class="token number">2.895</span> us    <span class="token operator">|</span>        <span class="token punctuation">}</span>
+ <span class="token number">0</span><span class="token punctuation">)</span>    ls-12276    <span class="token operator">|</span>               <span class="token operator">|</span>        <span class="token function-name function">__check_object_size</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+ <span class="token number">0</span><span class="token punctuation">)</span>    ls-12276    <span class="token operator">|</span>   <span class="token number">0.067</span> us    <span class="token operator">|</span>          __virt_addr_valid<span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+ <span class="token number">0</span><span class="token punctuation">)</span>    ls-12276    <span class="token operator">|</span>   <span class="token number">0.044</span> us    <span class="token operator">|</span>          __check_heap_object<span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+ <span class="token number">0</span><span class="token punctuation">)</span>    ls-12276    <span class="token operator">|</span>   <span class="token number">0.039</span> us    <span class="token operator">|</span>          check_stack_object<span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+ <span class="token number">0</span><span class="token punctuation">)</span>    ls-12276    <span class="token operator">|</span>   <span class="token number">1.570</span> us    <span class="token operator">|</span>        <span class="token punctuation">}</span>
+ <span class="token number">0</span><span class="token punctuation">)</span>    ls-12276    <span class="token operator">|</span>   <span class="token number">5.790</span> us    <span class="token operator">|</span>      <span class="token punctuation">}</span>
+ <span class="token number">0</span><span class="token punctuation">)</span>    ls-12276    <span class="token operator">|</span>   <span class="token number">6.325</span> us    <span class="token operator">|</span>    <span class="token punctuation">}</span>
+<span class="token punctuation">..</span>.<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>在最后得到的输出中：</p>
+<ul>
+<li>第一列表示运行的 CPU；</li>
+<li>第二列是任务名称和进程 PID；</li>
+<li>第三列是函数执行延迟；</li>
+<li>最后一列，则是函数调用关系图。</li>
+</ul>
+<p>当然，我想你应该也发现了 ftrace 的使用缺点——五个步骤实在是麻烦，用起来并不方便。不过，不用担心， <a target="_blank" rel="noopener" href="https://git.kernel.org/pub/scm/utils/trace-cmd/trace-cmd.git/">trace-cmd</a> 已经帮你把这些步骤给包装了起来。这样，你就可以在同一个命令行工具里，完成上述所有过程。</p>
+<p>安装好后，原本的五步跟踪过程，就可以简化为下面这两步：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ trace-cmd record -p function_graph -g do_sys_open -O funcgraph-proc <span class="token function">ls</span>
+$ trace-cmd report
+<span class="token punctuation">..</span>.
+              ls-12418 <span class="token punctuation">[</span>000<span class="token punctuation">]</span> <span class="token number">85558.075341</span>: funcgraph_entry:                   <span class="token operator">|</span>  <span class="token function-name function">do_sys_open</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+              ls-12418 <span class="token punctuation">[</span>000<span class="token punctuation">]</span> <span class="token number">85558.075363</span>: funcgraph_entry:                   <span class="token operator">|</span>    <span class="token function-name function">getname</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+              ls-12418 <span class="token punctuation">[</span>000<span class="token punctuation">]</span> <span class="token number">85558.075364</span>: funcgraph_entry:                   <span class="token operator">|</span>      <span class="token function-name function">getname_flags</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+              ls-12418 <span class="token punctuation">[</span>000<span class="token punctuation">]</span> <span class="token number">85558.075364</span>: funcgraph_entry:                   <span class="token operator">|</span>        <span class="token function-name function">kmem_cache_alloc</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+              ls-12418 <span class="token punctuation">[</span>000<span class="token punctuation">]</span> <span class="token number">85558.075365</span>: funcgraph_entry:                   <span class="token operator">|</span>          <span class="token function-name function">_cond_resched</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+              ls-12418 <span class="token punctuation">[</span>000<span class="token punctuation">]</span> <span class="token number">85558.075365</span>: funcgraph_entry:        <span class="token number">0.074</span> us   <span class="token operator">|</span>            rcu_all_qs<span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+              ls-12418 <span class="token punctuation">[</span>000<span class="token punctuation">]</span> <span class="token number">85558.075366</span>: funcgraph_exit:         <span class="token number">1.143</span> us   <span class="token operator">|</span>          <span class="token punctuation">}</span>
+              ls-12418 <span class="token punctuation">[</span>000<span class="token punctuation">]</span> <span class="token number">85558.075366</span>: funcgraph_entry:        <span class="token number">0.064</span> us   <span class="token operator">|</span>          should_failslab<span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+              ls-12418 <span class="token punctuation">[</span>000<span class="token punctuation">]</span> <span class="token number">85558.075367</span>: funcgraph_entry:        <span class="token number">0.075</span> us   <span class="token operator">|</span>          prefetch_freepointer<span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+              ls-12418 <span class="token punctuation">[</span>000<span class="token punctuation">]</span> <span class="token number">85558.075368</span>: funcgraph_entry:        <span class="token number">0.085</span> us   <span class="token operator">|</span>          memcg_kmem_put_cache<span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+              ls-12418 <span class="token punctuation">[</span>000<span class="token punctuation">]</span> <span class="token number">85558.075369</span>: funcgraph_exit:         <span class="token number">4.447</span> us   <span class="token operator">|</span>        <span class="token punctuation">}</span>
+              ls-12418 <span class="token punctuation">[</span>000<span class="token punctuation">]</span> <span class="token number">85558.075369</span>: funcgraph_entry:                   <span class="token operator">|</span>        <span class="token function-name function">__check_object_size</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+              ls-12418 <span class="token punctuation">[</span>000<span class="token punctuation">]</span> <span class="token number">85558.075370</span>: funcgraph_entry:        <span class="token number">0.132</span> us   <span class="token operator">|</span>          __virt_addr_valid<span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+              ls-12418 <span class="token punctuation">[</span>000<span class="token punctuation">]</span> <span class="token number">85558.075370</span>: funcgraph_entry:        <span class="token number">0.093</span> us   <span class="token operator">|</span>          __check_heap_object<span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+              ls-12418 <span class="token punctuation">[</span>000<span class="token punctuation">]</span> <span class="token number">85558.075371</span>: funcgraph_entry:        <span class="token number">0.059</span> us   <span class="token operator">|</span>          check_stack_object<span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+              ls-12418 <span class="token punctuation">[</span>000<span class="token punctuation">]</span> <span class="token number">85558.075372</span>: funcgraph_exit:         <span class="token number">2.323</span> us   <span class="token operator">|</span>        <span class="token punctuation">}</span>
+              ls-12418 <span class="token punctuation">[</span>000<span class="token punctuation">]</span> <span class="token number">85558.075372</span>: funcgraph_exit:         <span class="token number">8.411</span> us   <span class="token operator">|</span>      <span class="token punctuation">}</span>
+              ls-12418 <span class="token punctuation">[</span>000<span class="token punctuation">]</span> <span class="token number">85558.075373</span>: funcgraph_exit:         <span class="token number">9.195</span> us   <span class="token operator">|</span>    <span class="token punctuation">}</span>
+<span class="token punctuation">..</span>.<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>你会发现，trace-cmd 的输出，跟上述 cat trace 的输出是类似的。</p>
+<p>通过这个例子我们知道，当你想要了解某个内核函数的调用过程时，使用 ftrace ，就可以跟踪到它的执行过程。</p>
+<h4 id="50-5-留言"><a href="#50-5-留言" class="headerlink" title="50.5 留言"></a>50.5 留言</h4><p><a target="_blank" rel="noopener" href="https://leezhenghui.github.io/linux/2019/03/05/exploring-usdt-on-linux.html">Exploring USDT Probes on Linux</a></p>
+<h3 id="51-案例篇：动态追踪怎么用？（下）"><a href="#51-案例篇：动态追踪怎么用？（下）" class="headerlink" title="51 | 案例篇：动态追踪怎么用？（下）"></a>51 | 案例篇：动态追踪怎么用？（下）</h3><h4 id="51-1-perf"><a href="#51-1-perf" class="headerlink" title="51.1 perf"></a>51.1 perf</h4><p>前面使用 perf record/top 时，都是先对事件进行采样，然后再根据采样数，评估各个函数的调用频率。实际上，perf 的功能远不止于此。比如，</p>
+<p>perf 可以用来分析 CPU cache、CPU 迁移、分支预测、指令周期等各种硬件事件；</p>
+<p>perf 也可以只对感兴趣的事件进行动态追踪。</p>
+<p>接下来，我们还是以内核函数 do_sys_open，以及用户空间函数 readline 为例，看一看 perf 动态追踪的使用方法。</p>
+<p>同 ftrace 一样，你也可以通过 perf list ，查询所有支持的事件：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ perf list<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>然后，在 perf 的各个子命令中添加 —event 选项，设置追踪感兴趣的事件。如果这些预定义的事件不满足实际需要，你还可以使用 perf probe 来动态添加。而且，除了追踪内核事件外，perf 还可以用来跟踪用户空间的函数。</p>
+<ol>
+<li><p>第一个 perf 示例，内核函数 do_sys_open 的例子。</p>
+<p> 你可以执行 perf probe 命令，添加 do_sys_open 探针：</p>
+ <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ perf probe --add do_sys_open
+Added new event:
+  probe:do_sys_open    <span class="token punctuation">(</span>on do_sys_open<span class="token punctuation">)</span>
+You can now use it <span class="token keyword">in</span> all perf tools, such as:
+    perf record -e probe:do_sys_open -aR <span class="token function">sleep</span> <span class="token number">1</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p> 探针添加成功后，就可以在所有的 perf 子命令中使用。比如，上述输出就是一个 perf record 的示例，执行它就可以对 10s 内的 do_sys_open 进行采样：</p>
+ <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ perf record -e probe:do_sys_open -aR <span class="token function">sleep</span> <span class="token number">10</span>
+<span class="token punctuation">[</span> perf record: Woken up <span class="token number">1</span> <span class="token builtin class-name">times</span> to <span class="token function">write</span> data <span class="token punctuation">]</span>
+<span class="token punctuation">[</span> perf record: Captured and wrote <span class="token number">0.148</span> MB perf.data <span class="token punctuation">(</span><span class="token number">19</span> samples<span class="token punctuation">)</span> <span class="token punctuation">]</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span></span></code></pre>
+<p> 而采样成功后，就可以执行 perf script ，来查看采样结果了：</p>
+ <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ perf script
+        perf <span class="token number">12886</span> <span class="token punctuation">[</span>000<span class="token punctuation">]</span> <span class="token number">89565.879875</span>: probe:do_sys_open: <span class="token punctuation">(</span>ffffffffa807b290<span class="token punctuation">)</span>
+       <span class="token function">sleep</span> <span class="token number">12889</span> <span class="token punctuation">[</span>000<span class="token punctuation">]</span> <span class="token number">89565.880362</span>: probe:do_sys_open: <span class="token punctuation">(</span>ffffffffa807b290<span class="token punctuation">)</span>
+       <span class="token function">sleep</span> <span class="token number">12889</span> <span class="token punctuation">[</span>000<span class="token punctuation">]</span> <span class="token number">89565.880382</span>: probe:do_sys_open: <span class="token punctuation">(</span>ffffffffa807b290<span class="token punctuation">)</span>
+       <span class="token function">sleep</span> <span class="token number">12889</span> <span class="token punctuation">[</span>000<span class="token punctuation">]</span> <span class="token number">89565.880635</span>: probe:do_sys_open: <span class="token punctuation">(</span>ffffffffa807b290<span class="token punctuation">)</span>
+       <span class="token function">sleep</span> <span class="token number">12889</span> <span class="token punctuation">[</span>000<span class="token punctuation">]</span> <span class="token number">89565.880669</span>: probe:do_sys_open: <span class="token punctuation">(</span>ffffffffa807b290<span class="token punctuation">)</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p> 输出中，同样也列出了调用 do_sys_open 的任务名称、进程 PID 以及运行的 CPU 等信息。不过，对于 open 系统调用来说，只知道它被调用了并不够，我们需要知道的是，进程到底在打开哪些文件。所以，实际应用中，我们还希望追踪时能显示这些函数的参数。</p>
+<p> 对于内核函数来说，你当然可以去查看内核源码，找出它的所有参数。不过还有更简单的方法，那就是直接从调试符号表中查询。执行下面的命令，你就可以知道 do_sys_open 的所有参数：</p>
+ <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ perf probe -V do_sys_open
+Available variables at do_sys_open
+        @<span class="token operator">&lt;</span>do_sys_open+<span class="token operator"><span class="token file-descriptor important">0</span>&gt;</span>
+                char*   filename
+                int     dfd
+                int     flags
+                struct open_flags       <span class="token function">op</span>
+                umode_t mode<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p> 从这儿可以看出，我们关心的文件路径，就是第一个字符指针参数（也就是字符串），参数名称为 filename。如果这个命令执行失败，就说明调试符号表还没有安装。那么，你可以执行下面的命令，安装调试信息后重试：</p>
+ <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token comment"># Ubuntu</span>
+$ <span class="token function">apt-get</span> <span class="token function">install</span> linux-image-<span class="token variable"><span class="token variable">`</span><span class="token function">uname</span> -r<span class="token variable">`</span></span>-dbgsym
+<span class="token comment"># CentOS</span>
+$ yum --enablerepo<span class="token operator">=</span>base-debuginfo <span class="token function">install</span> -y kernel-debuginfo-<span class="token variable"><span class="token variable">$(</span><span class="token function">uname</span> -r<span class="token variable">)</span></span>
+<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span></span></code></pre>
+<p> 找出参数名称和类型后，就可以把参数加到探针中了。不过由于我们已经添加过同名探针，所以在这次添加前，需要先把旧探针给删掉：</p>
+ <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token comment"># 先删除旧的探针</span>
+perf probe --del probe:do_sys_open
+
+<span class="token comment"># 添加带参数的探针</span>
+$ perf probe --add <span class="token string">'do_sys_open filename:string'</span>
+Added new event:
+probe:do_sys_open    <span class="token punctuation">(</span>on do_sys_open with filename:string<span class="token punctuation">)</span>
+You can now use it <span class="token keyword">in</span> all perf tools, such as:
+    perf record -e probe:do_sys_open -aR <span class="token function">sleep</span> <span class="token number">1</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p> 新的探针添加后，重新执行 record 和 script 子命令，采样并查看记录：</p>
+ <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token comment"># 重新采样记录</span>
+$ perf record -e probe:do_sys_open -aR <span class="token function">ls</span>
+
+<span class="token comment"># 查看结果</span>
+$ perf script
+    perf <span class="token number">13593</span> <span class="token punctuation">[</span>000<span class="token punctuation">]</span> <span class="token number">91846.053622</span>: probe:do_sys_open: <span class="token punctuation">(</span>ffffffffa807b290<span class="token punctuation">)</span> <span class="token assign-left variable">filename_string</span><span class="token operator">=</span><span class="token string">"/proc/13596/status"</span>
+    <span class="token function">ls</span> <span class="token number">13596</span> <span class="token punctuation">[</span>000<span class="token punctuation">]</span> <span class="token number">91846.053995</span>: probe:do_sys_open: <span class="token punctuation">(</span>ffffffffa807b290<span class="token punctuation">)</span> <span class="token assign-left variable">filename_string</span><span class="token operator">=</span><span class="token string">"/etc/ld.so.cache"</span>
+    <span class="token function">ls</span> <span class="token number">13596</span> <span class="token punctuation">[</span>000<span class="token punctuation">]</span> <span class="token number">91846.054011</span>: probe:do_sys_open: <span class="token punctuation">(</span>ffffffffa807b290<span class="token punctuation">)</span> <span class="token assign-left variable">filename_string</span><span class="token operator">=</span><span class="token string">"/lib/x86_64-linux-gnu/libselinux.so.1"</span>
+    <span class="token function">ls</span> <span class="token number">13596</span> <span class="token punctuation">[</span>000<span class="token punctuation">]</span> <span class="token number">91846.054066</span>: probe:do_sys_open: <span class="token punctuation">(</span>ffffffffa807b290<span class="token punctuation">)</span> <span class="token assign-left variable">filename_string</span><span class="token operator">=</span><span class="token string">"/lib/x86_64-linux-gnu/libc.so.6"</span>
+    <span class="token punctuation">..</span>.
+<span class="token comment"># 使用完成后不要忘记删除探针</span>
+$ perf probe --del probe:do_sys_open<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p> 现在，你就可以看到每次调用 open 时打开的文件了。不过，这个结果是不是看着很熟悉呢？</p>
+<p> 其实，在我们使用 strace 跟踪进程的系统调用时，也经常会看到这些动态库的影子。比如，使用 strace 跟踪 ls 时，你可以得到下面的结果：</p>
+ <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ <span class="token function">strace</span> <span class="token function">ls</span>
+<span class="token punctuation">..</span>.
+access<span class="token punctuation">(</span><span class="token string">"/etc/ld.so.nohwcap"</span>, F_OK<span class="token punctuation">)</span>      <span class="token operator">=</span> -1 ENOENT <span class="token punctuation">(</span>No such <span class="token function">file</span> or directory<span class="token punctuation">)</span>
+access<span class="token punctuation">(</span><span class="token string">"/etc/ld.so.preload"</span>, R_OK<span class="token punctuation">)</span>      <span class="token operator">=</span> -1 ENOENT <span class="token punctuation">(</span>No such <span class="token function">file</span> or directory<span class="token punctuation">)</span>
+openat<span class="token punctuation">(</span>AT_FDCWD, <span class="token string">"/etc/ld.so.cache"</span>, O_RDONLY<span class="token operator">|</span>O_CLOEXEC<span class="token punctuation">)</span> <span class="token operator">=</span> <span class="token number">3</span>
+<span class="token punctuation">..</span>.
+access<span class="token punctuation">(</span><span class="token string">"/etc/ld.so.nohwcap"</span>, F_OK<span class="token punctuation">)</span>      <span class="token operator">=</span> -1 ENOENT <span class="token punctuation">(</span>No such <span class="token function">file</span> or directory<span class="token punctuation">)</span>
+openat<span class="token punctuation">(</span>AT_FDCWD, <span class="token string">"/lib/x86_64-linux-gnu/libselinux.so.1"</span>, O_RDONLY<span class="token operator">|</span>O_CLOEXEC<span class="token punctuation">)</span> <span class="token operator">=</span> <span class="token number">3</span>
+<span class="token punctuation">..</span>.<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p> 你估计在想，既然 strace 也能得到类似结果，本身又容易操作，为什么我们还要用 perf 呢？</p>
+<p> 实际上，很多人只看到了 strace 简单易用的好处，却忽略了它对进程性能带来的影响。从原理上来说，strace 基于系统调用 ptrace 实现，这就带来了两个问题。</p>
+<ul>
+<li>由于 ptrace 是系统调用，就需要在内核态和用户态切换。当事件数量比较多时，繁忙的切换必然会影响原有服务的性能；</li>
+<li><p>ptrace 需要借助 SIGSTOP 信号挂起目标进程。这种信号控制和进程挂起，会影响目标进程的行为。</p>
+<p>所以，在性能敏感的应用（比如数据库）中，我并不推荐你用 strace （或者其他基于 ptrace 的性能工具）去排查和调试。</p>
+<p>在 strace 的启发下，结合内核中的 utrace 机制， perf 也提供了一个 trace 子命令，是取代 strace 的首选工具。相对于 ptrace 机制来说，perf trace 基于内核事件，自然要比进程跟踪的性能好很多。</p>
+<p>perf trace 的使用方法如下所示，跟 strace 其实很像：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ perf trace <span class="token function">ls</span>
+        ? <span class="token punctuation">(</span>         <span class="token punctuation">)</span>: ls/14234  <span class="token punctuation">..</span>. <span class="token punctuation">[</span>continued<span class="token punctuation">]</span>: execve<span class="token punctuation">(</span><span class="token punctuation">))</span> <span class="token operator">=</span> <span class="token number">0</span>
+    <span class="token number">0.177</span> <span class="token punctuation">(</span> <span class="token number">0.013</span> ms<span class="token punctuation">)</span>: ls/14234 brk<span class="token punctuation">(</span>                                                                  <span class="token punctuation">)</span> <span class="token operator">=</span> 0x555d96be7000
+    <span class="token number">0.224</span> <span class="token punctuation">(</span> <span class="token number">0.014</span> ms<span class="token punctuation">)</span>: ls/14234 access<span class="token punctuation">(</span>filename: 0xad98082                                            <span class="token punctuation">)</span> <span class="token operator">=</span> -1 ENOENT No such <span class="token function">file</span> or directory
+    <span class="token number">0.248</span> <span class="token punctuation">(</span> <span class="token number">0.009</span> ms<span class="token punctuation">)</span>: ls/14234 access<span class="token punctuation">(</span>filename: 0xad9add0, mode: R                                   <span class="token punctuation">)</span> <span class="token operator">=</span> -1 ENOENT No such <span class="token function">file</span> or directory
+    <span class="token number">0.267</span> <span class="token punctuation">(</span> <span class="token number">0.012</span> ms<span class="token punctuation">)</span>: ls/14234 openat<span class="token punctuation">(</span>dfd: CWD, filename: 0xad98428, flags: CLOEXEC                  <span class="token punctuation">)</span> <span class="token operator">=</span> <span class="token number">3</span>
+    <span class="token number">0.288</span> <span class="token punctuation">(</span> <span class="token number">0.009</span> ms<span class="token punctuation">)</span>: ls/14234 fstat<span class="token punctuation">(</span>fd: <span class="token operator"><span class="token file-descriptor important">3</span>&lt;</span>/usr/lib/locale/C.UTF-8/<span class="token environment constant">LC_NAME</span><span class="token operator">&gt;</span>, statbuf: 0x7ffd2015f230 <span class="token punctuation">)</span> <span class="token operator">=</span> <span class="token number">0</span>
+    <span class="token number">0.305</span> <span class="token punctuation">(</span> <span class="token number">0.011</span> ms<span class="token punctuation">)</span>: ls/14234 mmap<span class="token punctuation">(</span>len: <span class="token number">45560</span>, prot: READ, flags: PRIVATE, fd: <span class="token number">3</span>                    <span class="token punctuation">)</span> <span class="token operator">=</span> 0x7efe0af92000
+    <span class="token number">0.324</span> Dockerfile  test.sh
+<span class="token punctuation">(</span> <span class="token number">0.008</span> ms<span class="token punctuation">)</span>: ls/14234 close<span class="token punctuation">(</span>fd: <span class="token operator"><span class="token file-descriptor important">3</span>&lt;</span>/usr/lib/locale/C.UTF-8/<span class="token environment constant">LC_NAME</span><span class="token operator">&gt;</span>                          <span class="token punctuation">)</span> <span class="token operator">=</span> <span class="token number">0</span>
+    <span class="token punctuation">..</span>.<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>不过，perf trace 还可以进行系统级的系统调用跟踪（即跟踪所有进程），而 strace 只能跟踪特定的进程。</p>
+</li>
+</ul>
+</li>
+<li><p>第二个 perf 的例子是用户空间的库函数。</p>
+<p> 以 bash 调用的库函数 readline 为例，使用类似的方法，可以跟踪库函数的调用（基于 uprobes）。</p>
+<p> readline 的作用，是从终端中读取用户输入，并把这些数据返回调用方。所以，跟 open 系统调用不同的是，我们更关注 readline 的调用结果。</p>
+<p> 我们执行下面的命令，通过 -x 指定 bash 二进制文件的路径，就可以动态跟踪库函数。这其实就是跟踪了所有用户在 bash 中执行的命令：</p>
+ <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token comment"># 为 /bin/bash 添加 readline 探针</span>
+$ perf probe -x /bin/bash 'readline%return +0<span class="token punctuation">(</span><span class="token variable">$retval</span><span class="token punctuation">)</span>:string’
+
+<span class="token comment"># 采样记录</span>
+$ perf record -e probe_bash:readline__return -aR <span class="token function">sleep</span> <span class="token number">5</span>
+
+<span class="token comment"># 查看结果</span>
+$ perf script
+    <span class="token function">bash</span> <span class="token number">13348</span> <span class="token punctuation">[</span>000<span class="token punctuation">]</span> <span class="token number">93939.142576</span>: probe_bash:readline__return: <span class="token punctuation">(</span>5626ffac1610 <span class="token operator">&lt;</span>- 5626ffa46739<span class="token punctuation">)</span> <span class="token assign-left variable">arg1</span><span class="token operator">=</span><span class="token string">"ls"</span>
+
+<span class="token comment"># 跟踪完成后删除探针</span>
+$ perf probe --del probe_bash:readline__return<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p> 当然，如果你不确定探针格式，也可以通过下面的命令，查询所有支持的函数和函数参数：</p>
+ <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token comment"># 查询所有的函数</span>
+$ perf probe -x /bin/bash —funcs
+
+<span class="token comment"># 查询函数的参数</span>
+$ perf probe -x /bin/bash -V readline
+Available variables at readline
+        @<span class="token operator">&lt;</span>readline+<span class="token operator"><span class="token file-descriptor important">0</span>&gt;</span>
+                char*   prompt<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p> 跟内核函数类似，如果你想要查看普通应用的函数名称和参数，那么在应用程序的二进制文件中，同样需要包含调试信息。</p>
+</li>
+</ol>
+<h4 id="51-2-eBPF-和-BCC"><a href="#51-2-eBPF-和-BCC" class="headerlink" title="51.2 eBPF 和 BCC"></a>51.2 eBPF 和 BCC</h4><p>ftrace 和 perf 的功能已经比较丰富了，不过，它们有一个共同的缺陷，那就是不够灵活，没法像 DTrace 那样通过脚本自由扩展。</p>
+<p>而 eBPF 就是 Linux 版的 DTrace，可以通过 C 语言自由扩展（这些扩展通过 LLVM 转换为 BPF 字节码后，加载到内核中执行）。下面这张图，就表示了 eBPF 追踪的工作原理：</p>
+<p><img src="/images/《Linux性能优化实战》学习笔记/eBPF追踪的工作原理.png" alt="eBPF追踪的工作原理"></p>
+<blockquote>
+<p>图片来自 <a target="_blank" rel="noopener" href="https://thenewstack.io/long-last-linux-gets-dynamic-tracing/">THE NEW STACK</a></p>
+</blockquote>
+<p>从图中你可以看到，eBPF 的执行需要三步：</p>
+<ul>
+<li>从用户跟踪程序生成 BPF 字节码；</li>
+<li>加载到内核中运行；</li>
+<li>向用户空间输出结果。</li>
+</ul>
+<p>所以，从使用上来说，eBPF 要比我们前面看到的 ftrace 和 perf ，都更加繁杂。</p>
+<p>实际上，在 eBPF 执行过程中，编译、加载还有 maps 等操作，对所有的跟踪程序来说都是通用的。把这些过程通过 Python 抽象起来，也就诞生了 BCC（BPF Compiler Collection）。</p>
+<p>BCC 把 eBPF 中的各种事件源（比如 kprobe、uprobe、tracepoint 等）和数据操作（称为 Maps），也都转换成了 Python 接口（也支持 lua）。这样，使用 BCC 进行动态追踪时，编写简单的脚本就可以了。</p>
+<p>不过要注意，因为需要跟内核中的数据结构交互，真正核心的事件处理逻辑，还是需要我们用 C 语言来编写。</p>
+<p>安装后，BCC 会把所有示例（包括 Python 和 lua），放到 /usr/share/bcc/examples 目录中：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ <span class="token function">ls</span> /usr/share/bcc/examples
+hello_world.py  lua  networking  tracing<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre>
+<p>接下来，还是以 do_sys_open 为例，我们一起来看看，如何用 eBPF 和 BCC 实现同样的动态跟踪。</p>
+<p>通常，我们可以把 BCC 应用，拆分为下面这四个步骤。</p>
+<p>第一，跟所有的 Python 模块使用方法一样，在使用之前，先导入要用到的模块：</p>
+<pre class="line-numbers language-python" data-language="python"><code class="language-python"><span class="token keyword">from</span> bcc <span class="token keyword">import</span> BPF<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>第二，需要定义事件以及处理事件的函数。这个函数需要用 C 语言来编写，作用是初始化刚才导入的 BPF 对象。这些用 C 语言编写的处理函数，要以字符串的形式送到 BPF 模块中处理：</p>
+<pre class="line-numbers language-python" data-language="python"><code class="language-python"><span class="token comment"># define BPF program (""" is used for multi-line string).</span>
+<span class="token comment"># '#' indicates comments for python, while '//' indicates comments for C.</span>
+prog <span class="token operator">=</span> <span class="token triple-quoted-string string">"""
+#include &lt;uapi/linux/ptrace.h&gt;
+#include &lt;uapi/linux/limits.h&gt;
+#include &lt;linux/sched.h&gt;
+// define output data structure in C
+struct data_t {
+    u32 pid;
+    u64 ts;
+    char comm[TASK_COMM_LEN];
+    char fname[NAME_MAX];
+};
+BPF_PERF_OUTPUT(events);
+
+// define the handler for do_sys_open.
+// ctx is required, while other params depends on traced function.
+int hello(struct pt_regs *ctx, int dfd, const char __user *filename, int flags){
+    struct data_t data = {};
+    data.pid = bpf_get_current_pid_tgid();
+    data.ts = bpf_ktime_get_ns();
+    if (bpf_get_current_comm(&amp;data.comm, sizeof(data.comm)) == 0) {
+        bpf_probe_read(&amp;data.fname, sizeof(data.fname), (void *)filename);
+    }
+    events.perf_submit(ctx, &amp;data, sizeof(data));
+    return 0;
+}
+"""</span>
+<span class="token comment"># load BPF program</span>
+b <span class="token operator">=</span> BPF<span class="token punctuation">(</span>text<span class="token operator">=</span>prog<span class="token punctuation">)</span>
+<span class="token comment"># attach the kprobe for do_sys_open, and set handler to hello</span>
+b<span class="token punctuation">.</span>attach_kprobe<span class="token punctuation">(</span>event<span class="token operator">=</span><span class="token string">"do_sys_open"</span><span class="token punctuation">,</span> fn_name<span class="token operator">=</span><span class="token string">"hello"</span><span class="token punctuation">)</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>第三步，是定义一个输出函数，并把输出函数跟 BPF 事件绑定：</p>
+<pre class="line-numbers language-python" data-language="python"><code class="language-python"><span class="token comment"># process event</span>
+start <span class="token operator">=</span> <span class="token number">0</span>
+<span class="token keyword">def</span> <span class="token function">print_event</span><span class="token punctuation">(</span>cpu<span class="token punctuation">,</span> data<span class="token punctuation">,</span> size<span class="token punctuation">)</span><span class="token punctuation">:</span>
+    <span class="token keyword">global</span> start
+    <span class="token comment"># event’s type is data_t</span>
+    event <span class="token operator">=</span> b<span class="token punctuation">[</span><span class="token string">"events"</span><span class="token punctuation">]</span><span class="token punctuation">.</span>event<span class="token punctuation">(</span>data<span class="token punctuation">)</span>
+    <span class="token keyword">if</span> start <span class="token operator">==</span> <span class="token number">0</span><span class="token punctuation">:</span>
+        start <span class="token operator">=</span> event<span class="token punctuation">.</span>ts
+    time_s <span class="token operator">=</span> <span class="token punctuation">(</span><span class="token builtin">float</span><span class="token punctuation">(</span>event<span class="token punctuation">.</span>ts <span class="token operator">-</span> start<span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token operator">/</span> <span class="token number">1000000000</span>
+    <span class="token keyword">print</span><span class="token punctuation">(</span><span class="token string">"%-18.9f %-16s %-6d %-16s"</span> <span class="token operator">%</span> <span class="token punctuation">(</span>time_s<span class="token punctuation">,</span> event<span class="token punctuation">.</span>comm<span class="token punctuation">,</span> event<span class="token punctuation">.</span>pid<span class="token punctuation">,</span> event<span class="token punctuation">.</span>fname<span class="token punctuation">)</span><span class="token punctuation">)</span>
+
+<span class="token comment"># loop with callback to print_event</span>
+b<span class="token punctuation">[</span><span class="token string">"events"</span><span class="token punctuation">]</span><span class="token punctuation">.</span>open_perf_buffer<span class="token punctuation">(</span>print_event<span class="token punctuation">)</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>最后一步，就是执行事件循环，开始追踪 do_sys_open 的调用：</p>
+<pre class="line-numbers language-python" data-language="python"><code class="language-python"><span class="token comment"># print header</span>
+<span class="token keyword">print</span><span class="token punctuation">(</span><span class="token string">"%-18s %-16s %-6s %-16s"</span> <span class="token operator">%</span> <span class="token punctuation">(</span><span class="token string">"TIME(s)"</span><span class="token punctuation">,</span> <span class="token string">"COMM"</span><span class="token punctuation">,</span> <span class="token string">"PID"</span><span class="token punctuation">,</span> "FILE”<span class="token punctuation">)</span><span class="token punctuation">)</span>
+<span class="token comment"># start the event polling loop</span>
+<span class="token keyword">while</span> <span class="token number">1</span><span class="token punctuation">:</span>
+    <span class="token keyword">try</span><span class="token punctuation">:</span>
+        b<span class="token punctuation">.</span>perf_buffer_poll<span class="token punctuation">(</span><span class="token punctuation">)</span>
+    <span class="token keyword">except</span> KeyboardInterrupt<span class="token punctuation">:</span>
+        exit<span class="token punctuation">(</span><span class="token punctuation">)</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>我们把上面几个步骤的代码，保存到文件 trace-open.py 中，然后就可以用 Python 来运行了。如果一切正常，你可以看到如下输出：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ python trace-open.py
+TIME<span class="token punctuation">(</span>s<span class="token punctuation">)</span>            COMM             PID    FILE
+<span class="token number">0.000000000</span>        irqbalance       <span class="token number">1073</span>   /proc/interrupts
+<span class="token number">0.000175401</span>        irqbalance       <span class="token number">1073</span>   /proc/stat
+<span class="token number">0.000258802</span>        irqbalance       <span class="token number">1073</span>   /proc/irq/9/smp_affinity
+<span class="token number">0.000290102</span>        irqbalance       <span class="token number">1073</span>   /proc/irq/0/smp_affinity<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>从输出中，你可以看到 irqbalance 进程（你的环境中可能还会有其他进程）正在打开很多文件，而 irqbalance 依赖这些文件中读取的内容，来执行中断负载均衡。</p>
+<p>通过这个简单的示例，你也可以发现，eBPF 和 BCC 的使用，其实比 ftrace 和 perf 有更高的门槛。想用 BCC 开发自己的动态跟踪程序，至少要熟悉 C 语言、Python 语言、被跟踪事件或函数的特征（比如内核函数的参数和返回格式）以及 eBPF 提供的各种数据操作方法。</p>
+<p>不过，因为强大的灵活性，虽然 eBPF 在使用上有一定的门槛，却也无法阻止它成为目前最热门、最受关注的动态追踪技术。</p>
+<p>当然，BCC 软件包也内置了很多已经开发好的实用工具，默认安装到 /usr/share/bcc/tools/ 目录中，它们的使用场景如下图所示：</p>
+<p><img src="/images/《Linux性能优化实战》学习笔记/LinuxbccBPFTracingTools.png" alt="LinuxbccBPFTracingTools"></p>
+<blockquote>
+<p>图片来自 <a target="_blank" rel="noopener" href="http://www.brendangregg.com/ebpf.html#bcc">Linux Extended BPF (eBPF) Tracing Tools</a></p>
+</blockquote>
+<p>这些工具，一般都可以直接拿来用。而在编写其他的动态追踪脚本时，它们也是最好的参考资料。不过，有一点需要你特别注意，很多 eBPF 的新特性，都需要比较新的<a target="_blank" rel="noopener" href="https://github.com/iovisor/bcc/blob/master/docs/kernel-versions.md">内核版本</a>（如下图所示）。如果某些工具无法运行，很可能就是因为使用了当前内核不支持的特性。</p>
+<p><img src="/images/《Linux性能优化实战》学习笔记/LinuxEventsBPFSupport.png" alt="LinuxEventsBPFSupport"></p>
+<blockquote>
+<p>图片来自 <a target="_blank" rel="noopener" href="http://www.brendangregg.com/ebpf.html#bcc">Linux Extended BPF (eBPF) Tracing Tools</a></p>
+</blockquote>
+<h4 id="51-3-SystemTap-和-sysdig"><a href="#51-3-SystemTap-和-sysdig" class="headerlink" title="51.3 SystemTap 和 sysdig"></a>51.3 SystemTap 和 sysdig</h4><p>除了前面提到的 ftrace、perf、eBPF 和 BCC 外，SystemTap 和 sysdig 也是常用的动态追踪工具。</p>
+<p><strong>SystemTap</strong> 也是一种可以通过脚本进行自由扩展的动态追踪技术。在 eBPF 出现之前，SystemTap 是 Linux 系统中，功能最接近 DTrace 的动态追踪机制。不过要注意，SystemTap 在很长时间以来都游离于内核之外（而 eBPF 自诞生以来，一直根植在内核中）。</p>
+<p>所以，从稳定性上来说，SystemTap 只在 RHEL 系统中好用，在其他系统中则容易出现各种异常问题。当然，反过来说，支持 3.x 等旧版本的内核，也是 SystemTap 相对于 eBPF 的一个巨大优势。</p>
+<p><strong>sysdig</strong> 则是随着容器技术的普及而诞生的，主要用于容器的动态追踪。sysdig 汇集了一些列性能工具的优势，可以说是集百家之所长。我习惯用这个公式来表示 sysdig 的特点： sysdig = strace + tcpdump + htop + iftop + lsof + docker inspect。</p>
+<p>而在最新的版本中（内核版本 &gt;= 4.14），sysdig 还可以通过 eBPF 来进行扩展，所以，也可以用来追踪内核中的各种函数和事件。</p>
+<h4 id="如何选择追踪工具"><a href="#如何选择追踪工具" class="headerlink" title="如何选择追踪工具"></a>如何选择追踪工具</h4><p>不同场景的工具选择问题。比如：</p>
+<ul>
+<li>在不需要很高灵活性的场景中，使用 perf 对性能事件进行采样，然后再配合火焰图辅助分析，就是最常用的一种方法；</li>
+<li>而需要对事件或函数调用进行统计分析（比如观察不同大小的 I/O 分布）时，就要用 SystemTap 或者 eBPF，通过一些自定义的脚本来进行数据处理。</li>
+</ul>
+<p><img src="/images/《Linux性能优化实战》学习笔记/常用动态追踪场景和工具.png" alt="常用动态追踪场景和工具.png"></p>
+<h4 id="小结"><a href="#小结" class="headerlink" title="小结"></a>小结</h4><p>在 Linux 系统中，常见的动态追踪方法，包括 ftrace、perf、eBPF 以及 SystemTap 等。在大多数性能问题中，使用 perf 配合火焰图是一个不错的方法。如果这满足不了你的要求，那么：</p>
+<ul>
+<li>在新版的内核中，eBPF 和 BCC 是最灵活的动态追踪方法；</li>
+<li>而在旧版本内核中，特别是在 RHEL 系统中，由于 eBPF 支持受限，SystemTap 往往是更好的选择。</li>
+</ul>
+<p>此外，在使用动态追踪技术时，为了得到分析目标的详细信息，一般需要内核以及应用程序的调试符号表。动态追踪实际上也是在这些符号（包括函数和事件）上进行的，所以易读易理解的符号，有助于加快动态追踪的过程。</p>
+<h4 id="留言"><a href="#留言" class="headerlink" title="留言"></a>留言</h4><p><a target="_blank" rel="noopener" href="https://docs.cilium.io/en/stable/bpf/">https://docs.cilium.io/en/stable/bpf/</a></p>
+
                 
             </div>
             <hr/>
@@ -6931,7 +7474,7 @@ lo       <span class="token number">65536</span>        <span class="token numbe
             <br>
             
             &nbsp;<i class="fas fa-chart-area"></i>&nbsp;站点总字数:&nbsp;<span
-                class="white-color">363.7k</span>&nbsp;字
+                class="white-color">374k</span>&nbsp;字
             
             
             
