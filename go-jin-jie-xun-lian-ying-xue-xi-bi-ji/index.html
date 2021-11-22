@@ -438,14 +438,14 @@
                 
                 <div class="info-break-policy">
                     <i class="far fa-file-word fa-fw"></i>文章字数:&nbsp;&nbsp;
-                    49.4k
+                    54.1k
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-clock fa-fw"></i>阅读时长:&nbsp;&nbsp;
-                    189 分
+                    207 分
                 </div>
                 
 
@@ -3268,6 +3268,252 @@ service LibraryService {
 <li>watchdog，使用内存、CPU等信号量触发自动采集；</li>
 </ul>
 <h3 id="10-4-References"><a href="#10-4-References" class="headerlink" title="10.4 References"></a>10.4 References</h3><p><a target="_blank" rel="noopener" href="https://dave.cheney.net/2015/11/05/lets-talk-about-logging">https://dave.cheney.net/2015/11/05/lets-talk-about-logging</a><br><a target="_blank" rel="noopener" href="https://www.ardanlabs.com/blog/2013/11/using-log-package-in-go.html">https://www.ardanlabs.com/blog/2013/11/using-log-package-in-go.html</a><br><a target="_blank" rel="noopener" href="https://www.ardanlabs.com/blog/2017/05/design-philosophy-on-logging.html">https://www.ardanlabs.com/blog/2017/05/design-philosophy-on-logging.html</a><br><a target="_blank" rel="noopener" href="https://dave.cheney.net/2017/01/23/the-package-level-logger-anti-pattern">https://dave.cheney.net/2017/01/23/the-package-level-logger-anti-pattern</a><br><a target="_blank" rel="noopener" href="https://help.aliyun.com/document_detail/28979.html?spm=a2c4g.11186623.2.10.3b0a729amtsBZe">https://help.aliyun.com/document_detail/28979.html?spm=a2c4g.11186623.2.10.3b0a729amtsBZe</a><br><a target="_blank" rel="noopener" href="https://developer.aliyun.com/article/703229">https://developer.aliyun.com/article/703229</a><br><a target="_blank" rel="noopener" href="https://developer.aliyun.com/article/204554">https://developer.aliyun.com/article/204554</a><br><a target="_blank" rel="noopener" href="https://developer.aliyun.com/article/251629">https://developer.aliyun.com/article/251629</a><br><a target="_blank" rel="noopener" href="https://www.elastic.co/cn/what-is/elk-stack">https://www.elastic.co/cn/what-is/elk-stack</a><br><a target="_blank" rel="noopener" href="https://my.oschina.net/itblog/blog/547250">https://my.oschina.net/itblog/blog/547250</a><br><a target="_blank" rel="noopener" href="https://www.cnblogs.com/aresxin/p/8035137.html">https://www.cnblogs.com/aresxin/p/8035137.html</a><br><a target="_blank" rel="noopener" href="https://www.elastic.co/cn/products/beats/filebeat">https://www.elastic.co/cn/products/beats/filebeat</a><br><a target="_blank" rel="noopener" href="https://www.elastic.co/guide/en/beats/filebeat/5.6/index.html">https://www.elastic.co/guide/en/beats/filebeat/5.6/index.html</a><br><a target="_blank" rel="noopener" href="https://www.elastic.co/cn/products/logstash">https://www.elastic.co/cn/products/logstash</a><br><a target="_blank" rel="noopener" href="https://www.elastic.co/guide/en/logstash/5.6/index.html">https://www.elastic.co/guide/en/logstash/5.6/index.html</a><br><a target="_blank" rel="noopener" href="https://www.elastic.co/cn/products/kibana">https://www.elastic.co/cn/products/kibana</a><br><a target="_blank" rel="noopener" href="https://www.elastic.co/guide/en/kibana/5.5/index.html">https://www.elastic.co/guide/en/kibana/5.5/index.html</a><br><a target="_blank" rel="noopener" href="https://www.elastic.co/guide/en/elasticsearch/reference/5.6/index.html">https://www.elastic.co/guide/en/elasticsearch/reference/5.6/index.html</a><br><a target="_blank" rel="noopener" href="https://elasticsearch.cn/">https://elasticsearch.cn/</a><br><a target="_blank" rel="noopener" href="https://blog.aliasmee.com/post/graylog-log-system-architecture/">https://blog.aliasmee.com/post/graylog-log-system-architecture/</a></p>
+<h2 id="第11课-DNS-amp-CDN-amp-多活架构"><a href="#第11课-DNS-amp-CDN-amp-多活架构" class="headerlink" title="第11课 DNS &amp; CDN &amp; 多活架构"></a>第11课 DNS &amp; CDN &amp; 多活架构</h2><h3 id="11-1-DNS"><a href="#11-1-DNS" class="headerlink" title="11.1 DNS"></a>11.1 DNS</h3><h4 id="11-1-1-DNS-介绍"><a href="#11-1-1-DNS-介绍" class="headerlink" title="11.1.1 DNS 介绍"></a>11.1.1 DNS 介绍</h4><p><img src="/images/《Go进阶训练营》学习笔记/DNS.png" alt="DNS.png"></p>
+<p>DNS（Domain Name System，域名系统），DNS 服务用于在网络请求时，将域名转为 IP 地址。能够使用户更方便的访问互联网，而不用去记住能够被机器直接读取的 IP 数串。</p>
+<p>传统的基于 UDP 协议的公共 DNS 服务极易发生 DNS 劫持，从而造成安全问题。</p>
+<p><img src="/images/《Go进阶训练营》学习笔记/DNS域名解析过程.png" alt="DNS域名解析过程"></p>
+<ol>
+<li><p>递归查询</p>
+<p> 如果主机所询问的本地域名服务器不知道被查询域名的 IP 地址，那么本地域名服务器就以 DNS 客户的身份，向其他根域名服务器继续发出查询请求报文，而不是让该主机自己进行下一步的查询。</p>
+</li>
+<li><p>迭代查询</p>
+<p> 当根域名服务器收到本地域名服务器发出的迭代查询请求报文时，要么给出所要查询的 IP 地址，要么告诉本地域名服务器：你下一步应当向哪一个域名服务器进行查询。然后让本地域名服务器进行后续的查询，而不是替本地域名服务器进行后续的查询。</p>
+</li>
+</ol>
+<p>由此可见，客户端到 Local DNS 服务器，Local DNS 与上级 DNS 服务器之间属于递归查询；DNS 服务器与根 DNS 服务器之前属于迭代查询。</p>
+<h4 id="11-1-2-DNS-问题"><a href="#11-1-2-DNS-问题" class="headerlink" title="11.1.2 DNS 问题"></a>11.1.2 DNS 问题</h4><ol>
+<li><p>Local DNS 劫持：</p>
+<p> <img src="/images/《Go进阶训练营》学习笔记/DNS劫持.png" alt="DNS劫持"></p>
+<p> Local DNS 把域名劫持到其他域名，实现其不可告人的目的。</p>
+</li>
+<li><p>域名缓存</p>
+<p> <img src="/images/《Go进阶训练营》学习笔记/域名缓存.png" alt="域名缓存"></p>
+<p> 域名缓存就是 LocalDNS 缓存了业务的域名的解析结果，不向权威 DNS 发起递归。</p>
+<ul>
+<li>保证用户访问流量在本网内消化：国内的各互联网接入运营商的带宽资源、网间结算费用、IDC机房分布、网内 ICP 资源分布等存在较大差异。为了保证网内用户的访问质量，同时减少跨网结算，运营商在网内搭建了内容缓存服务器，通过把域名强行指向内容缓存服务器的 IP 地址，就实现了把本地本网流量完全留在了本地的目的。</li>
+<li>推送广告：有部分 LocalDNS 会把部分域名解析结果的所指向的内容缓存，并替换成第三方广告联盟的广告。</li>
+</ul>
+</li>
+<li><p>解析转发</p>
+<p> <img src="/images/《Go进阶训练营》学习笔记/解析转发.png" alt="解析转发"></p>
+<p> 除了域名缓存以外，运营商的 LocalDNS 还存在解析转发的现象。</p>
+<p> 解析转发是指运营商自身不进行域名递归解析，而是把域名解析请求转发到其它运营商的递归 DNS 上的行为。</p>
+<p> 而部分小运营商为了节省资源，就直接将解析请求转发到了其它运营的递归 LocalDNS 上去了。</p>
+<p> 这样的直接后果就是权威 DNS 收到的域名解析请求的来源 IP 就成了其它运营商的 IP，最终导致用户流量被导向了错误的 IDC，用户访问变慢。</p>
+</li>
+<li><p>多NAT出口导致DNS解析错误</p>
+<p> <img src="/images/《Go进阶训练营》学习笔记/多NAT出口导致DNS解析错误.png" alt="多NAT出口导致DNS解析错误"></p>
+<p> LocalDNS 递归出口 NAT 指的是运营商的 LocalDNS 按照标准的 DNS 协议进行递归，但是因为在网络上存在多出口且配置了目标路由 NAT，结果导致 LocalDNS 最终进行递归解析的时候的出口 IP 就有概率不为本网的 IP 地址。</p>
+<p> 这样的直接后果就是 DNS 收到的域名解析请求的来源 IP 还是成了其它运营商的 IP，最终导致用户流量被导向了错误的 IDC，用户访问变慢。</p>
+</li>
+</ol>
+<h4 id="11-1-3-高可用的-DNS-设计"><a href="#11-1-3-高可用的-DNS-设计" class="headerlink" title="11.1.3 高可用的 DNS 设计"></a>11.1.3 高可用的 DNS 设计</h4><ol>
+<li><p>实时监控 + 商务推动：</p>
+<p> 这种方案就是周期比较长，毕竟通过行政手段来推动运营商来解决这个问题是比较耗时的。</p>
+<p> 另外我们通过大数据分析，得出的结论是 Top3 的问题用户均为移动互联网用户。对于这部分用户，我们有什么技术手段可以解决以上的问题呢？</p>
+</li>
+<li><p>绕过自动分配 DNS，使用 114DNS 或 Google public DNS：</p>
+<p> 如何在用户侧构造域名请求：对于 PC 端的客户端来说，构造一个标准的 DNS 请求包并不算什么难事。但在移动端要向一个指定的 LocalDNS 上发送标准的 DNS 请求包，而且要兼容各种 iOS 和 Android 的版本的话，技术上是可行的，只是兼容的成本会很高。</p>
+<p> 推动用户修改配置极高：如果要推动用户手动修改 PC 的 DNS 配置的话，在 PC 端和手机客户端的 WiFi 下面还算勉强可行。但是要用户修改在移动互联网环境下的 DNS 配置，其难度不言而喻。</p>
+</li>
+<li><p>完全抛弃域名，自建 HTTPDNS 进行流量调度：</p>
+<p> 如果要采用这种这种方案的话，首先你就得要拿到一份准确的 IP 地址库来判断用户的归属，然后再制定个协议搭个服务来做调度，然后再对接入层做调度改造。</p>
+<p> 这种方案和2种方案一样，不是不能做，只是成本会比较高，尤其对于大体量业务规模如此庞大的公司而言。</p>
+</li>
+</ol>
+<p>当前主流的解决方案：HTTPDNS出现了！</p>
+<h4 id="11-1-4-高可用-DNS-的最佳实践"><a href="#11-1-4-高可用-DNS-的最佳实践" class="headerlink" title="11.1.4 高可用 DNS 的最佳实践"></a>11.1.4 高可用 DNS 的最佳实践</h4><p><img src="/images/《Go进阶训练营》学习笔记/HTTPDNS.png" alt="HTTPDNS"></p>
+<p>HTTPDNS 利用 HTTP 协议与 DNS 服务器交互，代替了传统的基于 UDP 协议的 DNS 交互，绕开了运营商的 Local DNS，有效防止了域名劫持，提高域名解析效率。</p>
+<p>另外，由于 DNS 服务器端获取的是真实客户端 IP 而非 Local DNS 的 IP，能够精确定位客户端地理位置、运营商信息，从而有效改进调度精确性。</p>
+<p><img src="/images/《Go进阶训练营》学习笔记/HTTPDNS基本原理.png" alt="HTTPDNS基本原理"></p>
+<p>由于 HTTP DNS 是通过 ip 直接请求 http获取服务器 A 记录地址，不存在向本地运营商询问 domain 解析过程，所以从根本避免了劫持问题。</p>
+<p>平均访问延迟下降：</p>
+<ul>
+<li>由于是 ip 直接访问省掉了一次 domain 解析过程。</li>
+</ul>
+<p>用户连接失败率下降：</p>
+<ul>
+<li>通过算法降低以往失败率过高的服务器排序</li>
+<li>通过时间近期访问过的数据提高服务器排序</li>
+<li>通过历史访问成功记录提高服务器排序</li>
+</ul>
+<p>根治域名解析异常：由于绕过了运营商的LocalDNS，用户解析域名的请求通过 HTTP 协议直接透传到了 HTTPDNS 服务器 IP 上，用户在客户端的域名解析请求将不会遭受到域名解析异常的困扰。</p>
+<p>调度精准：HTTPDNS 能直接获取到用户 IP，通过结合 IP 地址库以及测速系统，可以保证将用户引导的访问最快的 IDC 节点上；</p>
+<p>实现成本低廉：接入 HTTPDNS 的业务仅需要对客户端接入层做少量改造，无需用户手机进行 root 或越狱；而且由于 HTTP 协议请求构造非常简单，兼容各版本的移动操作系统更不成问题；另外 HTTPDNS 的后端配置完全复用现有权威 DNS 配置，管理成本也非常低。</p>
+<p><img src="/images/《Go进阶训练营》学习笔记/AnyCast.png" alt="AnyCast"></p>
+<p>如果只有一个 VIP，即可以增加 DNS 记录的TTL，减少解析的延迟。</p>
+<p>Anycast 可以使用一个 IP，将数据路由到最近的一组服务器，通过 BGP 宣告这个 IP，但是这存在两个问题：</p>
+<ul>
+<li>如果某个节点承载过多的用户会过载</li>
+<li>BGP 路由计算可能会导致连接重置</li>
+</ul>
+<p>因此需要一个 “稳定 Anycast” 技术来实现。</p>
+<h3 id="11-2-CDN"><a href="#11-2-CDN" class="headerlink" title="11.2 CDN"></a>11.2 CDN</h3><h4 id="11-2-1-CDN-系统架构"><a href="#11-2-1-CDN-系统架构" class="headerlink" title="11.2.1 CDN 系统架构"></a>11.2.1 CDN 系统架构</h4><p><img src="/images/《Go进阶训练营》学习笔记/CDN系统架构.png" alt="CDN系统架构.png"></p>
+<p>缓存代理</p>
+<ul>
+<li>通过智能 DNS 的筛选，用户的请求被透明地指向离他最近的省内骨干节点，最大限度的缩短用户信息的传输距离。</li>
+</ul>
+<p>路由加速</p>
+<ul>
+<li>利用接入节点和中继节点或者多线节点互联互通。</li>
+</ul>
+<p>安全保护</p>
+<ul>
+<li>无论面对是渗透还是 DDoS攻击，攻击的目标大都会被指向到了 CDN，进而保护了用户源站。</li>
+</ul>
+<p>节省成本</p>
+<ul>
+<li>CDN 节点机房只需要在当地运营商的单线机房，或者带宽相对便宜的城市，采购成本低。</li>
+</ul>
+<p>内容路由</p>
+<ul>
+<li>DNS系统、应用层重定向，传输层重定向。</li>
+</ul>
+<p>内容分发</p>
+<ul>
+<li>PUSH：主动分发，内容管理系统发起，将内容从源分发到 CDN 的 Cache 节点。</li>
+<li>PULL：被动分发技术，用户请求驱动，用户请求内容中 miss，从源中或者其他 CDN 节点中实时获取内容。</li>
+</ul>
+<p>内容存储</p>
+<ul>
+<li>随机读、顺序写、小文件的分布式存储。</li>
+</ul>
+<p>内容管理</p>
+<ul>
+<li>提高内容服务的效率，提高CDN的缓存利用率。</li>
+</ul>
+<h4 id="11-2-2-CDN-数据一致性"><a href="#11-2-2-CDN-数据一致性" class="headerlink" title="11.2.2 CDN 数据一致性"></a>11.2.2 CDN 数据一致性</h4><ol>
+<li><p>PUSH</p>
+<p> 不存在数据一致性问题。</p>
+</li>
+<li><p>PULL<br> 缓存更新不及时，数据一致性问题，可设置缓存的失效时间，可以达到最终一致性。如果用户对一致性要求比较高也可以使用 ?version=xx 的技术，也可以每次上传图片返回的url是不同的方式来代替版本号。</p>
+<p> CDN 存储的资源复本指定过期时间，因而缓存图像文件可在一个小时，一个月有效的。任何资源缓存在 CDN 上，是潜在历史版本，因为在源数据与副本之间总是有一个更新与传输的延迟。</p>
+</li>
+<li><p>Expires</p>
+<p> 即在 HTTP 头中指明具体失效的时间(HTTP/1.0)</p>
+</li>
+<li><p>Cache Control</p>
+<p> max-age 在 HTTP 头中按秒指定失效的时间，优先级高于Expires(HTTP/1.1)</p>
+<p> Last-Modified / If-Modified-Since 文件最后一次修改的时间（精度是秒，HTTP/1.0），需要 Cache-Control 过期。</p>
+<p> Etag 当前资源在服务器的唯一标识（生成规则由服务器决定）优先级高于Last-Modified</p>
+</li>
+</ol>
+<h4 id="11-2-3-静-动态-CDN-加速"><a href="#11-2-3-静-动态-CDN-加速" class="headerlink" title="11.2.3 静/动态 CDN 加速"></a>11.2.3 静/动态 CDN 加速</h4><ol>
+<li><p>静态 CDN 加速</p>
+<p> 地理位置分散的用户最小化接收静态内容所需的跳数，直接从附近边缘的缓存中获取内容。 结果是显着降低了延迟和数据包丢失，加快了页面加载速度，并大大降低了原始基础架构的负载。</p>
+<ul>
+<li>静态域名非主域名</li>
+<li>静态多域名和收敛</li>
+<li>静态资源版本化管理</li>
+</ul>
+</li>
+<li><p>动态 CDN 加速</p>
+<p> TCP 优化</p>
+<ul>
+<li><p>设计算法来处理网络拥堵和包丢失，加快这些情况下的数据从cdn的恢复以及一些常见的 TCP 瓶颈。</p>
+<p>Route optimization</p>
+</li>
+<li><p>就是优化从源到用户端的请求的线路，以及可靠性，就是不断的测量计算得到更快更可靠的路线。</p>
+<p>Connection management</p>
+</li>
+<li><p>就是边缘和源之间，包括 CDN 之前的线路，采用长连接，而不是每一个请求一个连接</p>
+<p>On-the-fly compression</p>
+</li>
+<li><p>就是数据在刚刚离开源的时候就进行压缩，可以缩短在整个网络之中的流通时间。</p>
+<p>SSL offload</p>
+</li>
+<li><p>加速或者说减少一些安全监测，减少原服务器执行这种计算密集型的压力。</p>
+</li>
+</ul>
+</li>
+</ol>
+<h3 id="11-3-多活架构"><a href="#11-3-多活架构" class="headerlink" title="11.3 多活架构"></a>11.3 多活架构</h3><h4 id="11-3-1-多活系统"><a href="#11-3-1-多活系统" class="headerlink" title="11.3.1 多活系统"></a>11.3.1 多活系统</h4><ol>
+<li><p>业务分级</p>
+<p> 按照一定的标准将业务进行分级，挑选出核心的业务，只为核心业务核心场景设计异地多活，降低方案整体复杂度和实现成本。例如：1、访问量；2、核心场景；3、收入；避免进入所有业务都要全部多活，分阶段分场景推进。</p>
+</li>
+<li><p>数据分类</p>
+<p> 挑选出核心业务后，需要对核心业务相关的数据进一步分析，目的在于识别所有的数据及数据特征，这些数据特征会影响后面的方案设计。</p>
+<p> 常见的数据特征分析维度有：</p>
+<ul>
+<li>数据量；</li>
+<li>唯一性；</li>
+<li>实时性；</li>
+<li>可丢失性；</li>
+<li>可恢复性；</li>
+</ul>
+</li>
+<li><p>数据同步</p>
+<p> 确定数据的特点后，我们可以根据不同的数据设计不同的同步方案。</p>
+<p> 常见的数据同步方案有：</p>
+<ul>
+<li>存储系统同步；</li>
+<li>消息队列同步；</li>
+<li>重复生成；</li>
+</ul>
+</li>
+<li><p>异常处理</p>
+<p> 无论数据同步方案如何设计，一旦出现极端异常的情况，总是会有部分数据出现异常的。例如，同步延迟、数据丢失、数据不一致等。异常处理就是假设在出现这些问题时，系统将采取什么措施来应对。</p>
+<p> 常见的异常处理措施：</p>
+<ul>
+<li>多通道同步；</li>
+<li>同步和异步访问；</li>
+<li>日志记录；</li>
+<li>补偿；</li>
+</ul>
+</li>
+</ol>
+<p>多活不是整个体系业务的多活，而是分成不同维度，不同重要性的多活，比如我们业务观看体验为主（淘宝以交易单元，买家为维度），那么第一大前提就是浏览、观看上的多活。我们将资源分为三类：</p>
+<ul>
+<li>Global 资源：多个 Zone（机房）共享访问的资源，每个 Zone 访问本 Zone 的资源，但是 Global 层面来说是单写 Core Zone（核心机房），即：单写+多读、利用数据复制（写Zone 单向）实现最终一致性方案实现；</li>
+<li>Multi Zone 资源：多个 Zone 分片部署，每个 Zone 拥有部分的 Shard 数据，比如我们按照用户维度拆分，用户 A 可能在 ZoneA，用户 B 可能在 ZoneB，即：多写+多读、利用数据复制（写 Zone 双向复制）方案实现；</li>
+<li>Single Zone 资源：单机房部署业务；</li>
+</ul>
+<p>核心主要围绕：PC/APP 首页可观看、视频详情页可打开、账号可登陆、鉴权来开展，我们认为最合适我们观看类业务最合适的场景就是采用 Global 资源策略，对于社区类（评论、弹幕）可能会采用 Multi Zone 的策略。</p>
+<h4 id="11-3-2-大厂做法"><a href="#11-3-2-大厂做法" class="headerlink" title="11.3.2 大厂做法"></a>11.3.2 大厂做法</h4><ol>
+<li><p>饿了么多活</p>
+<p> <img src="/images/《Go进阶训练营》学习笔记/饿了么多活.png" alt="饿了么多活"></p>
+<p> 业务过程中包含3个最重要的角色，分别是用户、商家和骑手，一个订单包含3个步骤：</p>
+<ol>
+<li>用户打开我们的APP，系统会推荐出用户位置附近的各种美食，推荐顺序中结合了用户习惯，推荐排序，商户的推广等。用户找到中意的食物 ，下单并支付，订单会流转到商家。</li>
+<li>商家接单并开始制作食物，制作完成后，系统调度骑手赶到店面，取走食物。</li>
+<li><p>骑手按照配送地址，把食物送到客户手中。</p>
+<p><img src="/images/《Go进阶训练营》学习笔记/饿了么多活的基本原则.png" alt="饿了么多活的基本原则"></p>
+</li>
+<li><p>业务内聚</p>
+<p> 单个订单的旅单过程，要在一个机房中完成，不允许跨机房调用。这个原则是为了保证实时性，旅单过程中不依赖另外一个机房的服务，才能保证没有延迟。我们称每个机房为一个 ezone，一个 ezone 包含了饿了么需要的各种服务。一笔业务能够内聚在一个 ezone 中，那么一个定单涉及的用户，商家，骑手，都会在相同的机房，这样订单在各个角色之间流转速度最快，不会因为各种异常情况导致延时。恰好我们的业务是地域化的，通过合理的地域划分，也能够实现业务内聚。</p>
+</li>
+<li><p>可用性优先</p>
+<p> 当发生故障切换机房时，优先保证系统可用，首先让用户可以下单吃饭，容忍有限时间段内的数据不一致，在事后修复。每个 ezone 都会有全量的业务数据，当一个 ezone 失效后，其他的 ezone 可以接管用户。用户在一个ezone的下单数据，会实时的复制到其他ezone。</p>
+</li>
+<li><p>保证数据正确</p>
+<p> 在确保可用的情况下，需要对数据做保护以避免错误，在切换和故障时，如果发现某些订单的状态在两个机房不一致，会锁定该笔订单，阻止对它进行更改，保证数据的正确。</p>
+</li>
+<li><p>业务可感</p>
+<p> 因为基础设施还没有强大到可以抹去跨机房的差异，需要让业务感知多活逻辑，业务代码要做一些改造，包括：需要业务代码能够识别出业务数据的归属，只处理本 ezone 的数据，过滤掉无关的数据。完善业务状态机，能够在数据出现不一致的时候，通过状态机发现和纠正。</p>
+<p>为了实现业务内聚，我们首先要选择一个划分方法（Sharding Key），对服务进行分区，让用户，商户，骑手能够正确的内聚到同一个 ezone 中。分区方案是整个多活的基础，它决定了之后的所有逻辑。</p>
+<p>根据饿了么的业务特点，我们自然的选择地理位置（地理围栏，地理围栏主体按照省界划分，再加上局部微调）作为划分业务的单元，把地理位置上接近的用户，商户，骑手划分到同一个ezone，这样一个订单的履单流程就会在一个机房完成，能够保证最小的延时，在某个机房出现问题的时候，也可以按照地理位置把用户，商户，骑手打包迁移到别的机房即可。</p>
+<p><img src="/images/《Go进阶训练营》学习笔记/饿了么多活分区.png" alt="饿了么多活分区"></p>
+<p>基于地理位置划分规则，开发了统一的流量路由层（API Router），这一层负责对客户端过来的 API 调用进行路由，把流量导向到正确的 ezone。API Router 部署在多个公有云机房中，用户就近接入到公有云的API Router，还可以提升接入质量。</p>
+<p><img src="/images/《Go进阶训练营》学习笔记/饿了么多活路由方案.png" alt="饿了么多活路由方案"></p>
+<p>最基础的分流标签是地理位置，有了地理位置，AR 就能计算出正确的 shard 归属。但业务是很复杂的，并不是所有的调用都能直接关联到某个地理位置上，我们使用了一种分层的路由方案，核心的路由逻辑是地理位置，但是也支持其他的一些 High Level Sharding Key，这些 Sharding Key 由 APIRouter 转换为核心的 Sharding Key，具体如下图。这样既减少了业务的改造工作量，也可以扩展出更多的分区方法。除了入口处的路由，我们还开发了 SOA Proxy，用于路由SOA调用的，和API Router基于相同的路由规则。</p>
+</li>
+</ol>
+</li>
+<li><p>阿里多活</p>
+<p> <img src="/images/《Go进阶训练营》学习笔记/阿里多活基本原则.png" alt="阿里多活基本原则"></p>
+<p> <img src="/images/《Go进阶训练营》学习笔记/阿里多活业务架构.png" alt="阿里多活业务架构"></p>
+<p> <img src="/images/《Go进阶训练营》学习笔记/阿里多活技术架构.png" alt="阿里多活技术架构"></p>
+</li>
+<li><p>苏宁多活</p>
+<p> <img src="/images/《Go进阶训练营》学习笔记/苏宁多活技术架构.png" alt="苏宁多活技术架构"></p>
+</li>
+<li><p>Facebook Memcache一致性</p>
+<p> <img src="/images/《Go进阶训练营》学习笔记/FacebookMemcache一致性.png" alt="FacebookMemcache一致性"></p>
+</li>
+</ol>
+<h4 id="11-3-3-账号多活"><a href="#11-3-3-账号多活" class="headerlink" title="11.3.3 账号多活"></a>11.3.3 账号多活</h4><p><img src="/images/《Go进阶训练营》学习笔记/B站账号多活.png" alt="B站账号多活"></p>
+<h4 id="11-3-4-稿件多活"><a href="#11-3-4-稿件多活" class="headerlink" title="11.3.4 稿件多活"></a>11.3.4 稿件多活</h4><p><img src="/images/《Go进阶训练营》学习笔记/B站稿件多活.png" alt="B站稿件多活"></p>
+<h3 id="11-4-References"><a href="#11-4-References" class="headerlink" title="11.4 References"></a>11.4 References</h3><p><a target="_blank" rel="noopener" href="https://zhuanlan.zhihu.com/p/32009822">https://zhuanlan.zhihu.com/p/32009822</a><br><a target="_blank" rel="noopener" href="https://zhuanlan.zhihu.com/p/32587960">https://zhuanlan.zhihu.com/p/32587960</a><br><a target="_blank" rel="noopener" href="https://zhuanlan.zhihu.com/p/33430869">https://zhuanlan.zhihu.com/p/33430869</a><br><a target="_blank" rel="noopener" href="https://zhuanlan.zhihu.com/p/34958596">https://zhuanlan.zhihu.com/p/34958596</a><br><a target="_blank" rel="noopener" href="https://mp.weixin.qq.com/s/ooPLV039BAGBsiDZagWNHw">https://mp.weixin.qq.com/s/ooPLV039BAGBsiDZagWNHw</a><br><a target="_blank" rel="noopener" href="https://mp.weixin.qq.com/s/VPkQhJLl_ULwklP1sqF79g">https://mp.weixin.qq.com/s/VPkQhJLl_ULwklP1sqF79g</a><br><a target="_blank" rel="noopener" href="https://mp.weixin.qq.com/s/ty5GltO9M648OXSWgLe_Sg">https://mp.weixin.qq.com/s/ty5GltO9M648OXSWgLe_Sg</a><br><a target="_blank" rel="noopener" href="https://mp.weixin.qq.com/s/GdfYsuUajWP-OWo6lbmjVQ">https://mp.weixin.qq.com/s/GdfYsuUajWP-OWo6lbmjVQ</a><br><a target="_blank" rel="noopener" href="https://developer.aliyun.com/article/57715">https://developer.aliyun.com/article/57715</a><br><a target="_blank" rel="noopener" href="https://mp.weixin.qq.com/s/RQiurTi_pLkmIg_PSpZtvA">https://mp.weixin.qq.com/s/RQiurTi_pLkmIg_PSpZtvA</a><br><a target="_blank" rel="noopener" href="https://mp.weixin.qq.com/s/LCn71j3hgm5Ij5tHYe8uoA">https://mp.weixin.qq.com/s/LCn71j3hgm5Ij5tHYe8uoA</a><br><a target="_blank" rel="noopener" href="http://afghl.github.io/2018/02/11/distributed-system-multi-datacenter-1.html">http://afghl.github.io/2018/02/11/distributed-system-multi-datacenter-1.html</a><br><a target="_blank" rel="noopener" href="https://zhuanlan.zhihu.com/p/42150666">https://zhuanlan.zhihu.com/p/42150666</a><br><a target="_blank" rel="noopener" href="https://zhuanlan.zhihu.com/p/20827183">https://zhuanlan.zhihu.com/p/20827183</a><br><a target="_blank" rel="noopener" href="https://myslide.cn/slides/733">https://myslide.cn/slides/733</a><br><a target="_blank" rel="noopener" href="https://blog.csdn.net/u012422829/article/details/83718296">https://blog.csdn.net/u012422829/article/details/83718296</a><br><a target="_blank" rel="noopener" href="https://blog.csdn.net/u012422829/article/details/83932829">https://blog.csdn.net/u012422829/article/details/83932829</a><br><a target="_blank" rel="noopener" href="https://www.cnblogs.com/king0101/p/11908305.html">https://www.cnblogs.com/king0101/p/11908305.html</a><br><a target="_blank" rel="noopener" href="https://mp.weixin.qq.com/s/WK8N4xFxCoUvSpXOwCVIXw">https://mp.weixin.qq.com/s/WK8N4xFxCoUvSpXOwCVIXw</a><br><a target="_blank" rel="noopener" href="https://mp.weixin.qq.com/s/jd9Os1OAyCXZ8rXw8ZIQmg">https://mp.weixin.qq.com/s/jd9Os1OAyCXZ8rXw8ZIQmg</a><br><a target="_blank" rel="noopener" href="https://cloud.tencent.com/developer/article/1441455">https://cloud.tencent.com/developer/article/1441455</a><br><a target="_blank" rel="noopener" href="https://mp.weixin.qq.com/s/RQiurTi_pLkmIg_PSpZtvA">https://mp.weixin.qq.com/s/RQiurTi_pLkmIg_PSpZtvA</a><br><a target="_blank" rel="noopener" href="https://help.aliyun.com/document_detail/72721.html">https://help.aliyun.com/document_detail/72721.html</a><br><a target="_blank" rel="noopener" href="https://mp.weixin.qq.com/s/h_KWwzPzszrdGq5kcCudRA">https://mp.weixin.qq.com/s/h_KWwzPzszrdGq5kcCudRA</a><br><a target="_blank" rel="noopener" href="https://www.cnblogs.com/davidwang456/articles/8192860.html">https://www.cnblogs.com/davidwang456/articles/8192860.html</a></p>
 
                 
             </div>
@@ -3667,7 +3913,7 @@ service LibraryService {
             <br>
             
             &nbsp;<i class="fas fa-chart-area"></i>&nbsp;站点总字数:&nbsp;<span
-                class="white-color">396.6k</span>&nbsp;字
+                class="white-color">401.4k</span>&nbsp;字
             
             
             
