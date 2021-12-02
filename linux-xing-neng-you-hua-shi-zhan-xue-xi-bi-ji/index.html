@@ -435,21 +435,21 @@
                 
                 <div class="post-date info-break-policy">
                     <i class="far fa-calendar-check fa-fw"></i>更新日期:&nbsp;&nbsp;
-                    2021-11-24
+                    2021-12-02
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-file-word fa-fw"></i>文章字数:&nbsp;&nbsp;
-                    158k
+                    157.9k
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-clock fa-fw"></i>阅读时长:&nbsp;&nbsp;
-                    621 分
+                    620 分
                 </div>
                 
 
@@ -1002,7 +1002,7 @@ Transfer rate:          <span class="token number">375.75</span> <span class="to
 <li><p>在第一个终端，执行下面的命令运行 Nginx 和 PHP 应用：</p>
  <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ docker run --name nginx -p <span class="token number">10000</span>:80 -itd feisky/nginx:sp
 $ docker run --name phpfpm -itd --network container:nginx feisky/php-fpm:sp<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre></li>
-<li><p>第二个终端，使用 curl 访问 <a href="http://[VM1">http://[VM1</a> 的 IP]:10000，确认 Nginx 已正常启动。你应该可以看到 It works! 的响应。</p>
+<li><p>第二个终端，使用 curl 访问 <code>http://[VM1 的 IP]:10000</code> ，确认 Nginx 已正常启动。你应该可以看到 It works! 的响应。</p>
  <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token comment"># 192.168.0.10 是第一台虚拟机的 IP 地址</span>
 $ <span class="token function">curl</span> http://192.168.0.10:10000/
 It works<span class="token operator">!</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span></span></code></pre></li>
@@ -1175,12 +1175,9 @@ $ perf report<span aria-hidden="true" class="line-numbers-rows"><span></span><sp
 </ul>
 </li>
 </ol>
-<h4 id="6-2-execsnoop"><a href="#6-2-execsnoop" class="headerlink" title="6.2 execsnoop"></a>6.2 execsnoop</h4><pre><code>在这个案例中，我们使用了 top、pidstat、pstree 等工具分析了系统 CPU 使用率高的问题，并发现 CPU 升高是短时进程 stress 导致的，但是整个分析过程还是比较复杂的。对于这类问题，有没有更好的方法监控呢？
-
-[execsnoop](https://github.com/brendangregg/perf-tools/blob/master/execsnoop) 就是一个专为短时进程设计的工具。它通过 ftrace 实时监控进程的 exec() 行为，并输出短时进程的基本信息，包括进程 PID、父进程 PID、命令行参数以及执行的结果。
-
-比如，用 execsnoop 监控上述案例，就可以直接得到 stress 进程的父进程 PID 以及它的命令行参数，并可以发现大量的 stress 进程在不停启动：
-
+<h4 id="6-2-execsnoop"><a href="#6-2-execsnoop" class="headerlink" title="6.2 execsnoop"></a>6.2 execsnoop</h4><p>在这个案例中，我们使用了 top、pidstat、pstree 等工具分析了系统 CPU 使用率高的问题，并发现 CPU 升高是短时进程 stress 导致的，但是整个分析过程还是比较复杂的。对于这类问题，有没有更好的方法监控呢？</p>
+<p><a target="_blank" rel="noopener" href="https://github.com/brendangregg/perf-tools/blob/master/execsnoop">execsnoop</a> 就是一个专为短时进程设计的工具。它通过 ftrace 实时监控进程的 exec() 行为，并输出短时进程的基本信息，包括进程 PID、父进程 PID、命令行参数以及执行的结果。</p>
+<p>比如，用 execsnoop 监控上述案例，就可以直接得到 stress 进程的父进程 PID 以及它的命令行参数，并可以发现大量的 stress 进程在不停启动：</p>
 <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token comment"># 按 Ctrl+C 结束</span>
 $ execsnoop
 PCOMM            PID    <span class="token environment constant">PPID</span>   RET ARGS
@@ -1193,8 +1190,8 @@ stress           <span class="token number">30403</span>  <span class="token num
 <span class="token function">sh</span>               <span class="token number">30405</span>  <span class="token number">30393</span>    <span class="token number">0</span>
 stress           <span class="token number">30407</span>  <span class="token number">30405</span>    <span class="token number">0</span> /usr/local/bin/stress -t <span class="token number">1</span> -d <span class="token number">1</span>
 <span class="token punctuation">..</span>.<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
-execsnoop 所用的 ftrace 是一种常用的动态追踪技术，一般用于分析 Linux 内核的运行时行为，后面课程我也会详细介绍并带你使用。
-</code></pre><h4 id="6-3-小结"><a href="#6-3-小结" class="headerlink" title="6.3 小结"></a>6.3 小结</h4><p>碰到常规问题无法解释的 CPU 使用率情况时，首先要想到有可能是短时应用导致的问题，比如有可能是下面这两种情况。</p>
+<p>execsnoop 所用的 ftrace 是一种常用的动态追踪技术，一般用于分析 Linux 内核的运行时行为，后面课程我也会详细介绍并带你使用。</p>
+<h4 id="6-3-小结"><a href="#6-3-小结" class="headerlink" title="6.3 小结"></a>6.3 小结</h4><p>碰到常规问题无法解释的 CPU 使用率情况时，首先要想到有可能是短时应用导致的问题，比如有可能是下面这两种情况。</p>
 <ul>
 <li>第一，应用里直接调用了其他二进制程序，这些程序通常运行时间比较短，通过 top 等工具也不容易发现。</li>
 <li>第二，应用本身在不停地崩溃重启，而启动过程的资源初始化，很可能会占用相当多的 CPU。</li>
@@ -2563,9 +2560,9 @@ $ /usr/share/bcc/tools/memleak -a -p <span class="token variable"><span class="t
 Attaching to pid <span class="token number">18808</span>, Ctrl+C to quit.
 <span class="token punctuation">[</span><span class="token number">10</span>:23:18<span class="token punctuation">]</span> Top <span class="token number">10</span> stacks with outstanding allocations:
 <span class="token punctuation">[</span><span class="token number">10</span>:23:23<span class="token punctuation">]</span> Top <span class="token number">10</span> stacks with outstanding allocations:<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
-<h3 id="19-案例篇：为什么系统的Swap变高了（上）"><a href="#19-案例篇：为什么系统的Swap变高了（上）" class="headerlink" title="19 | 案例篇：为什么系统的Swap变高了（上）"></a>19 | 案例篇：为什么系统的Swap变高了（上）</h3></li>
+</li>
 </ol>
-<p>当发生了内存泄漏时，或者运行了大内存的应用程序，导致系统的内存资源紧张时，系统又会如何应对呢？</p>
+<h3 id="19-案例篇：为什么系统的Swap变高了（上）"><a href="#19-案例篇：为什么系统的Swap变高了（上）" class="headerlink" title="19 | 案例篇：为什么系统的Swap变高了（上）"></a>19 | 案例篇：为什么系统的Swap变高了（上）</h3><p>当发生了内存泄漏时，或者运行了大内存的应用程序，导致系统的内存资源紧张时，系统又会如何应对呢？</p>
 <p>这其实会导致两种可能结果，内存回收和 OOM 杀死进程。</p>
 <p>内存资源紧张导致的 OOM（Out Of Memory），相对容易理解，指的是系统杀死占用大量内存的进程，释放这些内存，再分配给其他更需要的进程。</p>
 <p>内存回收，也就是系统释放掉可以回收的内存，比如我前面讲过的缓存和缓冲区，就属于可回收内存。它们在内存管理中，通常被叫做<strong>文件页</strong>（File-backed Page）。</p>
@@ -2607,11 +2604,11 @@ Attaching to pid <span class="token number">18808</span>, Ctrl+C to quit.
 <p>我们可以看到，一旦剩余内存小于页低阈值，就会触发内存的回收。这个页低阈值，其实可以通过内核选项 /proc/sys/vm/min_free_kbytes 来间接设置。min_free_kbytes 设置了页最小阈值，而其他两个阈值，都是根据页最小阈值计算生成的，计算方法如下 ：</p>
 <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">pages_low <span class="token operator">=</span> pages_min*5/4
 pages_high <span class="token operator">=</span> pages_min*3/2<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre>
-<h4 id="19-2-NUMA-与-Swap"><a href="#19-2-NUMA-与-Swap" class="headerlink" title="19.2 NUMA 与 Swap"></a>19.2 NUMA 与 Swap</h4></li>
+</li>
 </ul>
 </li>
 </ol>
-<p>很多情况下，你明明发现了 Swap 升高，可是在分析系统的内存使用时，却很可能发现，系统剩余内存还多着呢。为什么剩余内存很多的情况下，也会发生 Swap 呢？</p>
+<h4 id="19-2-NUMA-与-Swap"><a href="#19-2-NUMA-与-Swap" class="headerlink" title="19.2 NUMA 与 Swap"></a>19.2 NUMA 与 Swap</h4><p>很多情况下，你明明发现了 Swap 升高，可是在分析系统的内存使用时，却很可能发现，系统剩余内存还多着呢。为什么剩余内存很多的情况下，也会发生 Swap 呢？</p>
 <p>看到上面的标题，你应该已经想到了，这正是处理器的 NUMA （Non-Uniform Memory Access）架构导致的。</p>
 <p>在 NUMA 架构下，多个处理器被划分到不同 Node 上，且每个 Node 都拥有自己的本地内存空间。</p>
 <p>而同一个 Node 内部的内存空间，实际上又可以进一步分为不同的内存域（Zone），比如直接内存访问区（DMA）、普通内存区（NORMAL）、伪内存区（MOVABLE）等，如下图所示：</p>
@@ -2798,9 +2795,9 @@ polkitd <span class="token number">1004</span> <span class="token number">44</sp
  <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ swapoff -a<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre></li>
 <li><p>实际上，关闭 Swap 后再重新打开，也是一种常用的 Swap 空间清理方法，比如：</p>
 <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ swapoff -a <span class="token operator">&amp;&amp;</span> <span class="token function">swapon</span> -a<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
-<h4 id="20-2-小结"><a href="#20-2-小结" class="headerlink" title="20.2 小结"></a>20.2 小结</h4></li>
+</li>
 </ol>
-<p>在内存资源紧张时，Linux 会通过 Swap ，把不常访问的匿名页换出到磁盘中，下次访问的时候再从磁盘换入到内存中来。你可以设置 /proc/sys/vm/min_free_kbytes，来调整系统定期回收内存的阈值；也可以设置 /proc/sys/vm/swappiness，来调整文件页和匿名页的回收倾向。</p>
+<h4 id="20-2-小结"><a href="#20-2-小结" class="headerlink" title="20.2 小结"></a>20.2 小结</h4><p>在内存资源紧张时，Linux 会通过 Swap ，把不常访问的匿名页换出到磁盘中，下次访问的时候再从磁盘换入到内存中来。你可以设置 /proc/sys/vm/min_free_kbytes，来调整系统定期回收内存的阈值；也可以设置 /proc/sys/vm/swappiness，来调整文件页和匿名页的回收倾向。</p>
 <p>当 Swap 变高时，你可以用 sar、/proc/zoneinfo、/proc/pid/status 等方法，查看系统和进程的内存使用情况，进而找出 Swap 升高的根源和受影响的进程。</p>
 <p>反过来说，通常，降低 Swap 的使用，可以提高系统的整体性能。要怎么做呢？这里，我也总结了几种常见的降低方法。</p>
 <ul>
@@ -4074,9 +4071,9 @@ OK<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><
 <li><p>我们切换到终端二，按 Ctrl+C 停止之前的 curl 命令；然后执行下面的 curl 命令，调用 <a target="_blank" rel="noopener" href="http://192.168.0.10:10000/get_cache_data">http://192.168.0.10:10000/get_cache_data</a> 新接口：</p>
 <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ <span class="token keyword">while</span> <span class="token boolean">true</span><span class="token punctuation">;</span> <span class="token keyword">do</span> <span class="token function">curl</span> http://192.168.0.10:10000/get_cache_data<span class="token punctuation">;</span> <span class="token keyword">done</span>
 <span class="token punctuation">{</span><span class="token punctuation">..</span>.,<span class="token string">"elapsed_seconds"</span>:0.16034674644470215,<span class="token string">"type"</span><span class="token builtin class-name">:</span><span class="token string">"good"</span><span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre>
-<h3 id="30-套路篇：如何迅速分析出系统I-O的瓶颈在哪里？"><a href="#30-套路篇：如何迅速分析出系统I-O的瓶颈在哪里？" class="headerlink" title="30 | 套路篇：如何迅速分析出系统I/O的瓶颈在哪里？"></a>30 | 套路篇：如何迅速分析出系统I/O的瓶颈在哪里？</h3></li>
+</li>
 </ol>
-<h4 id="30-1-性能指标"><a href="#30-1-性能指标" class="headerlink" title="30.1 性能指标"></a>30.1 性能指标</h4><p><img src="/images/《Linux性能优化实战》学习笔记/Linux存储系统的IO栈全景图.png" alt="Linux存储系统的IO栈全景图"></p>
+<h3 id="30-套路篇：如何迅速分析出系统I-O的瓶颈在哪里？"><a href="#30-套路篇：如何迅速分析出系统I-O的瓶颈在哪里？" class="headerlink" title="30 | 套路篇：如何迅速分析出系统I/O的瓶颈在哪里？"></a>30 | 套路篇：如何迅速分析出系统I/O的瓶颈在哪里？</h3><h4 id="30-1-性能指标"><a href="#30-1-性能指标" class="headerlink" title="30.1 性能指标"></a>30.1 性能指标</h4><p><img src="/images/《Linux性能优化实战》学习笔记/Linux存储系统的IO栈全景图.png" alt="Linux存储系统的IO栈全景图"></p>
 <ol>
 <li><p>文件系统 I/O 性能指标</p>
 <ol>
@@ -5279,9 +5276,9 @@ net.ipv4.tcp_synack_retries <span class="token operator">=</span> <span class="t
 <li><p>可以通过下面的命令，开启 TCP SYN Cookies：</p>
 <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ sysctl -w net.ipv4.tcp_syncookies<span class="token operator">=</span><span class="token number">1</span>
 net.ipv4.tcp_syncookies <span class="token operator">=</span> <span class="token number">1</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre>
-<h4 id="29-3-DDoS-到底该怎么防御"><a href="#29-3-DDoS-到底该怎么防御" class="headerlink" title="29.3 DDoS 到底该怎么防御"></a>29.3 DDoS 到底该怎么防御</h4></li>
+</li>
 </ol>
-<p>当 DDoS 报文到达服务器后，Linux 提供的机制只能缓解，而无法彻底解决。即使像是 SYN Flood 这样的小包攻击，其巨大的 PPS ，也会导致 Linux 内核消耗大量资源，进而导致其他网络报文的处理缓慢。</p>
+<h4 id="29-3-DDoS-到底该怎么防御"><a href="#29-3-DDoS-到底该怎么防御" class="headerlink" title="29.3 DDoS 到底该怎么防御"></a>29.3 DDoS 到底该怎么防御</h4><p>当 DDoS 报文到达服务器后，Linux 提供的机制只能缓解，而无法彻底解决。即使像是 SYN Flood 这样的小包攻击，其巨大的 PPS ，也会导致 Linux 内核消耗大量资源，进而导致其他网络报文的处理缓慢。</p>
 <p>所以，当时提到的 C10M 的方法，用到这里同样适合。比如，你可以基于 XDP 或者 DPDK，构建 DDoS 方案，在内核网络协议栈前，或者跳过内核协议栈，来识别并丢弃 DDoS 报文，避免 DDoS 对系统其他资源的消耗。</p>
 <p>不过，对于流量型的 DDoS 来说，当服务器的带宽被耗尽后，在服务器内部处理就无能为力了。这时，只能在服务器外部的网络设备中，设法识别并阻断流量（当然前提是网络设备要能扛住流量攻击）。比如，购置专业的入侵检测和防御设备，配置流量清洗设备阻断恶意流量等。</p>
 <p>既然 DDoS 这么难防御，这是不是说明， Linux 服务器内部压根儿就不关注这一点，而是全部交给专业的网络设备来处理呢？</p>
@@ -5539,9 +5536,9 @@ Transfer/sec:     <span class="token number">10</span>.04MB<span aria-hidden="tr
  <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ iptables -t nat -A POSTROUTING -s <span class="token number">192.168</span>.0.0/16 -j MASQUERADE<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre></li>
 <li><p>第二种方法，是为具体的 IP 地址配置 SNAT，并指定转换后的源地址：</p>
  <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ iptables -t nat -A POSTROUTING -s <span class="token number">192.168</span>.0.2 -j SNAT --to-source <span class="token number">100.100</span>.100.100<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
-<h4 id="41-4-DNAT"><a href="#41-4-DNAT" class="headerlink" title="41.4 DNAT"></a>41.4 DNAT</h4></li>
+</li>
 </ol>
-<p>再来看 DNAT，显然，DNAT 需要在 nat 表的 PREROUTING 或者 OUTPUT 链中配置，其中， PREROUTING 链更常用一些（因为它还可以用于转发的包）。</p>
+<h4 id="41-4-DNAT"><a href="#41-4-DNAT" class="headerlink" title="41.4 DNAT"></a>41.4 DNAT</h4><p>再来看 DNAT，显然，DNAT 需要在 nat 表的 PREROUTING 或者 OUTPUT 链中配置，其中， PREROUTING 链更常用一些（因为它还可以用于转发的包）。</p>
 <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ iptables -t nat -A PREROUTING -d <span class="token number">100.100</span>.100.100 -j DNAT --to-destination <span class="token number">192.168</span>.0.2<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
 <h4 id="41-5-双向地址转换"><a href="#41-5-双向地址转换" class="headerlink" title="41.5 双向地址转换"></a>41.5 双向地址转换</h4><p>双向地址转换，就是同时添加 SNAT 和 DNAT 规则，为公网 IP 和内网 IP 实现一对一的映射关系，即：</p>
 <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ iptables -t nat -A POSTROUTING -s <span class="token number">192.168</span>.0.2 -j SNAT --to-source <span class="token number">100.100</span>.100.100
@@ -7706,18 +7703,17 @@ debuginfo-install <span class="token function">bash</span><span aria-hidden="tru
 <article id="prenext-posts" class="prev-next articles">
     <div class="row article-row">
         
-        <div class="article col s12 m6" data-aos="fade-up" data-aos="fade-up">
+        <div class="article col s12 m6" data-aos="fade-up">
             <div class="article-badge left-badge text-color">
-                <i class="far fa-dot-circle"></i>&nbsp;本篇
-            </div>
+                <i class="fas fa-chevron-left"></i>&nbsp;上一篇</div>
             <div class="card">
-                <a href="/linux-xing-neng-you-hua-shi-zhan-xue-xi-bi-ji/">
+                <a href="/qu-tan-linux-cao-zuo-xi-tong-xue-xi-bi-ji/">
                     <div class="card-image">
                         
                         
-                        <img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/medias/featureimages/7.jpg" class="responsive-img" alt="《Linux性能优化实战》学习笔记">
+                        <img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/medias/featureimages/17.jpg" class="responsive-img" alt="《趣谈Linux操作系统》学习笔记">
                         
-                        <span class="card-title">《Linux性能优化实战》学习笔记</span>
+                        <span class="card-title">《趣谈Linux操作系统》学习笔记</span>
                     </div>
                 </a>
                 <div class="card-content article-content">
@@ -7727,9 +7723,9 @@ debuginfo-install <span class="token function">bash</span><span aria-hidden="tru
                         
                     </div>
                     <div class="publish-info">
-                            <span class="publish-date">
-                                <i class="far fa-clock fa-fw icon-date"></i>2021-11-04
-                            </span>
+                        <span class="publish-date">
+                            <i class="far fa-clock fa-fw icon-date"></i>2021-11-25
+                        </span>
                         <span class="publish-author">
                             
                             <i class="fas fa-bookmark fa-fw icon-category"></i>
@@ -7742,20 +7738,15 @@ debuginfo-install <span class="token function">bash</span><span aria-hidden="tru
                         </span>
                     </div>
                 </div>
-
                 
                 <div class="card-action article-tags">
-                    
-                    <a href="/tags/%E6%80%A7%E8%83%BD%E5%88%86%E6%9E%90/">
-                        <span class="chip bg-color">性能分析</span>
-                    </a>
                     
                     <a href="/tags/%E6%9E%81%E5%AE%A2%E6%97%B6%E9%97%B4/">
                         <span class="chip bg-color">极客时间</span>
                     </a>
                     
-                    <a href="/tags/%E6%80%A7%E8%83%BD%E4%BC%98%E5%8C%96/">
-                        <span class="chip bg-color">性能优化</span>
+                    <a href="/tags/%E6%93%8D%E4%BD%9C%E7%B3%BB%E7%BB%9F/">
+                        <span class="chip bg-color">操作系统</span>
                     </a>
                     
                 </div>
@@ -7990,7 +7981,7 @@ debuginfo-install <span class="token function">bash</span><span aria-hidden="tru
             <br>
             
             &nbsp;<i class="fas fa-chart-area"></i>&nbsp;站点总字数:&nbsp;<span
-                class="white-color">405.5k</span>&nbsp;字
+                class="white-color">406.1k</span>&nbsp;字
             
             
             
