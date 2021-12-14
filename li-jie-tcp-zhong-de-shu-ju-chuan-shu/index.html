@@ -438,14 +438,14 @@
                 
                 <div class="info-break-policy">
                     <i class="far fa-file-word fa-fw"></i>文章字数:&nbsp;&nbsp;
-                    2.9k
+                    3k
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-clock fa-fw"></i>阅读时长:&nbsp;&nbsp;
-                    10 分
+                    11 分
                 </div>
                 
 
@@ -528,12 +528,27 @@
 </blockquote>
 <p>握手的过程中除了建立连接本身外，还在不停的向对方更新自己仓库空闲空间的大小等信息，这些信息对于后续的数据运输是很重要的。</p>
 <p>经过 3 次握手后，一对一的物流公司就建立起来了。现在双方可以开始发送数据给对方了。</p>
-<h2 id="三、滑动窗口：接收仓库的空闲空间大小"><a href="#三、滑动窗口：接收仓库的空闲空间大小" class="headerlink" title="三、滑动窗口：接收仓库的空闲空间大小"></a>三、滑动窗口：接收仓库的空闲空间大小</h2><p>但是发送货物之前，发送方需要先考虑两个问题：</p>
+<h2 id="三、发送窗口：接收方仓库的空闲空间大小"><a href="#三、发送窗口：接收方仓库的空闲空间大小" class="headerlink" title="三、发送窗口：接收方仓库的空闲空间大小"></a>三、发送窗口：接收方仓库的空闲空间大小</h2><p>但是发送货物之前，发送方需要先考虑两个问题：</p>
 <ol>
 <li>发送方需要时刻知道接收方还有多少空闲的空间能存放货物。因为如果发送的货物总量超出了接收方空闲空间的大小，多余的货物会被丢弃掉。</li>
 <li>TCP 协议是 <strong>可靠的</strong> 的协议，所以发送方还需要记录发出的货物，接收方是否确认收到了等状态信息。</li>
 </ol>
-<p><strong>滑动窗口（Sliding Window）</strong>，也叫 <strong>发送窗口（Send Window）</strong>，就是这两个问题的解决方案。滑动窗口的大小等于 <strong>接收方</strong> 接收仓库空闲空间的大小，这个数据在 3 次握手的过程中初始化，并在随后的通信的过程中不断的更新。</p>
+<p><strong>发送窗口（Send Window）</strong> 的大小等于 <strong>接收方</strong> 接收仓库空闲空间的大小，这个数据在 3 次握手的过程中初始化，并在随后的通信的过程中不断的更新。</p>
+<blockquote>
+<p>有时发送窗口（相对于发送者来说）也叫接收窗口（相对于接收者来说）。</p>
+</blockquote>
+<h2 id="四、拥塞控制窗口：各物流公司之间如何协调上路"><a href="#四、拥塞控制窗口：各物流公司之间如何协调上路" class="headerlink" title="四、拥塞控制窗口：各物流公司之间如何协调上路"></a>四、拥塞控制窗口：各物流公司之间如何协调上路</h2><p>物流公司都是一对一的，一个连接就是一个物流公司。各个物流公司之间没有沟通，也就没有协调。大家想发货时就发车，那么路上肯定会堵起来，而货物是有有效期的，不能无限制的堵下去。同样的，对于网络也是，网速也是有限的，数据包也是有超时（TTL），不能无休止发送数据。</p>
+<p>但是，与现实世界中有一个全局统一交通系统来控制各个路口的红绿灯不同，网络世界中没有这样一个系统。所以就需要各个物流公司根据货物发送出去并且对方确认收到的时间差来估算网络是否拥堵等情况。</p>
+<p>各个物流公司可以应用不同的算法来估算网络是否拥堵等情况，并根据估算的结果来控制货车发车的频率，这就是 <strong>拥塞处理（Congestion Handling）</strong>。</p>
+<p>拥塞处理算法计算的结果是当前情况下最多能发送多少数据，也是一个窗口，叫 <strong>拥塞控制窗口</strong> 。</p>
+<p>在 Linux 中可以使用下面的命令来查看系统支持的拥塞处理算法和当前使用的拥塞处理算法：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ sysctl net.ipv4.tcp_available_congestion_control
+net.ipv4.tcp_available_congestion_control <span class="token operator">=</span> reno cubic
+
+$ sysctl net.ipv4.tcp_congestion_control
+net.ipv4.tcp_congestion_control <span class="token operator">=</span> cubic<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p><a target="_blank" rel="noopener" href="https://zhuanlan.zhihu.com/p/144273871">万字详文：TCP 拥塞控制详解</a></p>
+<h2 id="五、滑动窗口：综合考虑路况和对方仓库空闲空间大小"><a href="#五、滑动窗口：综合考虑路况和对方仓库空闲空间大小" class="headerlink" title="五、滑动窗口：综合考虑路况和对方仓库空闲空间大小"></a>五、滑动窗口：综合考虑路况和对方仓库空闲空间大小</h2><p><strong>滑动窗口（Sliding Window）</strong> 就是 <strong>发送窗口</strong> 和 <strong>拥塞控制窗口</strong> 的结合。</p>
 <p>滑动窗口的内部状态如下：</p>
 <p><img src="/images/理解TCP中的数据传输/滑动窗口的内部状态.png" alt="滑动窗口的内部状态"></p>
 <ol>
@@ -571,17 +586,7 @@
 <blockquote>
 <p>图片来源：<a target="_blank" rel="noopener" href="http://www.tcpipguide.com/free/t_TCPWindowSizeAdjustmentandFlowControl-2.htm">TCP Window Size Adjustment and Flow Control 2</a></p>
 </blockquote>
-<h2 id="三、拥塞处理：各物流公司之间如何协调上路"><a href="#三、拥塞处理：各物流公司之间如何协调上路" class="headerlink" title="三、拥塞处理：各物流公司之间如何协调上路"></a>三、拥塞处理：各物流公司之间如何协调上路</h2><p>物流公司都是一对一的，一个连接就是一个物流公司。各个物流公司之间没有沟通，也就没有协调。大家想发货时就发车，那么路上肯定会堵起来，而货物是有有效期的，不能无限制的堵下去。同样的，对于网络也是，网速也是有限的，数据包也是有超时（TTL），不能无休止发送数据。</p>
-<p>但是，与现实世界中有一个全局统一交通系统来控制各个路口的红绿灯不同，网络世界中没有这样一个系统。所以就需要各个物流公司根据货物发送出去并且对方确认收到的时间差来估算网络是否拥堵等情况。</p>
-<p>各个物流公司可以应用不同的算法来估算网络是否拥堵等情况，并根据估算的结果来控制货车发车的频率，这就是 <strong>拥塞处理（Congestion Handling）</strong>。</p>
-<p>在 Linux 中可以使用下面的命令来查看系统支持的拥塞处理算法和当前使用的拥塞处理算法：</p>
-<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ sysctl net.ipv4.tcp_available_congestion_control
-net.ipv4.tcp_available_congestion_control <span class="token operator">=</span> reno cubic
-
-$ sysctl net.ipv4.tcp_congestion_control
-net.ipv4.tcp_congestion_control <span class="token operator">=</span> cubic<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span></span></code></pre>
-<p><a target="_blank" rel="noopener" href="https://zhuanlan.zhihu.com/p/144273871">万字详文：TCP 拥塞控制详解</a></p>
-<h2 id="四、糊涂窗口综合症：运输效率太低了怎么办"><a href="#四、糊涂窗口综合症：运输效率太低了怎么办" class="headerlink" title="四、糊涂窗口综合症：运输效率太低了怎么办"></a>四、糊涂窗口综合症：运输效率太低了怎么办</h2><p>每辆货车的最大载货量是 <strong>MSS（Maximum Segment Size，最大分段大小）</strong>，但是如果在运输时货车里面实际的载货量常常很小，造成这种情况的原因可能是：</p>
+<h2 id="六、糊涂窗口综合症：运输效率太低了怎么办"><a href="#六、糊涂窗口综合症：运输效率太低了怎么办" class="headerlink" title="六、糊涂窗口综合症：运输效率太低了怎么办"></a>六、糊涂窗口综合症：运输效率太低了怎么办</h2><p>每辆货车的最大载货量是 <strong>MSS（Maximum Segment Size，最大分段大小）</strong>，但是如果在运输时货车里面实际的载货量常常很小，造成这种情况的原因可能是：</p>
 <ul>
 <li>发送方的发送仓库中每次只有一点货物要发送；</li>
 <li>接收方的接收仓库中每次只能腾出一点空间出来接收货物；</li>
@@ -630,7 +635,7 @@ net.ipv4.tcp_congestion_control <span class="token operator">=</span> cubic<span
 <p> 参考：<a target="_blank" rel="noopener" href="https://blog.csdn.net/sctq8888/article/details/7398967">Linux下TCP延迟确认(Delayed Ack)机制导致的时延问题分析</a></p>
 </li>
 </ol>
-<h2 id="五、4-次挥手：注销物流公司"><a href="#五、4-次挥手：注销物流公司" class="headerlink" title="五、4 次挥手：注销物流公司"></a>五、4 次挥手：注销物流公司</h2><p>当有 A 不再需要发送数据给 B 时，可以单向的关闭连接。流程如下：</p>
+<h2 id="七、4-次挥手：注销物流公司"><a href="#七、4-次挥手：注销物流公司" class="headerlink" title="七、4 次挥手：注销物流公司"></a>七、4 次挥手：注销物流公司</h2><p>当有 A 不再需要发送数据给 B 时，可以单向的关闭连接。流程如下：</p>
 <div class="table-container">
 <table>
 <thead>
@@ -696,7 +701,7 @@ net.ipv4.tcp_congestion_control <span class="token operator">=</span> cubic<span
 </tbody>
 </table>
 </div>
-<h2 id="六、TCP-协议抓包"><a href="#六、TCP-协议抓包" class="headerlink" title="六、TCP 协议抓包"></a>六、TCP 协议抓包</h2><ol>
+<h2 id="八、TCP-协议抓包"><a href="#八、TCP-协议抓包" class="headerlink" title="八、TCP 协议抓包"></a>八、TCP 协议抓包</h2><ol>
 <li><p>两台机器分别是：</p>
 <ul>
 <li>A: 192.168.81.88（Windows 10）</li>
@@ -1131,7 +1136,7 @@ net.ipv4.tcp_congestion_control <span class="token operator">=</span> cubic<span
             <br>
             
             &nbsp;<i class="fas fa-chart-area"></i>&nbsp;站点总字数:&nbsp;<span
-                class="white-color">406.9k</span>&nbsp;字
+                class="white-color">407k</span>&nbsp;字
             
             
             
