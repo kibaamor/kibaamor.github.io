@@ -438,14 +438,14 @@
                 
                 <div class="info-break-policy">
                     <i class="far fa-file-word fa-fw"></i>文章字数:&nbsp;&nbsp;
-                    10.8k
+                    12.8k
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-clock fa-fw"></i>阅读时长:&nbsp;&nbsp;
-                    42 分
+                    49 分
                 </div>
                 
 
@@ -1099,6 +1099,120 @@ root     <span class="token number">32901</span> <span class="token number">3279
 <p>但是当它接到了通知，来操作共享资源的时候，还是需要抢互斥锁，因为可能很多人都受到了通知，都来访问了，所以 <strong>条件变量和互斥锁是配合使用的</strong> 。</p>
 <p><img src="/images/《趣谈Linux操作系统》学习笔记/条件变量和互斥锁配合使用流程.jpeg" alt="条件变量和互斥锁配合使用流程"></p>
 <h4 id="6-5-总结"><a href="#6-5-总结" class="headerlink" title="6.5 总结"></a>6.5 总结</h4><p><img src="/images/《趣谈Linux操作系统》学习笔记/多线程总结.png" alt="多线程总结"></p>
+<h3 id="七、进程数据结构（上）"><a href="#七、进程数据结构（上）" class="headerlink" title="七、进程数据结构（上）"></a>七、进程数据结构（上）</h3><p>在Linux里面，无论是进程，还是线程，到了内核里面，我们统一都叫任务（Task），由一个统一的结构task_struct进行管理。</p>
+<p><img src="/images/《趣谈Linux操作系统》学习笔记/Linux中的任务.jpeg" alt="Linux中的任务.jpeg"></p>
+<p>Linux内核有一个链表，将所有的task_struct串起来。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">struct</span> <span class="token class-name">list_head</span>        tasks<span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>接下来，我们来看每一个任务都应该包含哪些字段。</p>
+<h4 id="7-1-任务ID"><a href="#7-1-任务ID" class="headerlink" title="7.1 任务ID"></a>7.1 任务ID</h4><p>每一个任务都应该有一个ID，作为这个任务的唯一标识。到时候排期啊、下发任务啊等等，都按ID来，就不会产生歧义。</p>
+<p>task_struct里面涉及任务ID的，有下面几个：</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c">pid_t pid<span class="token punctuation">;</span>
+pid_t tgid<span class="token punctuation">;</span>
+<span class="token keyword">struct</span> <span class="token class-name">task_struct</span> <span class="token operator">*</span>group_leader<span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span></span></code></pre>
+<p>你可能觉得奇怪，既然是ID，有一个就足以做唯一标识了，这个怎么看起来这么麻烦？这是因为，上面的进程和线程到了内核这里，统一变成了任务，这就带来两个问题。</p>
+<ol>
+<li><p>任务展示</p>
+<p> 前面我们学习命令行的时候，知道ps命令可以展示出所有的进程。但是如果你是这个命令的实现者，到了内核，按照上面的任务列表把这些命令都显示出来，把所有的线程全都平摊开来显示给用户。用户肯定觉得既复杂又困惑。复杂在于，列表这么长；困惑在于，里面出现了很多并不是自己创建的线程。</p>
+</li>
+<li><p>给任务下发指令</p>
+<p> 可以通过kill来给进程发信号，通知进程退出。如果发给了其中一个线程，我们就不能只退出这个线程，而是应该退出整个进程。当然，有时候，我们希望只给某个线程发信号。</p>
+<p> 所以在内核中，它们虽然都是任务，但是应该加以区分。其中，pid是process id，tgid是thread group ID。</p>
+<p> 任何一个进程，如果只有主线程，那pid是自己，tgid是自己，group_leader指向的还是自己。</p>
+<p> 但是，如果一个进程创建了其他线程，那就会有所变化了。线程有自己的pid，tgid就是进程的主线程的pid，group_leader指向的就是进程的主线程。</p>
+<p> 好了，有了tgid，我们就知道tast_struct代表的是一个进程还是代表一个线程了。</p>
+</li>
+</ol>
+<h4 id="7-2-信号处理"><a href="#7-2-信号处理" class="headerlink" title="7.2 信号处理"></a>7.2 信号处理</h4><p>task_struct里面关于信号处理的字段。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token comment">/* Signal handlers: */</span>
+<span class="token keyword">struct</span> <span class="token class-name">signal_struct</span>    <span class="token operator">*</span>signal<span class="token punctuation">;</span>
+<span class="token keyword">struct</span> <span class="token class-name">sighand_struct</span>   <span class="token operator">*</span>sighand<span class="token punctuation">;</span>
+sigset_t                blocked<span class="token punctuation">;</span>
+sigset_t                real_blocked<span class="token punctuation">;</span>
+sigset_t                saved_sigmask<span class="token punctuation">;</span>
+<span class="token keyword">struct</span> <span class="token class-name">sigpending</span>       pending<span class="token punctuation">;</span>
+<span class="token keyword">unsigned</span> <span class="token keyword">long</span>           sas_ss_sp<span class="token punctuation">;</span>
+size_t                  sas_ss_size<span class="token punctuation">;</span>
+<span class="token keyword">unsigned</span> <span class="token keyword">int</span>            sas_ss_flags<span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>这里定义了哪些信号被阻塞暂不处理（blocked），哪些信号尚等待处理（pending），哪些信号正在通过信号处理函数进行处理（sighand）。处理的结果可以是忽略，可以是结束进程等等。</p>
+<p>信号处理函数默认使用用户态的函数栈，当然也可以开辟新的栈专门用于信号处理，这就是sas_ss_xxx这三个变量的作用。</p>
+<p>上面我说了下发信号的时候，需要区分进程和线程。从这里我们其实也能看出一些端倪。</p>
+<p>task_struct里面有一个struct sigpending pending。如果我们进入struct signal_struct *signal去看的话，还有一个struct sigpending shared_pending。它们一个是本任务的，一个是线程组共享的。</p>
+<h4 id="7-3-任务状态"><a href="#7-3-任务状态" class="headerlink" title="7.3 任务状态"></a>7.3 任务状态</h4><p>在task_struct里面，涉及任务状态的是下面这几个变量：</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">volatile</span> <span class="token keyword">long</span> state<span class="token punctuation">;</span>    <span class="token comment">/* -1 unrunnable, 0 runnable, &gt;0 stopped */</span>
+<span class="token keyword">int</span> exit_state<span class="token punctuation">;</span>
+<span class="token keyword">unsigned</span> <span class="token keyword">int</span> flags<span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span></span></code></pre>
+<p>state（状态）可以取的值定义在include/linux/sched.h头文件中。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token comment">/* Used in tsk-&gt;state: */</span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">define</span> <span class="token expression">TASK_RUNNING                    <span class="token number">0</span></span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">define</span> <span class="token expression">TASK_INTERRUPTIBLE              <span class="token number">1</span></span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">define</span> <span class="token expression">TASK_UNINTERRUPTIBLE            <span class="token number">2</span></span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">define</span> <span class="token expression">__TASK_STOPPED                  <span class="token number">4</span></span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">define</span> <span class="token expression">__TASK_TRACED                   <span class="token number">8</span></span></span>
+<span class="token comment">/* Used in tsk-&gt;exit_state: */</span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">define</span> <span class="token expression">EXIT_DEAD                       <span class="token number">16</span></span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">define</span> <span class="token expression">EXIT_ZOMBIE                     <span class="token number">32</span></span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">define</span> <span class="token expression"><span class="token function">EXIT_TRACE</span>                      <span class="token punctuation">(</span>EXIT_ZOMBIE <span class="token operator">|</span> EXIT_DEAD<span class="token punctuation">)</span></span></span>
+<span class="token comment">/* Used in tsk-&gt;state again: */</span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">define</span> <span class="token expression">TASK_DEAD                       <span class="token number">64</span></span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">define</span> <span class="token expression">TASK_WAKEKILL                   <span class="token number">128</span></span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">define</span> <span class="token expression">TASK_WAKING                     <span class="token number">256</span></span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">define</span> <span class="token expression">TASK_PARKED                     <span class="token number">512</span></span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">define</span> <span class="token expression">TASK_NOLOAD                     <span class="token number">1024</span></span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">define</span> <span class="token expression">TASK_NEW                        <span class="token number">2048</span></span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">define</span> <span class="token expression">TASK_STATE_MAX                  <span class="token number">4096</span></span></span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>从定义的数值很容易看出来，flags是通过bitset的方式设置的也就是说，当前是什么状态，哪一位就置一。</p>
+<p><img src="/images/《趣谈Linux操作系统》学习笔记/任务状态.jpeg" alt="任务状态.jpeg"></p>
+<p>TASK_RUNNING并不是说进程正在运行，而是表示进程在时刻准备运行的状态。当处于这个状态的进程获得时间片的时候，就是在运行中；如果没有获得时间片，就说明它被其他进程抢占了，在等待再次分配时间片。</p>
+<p>在运行中的进程，一旦要进行一些I/O操作，需要等待I/O完毕，这个时候会释放CPU，进入睡眠状态。</p>
+<p>在Linux中，有两种睡眠状态。</p>
+<ol>
+<li><p>TASK_INTERRUPTIBLE，可中断的睡眠状态。</p>
+<p> 这是一种浅睡眠的状态，也就是说，虽然在睡眠，等待I/O完成，但是这个时候一个信号来的时候，进程还是要被唤醒。只不过唤醒后，不是继续刚才的操作，而是进行信号处理。当然程序员可以根据自己的意愿，来写信号处理函数，例如收到某些信号，就放弃等待这个I/O操作完成，直接退出，也可也收到某些信息，继续等待。</p>
+</li>
+<li><p>TASK_UNINTERRUPTIBLE，不可中断的睡眠状态。</p>
+<p> 这是一种深度睡眠状态，不可被信号唤醒，只能死等I/O操作完成。一旦I/O操作因为特殊原因不能完成，这个时候，谁也叫不醒这个进程了。你可能会说，我kill它呢？别忘了，kill本身也是一个信号，既然这个状态不可被信号唤醒，kill信号也被忽略了。除非重启电脑，没有其他办法。</p>
+<p> 因此，这其实是一个比较危险的事情，除非程序员极其有把握，不然还是不要设置成TASK_UNINTERRUPTIBLE。</p>
+</li>
+</ol>
+<p>于是，我们就有了一种新的进程睡眠状态，TASK_KILLABLE，可以终止的新睡眠状态。进程处于这种状态中，它的运行原理类似TASK_UNINTERRUPTIBLE，只不过可以响应致命信号。</p>
+<p>从定义可以看出，TASK_WAKEKILL用于在接收到致命信号时唤醒进程，而TASK_KILLABLE相当于这两位都设置了。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">define</span> <span class="token expression"><span class="token function">TASK_KILLABLE</span>           <span class="token punctuation">(</span>TASK_WAKEKILL <span class="token operator">|</span> TASK_UNINTERRUPTIBLE<span class="token punctuation">)</span></span></span><span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>TASK_STOPPED是在进程接收到SIGSTOP、SIGTTIN、SIGTSTP或者SIGTTOU信号之后进入该状态。</p>
+<p>TASK_TRACED表示进程被debugger等进程监视，进程执行被调试程序所停止。当一个进程被另外的进程所监视，每一个信号都会让进程进入该状态。</p>
+<p>一旦一个进程要结束，先进入的是EXIT_ZOMBIE状态，但是这个时候它的父进程还没有使用wait()等系统调用来获知它的终止信息，此时进程就成了僵尸进程。</p>
+<p>EXIT_DEAD是进程的最终状态。</p>
+<p>EXIT_ZOMBIE和EXIT_DEAD也可以用于exit_state。</p>
+<p>上面的进程状态和进程的运行、调度有关系，还有其他的一些状态，我们称为标志。放在flags字段中，这些字段都被定义称为宏，以PF开头。我这里举几个例子。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">define</span> <span class="token expression">PF_EXITING      <span class="token number">0x00000004</span></span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">define</span> <span class="token expression">PF_VCPU         <span class="token number">0x00000010</span></span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">define</span> <span class="token expression">PF_FORKNOEXEC   <span class="token number">0x00000040</span></span></span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span></span></code></pre>
+<ul>
+<li><strong>PF_EXITING</strong> 表示正在退出。当有这个flag的时候，在函数find_alive_thread中，找活着的线程，遇到有这个flag的，就直接跳过。</li>
+<li><strong>PF_VCPU</strong> 表示进程运行在虚拟CPU上。在函数account_system_time中，统计进程的系统运行时间，如果有这个flag，就调用account_guest_time，按照客户机的时间进行统计。</li>
+<li><strong>PF_FORKNOEXEC</strong> 表示fork完了，还没有exec。在_do_fork函数里面调用copy_process，这个时候把flag设置为PF_FORKNOEXEC。当exec中调用了load_elf_binary的时候，又把这个flag去掉。</li>
+</ul>
+<h4 id="7-4-进程调度"><a href="#7-4-进程调度" class="headerlink" title="7.4 进程调度"></a>7.4 进程调度</h4><p>进程的状态切换往往涉及调度，下面这些字段都是用于调度的。为了让你理解task_struct进程管理的全貌，我先在这里列一下，咱们后面会有单独的章节讲解，这里你只要大概看一下里面的注释就好了。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token comment">//是否在运行队列上</span>
+<span class="token keyword">int</span>                         on_rq<span class="token punctuation">;</span>
+<span class="token comment">//优先级</span>
+<span class="token keyword">int</span>                         prio<span class="token punctuation">;</span>
+<span class="token keyword">int</span>                         static_prio<span class="token punctuation">;</span>
+<span class="token keyword">int</span>                         normal_prio<span class="token punctuation">;</span>
+<span class="token keyword">unsigned</span> <span class="token keyword">int</span>                rt_priority<span class="token punctuation">;</span>
+<span class="token comment">//调度器类</span>
+<span class="token keyword">const</span> <span class="token keyword">struct</span> <span class="token class-name">sched_class</span>    <span class="token operator">*</span>sched_class<span class="token punctuation">;</span>
+<span class="token comment">//调度实体</span>
+<span class="token keyword">struct</span> <span class="token class-name">sched_entity</span>         se<span class="token punctuation">;</span>
+<span class="token keyword">struct</span> <span class="token class-name">sched_rt_entity</span>      rt<span class="token punctuation">;</span>
+<span class="token keyword">struct</span> <span class="token class-name">sched_dl_entity</span>      dl<span class="token punctuation">;</span>
+<span class="token comment">//调度策略</span>
+<span class="token keyword">unsigned</span> <span class="token keyword">int</span>                policy<span class="token punctuation">;</span>
+<span class="token comment">//可以使用哪些CPU</span>
+<span class="token keyword">int</span>                         nr_cpus_allowed<span class="token punctuation">;</span>
+cpumask_t                   cpus_allowed<span class="token punctuation">;</span>
+<span class="token keyword">struct</span> <span class="token class-name">sched_info</span>           sched_info<span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<h4 id="7-5-总结"><a href="#7-5-总结" class="headerlink" title="7.5 总结"></a>7.5 总结</h4><p>画一个图总结一下。这个图是进程管理task_struct的的结构图。其中红色的部分是今天讲的部分，你可以对着这张图说出它们的含义。</p>
+<p><img src="/images/《趣谈Linux操作系统》学习笔记/进程管理task_struct的结构图（上）.jpeg" alt="进程管理task_struct的结构图（上）"></p>
 
                 
             </div>
@@ -1500,7 +1614,7 @@ root     <span class="token number">32901</span> <span class="token number">3279
             <br>
             
             &nbsp;<i class="fas fa-chart-area"></i>&nbsp;站点总字数:&nbsp;<span
-                class="white-color">417.2k</span>&nbsp;字
+                class="white-color">419.3k</span>&nbsp;字
             
             
             
