@@ -1,0 +1,1819 @@
+<!DOCTYPE HTML>
+<html lang="zh-CN">
+
+
+<head>
+    <meta charset="utf-8">
+    <meta name="referrer" content="no-referrer-when-downgrade">
+    <meta name="keywords" content="epoll、select和poll源码简析, kiba, zen, amor, kibazen, kibaamor, 木叶, 木叶禅">
+    <meta name="description" content="一个普通游戏程序员的博客">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <meta name="renderer" content="webkit|ie-stand|ie-comp">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="format-detection" content="telephone=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <!-- Global site tag (gtag.js) - Google Analytics -->
+
+
+    <title>epoll、select和poll源码简析 | 木叶禅</title>
+    <link rel="icon" type="image/png" href="/favicon.png">
+
+    <link rel="stylesheet" type="text/css" href="/libs/awesome/css/all.css">
+    <link rel="stylesheet" type="text/css" href="/libs/materialize/materialize.min.css">
+    <link rel="stylesheet" type="text/css" href="/libs/aos/aos.css">
+    <link rel="stylesheet" type="text/css" href="/libs/animate/animate.min.css">
+    <link rel="stylesheet" type="text/css" href="/libs/lightGallery/css/lightgallery.min.css">
+    <link rel="stylesheet" type="text/css" href="/css/matery.css">
+    <link rel="stylesheet" type="text/css" href="/css/my.css">
+
+    <script src="/libs/jquery/jquery.min.js"></script>
+
+<meta name="generator" content="Hexo 5.3.0">
+<style>.github-emoji { position: relative; display: inline-block; width: 1.2em; min-height: 1.2em; overflow: hidden; vertical-align: top; color: transparent; }  .github-emoji > span { position: relative; z-index: 10; }  .github-emoji img, .github-emoji .fancybox { margin: 0 !important; padding: 0 !important; border: none !important; outline: none !important; text-decoration: none !important; user-select: none !important; cursor: auto !important; }  .github-emoji img { height: 1.2em !important; width: 1.2em !important; position: absolute !important; left: 50% !important; top: 50% !important; transform: translate(-50%, -50%) !important; user-select: none !important; cursor: auto !important; } .github-emoji-fallback { color: inherit; } .github-emoji-fallback img { opacity: 0 !important; }</style>
+<link rel="alternate" href="/atom.xml" title="木叶禅" type="application/atom+xml">
+</head>
+
+
+
+   <style>
+    body{
+       background-image: url(/medias/background.jpg);
+       background-repeat:no-repeat;
+       background-size:cover;
+       background-attachment:fixed;
+    }
+</style>
+
+
+
+<body>
+    <header class="navbar-fixed">
+    <nav id="headNav" class="bg-color nav-transparent">
+        <div id="navContainer" class="nav-wrapper container">
+            <div class="brand-logo">
+                <a href="/" class="waves-effect waves-light">
+                    
+                    <img src="/medias/logo.png" class="logo-img" alt="LOGO">
+                    
+                    <span class="logo-span">木叶禅</span>
+                </a>
+            </div>
+            
+
+<a href="#" data-target="mobile-nav" class="sidenav-trigger button-collapse"><i class="fas fa-bars"></i></a>
+<ul class="right nav-menu">
+  
+  <li class="hide-on-med-and-down nav-item">
+    
+    <a href="/" class="waves-effect waves-light">
+      
+      <i class="fas fa-home" style="zoom: 0.6;"></i>
+      
+      <span>首页</span>
+    </a>
+    
+  </li>
+  
+  <li class="hide-on-med-and-down nav-item">
+    
+    <a href="/leetcode/" class="waves-effect waves-light">
+      
+      <i class="fas fa-code" style="zoom: 0.6;"></i>
+      
+      <span>LeetCode</span>
+    </a>
+    
+  </li>
+  
+  <li class="hide-on-med-and-down nav-item">
+    
+    <a href="/learn/" class="waves-effect waves-light">
+      
+      <i class="fas fa-book" style="zoom: 0.6;"></i>
+      
+      <span>学习</span>
+    </a>
+    
+  </li>
+  
+  <li class="hide-on-med-and-down nav-item">
+    
+    <a href="/softwares/" class="waves-effect waves-light">
+      
+      <i class="fas fa-toolbox" style="zoom: 0.6;"></i>
+      
+      <span>软件</span>
+    </a>
+    
+  </li>
+  
+  <li class="hide-on-med-and-down nav-item">
+    
+    <a href="/categories/" class="waves-effect waves-light">
+      
+      <i class="fas fa-bookmark" style="zoom: 0.6;"></i>
+      
+      <span>分类</span>
+    </a>
+    
+  </li>
+  
+  <li class="hide-on-med-and-down nav-item">
+    
+    <a href="/tags/" class="waves-effect waves-light">
+      
+      <i class="fas fa-tags" style="zoom: 0.6;"></i>
+      
+      <span>标签</span>
+    </a>
+    
+  </li>
+  
+  <li class="hide-on-med-and-down nav-item">
+    
+    <a href="/about/" class="waves-effect waves-light">
+      
+      <i class="fas fa-user-circle" style="zoom: 0.6;"></i>
+      
+      <span>关于</span>
+    </a>
+    
+  </li>
+  
+  <li>
+    <a href="#searchModal" class="modal-trigger waves-effect waves-light">
+      <i id="searchIcon" class="fas fa-search" title="搜索" style="zoom: 0.85;"></i>
+    </a>
+  </li>
+</ul>
+
+
+<div id="mobile-nav" class="side-nav sidenav">
+
+    <div class="mobile-head bg-color">
+        
+        <img src="/medias/logo.png" class="logo-img circle responsive-img">
+        
+        <div class="logo-name">木叶禅</div>
+        <div class="logo-desc">
+            
+            一个普通游戏程序员的博客
+            
+        </div>
+    </div>
+
+    
+
+    <ul class="menu-list mobile-menu-list">
+        
+        <li class="m-nav-item">
+	  
+		<a href="/" class="waves-effect waves-light">
+			
+			    <i class="fa-fw fas fa-home"></i>
+			
+			首页
+		</a>
+          
+        </li>
+        
+        <li class="m-nav-item">
+	  
+		<a href="/leetcode/" class="waves-effect waves-light">
+			
+			    <i class="fa-fw fas fa-code"></i>
+			
+			LeetCode
+		</a>
+          
+        </li>
+        
+        <li class="m-nav-item">
+	  
+		<a href="/learn/" class="waves-effect waves-light">
+			
+			    <i class="fa-fw fas fa-book"></i>
+			
+			学习
+		</a>
+          
+        </li>
+        
+        <li class="m-nav-item">
+	  
+		<a href="/softwares/" class="waves-effect waves-light">
+			
+			    <i class="fa-fw fas fa-toolbox"></i>
+			
+			软件
+		</a>
+          
+        </li>
+        
+        <li class="m-nav-item">
+	  
+		<a href="/categories/" class="waves-effect waves-light">
+			
+			    <i class="fa-fw fas fa-bookmark"></i>
+			
+			分类
+		</a>
+          
+        </li>
+        
+        <li class="m-nav-item">
+	  
+		<a href="/tags/" class="waves-effect waves-light">
+			
+			    <i class="fa-fw fas fa-tags"></i>
+			
+			标签
+		</a>
+          
+        </li>
+        
+        <li class="m-nav-item">
+	  
+		<a href="/about/" class="waves-effect waves-light">
+			
+			    <i class="fa-fw fas fa-user-circle"></i>
+			
+			关于
+		</a>
+          
+        </li>
+        
+        
+    </ul>
+</div>
+
+
+        </div>
+
+        
+    </nav>
+
+</header>
+
+    
+<script src="/libs/cryptojs/crypto-js.min.js"></script>
+<script>
+    (function() {
+        let pwd = '';
+        if (pwd && pwd.length > 0) {
+            if (pwd !== CryptoJS.SHA256(prompt('请输入访问本文章的密码')).toString(CryptoJS.enc.Hex)) {
+                alert('密码错误，将返回主页！');
+                location.href = '/';
+            }
+        }
+    })();
+</script>
+
+
+
+
+<div class="bg-cover pd-header post-cover" style="background-image: url('/medias/featureimages/21.jpg')">
+    <div class="container" style="right: 0px;left: 0px;">
+        <div class="row">
+            <div class="col s12 m12 l12">
+                <div class="brand">
+                    <h1 class="description center-align post-title">epoll、select和poll源码简析</h1>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+
+
+<main class="post-container content">
+
+    
+    <link rel="stylesheet" href="/libs/tocbot/tocbot.css">
+<style>
+    #articleContent h1::before,
+    #articleContent h2::before,
+    #articleContent h3::before,
+    #articleContent h4::before,
+    #articleContent h5::before,
+    #articleContent h6::before {
+        display: block;
+        content: " ";
+        height: 100px;
+        margin-top: -100px;
+        visibility: hidden;
+    }
+
+    #articleContent :focus {
+        outline: none;
+    }
+
+    .toc-fixed {
+        position: fixed;
+        top: 64px;
+    }
+
+    .toc-widget {
+        width: 345px;
+        padding-left: 20px;
+    }
+
+    .toc-widget .toc-title {
+        padding: 35px 0 15px 17px;
+        font-size: 1.5rem;
+        font-weight: bold;
+        line-height: 1.5rem;
+    }
+
+    .toc-widget ol {
+        padding: 0;
+        list-style: none;
+    }
+
+    #toc-content {
+        padding-bottom: 30px;
+        overflow: auto;
+    }
+
+    #toc-content ol {
+        padding-left: 10px;
+    }
+
+    #toc-content ol li {
+        padding-left: 10px;
+    }
+
+    #toc-content .toc-link:hover {
+        color: #42b983;
+        font-weight: 700;
+        text-decoration: underline;
+    }
+
+    #toc-content .toc-link::before {
+        background-color: transparent;
+        max-height: 25px;
+
+        position: absolute;
+        right: 23.5vw;
+        display: block;
+    }
+
+    #toc-content .is-active-link {
+        color: #42b983;
+    }
+
+    #floating-toc-btn {
+        position: fixed;
+        right: 15px;
+        bottom: 76px;
+        padding-top: 15px;
+        margin-bottom: 0;
+        z-index: 998;
+    }
+
+    #floating-toc-btn .btn-floating {
+        width: 48px;
+        height: 48px;
+    }
+
+    #floating-toc-btn .btn-floating i {
+        line-height: 48px;
+        font-size: 1.4rem;
+    }
+</style>
+<div class="row">
+    <div id="main-content" class="col s12 m12 l9">
+        <!-- 文章内容详情 -->
+<div id="artDetail">
+    <div class="card">
+        <div class="card-content article-info">
+            <div class="row tag-cate">
+                <div class="col s7">
+                    
+                    <div class="article-tag">
+                        
+                            <a href="/tags/TCP/">
+                                <span class="chip bg-color">TCP</span>
+                            </a>
+                        
+                            <a href="/tags/epoll/">
+                                <span class="chip bg-color">epoll</span>
+                            </a>
+                        
+                            <a href="/tags/select/">
+                                <span class="chip bg-color">select</span>
+                            </a>
+                        
+                            <a href="/tags/poll/">
+                                <span class="chip bg-color">poll</span>
+                            </a>
+                        
+                    </div>
+                    
+                </div>
+                <div class="col s5 right-align">
+                    
+                    <div class="post-cate">
+                        <i class="fas fa-bookmark fa-fw icon-category"></i>
+                        
+                            <a href="/categories/%E7%BD%91%E7%BB%9C/" class="post-category">
+                                网络
+                            </a>
+                        
+                    </div>
+                    
+                </div>
+            </div>
+
+            <div class="post-info">
+                
+                <div class="post-date info-break-policy">
+                    <i class="far fa-calendar-minus fa-fw"></i>发布日期:&nbsp;&nbsp;
+                    2021-10-09
+                </div>
+                
+
+                
+                <div class="post-date info-break-policy">
+                    <i class="far fa-calendar-check fa-fw"></i>更新日期:&nbsp;&nbsp;
+                    2021-12-20
+                </div>
+                
+
+                
+                <div class="info-break-policy">
+                    <i class="far fa-file-word fa-fw"></i>文章字数:&nbsp;&nbsp;
+                    4.9k
+                </div>
+                
+
+                
+                <div class="info-break-policy">
+                    <i class="far fa-clock fa-fw"></i>阅读时长:&nbsp;&nbsp;
+                    24 分
+                </div>
+                
+
+                
+            </div>
+        </div>
+        <hr class="clearfix">
+
+        
+        <!-- 是否加载使用自带的 prismjs. -->
+        <link rel="stylesheet" href="/libs/prism/prism.css">
+        
+
+        
+
+        <div class="card-content article-card-content">
+            <div id="articleContent">
+                <blockquote>
+<p>本文使用的 Linux 内核版本为 4.19.194 。</p>
+</blockquote>
+<h2 id="一、epoll-create-系统调用"><a href="#一、epoll-create-系统调用" class="headerlink" title="一、epoll_create 系统调用"></a>一、epoll_create 系统调用</h2><ol>
+<li><p>系统调用 <code>epoll_create1</code> 和 <code>epoll_create</code> 的定义分别位于 <code>fs/eventpoll.c</code> 文件中的 1979 行和 1984 行。</p>
+ <pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token function">SYSCALL_DEFINE1</span><span class="token punctuation">(</span>epoll_create1<span class="token punctuation">,</span> <span class="token keyword">int</span><span class="token punctuation">,</span> flags<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword">return</span> <span class="token function">do_epoll_create</span><span class="token punctuation">(</span>flags<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+
+<span class="token function">SYSCALL_DEFINE1</span><span class="token punctuation">(</span>epoll_create<span class="token punctuation">,</span> <span class="token keyword">int</span><span class="token punctuation">,</span> size<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword">if</span> <span class="token punctuation">(</span>size <span class="token operator">&lt;=</span> <span class="token number">0</span><span class="token punctuation">)</span>
+        <span class="token keyword">return</span> <span class="token operator">-</span>EINVAL<span class="token punctuation">;</span>
+
+    <span class="token keyword">return</span> <span class="token function">do_epoll_create</span><span class="token punctuation">(</span><span class="token number">0</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre></li>
+<li>主要工作就是调用 <code>do_epoll_create</code> 函数。</li>
+</ol>
+<h3 id="1-1-do-epoll-create-函数"><a href="#1-1-do-epoll-create-函数" class="headerlink" title="1.1 do_epoll_create 函数"></a>1.1 do_epoll_create 函数</h3><ol>
+<li><p>函数 <code>do_epoll_create</code> 的定义位于 <code>fs/eventpoll.c</code> 文件中的 1936 行。</p>
+ <pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token comment">/*
+* Open an eventpoll file descriptor.
+*/</span>
+<span class="token keyword">static</span> <span class="token keyword">int</span> <span class="token function">do_epoll_create</span><span class="token punctuation">(</span><span class="token keyword">int</span> flags<span class="token punctuation">)</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span></span></code></pre></li>
+<li><p>首先，对传入的 <code>flags</code> 参数做简单的验证。</p>
+ <pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token comment">/* Check the EPOLL_* constant for consistency.  */</span>
+<span class="token function">BUILD_BUG_ON</span><span class="token punctuation">(</span>EPOLL_CLOEXEC <span class="token operator">!=</span> O_CLOEXEC<span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+<span class="token keyword">if</span> <span class="token punctuation">(</span>flags <span class="token operator">&amp;</span> <span class="token operator">~</span>EPOLL_CLOEXEC<span class="token punctuation">)</span>
+    <span class="token keyword">return</span> <span class="token operator">-</span>EINVAL<span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span></span></code></pre></li>
+<li><p>然后，申请分配 <code>eventpoll</code> 所需的内存并初始化。</p>
+ <pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">struct</span> <span class="token class-name">eventpoll</span> <span class="token operator">*</span>ep <span class="token operator">=</span> <span class="token constant">NULL</span><span class="token punctuation">;</span>
+
+<span class="token comment">/*
+* Create the internal data structure ("struct eventpoll").
+*/</span>
+error <span class="token operator">=</span> <span class="token function">ep_alloc</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>ep<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token keyword">if</span> <span class="token punctuation">(</span>error <span class="token operator">&lt;</span> <span class="token number">0</span><span class="token punctuation">)</span>
+    <span class="token keyword">return</span> error<span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre></li>
+<li><p>接下来，分配一个空闲的文件描述符 <code>fd</code> 和匿名文件 <code>file</code> 。注意，<code>eventpoll</code> 实例会保存一份匿名文件的引用，并通过调用 <code>fd_install</code> 将文件描述符和匿名文件关联起来。</p>
+<p> 另外还需注意 <code>anon_inode_getfile</code> 调用时将 <code>eventpoll</code> 作为匿名文件的 <code>private_data</code> 保存了起来。后面就可以通过 <code>epoll</code> 实例的文件描述符快速的找到 <code>eventpoll</code> 对象。</p>
+<p> 最后，将文件描述符 <code>fd</code> 作为 epoll 的句柄返回给调用者。<strong><code>epoll</code> 实例其实就是一个匿名文件。</strong></p>
+ <pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token comment">/*
+* Creates all the items needed to setup an eventpoll file. That is,
+* a file structure and a free file descriptor.
+*/</span>
+fd <span class="token operator">=</span> <span class="token function">get_unused_fd_flags</span><span class="token punctuation">(</span>O_RDWR <span class="token operator">|</span> <span class="token punctuation">(</span>flags <span class="token operator">&amp;</span> O_CLOEXEC<span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token keyword">if</span> <span class="token punctuation">(</span>fd <span class="token operator">&lt;</span> <span class="token number">0</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+    error <span class="token operator">=</span> fd<span class="token punctuation">;</span>
+    <span class="token keyword">goto</span> out_free_ep<span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+file <span class="token operator">=</span> <span class="token function">anon_inode_getfile</span><span class="token punctuation">(</span><span class="token string">"[eventpoll]"</span><span class="token punctuation">,</span> <span class="token operator">&amp;</span>eventpoll_fops<span class="token punctuation">,</span> ep<span class="token punctuation">,</span>
+            O_RDWR <span class="token operator">|</span> <span class="token punctuation">(</span>flags <span class="token operator">&amp;</span> O_CLOEXEC<span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token function">IS_ERR</span><span class="token punctuation">(</span>file<span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+    error <span class="token operator">=</span> <span class="token function">PTR_ERR</span><span class="token punctuation">(</span>file<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">goto</span> out_free_fd<span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+ep<span class="token operator">-&gt;</span>file <span class="token operator">=</span> file<span class="token punctuation">;</span>
+<span class="token function">fd_install</span><span class="token punctuation">(</span>fd<span class="token punctuation">,</span> file<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token keyword">return</span> fd<span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+</li>
+</ol>
+<h2 id="二、epoll-ctl-系统调用"><a href="#二、epoll-ctl-系统调用" class="headerlink" title="二、epoll_ctl 系统调用"></a>二、epoll_ctl 系统调用</h2><ol>
+<li><p>系统调用 <code>epoll_ctl</code> 的定义位于 <code>fs/eventpoll.c</code> 文件中的 1997 行。</p>
+ <pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token comment">/*
+* The following function implements the controller interface for
+* the eventpoll file that enables the insertion/removal/change of
+* file descriptors inside the interest set.
+*/</span>
+<span class="token function">SYSCALL_DEFINE4</span><span class="token punctuation">(</span>epoll_ctl<span class="token punctuation">,</span> <span class="token keyword">int</span><span class="token punctuation">,</span> epfd<span class="token punctuation">,</span> <span class="token keyword">int</span><span class="token punctuation">,</span> op<span class="token punctuation">,</span> <span class="token keyword">int</span><span class="token punctuation">,</span> fd<span class="token punctuation">,</span>
+        <span class="token keyword">struct</span> <span class="token class-name">epoll_event</span> __user <span class="token operator">*</span><span class="token punctuation">,</span> event<span class="token punctuation">)</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre></li>
+<li><p>首先，获取 <code>epoll</code> 实例对应的匿名文件。</p>
+ <pre class="line-numbers language-c" data-language="c"><code class="language-c">f <span class="token operator">=</span> <span class="token function">fdget</span><span class="token punctuation">(</span>epfd<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token operator">!</span>f<span class="token punctuation">.</span>file<span class="token punctuation">)</span>
+    <span class="token keyword">goto</span> error_return<span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span></span></code></pre></li>
+<li><p>然后，获得添加的套接字对应的文件。</p>
+ <pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token comment">/* Get the "struct file *" for the target file */</span>
+tf <span class="token operator">=</span> <span class="token function">fdget</span><span class="token punctuation">(</span>fd<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token operator">!</span>tf<span class="token punctuation">.</span>file<span class="token punctuation">)</span>
+    <span class="token keyword">goto</span> error_fput<span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span></span></code></pre></li>
+<li><p>接着，进行一系列的数据验证，保存用户传入的参数是合法的。</p>
+<p> 判断待处理的文件有没有实现 <code>poll</code> 接口，使用 <code>epoll</code> 监听的资源需要实现 <code>poll</code> 钩子。</p>
+ <pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token comment">/* The target file descriptor must support poll */</span>
+<span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token operator">!</span><span class="token function">file_can_poll</span><span class="token punctuation">(</span>tf<span class="token punctuation">.</span>file<span class="token punctuation">)</span><span class="token punctuation">)</span>
+    <span class="token keyword">goto</span> error_tgt_fput<span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span></span></code></pre>
+<p> 保证被操作的 <code>fd</code> 不是自己，并且自己是 <code>epoll</code> 。</p>
+ <pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token comment">/*
+ * We have to check that the file structure underneath the file descriptor
+ * the user passed to us _is_ an eventpoll file. And also we do not permit
+ * adding an epoll file descriptor inside itself.
+ */</span>
+<span class="token keyword">if</span> <span class="token punctuation">(</span>f<span class="token punctuation">.</span>file <span class="token operator">==</span> tf<span class="token punctuation">.</span>file <span class="token operator">||</span> <span class="token operator">!</span><span class="token function">is_file_epoll</span><span class="token punctuation">(</span>f<span class="token punctuation">.</span>file<span class="token punctuation">)</span><span class="token punctuation">)</span>
+    <span class="token keyword">goto</span> error_tgt_fput<span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre></li>
+<li><p>如果获得的是一个真正的 <code>epoll</code> 实例句柄，就通过匿名文件的 <code>private_data</code> 获取之前创建的 <code>eventpoll</code> 实例。</p>
+ <pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">struct</span> <span class="token class-name">eventpoll</span> <span class="token operator">*</span>ep<span class="token punctuation">;</span>
+
+<span class="token comment">/*
+ * At this point it is safe to assume that the "private_data" contains
+ * our own data structure.
+ */</span>
+ep <span class="token operator">=</span> f<span class="token punctuation">.</span>file<span class="token operator">-&gt;</span>private_data<span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre></li>
+<li><p>在 <code>eventpoll</code> 实例里的中查找待添加的套接字。</p>
+ <pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">struct</span> <span class="token class-name">epitem</span> <span class="token operator">*</span>epi<span class="token punctuation">;</span>
+
+<span class="token comment">/*
+ * Try to lookup the file inside our RB tree, Since we grabbed "mtx"
+ * above, we can be sure to be able to use the item looked up by
+ * ep_find() till we release the mutex.
+ */</span>
+epi <span class="token operator">=</span> <span class="token function">ep_find</span><span class="token punctuation">(</span>ep<span class="token punctuation">,</span> tf<span class="token punctuation">.</span>file<span class="token punctuation">,</span> fd<span class="token punctuation">)</span><span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p> <code>eventpoll</code> 实例中通过红黑树跟踪了当前监听的所有文件的描述符，而红黑树的根就保存在 <code>eventpoll</code> 中。</p>
+ <pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">struct</span> <span class="token class-name">eventpoll</span> <span class="token punctuation">{</span>
+    <span class="token comment">/* RB tree root used to store monitored fd structs */</span>
+    <span class="token keyword">struct</span> <span class="token class-name">rb_root_cached</span> rbr<span class="token punctuation">;</span>
+    <span class="token comment">// ...</span>
+<span class="token punctuation">}</span><span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p> 对于每个被监听的文件描述符，都有一个的 <code>epitem</code> 与之对应，<code>epitem</code> 就作为红黑树的节点保存在红黑树中。作为二叉树的节点，<code>epitem</code> 必须提供比较能力，以便可以按照大小顺序构建出一颗有序的二叉树。其排序能力是靠 <code>epitem</code> 中的 <code>epoll_filefd</code> 结构体来完成的。</p>
+ <pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">struct</span> <span class="token class-name">epitem</span> <span class="token punctuation">{</span>
+    <span class="token comment">/* The file descriptor information this item refers to */</span>
+    <span class="token keyword">struct</span> <span class="token class-name">epoll_filefd</span> ffd<span class="token punctuation">;</span>
+    <span class="token comment">//...</span>
+<span class="token punctuation">}</span><span class="token punctuation">;</span>
+
+<span class="token keyword">struct</span> <span class="token class-name">epoll_filefd</span> <span class="token punctuation">{</span>
+    <span class="token keyword">struct</span> <span class="token class-name">file</span> <span class="token operator">*</span>file<span class="token punctuation">;</span>
+    <span class="token keyword">int</span> fd<span class="token punctuation">;</span>
+<span class="token punctuation">}</span> __packed<span class="token punctuation">;</span>
+
+<span class="token comment">/* Compare RB tree keys */</span>
+<span class="token keyword">static</span> <span class="token keyword">inline</span> <span class="token keyword">int</span> <span class="token function">ep_cmp_ffd</span><span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">epoll_filefd</span> <span class="token operator">*</span>p1<span class="token punctuation">,</span>
+                <span class="token keyword">struct</span> <span class="token class-name">epoll_filefd</span> <span class="token operator">*</span>p2<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword">return</span> <span class="token punctuation">(</span>p1<span class="token operator">-&gt;</span>file <span class="token operator">&gt;</span> p2<span class="token operator">-&gt;</span>file <span class="token operator">?</span> <span class="token operator">+</span><span class="token number">1</span><span class="token operator">:</span>
+            <span class="token punctuation">(</span>p1<span class="token operator">-&gt;</span>file <span class="token operator">&lt;</span> p2<span class="token operator">-&gt;</span>file <span class="token operator">?</span> <span class="token operator">-</span><span class="token number">1</span> <span class="token operator">:</span> p1<span class="token operator">-&gt;</span>fd <span class="token operator">-</span> p2<span class="token operator">-&gt;</span>fd<span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p> <code>epoll_filefd</code> 之间的比较首先按照文件地址大小排序。如果文件地址大小相同，就按照文件描述符的大小来排序。</p>
+</li>
+<li><p>在进行完红黑树查找后，如果是一个 ADD 操作，并且在树中没有找到对应的二叉树节点的话，就会调用 <code>ep_insert</code> 添加。</p>
+ <pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">case</span> EPOLL_CTL_ADD<span class="token operator">:</span>
+    <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token operator">!</span>epi<span class="token punctuation">)</span> <span class="token punctuation">{</span>
+        epds<span class="token punctuation">.</span>events <span class="token operator">|=</span> EPOLLERR <span class="token operator">|</span> EPOLLHUP<span class="token punctuation">;</span>
+        error <span class="token operator">=</span> <span class="token function">ep_insert</span><span class="token punctuation">(</span>ep<span class="token punctuation">,</span> <span class="token operator">&amp;</span>epds<span class="token punctuation">,</span> tf<span class="token punctuation">.</span>file<span class="token punctuation">,</span> fd<span class="token punctuation">,</span> full_check<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span> <span class="token keyword">else</span>
+        error <span class="token operator">=</span> <span class="token operator">-</span>EEXIST<span class="token punctuation">;</span>
+    <span class="token keyword">break</span><span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+</li>
+</ol>
+<h3 id="2-1-ep-insert-函数"><a href="#2-1-ep-insert-函数" class="headerlink" title="2.1 ep_insert 函数"></a>2.1 ep_insert 函数</h3><ol>
+<li><p>函数 <code>ep_insert</code> 的定义位于 <code>fs/eventpoll.c</code> 文件中的 1418 行。</p>
+ <pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token comment">/*
+* Must be called with "mtx" held.
+*/</span>
+<span class="token keyword">static</span> <span class="token keyword">int</span> <span class="token function">ep_insert</span><span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">eventpoll</span> <span class="token operator">*</span>ep<span class="token punctuation">,</span> <span class="token keyword">const</span> <span class="token keyword">struct</span> <span class="token class-name">epoll_event</span> <span class="token operator">*</span>event<span class="token punctuation">,</span>
+            <span class="token keyword">struct</span> <span class="token class-name">file</span> <span class="token operator">*</span>tfile<span class="token punctuation">,</span> <span class="token keyword">int</span> fd<span class="token punctuation">,</span> <span class="token keyword">int</span> full_check<span class="token punctuation">)</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span></span></code></pre></li>
+<li><p>首先，判断当前监控的文件数量是否超过了 <code>/proc/sys/fs/epoll/max_user_watches</code> 中预设的最大值，如果超过了就返回错误。</p>
+ <pre class="line-numbers language-c" data-language="c"><code class="language-c">user_watches <span class="token operator">=</span> <span class="token function">atomic_long_read</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>ep<span class="token operator">-&gt;</span>user<span class="token operator">-&gt;</span>epoll_watches<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token function">unlikely</span><span class="token punctuation">(</span>user_watches <span class="token operator">&gt;=</span> max_user_watches<span class="token punctuation">)</span><span class="token punctuation">)</span>
+    <span class="token keyword">return</span> <span class="token operator">-</span>ENOSPC<span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span></span></code></pre></li>
+<li><p>然后分配 <code>epitem</code> 对象并初始化。</p>
+ <pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">struct</span> <span class="token class-name">epitem</span> <span class="token operator">*</span>epi<span class="token punctuation">;</span>
+
+<span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token operator">!</span><span class="token punctuation">(</span>epi <span class="token operator">=</span> <span class="token function">kmem_cache_alloc</span><span class="token punctuation">(</span>epi_cache<span class="token punctuation">,</span> GFP_KERNEL<span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">)</span>
+    <span class="token keyword">return</span> <span class="token operator">-</span>ENOMEM<span class="token punctuation">;</span>
+
+<span class="token comment">/* Item initialization follow here ... */</span>
+<span class="token function">INIT_LIST_HEAD</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>epi<span class="token operator">-&gt;</span>rdllink<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token function">INIT_LIST_HEAD</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>epi<span class="token operator">-&gt;</span>fllink<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token function">INIT_LIST_HEAD</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>epi<span class="token operator">-&gt;</span>pwqlist<span class="token punctuation">)</span><span class="token punctuation">;</span>
+epi<span class="token operator">-&gt;</span>ep <span class="token operator">=</span> ep<span class="token punctuation">;</span>
+<span class="token function">ep_set_ffd</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>epi<span class="token operator">-&gt;</span>ffd<span class="token punctuation">,</span> tfile<span class="token punctuation">,</span> fd<span class="token punctuation">)</span><span class="token punctuation">;</span>
+epi<span class="token operator">-&gt;</span>event <span class="token operator">=</span> <span class="token operator">*</span>event<span class="token punctuation">;</span>
+epi<span class="token operator">-&gt;</span>nwait <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span>
+epi<span class="token operator">-&gt;</span>next <span class="token operator">=</span> EP_UNACTIVE_PTR<span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p> 将 <code>epitem</code> 对象和目标文件 <code>tfile</code> 关联起来，并把 <code>epitem</code> 对象添加到 <code>eventpoll</code> 对象里的红黑树中。</p>
+ <pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token comment">/* Add the current item to the list of active epoll hook for this file */</span>
+<span class="token function">spin_lock</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>tfile<span class="token operator">-&gt;</span>f_lock<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token function">list_add_tail_rcu</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>epi<span class="token operator">-&gt;</span>fllink<span class="token punctuation">,</span> <span class="token operator">&amp;</span>tfile<span class="token operator">-&gt;</span>f_ep_links<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token function">spin_unlock</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>tfile<span class="token operator">-&gt;</span>f_lock<span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+<span class="token comment">/*
+ * Add the current item to the RB tree. All RB tree operations are
+ * protected by "mtx", and ep_insert() is called with "mtx" held.
+ */</span>
+<span class="token function">ep_rbtree_insert</span><span class="token punctuation">(</span>ep<span class="token punctuation">,</span> epi<span class="token punctuation">)</span><span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre></li>
+<li><p>为加入的文件描述符设置回调函数 <code>ep_poll_callback</code>。如果对应的文件描述符上有事件发生，就会调用这个回调函数，比如套接字缓冲区有数据时，就会回调这个函数。而 <code>ep_poll_callback</code> 这个回调函数的设置是通过回调函数 <code>ep_ptable_queue_proc</code> 来完成的。</p>
+ <pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">struct</span> <span class="token class-name">ep_pqueue</span> epq<span class="token punctuation">;</span>
+
+<span class="token comment">/* Initialize the poll table using the queue callback */</span>
+epq<span class="token punctuation">.</span>epi <span class="token operator">=</span> epi<span class="token punctuation">;</span>
+<span class="token function">init_poll_funcptr</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>epq<span class="token punctuation">.</span>pt<span class="token punctuation">,</span> ep_ptable_queue_proc<span class="token punctuation">)</span><span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p> <code>init_poll_funcptr</code> 函数的定义如下：</p>
+ <pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">static</span> <span class="token keyword">inline</span> <span class="token keyword">void</span> <span class="token function">init_poll_funcptr</span><span class="token punctuation">(</span>poll_table <span class="token operator">*</span>pt<span class="token punctuation">,</span> poll_queue_proc qproc<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    pt<span class="token operator">-&gt;</span>_qproc <span class="token operator">=</span> qproc<span class="token punctuation">;</span>
+    pt<span class="token operator">-&gt;</span>_key   <span class="token operator">=</span> <span class="token operator">~</span><span class="token punctuation">(</span>__poll_t<span class="token punctuation">)</span><span class="token number">0</span><span class="token punctuation">;</span> <span class="token comment">/* all events enabled */</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p> 需要注意的是，<code>init_poll_funcptr</code> 注册了所有的事件。</p>
+<p> <code>ep_ptable_queue_proc</code> 函数的定义如下：</p>
+ <pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token comment">/*
+* This is the callback that is used to add our wait queue to the
+* target file wakeup lists.
+*/</span>
+<span class="token keyword">static</span> <span class="token keyword">void</span> <span class="token function">ep_ptable_queue_proc</span><span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">file</span> <span class="token operator">*</span>file<span class="token punctuation">,</span> wait_queue_head_t <span class="token operator">*</span>whead<span class="token punctuation">,</span>
+                poll_table <span class="token operator">*</span>pt<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword">struct</span> <span class="token class-name">epitem</span> <span class="token operator">*</span>epi <span class="token operator">=</span> <span class="token function">ep_item_from_epqueue</span><span class="token punctuation">(</span>pt<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">struct</span> <span class="token class-name">eppoll_entry</span> <span class="token operator">*</span>pwq<span class="token punctuation">;</span>
+
+    <span class="token keyword">if</span> <span class="token punctuation">(</span>epi<span class="token operator">-&gt;</span>nwait <span class="token operator">&gt;=</span> <span class="token number">0</span> <span class="token operator">&amp;&amp;</span> <span class="token punctuation">(</span>pwq <span class="token operator">=</span> <span class="token function">kmem_cache_alloc</span><span class="token punctuation">(</span>pwq_cache<span class="token punctuation">,</span> GFP_KERNEL<span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+        <span class="token function">init_waitqueue_func_entry</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>pwq<span class="token operator">-&gt;</span>wait<span class="token punctuation">,</span> ep_poll_callback<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        pwq<span class="token operator">-&gt;</span>whead <span class="token operator">=</span> whead<span class="token punctuation">;</span>
+        pwq<span class="token operator">-&gt;</span>base <span class="token operator">=</span> epi<span class="token punctuation">;</span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span>epi<span class="token operator">-&gt;</span>event<span class="token punctuation">.</span>events <span class="token operator">&amp;</span> EPOLLEXCLUSIVE<span class="token punctuation">)</span>
+            <span class="token function">add_wait_queue_exclusive</span><span class="token punctuation">(</span>whead<span class="token punctuation">,</span> <span class="token operator">&amp;</span>pwq<span class="token operator">-&gt;</span>wait<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token keyword">else</span>
+            <span class="token function">add_wait_queue</span><span class="token punctuation">(</span>whead<span class="token punctuation">,</span> <span class="token operator">&amp;</span>pwq<span class="token operator">-&gt;</span>wait<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token function">list_add_tail</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>pwq<span class="token operator">-&gt;</span>llink<span class="token punctuation">,</span> <span class="token operator">&amp;</span>epi<span class="token operator">-&gt;</span>pwqlist<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        epi<span class="token operator">-&gt;</span>nwait<span class="token operator">++</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span> <span class="token keyword">else</span> <span class="token punctuation">{</span>
+        <span class="token comment">/* We have to signal that an error occurred */</span>
+        epi<span class="token operator">-&gt;</span>nwait <span class="token operator">=</span> <span class="token operator">-</span><span class="token number">1</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+</li>
+</ol>
+<h3 id="2-2-ep-poll-callback-函数"><a href="#2-2-ep-poll-callback-函数" class="headerlink" title="2.2 ep_poll_callback 函数"></a>2.2 ep_poll_callback 函数</h3><ol>
+<li><p>函数 <code>ep_poll_callback</code> 的定义位于 <code>fs/eventpoll.c</code> 文件中 1118 行。</p>
+ <pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token comment">/*
+* This is the callback that is passed to the wait queue wakeup
+* mechanism. It is called by the stored file descriptors when they
+* have events to report.
+*/</span>
+<span class="token keyword">static</span> <span class="token keyword">int</span> <span class="token function">ep_poll_callback</span><span class="token punctuation">(</span>wait_queue_entry_t <span class="token operator">*</span>wait<span class="token punctuation">,</span> <span class="token keyword">unsigned</span> mode<span class="token punctuation">,</span> <span class="token keyword">int</span> sync<span class="token punctuation">,</span> <span class="token keyword">void</span> <span class="token operator">*</span>key<span class="token punctuation">)</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p> 这个函数的作用非常重要，它将内核时间真正的和 <code>epoll</code> 对象联系了起来。</p>
+</li>
+<li><p>首先，通过这个文件的 <code>wait_queue_entry_t</code> 实例找到对应的 <code>epitem</code> 实例。一旦获得了 <code>epitem</code> 实例 就可以获得对应的 <code>eventpoll</code> 实例了。</p>
+ <pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">struct</span> <span class="token class-name">epitem</span> <span class="token operator">*</span>epi <span class="token operator">=</span> <span class="token function">ep_item_from_wait</span><span class="token punctuation">(</span>wait<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token keyword">struct</span> <span class="token class-name">eventpoll</span> <span class="token operator">*</span>ep <span class="token operator">=</span> epi<span class="token operator">-&gt;</span>ep<span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre>
+<p> <code>ep_item_from_wait</code> 函数的定义为：</p>
+ <pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token comment">/* Get the "struct epitem" from a wait queue pointer */</span>
+<span class="token keyword">static</span> <span class="token keyword">inline</span> <span class="token keyword">struct</span> <span class="token class-name">epitem</span> <span class="token operator">*</span><span class="token function">ep_item_from_wait</span><span class="token punctuation">(</span>wait_queue_entry_t <span class="token operator">*</span>p<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword">return</span> <span class="token function">container_of</span><span class="token punctuation">(</span>p<span class="token punctuation">,</span> <span class="token keyword">struct</span> <span class="token class-name">eppoll_entry</span><span class="token punctuation">,</span> wait<span class="token punctuation">)</span><span class="token operator">-&gt;</span>base<span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span></span></code></pre></li>
+<li><p>然后，对发生的事件进行过滤。为什么需要过滤呢？为了性能考虑，<code>ep_insert</code> 在注册回调时，使用 <code>init_poll_funcptr</code> 函数注册被监控文件的所有事件，而实际用户关心的事件不一定和内核发送的事件匹配。比如，用户向内核订阅了一个套接字可读的时间，但是在某个时刻套接字可写的事件发生时，就并不需要想用户空间传递这个事件。</p>
+ <pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token comment">/*
+ * Check the events coming with the callback. At this stage, not
+ * every device reports the events in the "key" parameter of the
+ * callback. We need to be able to handle both cases here, hence the
+ * test for "key" != NULL before the event match test.
+ */</span>
+<span class="token keyword">if</span> <span class="token punctuation">(</span>pollflags <span class="token operator">&amp;&amp;</span> <span class="token operator">!</span><span class="token punctuation">(</span>pollflags <span class="token operator">&amp;</span> epi<span class="token operator">-&gt;</span>event<span class="token punctuation">.</span>events<span class="token punctuation">)</span><span class="token punctuation">)</span>
+    <span class="token keyword">goto</span> out_unlock<span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre></li>
+<li><p>接下来，判断是否需要把该事件传递给用户空间。</p>
+ <pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token comment">/*
+ * If we are transferring events to userspace, we can hold no locks
+ * (because we're accessing user memory, and because of linux f_op-&gt;poll()
+ * semantics). All the events that happen during that period of time are
+ * chained in ep-&gt;ovflist and requeued later on.
+ */</span>
+<span class="token keyword">if</span> <span class="token punctuation">(</span>ep<span class="token operator">-&gt;</span>ovflist <span class="token operator">!=</span> EP_UNACTIVE_PTR<span class="token punctuation">)</span> <span class="token punctuation">{</span>
+    <span class="token keyword">if</span> <span class="token punctuation">(</span>epi<span class="token operator">-&gt;</span>next <span class="token operator">==</span> EP_UNACTIVE_PTR<span class="token punctuation">)</span> <span class="token punctuation">{</span>
+        epi<span class="token operator">-&gt;</span>next <span class="token operator">=</span> ep<span class="token operator">-&gt;</span>ovflist<span class="token punctuation">;</span>
+        ep<span class="token operator">-&gt;</span>ovflist <span class="token operator">=</span> epi<span class="token punctuation">;</span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span>epi<span class="token operator">-&gt;</span>ws<span class="token punctuation">)</span> <span class="token punctuation">{</span>
+            <span class="token comment">/*
+             * Activate ep-&gt;ws since epi-&gt;ws may get
+             * deactivated at any time.
+             */</span>
+            <span class="token function">__pm_stay_awake</span><span class="token punctuation">(</span>ep<span class="token operator">-&gt;</span>ws<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+
+    <span class="token punctuation">}</span>
+    <span class="token keyword">goto</span> out_unlock<span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre></li>
+<li><p>如果需要，而且该事件对应的 <code>event_item</code> 不在 <code>eventpoll</code> 对应的已完成队列中，就把它放入该队列，以便将该事件传递给用户空间。</p>
+ <pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token comment">/* If this file is already in the ready list we exit soon */</span>
+<span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token operator">!</span><span class="token function">ep_is_linked</span><span class="token punctuation">(</span>epi<span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+    <span class="token function">list_add_tail</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>epi<span class="token operator">-&gt;</span>rdllink<span class="token punctuation">,</span> <span class="token operator">&amp;</span>ep<span class="token operator">-&gt;</span>rdllist<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token function">ep_pm_stay_awake_rcu</span><span class="token punctuation">(</span>epi<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span></span></code></pre></li>
+<li><p>我们知道，当我们调用 <code>epoll_wait</code> 时，调用的进程会被挂起，在内核看来调用进程陷入了休眠。如果该 <code>epoll</code> 实例上对应描述符有事件发生，这个休眠的进程应该被唤醒来处理事件。下面的代码就是这个作用。 <code>wake_up_locked</code> 函数唤醒当前 <code>eventpoll</code> 上等待的进程。</p>
+ <pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token comment">/*
+ * Wake up ( if active ) both the eventpoll wait list and the -&gt;poll()
+ * wait list.
+ */</span>
+<span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token function">waitqueue_active</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>ep<span class="token operator">-&gt;</span>wq<span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+    <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token punctuation">(</span>epi<span class="token operator">-&gt;</span>event<span class="token punctuation">.</span>events <span class="token operator">&amp;</span> EPOLLEXCLUSIVE<span class="token punctuation">)</span> <span class="token operator">&amp;&amp;</span>
+                <span class="token operator">!</span><span class="token punctuation">(</span>pollflags <span class="token operator">&amp;</span> POLLFREE<span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+        <span class="token keyword">switch</span> <span class="token punctuation">(</span>pollflags <span class="token operator">&amp;</span> EPOLLINOUT_BITS<span class="token punctuation">)</span> <span class="token punctuation">{</span>
+        <span class="token keyword">case</span> EPOLLIN<span class="token operator">:</span>
+            <span class="token keyword">if</span> <span class="token punctuation">(</span>epi<span class="token operator">-&gt;</span>event<span class="token punctuation">.</span>events <span class="token operator">&amp;</span> EPOLLIN<span class="token punctuation">)</span>
+                ewake <span class="token operator">=</span> <span class="token number">1</span><span class="token punctuation">;</span>
+            <span class="token keyword">break</span><span class="token punctuation">;</span>
+        <span class="token keyword">case</span> EPOLLOUT<span class="token operator">:</span>
+            <span class="token keyword">if</span> <span class="token punctuation">(</span>epi<span class="token operator">-&gt;</span>event<span class="token punctuation">.</span>events <span class="token operator">&amp;</span> EPOLLOUT<span class="token punctuation">)</span>
+                ewake <span class="token operator">=</span> <span class="token number">1</span><span class="token punctuation">;</span>
+            <span class="token keyword">break</span><span class="token punctuation">;</span>
+        <span class="token keyword">case</span> <span class="token number">0</span><span class="token operator">:</span>
+            ewake <span class="token operator">=</span> <span class="token number">1</span><span class="token punctuation">;</span>
+            <span class="token keyword">break</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+    <span class="token punctuation">}</span>
+    <span class="token function">wake_up_locked</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>ep<span class="token operator">-&gt;</span>wq<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+</li>
+</ol>
+<h2 id="三、epoll-wait-系统调用"><a href="#三、epoll-wait-系统调用" class="headerlink" title="三、epoll_wait 系统调用"></a>三、epoll_wait 系统调用</h2><ol>
+<li><p>系统调用 <code>epoll_wait</code> 的定义位于 <code>fs/eventpoll.c</code> 文件中的 2197 行。</p>
+ <pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token function">SYSCALL_DEFINE4</span><span class="token punctuation">(</span>epoll_wait<span class="token punctuation">,</span> <span class="token keyword">int</span><span class="token punctuation">,</span> epfd<span class="token punctuation">,</span> <span class="token keyword">struct</span> <span class="token class-name">epoll_event</span> __user <span class="token operator">*</span><span class="token punctuation">,</span> events<span class="token punctuation">,</span>
+        <span class="token keyword">int</span><span class="token punctuation">,</span> maxevents<span class="token punctuation">,</span> <span class="token keyword">int</span><span class="token punctuation">,</span> timeout<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword">return</span> <span class="token function">do_epoll_wait</span><span class="token punctuation">(</span>epfd<span class="token punctuation">,</span> events<span class="token punctuation">,</span> maxevents<span class="token punctuation">,</span> timeout<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span></span></code></pre></li>
+<li>主要工作就是调用 <code>do_epoll_wait</code> 函数。</li>
+</ol>
+<h3 id="3-1-do-epoll-wait-函数"><a href="#3-1-do-epoll-wait-函数" class="headerlink" title="3.1 do_epoll_wait 函数"></a>3.1 do_epoll_wait 函数</h3><ol>
+<li><p>函数 <code>do_epoll_wait</code> 的定义位于 <code>fs/eventpoll.c</code> 文件中的 2155 行。</p>
+ <pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token comment">/*
+* Implement the event wait interface for the eventpoll file. It is the kernel
+* part of the user space epoll_wait(2).
+*/</span>
+<span class="token keyword">static</span> <span class="token keyword">int</span> <span class="token function">do_epoll_wait</span><span class="token punctuation">(</span><span class="token keyword">int</span> epfd<span class="token punctuation">,</span> <span class="token keyword">struct</span> <span class="token class-name">epoll_event</span> __user <span class="token operator">*</span>events<span class="token punctuation">,</span>
+            <span class="token keyword">int</span> maxevents<span class="token punctuation">,</span> <span class="token keyword">int</span> timeout<span class="token punctuation">)</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre></li>
+<li><p>首先进行一系列的检查，比如传入的 <code>maxevents</code> 应该大于 0。</p>
+ <pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token comment">/* The maximum number of event must be greater than zero */</span>
+<span class="token keyword">if</span> <span class="token punctuation">(</span>maxevents <span class="token operator">&lt;=</span> <span class="token number">0</span> <span class="token operator">||</span> maxevents <span class="token operator">&gt;</span> EP_MAX_EVENTS<span class="token punctuation">)</span>
+    <span class="token keyword">return</span> <span class="token operator">-</span>EINVAL<span class="token punctuation">;</span>
+
+<span class="token comment">/* Verify that the area passed by the user is writeable */</span>
+<span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token operator">!</span><span class="token function">access_ok</span><span class="token punctuation">(</span>VERIFY_WRITE<span class="token punctuation">,</span> events<span class="token punctuation">,</span> maxevents <span class="token operator">*</span> <span class="token keyword">sizeof</span><span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">epoll_event</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">)</span>
+    <span class="token keyword">return</span> <span class="token operator">-</span>EFAULT<span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre></li>
+<li><p>与 <code>epoll_ctl</code> 类似，通过 <code>epoll</code> 实例找到对应的匿名文件和描述字，并进行检查。</p>
+ <pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token comment">/* Get the "struct file *" for the eventpoll file */</span>
+f <span class="token operator">=</span> <span class="token function">fdget</span><span class="token punctuation">(</span>epfd<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token operator">!</span>f<span class="token punctuation">.</span>file<span class="token punctuation">)</span>
+    <span class="token keyword">return</span> <span class="token operator">-</span>EBADF<span class="token punctuation">;</span>
+
+<span class="token comment">/*
+ * We have to check that the file structure underneath the fd
+ * the user passed to us _is_ an eventpoll file.
+ */</span>
+<span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token operator">!</span><span class="token function">is_file_epoll</span><span class="token punctuation">(</span>f<span class="token punctuation">.</span>file<span class="token punctuation">)</span><span class="token punctuation">)</span>
+    <span class="token keyword">goto</span> error_fput<span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre></li>
+<li><p>获取 <code>eventpoll</code> 实例。</p>
+ <pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token comment">/*
+ * At this point it is safe to assume that the "private_data" contains
+ * our own data structure.
+ */</span>
+ep <span class="token operator">=</span> f<span class="token punctuation">.</span>file<span class="token operator">-&gt;</span>private_data<span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span></span></code></pre></li>
+<li><p>调用 <code>ep_poll</code> 完成事件的收集并传递到用户空间。</p>
+ <pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token comment">/* Time to fish for events ... */</span>
+error <span class="token operator">=</span> <span class="token function">ep_poll</span><span class="token punctuation">(</span>ep<span class="token punctuation">,</span> events<span class="token punctuation">,</span> maxevents<span class="token punctuation">,</span> timeout<span class="token punctuation">)</span><span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre>
+</li>
+</ol>
+<h3 id="3-2-ep-poll-函数"><a href="#3-2-ep-poll-函数" class="headerlink" title="3.2 ep_poll 函数"></a>3.2 ep_poll 函数</h3><ol>
+<li><p>函数 <code>ep_poll</code> 的定义位于 <code>fs/eventpoll.c</code> 文件中的 1743 行。</p>
+ <pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token comment">/**
+ * ep_poll - Retrieves ready events, and delivers them to the caller supplied
+*           event buffer.
+*
+* @ep: Pointer to the eventpoll context.
+* @events: Pointer to the userspace buffer where the ready events should be
+*          stored.
+* @maxevents: Size (in terms of number of events) of the caller event buffer.
+* @timeout: Maximum timeout for the ready events fetch operation, in
+*           milliseconds. If the @timeout is zero, the function will not block,
+*           while if the @timeout is less than zero, the function will block
+*           until at least one event has been retrieved (or an error
+*           occurred).
+*
+* Returns: Returns the number of ready events which have been fetched, or an
+*          error code, in case of error.
+*/</span>
+<span class="token keyword">static</span> <span class="token keyword">int</span> <span class="token function">ep_poll</span><span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">eventpoll</span> <span class="token operator">*</span>ep<span class="token punctuation">,</span> <span class="token keyword">struct</span> <span class="token class-name">epoll_event</span> __user <span class="token operator">*</span>events<span class="token punctuation">,</span>
+        <span class="token keyword">int</span> maxevents<span class="token punctuation">,</span> <span class="token keyword">long</span> timeout<span class="token punctuation">)</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre></li>
+<li><p>首先，根据不同的超时时间做不同的处理。如果大于 0 就计算超时时间，如果等于 0 就立即检查是否有事件发生。</p>
+ <pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">if</span> <span class="token punctuation">(</span>timeout <span class="token operator">&gt;</span> <span class="token number">0</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+    <span class="token keyword">struct</span> <span class="token class-name">timespec64</span> end_time <span class="token operator">=</span> <span class="token function">ep_set_mstimeout</span><span class="token punctuation">(</span>timeout<span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+    slack <span class="token operator">=</span> <span class="token function">select_estimate_accuracy</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>end_time<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    to <span class="token operator">=</span> <span class="token operator">&amp;</span>expires<span class="token punctuation">;</span>
+    <span class="token operator">*</span>to <span class="token operator">=</span> <span class="token function">timespec64_to_ktime</span><span class="token punctuation">(</span>end_time<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span> <span class="token keyword">else</span> <span class="token keyword">if</span> <span class="token punctuation">(</span>timeout <span class="token operator">==</span> <span class="token number">0</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+    <span class="token comment">/*
+     * Avoid the unnecessary trip to the wait queue loop, if the
+     * caller specified a non blocking operation.
+     */</span>
+    timed_out <span class="token operator">=</span> <span class="token number">1</span><span class="token punctuation">;</span>
+    <span class="token function">spin_lock_irq</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>ep<span class="token operator">-&gt;</span>wq<span class="token punctuation">.</span>lock<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">goto</span> check_events<span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre></li>
+<li><p>检查当前是否有事件发生，如果没有，就把当前进程加入到 <code>eventpoll</code> 的等待队列 <code>wq</code> 中，这样做的目的是当有事件发生时， <code>ep_poll_callback</code> 函数可以把该等待进程唤醒。</p>
+ <pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token operator">!</span><span class="token function">ep_events_available</span><span class="token punctuation">(</span>ep<span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+    <span class="token comment">/*
+     * Busy poll timed out.  Drop NAPI ID for now, we can add
+     * it back in when we have moved a socket with a valid NAPI
+     * ID onto the ready list.
+     */</span>
+    <span class="token function">ep_reset_busy_poll_napi_id</span><span class="token punctuation">(</span>ep<span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+    <span class="token comment">/*
+     * We don't have any available event to return to the caller.
+     * We need to sleep here, and we will be wake up by
+     * ep_poll_callback() when events will become available.
+     */</span>
+    <span class="token function">init_waitqueue_entry</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>wait<span class="token punctuation">,</span> current<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token function">__add_wait_queue_exclusive</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>ep<span class="token operator">-&gt;</span>wq<span class="token punctuation">,</span> <span class="token operator">&amp;</span>wait<span class="token punctuation">)</span><span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre></li>
+<li><p>接下来是一个无限循环，循环中通过调用 <code>schedule_hrtimeout_range</code> ，将当前进程陷入休眠，CPU 时间被调度器调度给其他进程使用，当然，当前进程可能会被唤醒，唤醒的条件包括下面四种：</p>
+<ol>
+<li>当前进程超时；</li>
+<li>当前进程收到一个 signal 信号；</li>
+<li>某个描述符上有事件发生；</li>
+<li><p>当前进程被 CPU 重新调度，进入 <code>for</code> 循环重新判断，如果没有满足前三个条件，就又重新进入休眠。</p>
+<p>对应的 1、2、3 都会通过 <code>break</code> 跳出循环，直接返回。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">for</span> <span class="token punctuation">(</span><span class="token punctuation">;</span><span class="token punctuation">;</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+    <span class="token comment">/*
+     * We don't want to sleep if the ep_poll_callback() sends us
+     * a wakeup in between. That's why we set the task state
+     * to TASK_INTERRUPTIBLE before doing the checks.
+     */</span>
+    <span class="token function">set_current_state</span><span class="token punctuation">(</span>TASK_INTERRUPTIBLE<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token comment">/*
+     * Always short-circuit for fatal signals to allow
+     * threads to make a timely exit without the chance of
+     * finding more events available and fetching
+     * repeatedly.
+     */</span>
+    <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token function">fatal_signal_pending</span><span class="token punctuation">(</span>current<span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+        res <span class="token operator">=</span> <span class="token operator">-</span>EINTR<span class="token punctuation">;</span>
+        <span class="token keyword">break</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+    <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token function">ep_events_available</span><span class="token punctuation">(</span>ep<span class="token punctuation">)</span> <span class="token operator">||</span> timed_out<span class="token punctuation">)</span>
+        <span class="token keyword">break</span><span class="token punctuation">;</span>
+    <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token function">signal_pending</span><span class="token punctuation">(</span>current<span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+        res <span class="token operator">=</span> <span class="token operator">-</span>EINTR<span class="token punctuation">;</span>
+        <span class="token keyword">break</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+
+    <span class="token function">spin_unlock_irq</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>ep<span class="token operator">-&gt;</span>wq<span class="token punctuation">.</span>lock<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token operator">!</span><span class="token function">schedule_hrtimeout_range</span><span class="token punctuation">(</span>to<span class="token punctuation">,</span> slack<span class="token punctuation">,</span> HRTIMER_MODE_ABS<span class="token punctuation">)</span><span class="token punctuation">)</span>
+        timed_out <span class="token operator">=</span> <span class="token number">1</span><span class="token punctuation">;</span>
+
+    <span class="token function">spin_lock_irq</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>ep<span class="token operator">-&gt;</span>wq<span class="token punctuation">.</span>lock<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre></li>
+</ol>
+</li>
+<li><p>如果进程从休眠中返回，则将当前进程从 <code>eventpoll</code> 的等待队列中删除，并且设置当前进程为 <code>TASK_RUNNING</code> 状态。</p>
+ <pre class="line-numbers language-c" data-language="c"><code class="language-c">    <span class="token function">__remove_wait_queue</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>ep<span class="token operator">-&gt;</span>wq<span class="token punctuation">,</span> <span class="token operator">&amp;</span>wait<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token function">__set_current_state</span><span class="token punctuation">(</span>TASK_RUNNING<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span></span></code></pre></li>
+<li><p>最后，调用 <code>ep_send_events</code> 函数将事件拷贝到用户空间。</p>
+ <pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token comment">/*
+ * Try to transfer events to user space. In case we get 0 events and
+ * there's still timeout left over, we go trying again in search of
+ * more luck.
+ */</span>
+<span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token operator">!</span>res <span class="token operator">&amp;&amp;</span> eavail <span class="token operator">&amp;&amp;</span>
+    <span class="token operator">!</span><span class="token punctuation">(</span>res <span class="token operator">=</span> <span class="token function">ep_send_events</span><span class="token punctuation">(</span>ep<span class="token punctuation">,</span> events<span class="token punctuation">,</span> maxevents<span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token operator">&amp;&amp;</span> <span class="token operator">!</span>timed_out<span class="token punctuation">)</span>
+    <span class="token keyword">goto</span> fetch_events<span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+</li>
+</ol>
+<h3 id="3-3-ep-send-events-函数"><a href="#3-3-ep-send-events-函数" class="headerlink" title="3.3 ep_send_events 函数"></a>3.3 ep_send_events 函数</h3><p><code>ep_send_events</code> 函数会将 <code>ep_send_events_proc</code> 函数作为回调函数来调用 <code>ep_scan_ready_list</code> 函数。 <code>ep_scan_ready_list</code> 函数循环调用 <code>ep_send_events_proc</code> 函数对每个已经就绪的事件进行处理。<code>ep_send_events_proc</code> 函数处理就绪事件时，会再次调用每个文件描述符的 <code>poll</code> 函数，这个是为了确认注册的事件在这个时刻还是有效的。</p>
+<p>可以看到，虽然 <code>ep_send_events_proc</code> 已经尽可能的保证用户空间获得的事件通知都是真实有效的，但是依然有一定的概率，当 <code>ep_send_events_proc</code> 再次调用文件上的 <code>poll</code> 函数后，用户空间处理该事件之前，对应的事件失效了。这也就是为什么 <strong>推荐使用非阻塞套接字配合 <code>epoll</code> 使用</strong> 的原因。</p>
+<p>在进行简单的事件掩码校验之后，<code>ep_send_events_proc</code> 通过使用函数 <code>__put_user</code> 将事件结构体拷贝到用户空间需要的数据结构中。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">static</span> __poll_t <span class="token function">ep_send_events_proc</span><span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">eventpoll</span> <span class="token operator">*</span>ep<span class="token punctuation">,</span> <span class="token keyword">struct</span> <span class="token class-name">list_head</span> <span class="token operator">*</span>head<span class="token punctuation">,</span>
+                   <span class="token keyword">void</span> <span class="token operator">*</span>priv<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword">struct</span> <span class="token class-name">ep_send_events_data</span> <span class="token operator">*</span>esed <span class="token operator">=</span> priv<span class="token punctuation">;</span>
+    __poll_t revents<span class="token punctuation">;</span>
+    <span class="token keyword">struct</span> <span class="token class-name">epitem</span> <span class="token operator">*</span>epi<span class="token punctuation">;</span>
+    <span class="token keyword">struct</span> <span class="token class-name">epoll_event</span> __user <span class="token operator">*</span>uevent<span class="token punctuation">;</span>
+    <span class="token keyword">struct</span> <span class="token class-name">wakeup_source</span> <span class="token operator">*</span>ws<span class="token punctuation">;</span>
+    poll_table pt<span class="token punctuation">;</span>
+
+    <span class="token function">init_poll_funcptr</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>pt<span class="token punctuation">,</span> <span class="token constant">NULL</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+    <span class="token comment">/*
+     * We can loop without lock because we are passed a task private list.
+     * Items cannot vanish during the loop because ep_scan_ready_list() is
+     * holding "mtx" during this call.
+     */</span>
+    <span class="token keyword">for</span> <span class="token punctuation">(</span>esed<span class="token operator">-&gt;</span>res <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">,</span> uevent <span class="token operator">=</span> esed<span class="token operator">-&gt;</span>events<span class="token punctuation">;</span>
+         <span class="token operator">!</span><span class="token function">list_empty</span><span class="token punctuation">(</span>head<span class="token punctuation">)</span> <span class="token operator">&amp;&amp;</span> esed<span class="token operator">-&gt;</span>res <span class="token operator">&lt;</span> esed<span class="token operator">-&gt;</span>maxevents<span class="token punctuation">;</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+        epi <span class="token operator">=</span> <span class="token function">list_first_entry</span><span class="token punctuation">(</span>head<span class="token punctuation">,</span> <span class="token keyword">struct</span> <span class="token class-name">epitem</span><span class="token punctuation">,</span> rdllink<span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+        <span class="token comment">/*
+         * Activate ep-&gt;ws before deactivating epi-&gt;ws to prevent
+         * triggering auto-suspend here (in case we reactive epi-&gt;ws
+         * below).
+         *
+         * This could be rearranged to delay the deactivation of epi-&gt;ws
+         * instead, but then epi-&gt;ws would temporarily be out of sync
+         * with ep_is_linked().
+         */</span>
+        ws <span class="token operator">=</span> <span class="token function">ep_wakeup_source</span><span class="token punctuation">(</span>epi<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span>ws<span class="token punctuation">)</span> <span class="token punctuation">{</span>
+            <span class="token keyword">if</span> <span class="token punctuation">(</span>ws<span class="token operator">-&gt;</span>active<span class="token punctuation">)</span>
+                <span class="token function">__pm_stay_awake</span><span class="token punctuation">(</span>ep<span class="token operator">-&gt;</span>ws<span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token function">__pm_relax</span><span class="token punctuation">(</span>ws<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+
+        <span class="token function">list_del_init</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>epi<span class="token operator">-&gt;</span>rdllink<span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+        revents <span class="token operator">=</span> <span class="token function">ep_item_poll</span><span class="token punctuation">(</span>epi<span class="token punctuation">,</span> <span class="token operator">&amp;</span>pt<span class="token punctuation">,</span> <span class="token number">1</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+        <span class="token comment">/*
+         * If the event mask intersect the caller-requested one,
+         * deliver the event to userspace. Again, ep_scan_ready_list()
+         * is holding "mtx", so no operations coming from userspace
+         * can change the item.
+         */</span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span>revents<span class="token punctuation">)</span> <span class="token punctuation">{</span>
+            <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token function">__put_user</span><span class="token punctuation">(</span>revents<span class="token punctuation">,</span> <span class="token operator">&amp;</span>uevent<span class="token operator">-&gt;</span>events<span class="token punctuation">)</span> <span class="token operator">||</span>
+                <span class="token function">__put_user</span><span class="token punctuation">(</span>epi<span class="token operator">-&gt;</span>event<span class="token punctuation">.</span>data<span class="token punctuation">,</span> <span class="token operator">&amp;</span>uevent<span class="token operator">-&gt;</span>data<span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+                <span class="token function">list_add</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>epi<span class="token operator">-&gt;</span>rdllink<span class="token punctuation">,</span> head<span class="token punctuation">)</span><span class="token punctuation">;</span>
+                <span class="token function">ep_pm_stay_awake</span><span class="token punctuation">(</span>epi<span class="token punctuation">)</span><span class="token punctuation">;</span>
+                <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token operator">!</span>esed<span class="token operator">-&gt;</span>res<span class="token punctuation">)</span>
+                    esed<span class="token operator">-&gt;</span>res <span class="token operator">=</span> <span class="token operator">-</span>EFAULT<span class="token punctuation">;</span>
+                <span class="token keyword">return</span> <span class="token number">0</span><span class="token punctuation">;</span>
+            <span class="token punctuation">}</span>
+            esed<span class="token operator">-&gt;</span>res<span class="token operator">++</span><span class="token punctuation">;</span>
+            uevent<span class="token operator">++</span><span class="token punctuation">;</span>
+            <span class="token keyword">if</span> <span class="token punctuation">(</span>epi<span class="token operator">-&gt;</span>event<span class="token punctuation">.</span>events <span class="token operator">&amp;</span> EPOLLONESHOT<span class="token punctuation">)</span>
+                epi<span class="token operator">-&gt;</span>event<span class="token punctuation">.</span>events <span class="token operator">&amp;=</span> EP_PRIVATE_BITS<span class="token punctuation">;</span>
+            <span class="token keyword">else</span> <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token operator">!</span><span class="token punctuation">(</span>epi<span class="token operator">-&gt;</span>event<span class="token punctuation">.</span>events <span class="token operator">&amp;</span> EPOLLET<span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+                <span class="token comment">/*
+                 * If this file has been added with Level
+                 * Trigger mode, we need to insert back inside
+                 * the ready list, so that the next call to
+                 * epoll_wait() will check again the events
+                 * availability. At this point, no one can insert
+                 * into ep-&gt;rdllist besides us. The epoll_ctl()
+                 * callers are locked out by
+                 * ep_scan_ready_list() holding "mtx" and the
+                 * poll callback will queue them in ep-&gt;ovflist.
+                 */</span>
+                <span class="token function">list_add_tail</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>epi<span class="token operator">-&gt;</span>rdllink<span class="token punctuation">,</span> <span class="token operator">&amp;</span>ep<span class="token operator">-&gt;</span>rdllist<span class="token punctuation">)</span><span class="token punctuation">;</span>
+                <span class="token function">ep_pm_stay_awake</span><span class="token punctuation">(</span>epi<span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token punctuation">}</span>
+        <span class="token punctuation">}</span>
+    <span class="token punctuation">}</span>
+
+    <span class="token keyword">return</span> <span class="token number">0</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>在 <code>ep_send_events_proc</code> 函数的最后，针对 <code>Level Trigger</code> 模式，当前的 <code>epoll_item</code> 对象被重新加到 <code>eventpoll</code> 的就绪列表中，这样在下一次调用 <code>epoll_wait</code> 时，这些 <code>epoll_item</code> 对象就会被重新处理。</p>
+<h2 id="四、select-系统调用"><a href="#四、select-系统调用" class="headerlink" title="四、select 系统调用"></a>四、select 系统调用</h2><p>系统调用 <code>select</code> 的定义位于 <code>fs/select.c</code> 文件中的 697 行。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token function">SYSCALL_DEFINE5</span><span class="token punctuation">(</span>select<span class="token punctuation">,</span> <span class="token keyword">int</span><span class="token punctuation">,</span> n<span class="token punctuation">,</span> fd_set __user <span class="token operator">*</span><span class="token punctuation">,</span> inp<span class="token punctuation">,</span> fd_set __user <span class="token operator">*</span><span class="token punctuation">,</span> outp<span class="token punctuation">,</span>
+    fd_set __user <span class="token operator">*</span><span class="token punctuation">,</span> exp<span class="token punctuation">,</span> <span class="token keyword">struct</span> <span class="token class-name">timeval</span> __user <span class="token operator">*</span><span class="token punctuation">,</span> tvp<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword">return</span> <span class="token function">kern_select</span><span class="token punctuation">(</span>n<span class="token punctuation">,</span> inp<span class="token punctuation">,</span> outp<span class="token punctuation">,</span> exp<span class="token punctuation">,</span> tvp<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>主要工作就是调用 <code>kern_select</code> 函数。</p>
+<h3 id="4-1-kern-select-函数"><a href="#4-1-kern-select-函数" class="headerlink" title="4.1 kern_select 函数"></a>4.1 kern_select 函数</h3><p>函数 <code>kern_select</code> 的定义位于 <code>fs/select.c</code> 文件中的 673 行。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">static</span> <span class="token keyword">int</span> <span class="token function">kern_select</span><span class="token punctuation">(</span><span class="token keyword">int</span> n<span class="token punctuation">,</span> fd_set __user <span class="token operator">*</span>inp<span class="token punctuation">,</span> fd_set __user <span class="token operator">*</span>outp<span class="token punctuation">,</span>
+               fd_set __user <span class="token operator">*</span>exp<span class="token punctuation">,</span> <span class="token keyword">struct</span> <span class="token class-name">timeval</span> __user <span class="token operator">*</span>tvp<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword">struct</span> <span class="token class-name">timespec64</span> end_time<span class="token punctuation">,</span> <span class="token operator">*</span>to <span class="token operator">=</span> <span class="token constant">NULL</span><span class="token punctuation">;</span>
+    <span class="token keyword">struct</span> <span class="token class-name">timeval</span> tv<span class="token punctuation">;</span>
+    <span class="token keyword">int</span> ret<span class="token punctuation">;</span>
+
+    <span class="token keyword">if</span> <span class="token punctuation">(</span>tvp<span class="token punctuation">)</span> <span class="token punctuation">{</span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token function">copy_from_user</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>tv<span class="token punctuation">,</span> tvp<span class="token punctuation">,</span> <span class="token keyword">sizeof</span><span class="token punctuation">(</span>tv<span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">)</span>
+            <span class="token keyword">return</span> <span class="token operator">-</span>EFAULT<span class="token punctuation">;</span>
+
+        to <span class="token operator">=</span> <span class="token operator">&amp;</span>end_time<span class="token punctuation">;</span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token function">poll_select_set_timeout</span><span class="token punctuation">(</span>to<span class="token punctuation">,</span>
+                tv<span class="token punctuation">.</span>tv_sec <span class="token operator">+</span> <span class="token punctuation">(</span>tv<span class="token punctuation">.</span>tv_usec <span class="token operator">/</span> USEC_PER_SEC<span class="token punctuation">)</span><span class="token punctuation">,</span>
+                <span class="token punctuation">(</span>tv<span class="token punctuation">.</span>tv_usec <span class="token operator">%</span> USEC_PER_SEC<span class="token punctuation">)</span> <span class="token operator">*</span> NSEC_PER_USEC<span class="token punctuation">)</span><span class="token punctuation">)</span>
+            <span class="token keyword">return</span> <span class="token operator">-</span>EINVAL<span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+
+    ret <span class="token operator">=</span> <span class="token function">core_sys_select</span><span class="token punctuation">(</span>n<span class="token punctuation">,</span> inp<span class="token punctuation">,</span> outp<span class="token punctuation">,</span> exp<span class="token punctuation">,</span> to<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    ret <span class="token operator">=</span> <span class="token function">poll_select_copy_remaining</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>end_time<span class="token punctuation">,</span> tvp<span class="token punctuation">,</span> <span class="token number">1</span><span class="token punctuation">,</span> ret<span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+    <span class="token keyword">return</span> ret<span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p><code>kern_select</code> 函数的主要作用是转换超时时间到内核空间，执行 <code>core_sys_select</code> 函数，并更新剩余的时间。</p>
+<h3 id="4-2-core-sys-select-函数"><a href="#4-2-core-sys-select-函数" class="headerlink" title="4.2 core_sys_select 函数"></a>4.2 core_sys_select 函数</h3><p><code>core_sys_select</code> 函数定义位于 <code>fs/select.c</code> 文件中的 594 行。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token comment">/*
+ * We can actually return ERESTARTSYS instead of EINTR, but I'd
+ * like to be certain this leads to no problems. So I return
+ * EINTR just for safety.
+ *
+ * Update: ERESTARTSYS breaks at least the xview clock binary, so
+ * I'm trying ERESTARTNOHAND which restart only when you want to.
+ */</span>
+<span class="token keyword">int</span> <span class="token function">core_sys_select</span><span class="token punctuation">(</span><span class="token keyword">int</span> n<span class="token punctuation">,</span> fd_set __user <span class="token operator">*</span>inp<span class="token punctuation">,</span> fd_set __user <span class="token operator">*</span>outp<span class="token punctuation">,</span>
+               fd_set __user <span class="token operator">*</span>exp<span class="token punctuation">,</span> <span class="token keyword">struct</span> <span class="token class-name">timespec64</span> <span class="token operator">*</span>end_time<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    fd_set_bits fds<span class="token punctuation">;</span>
+
+    <span class="token comment">//...</span>
+
+    <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token punctuation">(</span>ret <span class="token operator">=</span> <span class="token function">get_fd_set</span><span class="token punctuation">(</span>n<span class="token punctuation">,</span> inp<span class="token punctuation">,</span> fds<span class="token punctuation">.</span>in<span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token operator">||</span>
+        <span class="token punctuation">(</span>ret <span class="token operator">=</span> <span class="token function">get_fd_set</span><span class="token punctuation">(</span>n<span class="token punctuation">,</span> outp<span class="token punctuation">,</span> fds<span class="token punctuation">.</span>out<span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token operator">||</span>
+        <span class="token punctuation">(</span>ret <span class="token operator">=</span> <span class="token function">get_fd_set</span><span class="token punctuation">(</span>n<span class="token punctuation">,</span> exp<span class="token punctuation">,</span> fds<span class="token punctuation">.</span>ex<span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">)</span>
+        <span class="token keyword">goto</span> out<span class="token punctuation">;</span>
+    <span class="token function">zero_fd_set</span><span class="token punctuation">(</span>n<span class="token punctuation">,</span> fds<span class="token punctuation">.</span>res_in<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token function">zero_fd_set</span><span class="token punctuation">(</span>n<span class="token punctuation">,</span> fds<span class="token punctuation">.</span>res_out<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token function">zero_fd_set</span><span class="token punctuation">(</span>n<span class="token punctuation">,</span> fds<span class="token punctuation">.</span>res_ex<span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+    ret <span class="token operator">=</span> <span class="token function">do_select</span><span class="token punctuation">(</span>n<span class="token punctuation">,</span> <span class="token operator">&amp;</span>fds<span class="token punctuation">,</span> end_time<span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+    <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token function">set_fd_set</span><span class="token punctuation">(</span>n<span class="token punctuation">,</span> inp<span class="token punctuation">,</span> fds<span class="token punctuation">.</span>res_in<span class="token punctuation">)</span> <span class="token operator">||</span>
+        <span class="token function">set_fd_set</span><span class="token punctuation">(</span>n<span class="token punctuation">,</span> outp<span class="token punctuation">,</span> fds<span class="token punctuation">.</span>res_out<span class="token punctuation">)</span> <span class="token operator">||</span>
+        <span class="token function">set_fd_set</span><span class="token punctuation">(</span>n<span class="token punctuation">,</span> exp<span class="token punctuation">,</span> fds<span class="token punctuation">.</span>res_ex<span class="token punctuation">)</span><span class="token punctuation">)</span>
+        ret <span class="token operator">=</span> <span class="token operator">-</span>EFAULT<span class="token punctuation">;</span>
+    <span class="token comment">//...</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p><code>core_sys_select</code> 函数的主要作用是准备调用 <code>do_select</code> 所需的参数，并更新结果。</p>
+<h3 id="4-3-do-select-函数"><a href="#4-3-do-select-函数" class="headerlink" title="4.3 do_select 函数"></a>4.3 do_select 函数</h3><p><code>do_select</code> 函数定义位于 <code>fs/select.c</code> 文件中的 449 行。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">static</span> <span class="token keyword">int</span> <span class="token function">do_select</span><span class="token punctuation">(</span><span class="token keyword">int</span> n<span class="token punctuation">,</span> fd_set_bits <span class="token operator">*</span>fds<span class="token punctuation">,</span> <span class="token keyword">struct</span> <span class="token class-name">timespec64</span> <span class="token operator">*</span>end_time<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+
+    <span class="token comment">//...</span>
+    <span class="token keyword">for</span> <span class="token punctuation">(</span><span class="token punctuation">;</span><span class="token punctuation">;</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+        <span class="token keyword">unsigned</span> <span class="token keyword">long</span> <span class="token operator">*</span>rinp<span class="token punctuation">,</span> <span class="token operator">*</span>routp<span class="token punctuation">,</span> <span class="token operator">*</span>rexp<span class="token punctuation">,</span> <span class="token operator">*</span>inp<span class="token punctuation">,</span> <span class="token operator">*</span>outp<span class="token punctuation">,</span> <span class="token operator">*</span>exp<span class="token punctuation">;</span>
+
+        inp <span class="token operator">=</span> fds<span class="token operator">-&gt;</span>in<span class="token punctuation">;</span> outp <span class="token operator">=</span> fds<span class="token operator">-&gt;</span>out<span class="token punctuation">;</span> exp <span class="token operator">=</span> fds<span class="token operator">-&gt;</span>ex<span class="token punctuation">;</span>
+        rinp <span class="token operator">=</span> fds<span class="token operator">-&gt;</span>res_in<span class="token punctuation">;</span> routp <span class="token operator">=</span> fds<span class="token operator">-&gt;</span>res_out<span class="token punctuation">;</span> rexp <span class="token operator">=</span> fds<span class="token operator">-&gt;</span>res_ex<span class="token punctuation">;</span>
+
+        <span class="token keyword">for</span> <span class="token punctuation">(</span>i <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span> i <span class="token operator">&lt;</span> n<span class="token punctuation">;</span> <span class="token operator">++</span>rinp<span class="token punctuation">,</span> <span class="token operator">++</span>routp<span class="token punctuation">,</span> <span class="token operator">++</span>rexp<span class="token punctuation">)</span> <span class="token punctuation">{</span>
+            <span class="token keyword">unsigned</span> <span class="token keyword">long</span> in<span class="token punctuation">,</span> out<span class="token punctuation">,</span> ex<span class="token punctuation">,</span> all_bits<span class="token punctuation">,</span> bit <span class="token operator">=</span> <span class="token number">1</span><span class="token punctuation">,</span> j<span class="token punctuation">;</span>
+            <span class="token keyword">unsigned</span> <span class="token keyword">long</span> res_in <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">,</span> res_out <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">,</span> res_ex <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span>
+
+            in <span class="token operator">=</span> <span class="token operator">*</span>inp<span class="token operator">++</span><span class="token punctuation">;</span> out <span class="token operator">=</span> <span class="token operator">*</span>outp<span class="token operator">++</span><span class="token punctuation">;</span> ex <span class="token operator">=</span> <span class="token operator">*</span>exp<span class="token operator">++</span><span class="token punctuation">;</span>
+            all_bits <span class="token operator">=</span> in <span class="token operator">|</span> out <span class="token operator">|</span> ex<span class="token punctuation">;</span>
+            <span class="token keyword">if</span> <span class="token punctuation">(</span>all_bits <span class="token operator">==</span> <span class="token number">0</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+                i <span class="token operator">+=</span> BITS_PER_LONG<span class="token punctuation">;</span>
+                <span class="token keyword">continue</span><span class="token punctuation">;</span>
+            <span class="token punctuation">}</span>
+
+            <span class="token keyword">for</span> <span class="token punctuation">(</span>j <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span> j <span class="token operator">&lt;</span> BITS_PER_LONG<span class="token punctuation">;</span> <span class="token operator">++</span>j<span class="token punctuation">,</span> <span class="token operator">++</span>i<span class="token punctuation">,</span> bit <span class="token operator">&lt;&lt;=</span> <span class="token number">1</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+                <span class="token keyword">struct</span> <span class="token class-name">fd</span> f<span class="token punctuation">;</span>
+                f <span class="token operator">=</span> <span class="token function">fdget</span><span class="token punctuation">(</span>i<span class="token punctuation">)</span><span class="token punctuation">;</span>
+                <span class="token keyword">if</span> <span class="token punctuation">(</span>f<span class="token punctuation">.</span>file<span class="token punctuation">)</span> <span class="token punctuation">{</span>
+                    <span class="token comment">//...</span>
+                <span class="token punctuation">}</span>
+            <span class="token punctuation">}</span>
+        <span class="token punctuation">}</span>
+
+        <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token operator">!</span><span class="token function">poll_schedule_timeout</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>table<span class="token punctuation">,</span> TASK_INTERRUPTIBLE<span class="token punctuation">,</span>
+                       to<span class="token punctuation">,</span> slack<span class="token punctuation">)</span><span class="token punctuation">)</span>
+            timed_out <span class="token operator">=</span> <span class="token number">1</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+    <span class="token comment">//...</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p><code>do_select</code> 函数的主要逻辑是监听多个 <code>fd</code> ，只要这些 <code>fd</code> 中有一个 <code>fd</code> 有事件发生，进程就会从休眠中被唤醒。并依次遍历所有的 <code>fd</code> 来判断到底是哪个 <code>fd</code> 有事件发生。 这也是 <code>select</code> 相比于 <code>epoll</code> 效率低的主要原因。</p>
+<h2 id="五、poll-系统调用"><a href="#五、poll-系统调用" class="headerlink" title="五、poll 系统调用"></a>五、poll 系统调用</h2><p>系统调用 <code>poll</code> 的定义位于 <code>fs/select.c</code> 文件中的 1012 行。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token function">SYSCALL_DEFINE3</span><span class="token punctuation">(</span>poll<span class="token punctuation">,</span> <span class="token keyword">struct</span> <span class="token class-name">pollfd</span> __user <span class="token operator">*</span><span class="token punctuation">,</span> ufds<span class="token punctuation">,</span> <span class="token keyword">unsigned</span> <span class="token keyword">int</span><span class="token punctuation">,</span> nfds<span class="token punctuation">,</span>
+        <span class="token keyword">int</span><span class="token punctuation">,</span> timeout_msecs<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword">struct</span> <span class="token class-name">timespec64</span> end_time<span class="token punctuation">,</span> <span class="token operator">*</span>to <span class="token operator">=</span> <span class="token constant">NULL</span><span class="token punctuation">;</span>
+    <span class="token keyword">int</span> ret<span class="token punctuation">;</span>
+
+    <span class="token keyword">if</span> <span class="token punctuation">(</span>timeout_msecs <span class="token operator">&gt;=</span> <span class="token number">0</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+        to <span class="token operator">=</span> <span class="token operator">&amp;</span>end_time<span class="token punctuation">;</span>
+        <span class="token function">poll_select_set_timeout</span><span class="token punctuation">(</span>to<span class="token punctuation">,</span> timeout_msecs <span class="token operator">/</span> MSEC_PER_SEC<span class="token punctuation">,</span>
+            NSEC_PER_MSEC <span class="token operator">*</span> <span class="token punctuation">(</span>timeout_msecs <span class="token operator">%</span> MSEC_PER_SEC<span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+
+    ret <span class="token operator">=</span> <span class="token function">do_sys_poll</span><span class="token punctuation">(</span>ufds<span class="token punctuation">,</span> nfds<span class="token punctuation">,</span> to<span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+    <span class="token comment">//...</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>主要作用与 <code>select</code> 实现中的 <code>kern_select</code> 函数作用类似，转换时间并调用 <code>do_sys_poll</code> 函数。</p>
+<h3 id="5-1-do-sys-poll-函数"><a href="#5-1-do-sys-poll-函数" class="headerlink" title="5.1 do_sys_poll 函数"></a>5.1 do_sys_poll 函数</h3><p>函数 <code>do_sys_poll</code> 的定义位于 <code>fs/select.c</code> 文件中的 926 行。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">static</span> <span class="token keyword">int</span> <span class="token function">do_sys_poll</span><span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">pollfd</span> __user <span class="token operator">*</span>ufds<span class="token punctuation">,</span> <span class="token keyword">unsigned</span> <span class="token keyword">int</span> nfds<span class="token punctuation">,</span>
+        <span class="token keyword">struct</span> <span class="token class-name">timespec64</span> <span class="token operator">*</span>end_time<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token comment">//...</span>
+    len <span class="token operator">=</span> <span class="token function">min_t</span><span class="token punctuation">(</span><span class="token keyword">unsigned</span> <span class="token keyword">int</span><span class="token punctuation">,</span> nfds<span class="token punctuation">,</span> N_STACK_PPS<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">for</span> <span class="token punctuation">(</span><span class="token punctuation">;</span><span class="token punctuation">;</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+        <span class="token comment">//...</span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token function">copy_from_user</span><span class="token punctuation">(</span>walk<span class="token operator">-&gt;</span>entries<span class="token punctuation">,</span> ufds <span class="token operator">+</span> nfds<span class="token operator">-</span>todo<span class="token punctuation">,</span>
+                    <span class="token keyword">sizeof</span><span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">pollfd</span><span class="token punctuation">)</span> <span class="token operator">*</span> walk<span class="token operator">-&gt;</span>len<span class="token punctuation">)</span><span class="token punctuation">)</span>
+            <span class="token keyword">goto</span> out_fds<span class="token punctuation">;</span>
+
+        todo <span class="token operator">-=</span> walk<span class="token operator">-&gt;</span>len<span class="token punctuation">;</span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token operator">!</span>todo<span class="token punctuation">)</span>
+            <span class="token keyword">break</span><span class="token punctuation">;</span>
+        <span class="token comment">//...</span>
+    <span class="token punctuation">}</span>
+
+    <span class="token function">poll_initwait</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>table<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    fdcount <span class="token operator">=</span> <span class="token function">do_poll</span><span class="token punctuation">(</span>head<span class="token punctuation">,</span> <span class="token operator">&amp;</span>table<span class="token punctuation">,</span> end_time<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token function">poll_freewait</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>table<span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+    <span class="token keyword">for</span> <span class="token punctuation">(</span>walk <span class="token operator">=</span> head<span class="token punctuation">;</span> walk<span class="token punctuation">;</span> walk <span class="token operator">=</span> walk<span class="token operator">-&gt;</span>next<span class="token punctuation">)</span> <span class="token punctuation">{</span>
+        <span class="token keyword">struct</span> <span class="token class-name">pollfd</span> <span class="token operator">*</span>fds <span class="token operator">=</span> walk<span class="token operator">-&gt;</span>entries<span class="token punctuation">;</span>
+        <span class="token keyword">int</span> j<span class="token punctuation">;</span>
+
+        <span class="token keyword">for</span> <span class="token punctuation">(</span>j <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span> j <span class="token operator">&lt;</span> walk<span class="token operator">-&gt;</span>len<span class="token punctuation">;</span> j<span class="token operator">++</span><span class="token punctuation">,</span> ufds<span class="token operator">++</span><span class="token punctuation">)</span>
+            <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token function">__put_user</span><span class="token punctuation">(</span>fds<span class="token punctuation">[</span>j<span class="token punctuation">]</span><span class="token punctuation">.</span>revents<span class="token punctuation">,</span> <span class="token operator">&amp;</span>ufds<span class="token operator">-&gt;</span>revents<span class="token punctuation">)</span><span class="token punctuation">)</span>
+                <span class="token keyword">goto</span> out_fds<span class="token punctuation">;</span>
+      <span class="token punctuation">}</span>
+    <span class="token comment">//...</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p><code>do_sys_poll</code> 函数的主要作用与 <code>select</code> 实现中的 <code>core_sys_select</code> 函数作用类似，准备调用 <code>do_poll</code> 所需的参数，并更新结果。</p>
+<h3 id="5-2-do-poll-函数"><a href="#5-2-do-poll-函数" class="headerlink" title="5.2 do_poll 函数"></a>5.2 do_poll 函数</h3><p>函数 <code>do_poll</code> 的定义位于 <code>fs/select.c</code> 文件中的 837 行。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">static</span> <span class="token keyword">int</span> <span class="token function">do_poll</span><span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">poll_list</span> <span class="token operator">*</span>list<span class="token punctuation">,</span> <span class="token keyword">struct</span> <span class="token class-name">poll_wqueues</span> <span class="token operator">*</span>wait<span class="token punctuation">,</span>
+           <span class="token keyword">struct</span> <span class="token class-name">timespec64</span> <span class="token operator">*</span>end_time<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token comment">//...</span>
+    <span class="token keyword">for</span> <span class="token punctuation">(</span><span class="token punctuation">;</span><span class="token punctuation">;</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+        <span class="token keyword">struct</span> <span class="token class-name">poll_list</span> <span class="token operator">*</span>walk<span class="token punctuation">;</span>
+
+        <span class="token keyword">for</span> <span class="token punctuation">(</span>walk <span class="token operator">=</span> list<span class="token punctuation">;</span> walk <span class="token operator">!=</span> <span class="token constant">NULL</span><span class="token punctuation">;</span> walk <span class="token operator">=</span> walk<span class="token operator">-&gt;</span>next<span class="token punctuation">)</span> <span class="token punctuation">{</span>
+            <span class="token keyword">struct</span> <span class="token class-name">pollfd</span> <span class="token operator">*</span> pfd<span class="token punctuation">,</span> <span class="token operator">*</span> pfd_end<span class="token punctuation">;</span>
+
+            pfd <span class="token operator">=</span> walk<span class="token operator">-&gt;</span>entries<span class="token punctuation">;</span>
+            pfd_end <span class="token operator">=</span> pfd <span class="token operator">+</span> walk<span class="token operator">-&gt;</span>len<span class="token punctuation">;</span>
+            <span class="token keyword">for</span> <span class="token punctuation">(</span><span class="token punctuation">;</span> pfd <span class="token operator">!=</span> pfd_end<span class="token punctuation">;</span> pfd<span class="token operator">++</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+                <span class="token comment">/*
+                 * Fish for events. If we found one, record it
+                 * and kill poll_table-&gt;_qproc, so we don't
+                 * needlessly register any other waiters after
+                 * this. They'll get immediately deregistered
+                 * when we break out and return.
+                 */</span>
+                <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token function">do_pollfd</span><span class="token punctuation">(</span>pfd<span class="token punctuation">,</span> pt<span class="token punctuation">,</span> <span class="token operator">&amp;</span>can_busy_loop<span class="token punctuation">,</span>
+                          busy_flag<span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+
+                    <span class="token comment">//...</span>
+                <span class="token punctuation">}</span>
+            <span class="token punctuation">}</span>
+        <span class="token punctuation">}</span>
+        <span class="token comment">//...</span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token operator">!</span><span class="token function">poll_schedule_timeout</span><span class="token punctuation">(</span>wait<span class="token punctuation">,</span> TASK_INTERRUPTIBLE<span class="token punctuation">,</span> to<span class="token punctuation">,</span> slack<span class="token punctuation">)</span><span class="token punctuation">)</span>
+            timed_out <span class="token operator">=</span> <span class="token number">1</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+    <span class="token keyword">return</span> count<span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>同样与 <code>select</code> 实现中的 <code>do_select</code> 类似，<code>do_poll</code> 函数的主要逻辑是监听多个 <code>fd</code> ，只要这些 <code>fd</code> 中有一个 <code>fd</code> 有事件发生，进程就会从休眠中被唤醒。并依次遍历所有的 <code>fd</code> 来判断到底是哪个 <code>fd</code> 有事件发生。 所以 <code>poll</code> 与 <code>select</code> 一样的效率低。</p>
+
+                
+            </div>
+            <hr/>
+
+            
+
+    <div class="reprint" id="reprint-statement">
+        
+            <div class="reprint__author">
+                <span class="reprint-meta" style="font-weight: bold;">
+                    <i class="fas fa-user">
+                        文章作者:
+                    </i>
+                </span>
+                <span class="reprint-info">
+                    <a href="https://kibazen.cn" rel="external nofollow noreferrer">Kiba Amor</a>
+                </span>
+            </div>
+            <div class="reprint__type">
+                <span class="reprint-meta" style="font-weight: bold;">
+                    <i class="fas fa-link">
+                        文章链接:
+                    </i>
+                    </span>
+                <span class="reprint-info">
+                    <a href="https://kibazen.cn/epoll-select-he-poll-yuan-ma-jian-xi/">https://kibazen.cn/epoll-select-he-poll-yuan-ma-jian-xi/</a>
+                </span>
+            </div>
+            <div class="reprint__notice">
+                <span class="reprint-meta" style="font-weight: bold;">
+                    <i class="fas fa-copyright">
+                        版权声明:
+                    </i>
+                </span>
+                <span class="reprint-info">
+                    本博客所有文章除特別声明外，均采用
+                    <a href="https://creativecommons.org/licenses/by-nc-nd/4.0/deed.zh" rel="external nofollow noreferrer" target="_blank">CC BY-NC-ND 4.0</a>
+                    许可协议。转载请注明来源
+                    <a href="https://kibazen.cn" target="_blank">Kiba Amor</a>
+                    !
+                </span>
+            </div>
+        
+    </div>
+
+    <script async defer>
+      document.addEventListener("copy", function (e) {
+        let toastHTML = '<span>复制成功，请遵循本文的转载规则</span><button class="btn-flat toast-action" onclick="navToReprintStatement()" style="font-size: smaller">查看</a>';
+        M.toast({html: toastHTML})
+      });
+
+      function navToReprintStatement() {
+        $("html, body").animate({scrollTop: $("#reprint-statement").offset().top - 80}, 800);
+      }
+    </script>
+
+
+
+            <div class="tag_share" style="display: block;">
+                <div class="post-meta__tag-list" style="display: inline-block;">
+                    
+                        <div class="article-tag">
+                            
+                                <a href="/tags/TCP/">
+                                    <span class="chip bg-color">TCP</span>
+                                </a>
+                            
+                                <a href="/tags/epoll/">
+                                    <span class="chip bg-color">epoll</span>
+                                </a>
+                            
+                                <a href="/tags/select/">
+                                    <span class="chip bg-color">select</span>
+                                </a>
+                            
+                                <a href="/tags/poll/">
+                                    <span class="chip bg-color">poll</span>
+                                </a>
+                            
+                        </div>
+                    
+                </div>
+                <div class="post_share" style="zoom: 80%; width: fit-content; display: inline-block; float: right; margin: -0.15rem 0;">
+                    <link rel="stylesheet" type="text/css" href="/libs/share/css/share.min.css">
+<div id="article-share">
+
+    
+    <div class="social-share" data-sites="qq,wechat,weibo,douban" data-wechat-qrcode-helper="<p>微信扫一扫即可分享！</p>"></div>
+    <script src="/libs/share/js/social-share.min.js"></script>
+    
+
+    
+
+</div>
+
+                </div>
+            </div>
+            
+        </div>
+    </div>
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+<article id="prenext-posts" class="prev-next articles">
+    <div class="row article-row">
+        
+        <div class="article col s12 m6" data-aos="fade-up">
+            <div class="article-badge left-badge text-color">
+                <i class="fas fa-chevron-left"></i>&nbsp;上一篇</div>
+            <div class="card">
+                <a href="/go-jin-jie-xun-lian-ying-xue-xi-bi-ji/">
+                    <div class="card-image">
+                        
+                        
+                        <img src="/medias/featureimages/7.jpg" class="responsive-img" alt="《Go进阶训练营》学习笔记">
+                        
+                        <span class="card-title">《Go进阶训练营》学习笔记</span>
+                    </div>
+                </a>
+                <div class="card-content article-content">
+                    <div class="summary block-with-text">
+                        
+                            
+                        
+                    </div>
+                    <div class="publish-info">
+                        <span class="publish-date">
+                            <i class="far fa-clock fa-fw icon-date"></i>2021-10-22
+                        </span>
+                        <span class="publish-author">
+                            
+                            <i class="fas fa-bookmark fa-fw icon-category"></i>
+                            
+                            <a href="/categories/%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0/" class="post-category">
+                                    学习笔记
+                                </a>
+                            
+                            
+                        </span>
+                    </div>
+                </div>
+                
+                <div class="card-action article-tags">
+                    
+                    <a href="/tags/%E6%9E%81%E5%AE%A2%E6%97%B6%E9%97%B4/">
+                        <span class="chip bg-color">极客时间</span>
+                    </a>
+                    
+                    <a href="/tags/golang/">
+                        <span class="chip bg-color">golang</span>
+                    </a>
+                    
+                </div>
+                
+            </div>
+        </div>
+        
+        
+        <div class="article col s12 m6" data-aos="fade-up">
+            <div class="article-badge right-badge text-color">
+                下一篇&nbsp;<i class="fas fa-chevron-right"></i>
+            </div>
+            <div class="card">
+                <a href="/li-jie-tcp-zhong-de-shu-ju-chuan-shu/">
+                    <div class="card-image">
+                        
+                        
+                        <img src="/medias/featureimages/20.jpg" class="responsive-img" alt="理解TCP中的数据传输">
+                        
+                        <span class="card-title">理解TCP中的数据传输</span>
+                    </div>
+                </a>
+                <div class="card-content article-content">
+                    <div class="summary block-with-text">
+                        
+                            
+                        
+                    </div>
+                    <div class="publish-info">
+                            <span class="publish-date">
+                                <i class="far fa-clock fa-fw icon-date"></i>2021-10-08
+                            </span>
+                        <span class="publish-author">
+                            
+                            <i class="fas fa-bookmark fa-fw icon-category"></i>
+                            
+                            <a href="/categories/%E7%BD%91%E7%BB%9C/" class="post-category">
+                                    网络
+                                </a>
+                            
+                            
+                        </span>
+                    </div>
+                </div>
+                
+                <div class="card-action article-tags">
+                    
+                    <a href="/tags/IP/">
+                        <span class="chip bg-color">IP</span>
+                    </a>
+                    
+                    <a href="/tags/TCP/">
+                        <span class="chip bg-color">TCP</span>
+                    </a>
+                    
+                </div>
+                
+            </div>
+        </div>
+        
+    </div>
+</article>
+
+</div>
+
+
+<script>
+    $('#articleContent').on('copy', function (e) {
+        // IE8 or earlier browser is 'undefined'
+        if (typeof window.getSelection === 'undefined') return;
+
+        var selection = window.getSelection();
+        // if the selection is short let's not annoy our users.
+        if (('' + selection).length < Number.parseInt('120')) {
+            return;
+        }
+
+        // create a div outside of the visible area and fill it with the selected text.
+        var bodyElement = document.getElementsByTagName('body')[0];
+        var newdiv = document.createElement('div');
+        newdiv.style.position = 'absolute';
+        newdiv.style.left = '-99999px';
+        bodyElement.appendChild(newdiv);
+        newdiv.appendChild(selection.getRangeAt(0).cloneContents());
+
+        // we need a <pre> tag workaround.
+        // otherwise the text inside "pre" loses all the line breaks!
+        if (true) {
+            newdiv.innerHTML = "<pre>" + newdiv.innerHTML + "</pre>";
+        }
+
+        var url = document.location.href;
+        newdiv.innerHTML += '<br />'
+            + '来源: 木叶禅<br />'
+            + '文章作者: Kiba Amor<br />'
+            + '文章链接: <a href="' + url + '">' + url + '</a><br />'
+            + '本文章著作权归作者木叶禅所有，任何形式的转载都请注明出处。';
+
+        selection.selectAllChildren(newdiv);
+        window.setTimeout(function () {bodyElement.removeChild(newdiv);}, 200);
+    });
+</script>
+
+
+<!-- 代码块功能依赖 -->
+<script type="text/javascript" src="/libs/codeBlock/codeBlockFuction.js"></script>
+
+<!-- 代码语言 -->
+
+<script type="text/javascript" src="/libs/codeBlock/codeLang.js"></script>
+
+
+<!-- 代码块复制 -->
+
+<script type="text/javascript" src="/libs/codeBlock/codeCopy.js"></script>
+
+
+<!-- 代码块收缩 -->
+
+<script type="text/javascript" src="/libs/codeBlock/codeShrink.js"></script>
+
+
+    </div>
+    <div id="toc-aside" class="expanded col l3 hide-on-med-and-down">
+        <div class="toc-widget card" style="background-color: white;">
+            <div class="toc-title"><i class="far fa-list-alt"></i>&nbsp;&nbsp;目录</div>
+            <div id="toc-content"></div>
+        </div>
+    </div>
+</div>
+
+<!-- TOC 悬浮按钮. -->
+
+<div id="floating-toc-btn" class="hide-on-med-and-down">
+    <a class="btn-floating btn-large bg-color">
+        <i class="fas fa-list-ul"></i>
+    </a>
+</div>
+
+
+<script src="/libs/tocbot/tocbot.min.js"></script>
+<script>
+    $(function () {
+        tocbot.init({
+            tocSelector: '#toc-content',
+            contentSelector: '#articleContent',
+            headingsOffset: -($(window).height() * 0.4 - 45),
+            collapseDepth: Number('2'),
+            headingSelector: 'h2, h3, h4, h5'
+        });
+
+        // modify the toc link href to support Chinese.
+        let i = 0;
+        let tocHeading = 'toc-heading-';
+        $('#toc-content a').each(function () {
+            $(this).attr('href', '#' + tocHeading + (++i));
+        });
+
+        // modify the heading title id to support Chinese.
+        i = 0;
+        $('#articleContent').children('h2, h3, h4, h5').each(function () {
+            $(this).attr('id', tocHeading + (++i));
+        });
+
+        // Set scroll toc fixed.
+        let tocHeight = parseInt($(window).height() * 0.4 - 64);
+        let $tocWidget = $('.toc-widget');
+        $(window).scroll(function () {
+            let scroll = $(window).scrollTop();
+            /* add post toc fixed. */
+            if (scroll > tocHeight) {
+                $tocWidget.addClass('toc-fixed');
+            } else {
+                $tocWidget.removeClass('toc-fixed');
+            }
+        });
+
+        
+        /* 修复文章卡片 div 的宽度. */
+        let fixPostCardWidth = function (srcId, targetId) {
+            let srcDiv = $('#' + srcId);
+            if (srcDiv.length === 0) {
+                return;
+            }
+
+            let w = srcDiv.width();
+            if (w >= 450) {
+                w = w + 21;
+            } else if (w >= 350 && w < 450) {
+                w = w + 18;
+            } else if (w >= 300 && w < 350) {
+                w = w + 16;
+            } else {
+                w = w + 14;
+            }
+            $('#' + targetId).width(w);
+        };
+
+        // 切换TOC目录展开收缩的相关操作.
+        const expandedClass = 'expanded';
+        let $tocAside = $('#toc-aside');
+        let $mainContent = $('#main-content');
+        $('#floating-toc-btn .btn-floating').click(function () {
+            if ($tocAside.hasClass(expandedClass)) {
+                $tocAside.removeClass(expandedClass).hide();
+                $mainContent.removeClass('l9');
+            } else {
+                $tocAside.addClass(expandedClass).show();
+                $mainContent.addClass('l9');
+            }
+            fixPostCardWidth('artDetail', 'prenext-posts');
+        });
+        
+    });
+</script>
+
+    
+
+</main>
+
+
+
+
+    <footer class="page-footer bg-color">
+    
+    <div class="container row center-align" style="margin-bottom: 0px !important;">
+        <div class="col s12 m8 l8 copy-right">
+            Copyright&nbsp;&copy;
+            
+                <span id="year">2019-2021</span>
+            
+            <span id="year">2019</span>
+            <a href="/about" target="_blank">Kiba Amor</a>
+            |&nbsp;Powered by&nbsp;<a href="https://hexo.io/" target="_blank">Hexo</a>
+            |&nbsp;Theme&nbsp;<a href="https://github.com/blinkfox/hexo-theme-matery" target="_blank">Matery</a>
+            <br>
+            
+            &nbsp;<i class="fas fa-chart-area"></i>&nbsp;站点总字数:&nbsp;<span
+                class="white-color">410.1k</span>&nbsp;字
+            
+            
+            
+            
+            
+            <br>
+            
+            <br>
+            
+        </div>
+        <div class="col s12 m4 l4 social-link ">
+    <a href="https://github.com/kibaamor" class="tooltipped" target="_blank" data-tooltip="访问我的GitHub" data-position="top" data-delay="50">
+        <i class="fab fa-github"></i>
+    </a>
+
+
+
+
+
+
+
+
+
+    <a href="tencent://AddContact/?fromId=50&fromSubId=1&subcmd=all&uin=562236616" class="tooltipped" target="_blank" data-tooltip="QQ联系我: 562236616" data-position="top" data-delay="50">
+        <i class="fab fa-qq"></i>
+    </a>
+
+
+
+
+
+    <a href="https://www.zhihu.com/people/kibaamor" class="tooltipped" target="_blank" data-tooltip="关注我的知乎: https://www.zhihu.com/people/kibaamor" data-position="top" data-delay="50">
+        <i class="fab fa-zhihu1">知</i>
+    </a>
+
+
+
+    <a href="/atom.xml" class="tooltipped" target="_blank" data-tooltip="RSS 订阅" data-position="top" data-delay="50">
+        <i class="fas fa-rss"></i>
+    </a>
+
+</div>
+    </div>
+</footer>
+
+<div class="progress-bar"></div>
+
+
+    <!-- 搜索遮罩框 -->
+<div id="searchModal" class="modal">
+    <div class="modal-content">
+        <div class="search-header">
+            <span class="title"><i class="fas fa-search"></i>&nbsp;&nbsp;搜索</span>
+            <input type="search" id="searchInput" name="s" placeholder="请输入搜索的关键字"
+                   class="search-input">
+        </div>
+        <div id="searchResult"></div>
+    </div>
+</div>
+
+<script type="text/javascript">
+$(function () {
+    var searchFunc = function (path, search_id, content_id) {
+        'use strict';
+        $.ajax({
+            url: path,
+            dataType: "xml",
+            success: function (xmlResponse) {
+                // get the contents from search data
+                var datas = $("entry", xmlResponse).map(function () {
+                    return {
+                        title: $("title", this).text(),
+                        content: $("content", this).text(),
+                        url: $("url", this).text()
+                    };
+                }).get();
+                var $input = document.getElementById(search_id);
+                var $resultContent = document.getElementById(content_id);
+                $input.addEventListener('input', function () {
+                    var str = '<ul class=\"search-result-list\">';
+                    var keywords = this.value.trim().toLowerCase().split(/[\s\-]+/);
+                    $resultContent.innerHTML = "";
+                    if (this.value.trim().length <= 0) {
+                        return;
+                    }
+                    // perform local searching
+                    datas.forEach(function (data) {
+                        var isMatch = true;
+                        var data_title = data.title.trim().toLowerCase();
+                        var data_content = data.content.trim().replace(/<[^>]+>/g, "").toLowerCase();
+                        var data_url = data.url;
+                        data_url = data_url.indexOf('/') === 0 ? data.url : '/' + data_url;
+                        var index_title = -1;
+                        var index_content = -1;
+                        var first_occur = -1;
+                        // only match artiles with not empty titles and contents
+                        if (data_title !== '' && data_content !== '') {
+                            keywords.forEach(function (keyword, i) {
+                                index_title = data_title.indexOf(keyword);
+                                index_content = data_content.indexOf(keyword);
+                                if (index_title < 0 && index_content < 0) {
+                                    isMatch = false;
+                                } else {
+                                    if (index_content < 0) {
+                                        index_content = 0;
+                                    }
+                                    if (i === 0) {
+                                        first_occur = index_content;
+                                    }
+                                }
+                            });
+                        }
+                        // show search results
+                        if (isMatch) {
+                            str += "<li><a href='" + data_url + "' class='search-result-title'>" + data_title + "</a>";
+                            var content = data.content.trim().replace(/<[^>]+>/g, "");
+                            if (first_occur >= 0) {
+                                // cut out 100 characters
+                                var start = first_occur - 20;
+                                var end = first_occur + 80;
+                                if (start < 0) {
+                                    start = 0;
+                                }
+                                if (start === 0) {
+                                    end = 100;
+                                }
+                                if (end > content.length) {
+                                    end = content.length;
+                                }
+                                var match_content = content.substr(start, end);
+                                // highlight all keywords
+                                keywords.forEach(function (keyword) {
+                                    var regS = new RegExp(keyword, "gi");
+                                    match_content = match_content.replace(regS, "<em class=\"search-keyword\">" + keyword + "</em>");
+                                });
+
+                                str += "<p class=\"search-result\">" + match_content + "...</p>"
+                            }
+                            str += "</li>";
+                        }
+                    });
+                    str += "</ul>";
+                    $resultContent.innerHTML = str;
+                });
+            }
+        });
+    };
+
+    searchFunc('/search.xml', 'searchInput', 'searchResult');
+});
+</script>
+
+    <!-- 回到顶部按钮 -->
+<div id="backTop" class="top-scroll">
+    <a class="btn-floating btn-large waves-effect waves-light" href="#!">
+        <i class="fas fa-arrow-up"></i>
+    </a>
+</div>
+
+
+    <script src="/libs/materialize/materialize.min.js"></script>
+    <script src="/libs/masonry/masonry.pkgd.min.js"></script>
+    <script src="/libs/aos/aos.js"></script>
+    <script src="/libs/scrollprogress/scrollProgress.min.js"></script>
+    <script src="/libs/lightGallery/js/lightgallery-all.min.js"></script>
+    <script src="/js/matery.js"></script>
+
+    <!-- Baidu Analytics -->
+
+    <!-- Baidu Push -->
+
+<script>
+    (function () {
+        var bp = document.createElement('script');
+        var curProtocol = window.location.protocol.split(':')[0];
+        if (curProtocol === 'https') {
+            bp.src = 'https://zz.bdstatic.com/linksubmit/push.js';
+        } else {
+            bp.src = 'http://push.zhanzhang.baidu.com/push.js';
+        }
+        var s = document.getElementsByTagName("script")[0];
+        s.parentNode.insertBefore(bp, s);
+    })();
+</script>
+
+    
+    
+
+    
+
+    
+
+	
+    
+
+    
+
+    
+
+    
+    <script src="/libs/instantpage/instantpage.js" type="module"></script>
+    
+
+</body>
+
+</html>
