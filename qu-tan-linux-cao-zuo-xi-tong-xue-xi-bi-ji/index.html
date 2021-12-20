@@ -438,14 +438,14 @@
                 
                 <div class="info-break-policy">
                     <i class="far fa-file-word fa-fw"></i>文章字数:&nbsp;&nbsp;
-                    3.7k
+                    6.1k
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-clock fa-fw"></i>阅读时长:&nbsp;&nbsp;
-                    13 分
+                    24 分
                 </div>
                 
 
@@ -650,7 +650,239 @@ regs<span class="token operator">-&gt;</span>flags <span class="token operator">
 <p>从用户态来看，创建进程其实就是立项，也就是启动一个项目。这个项目需要人去执行。有多个人并行执行不同的部分，这就叫 <strong>多线程（Multithreading）</strong> 。如果只有一个人，那它就是这个项目的主线程。</p>
 <p>但是从内核态来看，无论是进程，还是线程，我们都可以统称为任务（Task），都使用相同的数据结构，平放在同一个链表中。</p>
 <p>这里的函数kthreadd，负责所有内核态的线程的调度和管理，是内核态所有线程运行的祖先。</p>
+<h3 id="四、系统调用"><a href="#四、系统调用" class="headerlink" title="四、系统调用"></a>四、系统调用</h3><h4 id="4-1-glibc对系统调用的封装"><a href="#4-1-glibc对系统调用的封装" class="headerlink" title="4.1 glibc对系统调用的封装"></a>4.1 glibc对系统调用的封装</h4><p>在glibc的源代码中，有个文件syscalls.list，里面列着所有glibc的函数对应的系统调用，就像下面这个样子：</p>
+<pre class="line-numbers language-text" data-language="text"><code class="language-text"># File name Caller  Syscall name    Args    Strong name Weak names
+open        -       open            Ci:siv  __libc_open __open open<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre>
+<p>另外，glibc还有一个脚本make-syscall.sh，可以根据上面的配置文件，对于每一个封装好的系统调用，生成一个文件。这个文件里面定义了一些宏，例如#define SYSCALL_NAME open。</p>
+<p>glibc还有一个文件syscall-template.S，使用上面这个宏，定义了这个系统调用的调用方式。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token function">T_PSEUDO</span> <span class="token punctuation">(</span>SYSCALL_SYMBOL<span class="token punctuation">,</span> SYSCALL_NAME<span class="token punctuation">,</span> SYSCALL_NARGS<span class="token punctuation">)</span>
+    ret
+<span class="token function">T_PSEUDO_END</span> <span class="token punctuation">(</span>SYSCALL_SYMBOL<span class="token punctuation">)</span>
 
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">define</span> <span class="token expression"><span class="token function">T_PSEUDO</span><span class="token punctuation">(</span>SYMBOL<span class="token punctuation">,</span> NAME<span class="token punctuation">,</span> N<span class="token punctuation">)</span>       <span class="token function">PSEUDO</span> <span class="token punctuation">(</span>SYMBOL<span class="token punctuation">,</span> NAME<span class="token punctuation">,</span> N<span class="token punctuation">)</span></span></span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>这里的PSEUDO也是一个宏，它的定义如下：</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">define</span> <span class="token expression"><span class="token function">PSEUDO</span><span class="token punctuation">(</span>name<span class="token punctuation">,</span> syscall_name<span class="token punctuation">,</span> args<span class="token punctuation">)</span>        </span><span class="token punctuation">\</span>
+  <span class="token expression"><span class="token punctuation">.</span>text<span class="token punctuation">;</span>                                        </span><span class="token punctuation">\</span>
+  <span class="token expression"><span class="token function">ENTRY</span> <span class="token punctuation">(</span>name<span class="token punctuation">)</span>                                  </span><span class="token punctuation">\</span>
+    <span class="token expression"><span class="token function">DO_CALL</span> <span class="token punctuation">(</span>syscall_name<span class="token punctuation">,</span> args<span class="token punctuation">)</span><span class="token punctuation">;</span>               </span><span class="token punctuation">\</span>
+    <span class="token expression">cmpl $<span class="token operator">-</span><span class="token number">4095</span><span class="token punctuation">,</span> <span class="token operator">%</span>eax<span class="token punctuation">;</span>                          </span><span class="token punctuation">\</span>
+    <span class="token expression">jae SYSCALL_ERROR_LABEL</span></span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>里面对于任何一个系统调用，会调用DO_CALL。这也是一个宏，这个宏32位和64位的定义是不一样的。</p>
+<h4 id="4-2-32位系统调用过程"><a href="#4-2-32位系统调用过程" class="headerlink" title="4.2 32位系统调用过程"></a>4.2 32位系统调用过程</h4><p>我们先来看32位的情况（i386目录下的sysdep.h文件）。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token comment">/* Linux takes system call arguments in registers:
+    syscall number  %eax         call-clobbered
+    arg 1           %ebx         call-saved
+    arg 2           %ecx         call-clobbered
+    arg 3           %edx         call-clobbered
+    arg 4           %esi         call-saved
+    arg 5           %edi         call-saved
+    arg 6           %ebp         call-saved
+......
+*/</span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">define</span> <span class="token expression"><span class="token function">DO_CALL</span><span class="token punctuation">(</span>syscall_name<span class="token punctuation">,</span> args<span class="token punctuation">)</span>                 </span><span class="token punctuation">\</span>
+    <span class="token expression">PUSHARGS_</span><span class="token punctuation">##</span><span class="token expression">args                                 </span><span class="token punctuation">\</span>
+    <span class="token expression">DOARGS_</span><span class="token punctuation">##</span><span class="token expression">args                                   </span><span class="token punctuation">\</span>
+    <span class="token expression">movl $<span class="token function">SYS_ify</span> <span class="token punctuation">(</span>syscall_name<span class="token punctuation">)</span><span class="token punctuation">,</span> <span class="token operator">%</span>eax<span class="token punctuation">;</span>             </span><span class="token punctuation">\</span>
+    <span class="token expression">ENTER_KERNEL                                    </span><span class="token punctuation">\</span>
+    <span class="token expression">POPARGS_</span><span class="token punctuation">##</span><span class="token expression">args</span></span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>这里，我们将请求参数放在寄存器里面，根据系统调用的名称，得到系统调用号，放在寄存器eax里面，然后执行ENTER_KERNEL。</p>
+<p>在Linux的源代码注释里面，我们可以清晰地看到，这些寄存器是如何传递系统调用号和参数的。</p>
+<p>这里面的ENTER_KERNEL是什么呢？</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token macro property"><span class="token directive-hash">#</span> <span class="token directive keyword">define</span> <span class="token expression">ENTER_KERNEL <span class="token keyword">int</span> $<span class="token number">0x80</span></span></span><span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>int就是interrupt，也就是“中断”的意思。int $0x80就是触发一个软中断，通过它就可以陷入（trap）内核。</p>
+<p>在内核启动的时候，还记得有一个trap_init()，其中有这样的代码：</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token function">set_system_intr_gate</span><span class="token punctuation">(</span>IA32_SYSCALL_VECTOR<span class="token punctuation">,</span> entry_INT80_32<span class="token punctuation">)</span><span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>这是一个软中断的陷入门。当接收到一个系统调用的时候，entry_INT80_32就被调用了。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token function">ENTRY</span><span class="token punctuation">(</span>entry_INT80_32<span class="token punctuation">)</span>
+        ASM_CLAC
+        pushl   <span class="token operator">%</span>eax                    <span class="token comment">/* pt_regs-&gt;orig_ax */</span>
+        SAVE_ALL pt_regs_ax<span class="token operator">=</span>$<span class="token operator">-</span>ENOSYS    <span class="token comment">/* save rest */</span>
+        movl    <span class="token operator">%</span>esp<span class="token punctuation">,</span> <span class="token operator">%</span>eax
+        call    do_syscall_32_irqs_on
+<span class="token punctuation">.</span>Lsyscall_32_done<span class="token operator">:</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+<span class="token punctuation">.</span>Lirq_return<span class="token operator">:</span>
+    INTERRUPT_RETURN<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>通过push和SAVE_ALL将当前用户态的寄存器，保存在pt_regs结构里面。</p>
+<p>进入内核之前，保存所有的寄存器，然后调用do_syscall_32_irqs_on。它的实现如下：</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">static</span> __always_inline <span class="token keyword">void</span> <span class="token function">do_syscall_32_irqs_on</span><span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">pt_regs</span> <span class="token operator">*</span>regs<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword">struct</span> <span class="token class-name">thread_info</span> <span class="token operator">*</span>ti <span class="token operator">=</span> <span class="token function">current_thread_info</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">unsigned</span> <span class="token keyword">int</span> nr <span class="token operator">=</span> <span class="token punctuation">(</span><span class="token keyword">unsigned</span> <span class="token keyword">int</span><span class="token punctuation">)</span>regs<span class="token operator">-&gt;</span>orig_ax<span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token function">likely</span><span class="token punctuation">(</span>nr <span class="token operator">&lt;</span> IA32_NR_syscalls<span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+        regs<span class="token operator">-&gt;</span>ax <span class="token operator">=</span> ia32_sys_call_table<span class="token punctuation">[</span>nr<span class="token punctuation">]</span><span class="token punctuation">(</span>
+            <span class="token punctuation">(</span><span class="token keyword">unsigned</span> <span class="token keyword">int</span><span class="token punctuation">)</span>regs<span class="token operator">-&gt;</span>bx<span class="token punctuation">,</span> <span class="token punctuation">(</span><span class="token keyword">unsigned</span> <span class="token keyword">int</span><span class="token punctuation">)</span>regs<span class="token operator">-&gt;</span>cx<span class="token punctuation">,</span>
+            <span class="token punctuation">(</span><span class="token keyword">unsigned</span> <span class="token keyword">int</span><span class="token punctuation">)</span>regs<span class="token operator">-&gt;</span>dx<span class="token punctuation">,</span> <span class="token punctuation">(</span><span class="token keyword">unsigned</span> <span class="token keyword">int</span><span class="token punctuation">)</span>regs<span class="token operator">-&gt;</span>si<span class="token punctuation">,</span>
+            <span class="token punctuation">(</span><span class="token keyword">unsigned</span> <span class="token keyword">int</span><span class="token punctuation">)</span>regs<span class="token operator">-&gt;</span>di<span class="token punctuation">,</span> <span class="token punctuation">(</span><span class="token keyword">unsigned</span> <span class="token keyword">int</span><span class="token punctuation">)</span>regs<span class="token operator">-&gt;</span>bp<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+    <span class="token function">syscall_return_slowpath</span><span class="token punctuation">(</span>regs<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>在这里，我们看到，将系统调用号从eax里面取出来，然后根据系统调用号，在系统调用表中找到相应的函数进行调用，并将寄存器中保存的参数取出来，作为函数参数。如果仔细比对，就能发现，这些参数所对应的寄存器，和Linux的注释是一样的。</p>
+<p>根据宏定义，#define ia32_sys_call_table sys_call_table，系统调用就是放在这个表里面。至于这个表是如何形成的，我们后面讲。</p>
+<p>当系统调用结束之后，在entry_INT80_32之后，紧接着调用的是INTERRUPT_RETURN，我们能够找到它的定义，也就是iret。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">define</span> <span class="token expression">INTERRUPT_RETURN                iret</span></span><span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>iret指令将原来用户态保存的现场恢复回来，包含代码段、指令指针寄存器等。这时候用户态进程恢复执行。</p>
+<p>这里我总结一下32位的系统调用是如何执行的。</p>
+<p><img src="/images/《趣谈Linux操作系统》学习笔记/32位系统调用执行过程.jpg" alt="32位系统调用执行过程"></p>
+<h4 id="4-3-64位系统调用过程"><a href="#4-3-64位系统调用过程" class="headerlink" title="4.3 64位系统调用过程"></a>4.3 64位系统调用过程</h4><p>我们再来看64位的情况（x86_64下的sysdep.h文件）。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token comment">/* The Linux/x86-64 kernel expects the system call parameters in
+   registers according to the following table:
+    syscall number  rax
+    arg 1           rdi
+    arg 2           rsi
+    arg 3           rdx
+    arg 4           r10
+    arg 5           r8
+    arg 6           r9
+......
+*/</span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">define</span> <span class="token expression"><span class="token function">DO_CALL</span><span class="token punctuation">(</span>syscall_name<span class="token punctuation">,</span> args<span class="token punctuation">)</span>                       </span><span class="token punctuation">\</span>
+  <span class="token expression">lea <span class="token function">SYS_ify</span> <span class="token punctuation">(</span>syscall_name<span class="token punctuation">)</span><span class="token punctuation">,</span> <span class="token operator">%</span>rax<span class="token punctuation">;</span>                       </span><span class="token punctuation">\</span>
+  <span class="token expression">syscall</span></span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>和之前一样，还是将系统调用名称转换为系统调用号，放到寄存器rax。这里是真正进行调用，不是用中断了，而是改用syscall指令了。并且，通过注释我们也可以知道，传递参数的寄存器也变了。</p>
+<p>syscall指令还使用了一种特殊的寄存器，我们叫 <strong>特殊模块寄存器（Model Specific Registers，简称MSR）</strong> 。这种寄存器是CPU为了完成某些特殊控制功能为目的的寄存器，其中就有系统调用。</p>
+<p>在系统初始化的时候，trap_init除了初始化上面的中断模式，这里面还会调用cpu_init-&gt;syscall_init。这里面有这样的代码：</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token function">wrmsrl</span><span class="token punctuation">(</span>MSR_LSTAR<span class="token punctuation">,</span> <span class="token punctuation">(</span><span class="token keyword">unsigned</span> <span class="token keyword">long</span><span class="token punctuation">)</span>entry_SYSCALL_64<span class="token punctuation">)</span><span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>rdmsr和wrmsr是用来读写特殊模块寄存器的。MSR_LSTAR就是这样一个特殊的寄存器，当syscall指令调用的时候，会从这个寄存器里面拿出函数地址来调用，也就是调用entry_SYSCALL_64。</p>
+<p>在arch/x86/entry/entry_64.S中定义了entry_SYSCALL_64。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token function">ENTRY</span><span class="token punctuation">(</span>entry_SYSCALL_64<span class="token punctuation">)</span>
+    <span class="token comment">/* Construct struct pt_regs on stack */</span>
+    pushq   $__USER_DS                      <span class="token comment">/* pt_regs-&gt;ss */</span>
+    pushq   <span class="token function">PER_CPU_VAR</span><span class="token punctuation">(</span>rsp_scratch<span class="token punctuation">)</span>        <span class="token comment">/* pt_regs-&gt;sp */</span>
+    pushq   <span class="token operator">%</span>r11                            <span class="token comment">/* pt_regs-&gt;flags */</span>
+    pushq   $__USER_CS                      <span class="token comment">/* pt_regs-&gt;cs */</span>
+    pushq   <span class="token operator">%</span>rcx                            <span class="token comment">/* pt_regs-&gt;ip */</span>
+    pushq   <span class="token operator">%</span>rax                            <span class="token comment">/* pt_regs-&gt;orig_ax */</span>
+    pushq   <span class="token operator">%</span>rdi                            <span class="token comment">/* pt_regs-&gt;di */</span>
+    pushq   <span class="token operator">%</span>rsi                            <span class="token comment">/* pt_regs-&gt;si */</span>
+    pushq   <span class="token operator">%</span>rdx                            <span class="token comment">/* pt_regs-&gt;dx */</span>
+    pushq   <span class="token operator">%</span>rcx                            <span class="token comment">/* pt_regs-&gt;cx */</span>
+    pushq   $<span class="token operator">-</span>ENOSYS                        <span class="token comment">/* pt_regs-&gt;ax */</span>
+    pushq   <span class="token operator">%</span>r8                             <span class="token comment">/* pt_regs-&gt;r8 */</span>
+    pushq   <span class="token operator">%</span>r9                             <span class="token comment">/* pt_regs-&gt;r9 */</span>
+    pushq   <span class="token operator">%</span>r10                            <span class="token comment">/* pt_regs-&gt;r10 */</span>
+    pushq   <span class="token operator">%</span>r11                            <span class="token comment">/* pt_regs-&gt;r11 */</span>
+    sub     $<span class="token punctuation">(</span><span class="token number">6</span><span class="token operator">*</span><span class="token number">8</span><span class="token punctuation">)</span><span class="token punctuation">,</span> <span class="token operator">%</span>rsp                    <span class="token comment">/* pt_regs-&gt;bp, bx, r12-15 not saved */</span>
+    movq    <span class="token function">PER_CPU_VAR</span><span class="token punctuation">(</span>current_task<span class="token punctuation">)</span><span class="token punctuation">,</span> <span class="token operator">%</span>r11
+    testl   $_TIF_WORK_SYSCALL_ENTRY<span class="token operator">|</span>_TIF_ALLWORK_MASK<span class="token punctuation">,</span> <span class="token function">TASK_TI_flags</span><span class="token punctuation">(</span><span class="token operator">%</span>r11<span class="token punctuation">)</span>
+    jnz     entry_SYSCALL64_slow_path
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+entry_SYSCALL64_slow_path<span class="token operator">:</span>
+    <span class="token comment">/* IRQs are off. */</span>
+    SAVE_EXTRA_REGS
+    movq    <span class="token operator">%</span>rsp<span class="token punctuation">,</span> <span class="token operator">%</span>rdi
+    call    do_syscall_64           <span class="token comment">/* returns with IRQs disabled */</span>
+return_from_SYSCALL_64<span class="token operator">:</span>
+    RESTORE_EXTRA_REGS
+    TRACE_IRQS_IRETQ
+    movq    <span class="token function">RCX</span><span class="token punctuation">(</span><span class="token operator">%</span>rsp<span class="token punctuation">)</span><span class="token punctuation">,</span> <span class="token operator">%</span>rcx
+    movq    <span class="token function">RIP</span><span class="token punctuation">(</span><span class="token operator">%</span>rsp<span class="token punctuation">)</span><span class="token punctuation">,</span> <span class="token operator">%</span>r11
+    movq    <span class="token function">R11</span><span class="token punctuation">(</span><span class="token operator">%</span>rsp<span class="token punctuation">)</span><span class="token punctuation">,</span> <span class="token operator">%</span>r11
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+syscall_return_via_sysret<span class="token operator">:</span>
+    <span class="token comment">/* rcx and r11 are already restored (see code above) */</span>
+    RESTORE_C_REGS_EXCEPT_RCX_R11
+    movq    <span class="token function">RSP</span><span class="token punctuation">(</span><span class="token operator">%</span>rsp<span class="token punctuation">)</span><span class="token punctuation">,</span> <span class="token operator">%</span>rsp
+    USERGS_SYSRET64<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>这里先保存了很多寄存器到pt_regs结构里面，例如用户态的代码段、数据段、保存参数的寄存器，然后调用entry_SYSCALL64_slow_pat-&gt;do_syscall_64。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c">__visible <span class="token keyword">void</span> <span class="token function">do_syscall_64</span><span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">pt_regs</span> <span class="token operator">*</span>regs<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword">struct</span> <span class="token class-name">thread_info</span> <span class="token operator">*</span>ti <span class="token operator">=</span> <span class="token function">current_thread_info</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">unsigned</span> <span class="token keyword">long</span> nr <span class="token operator">=</span> regs<span class="token operator">-&gt;</span>orig_ax<span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token function">likely</span><span class="token punctuation">(</span><span class="token punctuation">(</span>nr <span class="token operator">&amp;</span> __SYSCALL_MASK<span class="token punctuation">)</span> <span class="token operator">&lt;</span> NR_syscalls<span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+            regs<span class="token operator">-&gt;</span>ax <span class="token operator">=</span> sys_call_table<span class="token punctuation">[</span>nr <span class="token operator">&amp;</span> __SYSCALL_MASK<span class="token punctuation">]</span><span class="token punctuation">(</span>
+                    regs<span class="token operator">-&gt;</span>di<span class="token punctuation">,</span> regs<span class="token operator">-&gt;</span>si<span class="token punctuation">,</span> regs<span class="token operator">-&gt;</span>dx<span class="token punctuation">,</span>
+                    regs<span class="token operator">-&gt;</span>r10<span class="token punctuation">,</span> regs<span class="token operator">-&gt;</span>r8<span class="token punctuation">,</span> regs<span class="token operator">-&gt;</span>r9<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+    <span class="token function">syscall_return_slowpath</span><span class="token punctuation">(</span>regs<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>在do_syscall_64里面，从rax里面拿出系统调用号，然后根据系统调用号，在系统调用表sys_call_table中找到相应的函数进行调用，并将寄存器中保存的参数取出来，作为函数参数。如果仔细比对，你就能发现，这些参数所对应的寄存器，和Linux的注释又是一样的。</p>
+<p>所以，无论是32位，还是64位，都会到系统调用表sys_call_table这里来。</p>
+<p>在研究系统调用表之前，我们看64位的系统调用返回的时候，执行的是USERGS_SYSRET64。定义如下：</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">define</span> <span class="token expression">USERGS_SYSRET64     </span><span class="token punctuation">\</span>
+    <span class="token expression">swapgs<span class="token punctuation">;</span>                 </span><span class="token punctuation">\</span>
+    <span class="token expression">sysretq<span class="token punctuation">;</span></span></span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span></span></code></pre>
+<p>这里，返回用户态的指令变成了sysretq。</p>
+<p>我们这里总结一下64位的系统调用是如何执行的。</p>
+<p><img src="/images/《趣谈Linux操作系统》学习笔记/64位系统调用执行过程.jpg" alt="64位系统调用执行过程.jpg"></p>
+<h4 id="4-4-系统调用表"><a href="#4-4-系统调用表" class="headerlink" title="4.4 系统调用表"></a>4.4 系统调用表</h4><p>32位的系统调用表定义在面arch/x86/entry/syscalls/syscall_32.tbl文件里。例如open是这样定义的：</p>
+<pre class="line-numbers language-text" data-language="text"><code class="language-text">5   i386    open            sys_open  compat_sys_open<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>64位的系统调用定义在另一个文件arch/x86/entry/syscalls/syscall_64.tbl里。例如open是这样定义的：</p>
+<pre class="line-numbers language-text" data-language="text"><code class="language-text">2   common  open            sys_open<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>第一列的数字是系统调用号。可以看出，32位和64位的系统调用号是不一样的。第三列是系统调用的名字，第四列是系统调用在内核的实现函数。不过，它们都是以sys_开头。</p>
+<p>系统调用在内核中的实现函数要有一个声明。声明往往在include/linux/syscalls.h文件中。例如sys_open是这样声明的：</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c">asmlinkage <span class="token keyword">long</span> <span class="token function">sys_open</span><span class="token punctuation">(</span><span class="token keyword">const</span> <span class="token keyword">char</span> __user <span class="token operator">*</span>filename<span class="token punctuation">,</span> <span class="token keyword">int</span> flags<span class="token punctuation">,</span> umode_t mode<span class="token punctuation">)</span><span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>真正的实现这个系统调用，一般在一个.c文件里面，例如sys_open的实现在fs/open.c里面，但是你会发现样子很奇怪。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token function">SYSCALL_DEFINE3</span><span class="token punctuation">(</span>open<span class="token punctuation">,</span> <span class="token keyword">const</span> <span class="token keyword">char</span> __user <span class="token operator">*</span><span class="token punctuation">,</span> filename<span class="token punctuation">,</span> <span class="token keyword">int</span><span class="token punctuation">,</span> flags<span class="token punctuation">,</span> umode_t<span class="token punctuation">,</span> mode<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token function">force_o_largefile</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span>
+        flags <span class="token operator">|=</span> O_LARGEFILE<span class="token punctuation">;</span>
+    <span class="token keyword">return</span> <span class="token function">do_sys_open</span><span class="token punctuation">(</span>AT_FDCWD<span class="token punctuation">,</span> filename<span class="token punctuation">,</span> flags<span class="token punctuation">,</span> mode<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>SYSCALL_DEFINE3是一个宏系统调用最多六个参数，根据参数的数目选择宏。具体是这样定义的：</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">define</span> <span class="token expression"><span class="token function">SYSCALL_DEFINE1</span><span class="token punctuation">(</span>name<span class="token punctuation">,</span> <span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">)</span> <span class="token function">SYSCALL_DEFINEx</span><span class="token punctuation">(</span><span class="token number">1</span><span class="token punctuation">,</span> _</span><span class="token punctuation">##</span><span class="token expression">name<span class="token punctuation">,</span> __VA_ARGS__<span class="token punctuation">)</span></span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">define</span> <span class="token expression"><span class="token function">SYSCALL_DEFINE2</span><span class="token punctuation">(</span>name<span class="token punctuation">,</span> <span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">)</span> <span class="token function">SYSCALL_DEFINEx</span><span class="token punctuation">(</span><span class="token number">2</span><span class="token punctuation">,</span> _</span><span class="token punctuation">##</span><span class="token expression">name<span class="token punctuation">,</span> __VA_ARGS__<span class="token punctuation">)</span></span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">define</span> <span class="token expression"><span class="token function">SYSCALL_DEFINE3</span><span class="token punctuation">(</span>name<span class="token punctuation">,</span> <span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">)</span> <span class="token function">SYSCALL_DEFINEx</span><span class="token punctuation">(</span><span class="token number">3</span><span class="token punctuation">,</span> _</span><span class="token punctuation">##</span><span class="token expression">name<span class="token punctuation">,</span> __VA_ARGS__<span class="token punctuation">)</span></span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">define</span> <span class="token expression"><span class="token function">SYSCALL_DEFINE4</span><span class="token punctuation">(</span>name<span class="token punctuation">,</span> <span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">)</span> <span class="token function">SYSCALL_DEFINEx</span><span class="token punctuation">(</span><span class="token number">4</span><span class="token punctuation">,</span> _</span><span class="token punctuation">##</span><span class="token expression">name<span class="token punctuation">,</span> __VA_ARGS__<span class="token punctuation">)</span></span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">define</span> <span class="token expression"><span class="token function">SYSCALL_DEFINE5</span><span class="token punctuation">(</span>name<span class="token punctuation">,</span> <span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">)</span> <span class="token function">SYSCALL_DEFINEx</span><span class="token punctuation">(</span><span class="token number">5</span><span class="token punctuation">,</span> _</span><span class="token punctuation">##</span><span class="token expression">name<span class="token punctuation">,</span> __VA_ARGS__<span class="token punctuation">)</span></span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">define</span> <span class="token expression"><span class="token function">SYSCALL_DEFINE6</span><span class="token punctuation">(</span>name<span class="token punctuation">,</span> <span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">)</span> <span class="token function">SYSCALL_DEFINEx</span><span class="token punctuation">(</span><span class="token number">6</span><span class="token punctuation">,</span> _</span><span class="token punctuation">##</span><span class="token expression">name<span class="token punctuation">,</span> __VA_ARGS__<span class="token punctuation">)</span></span></span>
+
+
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">define</span> <span class="token expression"><span class="token function">SYSCALL_DEFINEx</span><span class="token punctuation">(</span>x<span class="token punctuation">,</span> sname<span class="token punctuation">,</span> <span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">)</span>                          </span><span class="token punctuation">\</span>
+        <span class="token expression"><span class="token function">SYSCALL_METADATA</span><span class="token punctuation">(</span>sname<span class="token punctuation">,</span> x<span class="token punctuation">,</span> __VA_ARGS__<span class="token punctuation">)</span>                 </span><span class="token punctuation">\</span>
+        <span class="token expression"><span class="token function">__SYSCALL_DEFINEx</span><span class="token punctuation">(</span>x<span class="token punctuation">,</span> sname<span class="token punctuation">,</span> __VA_ARGS__<span class="token punctuation">)</span></span></span>
+
+
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">define</span> <span class="token expression"><span class="token function">__PROTECT</span><span class="token punctuation">(</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">)</span> <span class="token function">asmlinkage_protect</span><span class="token punctuation">(</span>__VA_ARGS__<span class="token punctuation">)</span></span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">define</span> <span class="token expression"><span class="token function">__SYSCALL_DEFINEx</span><span class="token punctuation">(</span>x<span class="token punctuation">,</span> name<span class="token punctuation">,</span> <span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">)</span>                                 </span><span class="token punctuation">\</span>
+        <span class="token expression">asmlinkage <span class="token keyword">long</span> sys</span><span class="token punctuation">##</span><span class="token expression"><span class="token function">name</span><span class="token punctuation">(</span><span class="token function">__MAP</span><span class="token punctuation">(</span>x<span class="token punctuation">,</span>__SC_DECL<span class="token punctuation">,</span>__VA_ARGS__<span class="token punctuation">)</span><span class="token punctuation">)</span>       </span><span class="token punctuation">\</span>
+                <span class="token expression"><span class="token keyword">__attribute__</span><span class="token punctuation">(</span><span class="token punctuation">(</span><span class="token function">alias</span><span class="token punctuation">(</span><span class="token function">__stringify</span><span class="token punctuation">(</span>SyS</span><span class="token punctuation">##</span><span class="token expression">name<span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>         </span><span class="token punctuation">\</span>
+        <span class="token expression"><span class="token keyword">static</span> <span class="token keyword">inline</span> <span class="token keyword">long</span> SYSC</span><span class="token punctuation">##</span><span class="token expression"><span class="token function">name</span><span class="token punctuation">(</span><span class="token function">__MAP</span><span class="token punctuation">(</span>x<span class="token punctuation">,</span>__SC_DECL<span class="token punctuation">,</span>__VA_ARGS__<span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>  </span><span class="token punctuation">\</span>
+        <span class="token expression">asmlinkage <span class="token keyword">long</span> SyS</span><span class="token punctuation">##</span><span class="token expression"><span class="token function">name</span><span class="token punctuation">(</span><span class="token function">__MAP</span><span class="token punctuation">(</span>x<span class="token punctuation">,</span>__SC_LONG<span class="token punctuation">,</span>__VA_ARGS__<span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>      </span><span class="token punctuation">\</span>
+        <span class="token expression">asmlinkage <span class="token keyword">long</span> SyS</span><span class="token punctuation">##</span><span class="token expression"><span class="token function">name</span><span class="token punctuation">(</span><span class="token function">__MAP</span><span class="token punctuation">(</span>x<span class="token punctuation">,</span>__SC_LONG<span class="token punctuation">,</span>__VA_ARGS__<span class="token punctuation">)</span><span class="token punctuation">)</span>       </span><span class="token punctuation">\</span>
+        <span class="token expression"><span class="token punctuation">{</span>                                                               </span><span class="token punctuation">\</span>
+                <span class="token expression"><span class="token keyword">long</span> ret <span class="token operator">=</span> SYSC</span><span class="token punctuation">##</span><span class="token expression"><span class="token function">name</span><span class="token punctuation">(</span><span class="token function">__MAP</span><span class="token punctuation">(</span>x<span class="token punctuation">,</span>__SC_CAST<span class="token punctuation">,</span>__VA_ARGS__<span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>  </span><span class="token punctuation">\</span>
+                <span class="token expression"><span class="token function">__MAP</span><span class="token punctuation">(</span>x<span class="token punctuation">,</span>__SC_TEST<span class="token punctuation">,</span>__VA_ARGS__<span class="token punctuation">)</span><span class="token punctuation">;</span>                         </span><span class="token punctuation">\</span>
+                <span class="token expression"><span class="token function">__PROTECT</span><span class="token punctuation">(</span>x<span class="token punctuation">,</span> ret<span class="token punctuation">,</span><span class="token function">__MAP</span><span class="token punctuation">(</span>x<span class="token punctuation">,</span>__SC_ARGS<span class="token punctuation">,</span>__VA_ARGS__<span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>       </span><span class="token punctuation">\</span>
+                <span class="token expression"><span class="token keyword">return</span> ret<span class="token punctuation">;</span>                                             </span><span class="token punctuation">\</span>
+        <span class="token expression"><span class="token punctuation">}</span>                                                               </span><span class="token punctuation">\</span>
+        <span class="token expression"><span class="token keyword">static</span> <span class="token keyword">inline</span> <span class="token keyword">long</span> SYSC</span><span class="token punctuation">##</span><span class="token expression"><span class="token function">name</span><span class="token punctuation">(</span><span class="token function">__MAP</span><span class="token punctuation">(</span>x<span class="token punctuation">,</span>__SC_DECL<span class="token punctuation">,</span>__VA_ARGS__<span class="token punctuation">)</span></span></span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>如果我们把宏展开之后，实现如下，和声明的是一样的。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c">asmlinkage <span class="token keyword">long</span> <span class="token function">sys_open</span><span class="token punctuation">(</span><span class="token keyword">const</span> <span class="token keyword">char</span> __user <span class="token operator">*</span> filename<span class="token punctuation">,</span> <span class="token keyword">int</span> flags<span class="token punctuation">,</span> <span class="token keyword">int</span> mode<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword">long</span> ret<span class="token punctuation">;</span>
+
+    <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token function">force_o_largefile</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span>
+        flags <span class="token operator">|=</span> O_LARGEFILE<span class="token punctuation">;</span>
+
+    ret <span class="token operator">=</span> <span class="token function">do_sys_open</span><span class="token punctuation">(</span>AT_FDCWD<span class="token punctuation">,</span> filename<span class="token punctuation">,</span> flags<span class="token punctuation">,</span> mode<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token function">asmlinkage_protect</span><span class="token punctuation">(</span><span class="token number">3</span><span class="token punctuation">,</span> ret<span class="token punctuation">,</span> filename<span class="token punctuation">,</span> flags<span class="token punctuation">,</span> mode<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">return</span> ret<span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>声明和实现都好了。接下来，在编译的过程中，需要根据syscall_32.tbl和syscall_64.tbl生成自己的unistd_32.h和unistd_64.h。生成方式在arch/x86/entry/syscalls/Makefile中。</p>
+<p>声明和实现都好了。接下来，在编译的过程中，需要根据syscall_32.tbl和syscall_64.tbl生成自己的unistd_32.h和unistd_64.h。生成方式在arch/x86/entry/syscalls/Makefile中。</p>
+<p>这里面会使用两个脚本，其中第一个脚本arch/x86/entry/syscalls/syscallhdr.sh，会在文件中生成#define <strong>NR_open；第二个脚本arch/x86/entry/syscalls/syscalltbl.sh，会在文件中生成</strong>SYSCALL(__NR_open, sys_open)。这样，unistd_32.h和unistd_64.h是对应的系统调用号和系统调用实现函数之间的对应关系。</p>
+<p>在文件arch/x86/entry/syscall_32.c，定义了这样一个表，里面include了这个头文件，从而所有的sys_系统调用都在这个表里面了。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c">__visible <span class="token keyword">const</span> sys_call_ptr_t ia32_sys_call_table<span class="token punctuation">[</span>__NR_syscall_compat_max<span class="token operator">+</span><span class="token number">1</span><span class="token punctuation">]</span> <span class="token operator">=</span> <span class="token punctuation">{</span>
+        <span class="token comment">/*
+         * Smells like a compiler bug -- it doesn't work
+         * when the &amp; below is removed.
+         */</span>
+        <span class="token punctuation">[</span><span class="token number">0</span> <span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span> __NR_syscall_compat_max<span class="token punctuation">]</span> <span class="token operator">=</span> <span class="token operator">&amp;</span>sys_ni_syscall<span class="token punctuation">,</span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;asm/syscalls_32.h&gt;</span></span>
+<span class="token punctuation">}</span><span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>同理，在文件arch/x86/entry/syscall_64.c，定义了这样一个表，里面include了这个头文件，这样所有的sys_系统调用就都在这个表里面了。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token comment">/* System call table for x86-64. */</span>
+asmlinkage <span class="token keyword">const</span> sys_call_ptr_t sys_call_table<span class="token punctuation">[</span>__NR_syscall_max<span class="token operator">+</span><span class="token number">1</span><span class="token punctuation">]</span> <span class="token operator">=</span> <span class="token punctuation">{</span>
+	<span class="token comment">/*
+	 * Smells like a compiler bug -- it doesn't work
+	 * when the &amp; below is removed.
+	 */</span>
+	<span class="token punctuation">[</span><span class="token number">0</span> <span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span> __NR_syscall_max<span class="token punctuation">]</span> <span class="token operator">=</span> <span class="token operator">&amp;</span>sys_ni_syscall<span class="token punctuation">,</span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;asm/syscalls_64.h&gt;</span></span>
+<span class="token punctuation">}</span><span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
                 
             </div>
             <hr/>
@@ -1051,7 +1283,7 @@ regs<span class="token operator">-&gt;</span>flags <span class="token operator">
             <br>
             
             &nbsp;<i class="fas fa-chart-area"></i>&nbsp;站点总字数:&nbsp;<span
-                class="white-color">410.1k</span>&nbsp;字
+                class="white-color">412.6k</span>&nbsp;字
             
             
             
