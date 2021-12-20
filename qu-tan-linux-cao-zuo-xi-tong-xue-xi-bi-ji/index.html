@@ -438,14 +438,14 @@
                 
                 <div class="info-break-policy">
                     <i class="far fa-file-word fa-fw"></i>文章字数:&nbsp;&nbsp;
-                    6.1k
+                    9k
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-clock fa-fw"></i>阅读时长:&nbsp;&nbsp;
-                    24 分
+                    35 分
                 </div>
                 
 
@@ -866,23 +866,147 @@ syscall_return_via_sysret<span class="token operator">:</span>
 <p>这里面会使用两个脚本，其中第一个脚本arch/x86/entry/syscalls/syscallhdr.sh，会在文件中生成#define <strong>NR_open；第二个脚本arch/x86/entry/syscalls/syscalltbl.sh，会在文件中生成</strong>SYSCALL(__NR_open, sys_open)。这样，unistd_32.h和unistd_64.h是对应的系统调用号和系统调用实现函数之间的对应关系。</p>
 <p>在文件arch/x86/entry/syscall_32.c，定义了这样一个表，里面include了这个头文件，从而所有的sys_系统调用都在这个表里面了。</p>
 <pre class="line-numbers language-c" data-language="c"><code class="language-c">__visible <span class="token keyword">const</span> sys_call_ptr_t ia32_sys_call_table<span class="token punctuation">[</span>__NR_syscall_compat_max<span class="token operator">+</span><span class="token number">1</span><span class="token punctuation">]</span> <span class="token operator">=</span> <span class="token punctuation">{</span>
-        <span class="token comment">/*
-         * Smells like a compiler bug -- it doesn't work
-         * when the &amp; below is removed.
-         */</span>
-        <span class="token punctuation">[</span><span class="token number">0</span> <span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span> __NR_syscall_compat_max<span class="token punctuation">]</span> <span class="token operator">=</span> <span class="token operator">&amp;</span>sys_ni_syscall<span class="token punctuation">,</span>
+    <span class="token comment">/*
+        * Smells like a compiler bug -- it doesn't work
+        * when the &amp; below is removed.
+        */</span>
+    <span class="token punctuation">[</span><span class="token number">0</span> <span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span> __NR_syscall_compat_max<span class="token punctuation">]</span> <span class="token operator">=</span> <span class="token operator">&amp;</span>sys_ni_syscall<span class="token punctuation">,</span>
 <span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;asm/syscalls_32.h&gt;</span></span>
 <span class="token punctuation">}</span><span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
 <p>同理，在文件arch/x86/entry/syscall_64.c，定义了这样一个表，里面include了这个头文件，这样所有的sys_系统调用就都在这个表里面了。</p>
 <pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token comment">/* System call table for x86-64. */</span>
 asmlinkage <span class="token keyword">const</span> sys_call_ptr_t sys_call_table<span class="token punctuation">[</span>__NR_syscall_max<span class="token operator">+</span><span class="token number">1</span><span class="token punctuation">]</span> <span class="token operator">=</span> <span class="token punctuation">{</span>
-	<span class="token comment">/*
-	 * Smells like a compiler bug -- it doesn't work
-	 * when the &amp; below is removed.
-	 */</span>
-	<span class="token punctuation">[</span><span class="token number">0</span> <span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span> __NR_syscall_max<span class="token punctuation">]</span> <span class="token operator">=</span> <span class="token operator">&amp;</span>sys_ni_syscall<span class="token punctuation">,</span>
+    <span class="token comment">/*
+     * Smells like a compiler bug -- it doesn't work
+     * when the &amp; below is removed.
+     */</span>
+    <span class="token punctuation">[</span><span class="token number">0</span> <span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span> __NR_syscall_max<span class="token punctuation">]</span> <span class="token operator">=</span> <span class="token operator">&amp;</span>sys_ni_syscall<span class="token punctuation">,</span>
 <span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;asm/syscalls_64.h&gt;</span></span>
 <span class="token punctuation">}</span><span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<h3 id="五、进程"><a href="#五、进程" class="headerlink" title="五、进程"></a>五、进程</h3><h4 id="5-1-源码编译"><a href="#5-1-源码编译" class="headerlink" title="5.1 源码编译"></a>5.1 源码编译</h4><p>CPU是不能执行文本文件里面的指令的，这些指令只有人能看懂，CPU能够执行的命令是二进制的，比如“0101”这种，所以这些指令还需要翻译一下，这个翻译的过程就是编译（Compile）。</p>
+<p>在Linux下面，二进制的程序也要有严格的格式，这个格式我们称为ELF（Executeable and Linkable Format，可执行与可链接格式）。这个格式可以根据编译的结果不同，分为不同的格式。</p>
+<p><img src="/images/《趣谈Linux操作系统》学习笔记/从文本文件编译成二进制格式.jpeg" alt="从文本文件编译成二进制格式.jpeg"></p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">gcc -c -fPIC mylib.c
+gcc -c -fPIC test_mylib.c<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre>
+<ol>
+<li><p>可重定位文件<br> 在编译的时候，先做预处理工作，例如将头文件嵌入到正文中，将定义的宏展开，然后就是真正的编译过程，最终编译成为.o文件，这就是ELF的第一种类型，<strong>可重定位文件（Relocatable File）</strong> 。</p>
+<p> <img src="/images/《趣谈Linux操作系统》学习笔记/可重定位文件格式.jpg" alt="可重定位文件格式.jpg"></p>
+<p> ELF文件的头是用于描述整个文件的。这个文件格式在内核中有定义，分别为struct elf32_hdr和struct elf64_hdr。</p>
+<p> 接下来来看一个一个的section，也叫节。</p>
+<ul>
+<li>.text：放编译好的二进制可执行代码</li>
+<li>.data：已经初始化好的全局变量</li>
+<li>.rodata：只读数据，例如字符串常量、const的变量</li>
+<li>.bss：未初始化全局变量，运行时会置0</li>
+<li>.symtab：符号表，记录的则是函数和变量</li>
+<li><p>.strtab：字符串表、字符串常量和变量名</p>
+<p>这些节的元数据信息也需要有一个地方保存，就是最后的节头部表（Section Header Table）。在这个表里面，每一个section都有一项，在代码里面也有定义struct elf32_shdr和struct elf64_shdr。在ELF的头里面，有描述这个文件的节头部表的位置，有多少个表项等等信息。</p>
+<p>.o里面的位置是不确定的，但是必须是可重新定位的，因为它将来是要做函数库的。有的section，例如.rel.text, .rel.data就与重定位有关。</p>
+<p>要想让代码被重用，不能以.o的形式存在，而是要形成库文件，最简单的类型是静态链接库.a文件（Archives），仅仅将一系列对象文件（.o）归档为一个文件，使用命令ar创建。</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">ar cr libstatic_mylib.a mylib.o<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>虽然这里libstatic_mylib.a里面只有一个.o，但是实际情况可以有多个.o。当有程序要使用这个静态连接库的时候，会将.o文件提取出来，链接到程序中。</p>
+</li>
+</ul>
+</li>
+<li><p>可执行文件</p>
+ <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">gcc -o static_test_mylib test_mylib.o -L. -lstatic_mylib<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p> 在这个命令里，-L表示在当前目录下找.a文件，-lstatic_mylib会自动补全文件名，比如加前缀lib，后缀.a，变成libstatic_mylib.a，找到这个.a文件后，将里面的mylib.o取出来，和test_mylib.o做一个链接，形成二进制执行文件static_test_mylib。</p>
+<p> 形成的二进制文件叫可执行文件，是ELF的第二种格式，格式如下：</p>
+<p> <img src="/images/《趣谈Linux操作系统》学习笔记/可执行文件格式.jpg" alt="可执行文件格式"></p>
+<p> 这个格式和.o文件大致相似，还是分成一个个的section，并且被节头表描述。只不过这些section是多个.o文件合并过的。但是这个时候，这个文件已经是马上就可以加载到内存里面执行的文件了，因而这些section被分成了需要加载到内存里面的代码段、数据段和不需要加载到内存里面的部分，将小的section合成了大的段segment，并且在最前面加一个段头表（Segment Header Table）。在代码里面的定义为struct elf32_phdr和struct elf64_phdr，这里面除了有对于段的描述之外，最重要的是p_vaddr，这个是这个段加载到内存的虚拟地址。</p>
+<p> 在ELF头里面，有一项e_entry，也是个虚拟地址，是这个程序运行的入口。</p>
+<p> 静态链接库一旦链接进去，代码和变量的section都合并了，因而程序运行的时候，就不依赖于这个库是否存在。但是这样有一个缺点，就是相同的代码段，如果被多个程序使用的话，在内存里面就有多份，而且一旦静态链接库更新了，如果二进制执行文件不重新编译，也不随着更新。</p>
+</li>
+<li><p>动态链接库</p>
+<p> 因而就出现了另一种，<strong>动态链接库（Shared Libraries）</strong>，不仅仅是一组对象文件的简单归档，而是多个对象文件的重新组合，可被多个程序共享。</p>
+ <pre class="line-numbers language-c" data-language="c"><code class="language-c">gcc <span class="token operator">-</span>shared <span class="token operator">-</span>fPIC <span class="token operator">-</span>o libdynamic_mylib<span class="token punctuation">.</span>so mylib<span class="token punctuation">.</span>o<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p> 当一个动态链接库被链接到一个程序文件中的时候，最后的程序文件并不包括动态链接库中的代码，而仅仅包括对动态链接库的引用，并且不保存动态链接库的全路径，仅仅保存动态链接库的名称。</p>
+ <pre class="line-numbers language-c" data-language="c"><code class="language-c">gcc <span class="token operator">-</span>o dynamic_test_mylib test_mylib<span class="token punctuation">.</span>o <span class="token operator">-</span>L<span class="token punctuation">.</span> <span class="token operator">-</span>ldynamic_mylib<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p> 当运行这个程序的时候，首先寻找动态链接库，然后加载它。默认情况下，系统在/lib和/usr/lib文件夹下寻找动态链接库。如果找不到就会报错，我们可以设定LD_LIBRARY_PATH环境变量，程序运行时会在此环境变量指定的文件夹下寻找动态链接库。</p>
+<p> 动态链接库，就是ELF的第三种类型， <strong>共享对象文件（Shared Object）</strong> 。</p>
+<p> 基于动态连接库创建出来的二进制文件格式还是ELF，但是稍有不同。</p>
+<p> 首先，多了一个.interp的Segment，这里面是ld-linux.so，这是动态链接器，也就是说，运行时的链接动作都是它做的。</p>
+<p> 另外，ELF文件中还多了两个section，一个是.plt，过程链接表（Procedure Linkage Table，PLT），一个是.got.plt，全局偏移量表（Global Offset Table，GOT）。</p>
+<p> 它们是怎么工作的，使得程序运行的时候，可以将so文件动态链接到进程空间的呢？</p>
+<p> dynamic_test_mylib这个程序要调用libdynamic_mylib.so里的函数。由于是运行时才去找，编译的时候，压根不知道这个函数在哪里，所以就在PLT里面建立一项PLT[x]。这一项也是一些代码，有点像一个本地的代理，在二进制程序dynamic_test_mylib里面，不直接调用libdynamic_mylib.so里的函数，而是调用PLT[x]里面的代理代码，这个代理代码会在运行的时候找真正的函数。</p>
+<p> 去哪里找代理代码呢？这就用到了GOT，这里面也会为libdynamic_mylib.so中的函数创建一项GOT[y]。这一项是运行时libdynamic_mylib.so中的函数在内存中真正的地址。</p>
+<p> 如果这个地址在，dynamic_test_mylib调用PLT[x]里面的代理代码，代理代码调用GOT表中对应项GOT[y]，调用的就是加载到内存中的libdynamic_mylib.so里面的对应函数了。</p>
+<p> 但是GOT怎么知道的呢？对于libdynamic_mylib.so中的函数，GOT一开始就会创建一项GOT[y]，但是这里面没有真正的地址，因为它也不知道，但是它有办法，它又回调PLT，告诉它，你里面的代理代码来找我要libdynamic_mylib.so中函数的真实地址，我不知道，你想想办法吧。</p>
+<p> PLT这个时候会转而调用PLT[0]，也即第一项，PLT[0]转而调用GOT[2]，这里面是ld-linux.so的入口函数，这个函数会找到加载到内存中的libdynamic_mylib.so里面的对应函数的地址，然后把这个地址放在GOT[y]里面。下次，PLT[x]的代理函数就能够直接调用了。</p>
+</li>
+</ol>
+<h4 id="5-2-运行程序为进程"><a href="#5-2-运行程序为进程" class="headerlink" title="5.2 运行程序为进程"></a>5.2 运行程序为进程</h4><p>在内核中，有这样一个数据结构，用来定义加载二进制文件的方法。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">struct</span> <span class="token class-name">linux_binfmt</span> <span class="token punctuation">{</span>
+        <span class="token keyword">struct</span> <span class="token class-name">list_head</span> lh<span class="token punctuation">;</span>
+        <span class="token keyword">struct</span> <span class="token class-name">module</span> <span class="token operator">*</span>module<span class="token punctuation">;</span>
+        <span class="token keyword">int</span> <span class="token punctuation">(</span><span class="token operator">*</span>load_binary<span class="token punctuation">)</span><span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">linux_binprm</span> <span class="token operator">*</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token keyword">int</span> <span class="token punctuation">(</span><span class="token operator">*</span>load_shlib<span class="token punctuation">)</span><span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">file</span> <span class="token operator">*</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token keyword">int</span> <span class="token punctuation">(</span><span class="token operator">*</span>core_dump<span class="token punctuation">)</span><span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">coredump_params</span> <span class="token operator">*</span>cprm<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token keyword">unsigned</span> <span class="token keyword">long</span> min_coredump<span class="token punctuation">;</span>     <span class="token comment">/* minimal dump size */</span>
+<span class="token punctuation">}</span> __randomize_layout<span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>对于ELF文件格式，有对应的实现。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">static</span> <span class="token keyword">struct</span> <span class="token class-name">linux_binfmt</span> elf_format <span class="token operator">=</span> <span class="token punctuation">{</span>
+        <span class="token punctuation">.</span>module         <span class="token operator">=</span> THIS_MODULE<span class="token punctuation">,</span>
+        <span class="token punctuation">.</span>load_binary    <span class="token operator">=</span> load_elf_binary<span class="token punctuation">,</span>
+        <span class="token punctuation">.</span>load_shlib     <span class="token operator">=</span> load_elf_library<span class="token punctuation">,</span>
+        <span class="token punctuation">.</span>core_dump      <span class="token operator">=</span> elf_core_dump<span class="token punctuation">,</span>
+        <span class="token punctuation">.</span>min_coredump   <span class="token operator">=</span> ELF_EXEC_PAGESIZE<span class="token punctuation">,</span>
+<span class="token punctuation">}</span><span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>load_elf_binary是不是你很熟悉？没错，我们加载内核镜像的时候，用的也是这种格式。</p>
+<p>还记得当时是谁调用的load_elf_binary函数吗？具体是这样的：do_execve-&gt;do_execveat_common-&gt;exec_binprm-&gt;search_binary_handler。</p>
+<p>那do_execve又是被谁调用的呢？我们看下面的代码。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token function">SYSCALL_DEFINE3</span><span class="token punctuation">(</span>execve<span class="token punctuation">,</span>
+        <span class="token keyword">const</span> <span class="token keyword">char</span> __user <span class="token operator">*</span><span class="token punctuation">,</span> filename<span class="token punctuation">,</span>
+        <span class="token keyword">const</span> <span class="token keyword">char</span> __user <span class="token operator">*</span><span class="token keyword">const</span> __user <span class="token operator">*</span><span class="token punctuation">,</span> argv<span class="token punctuation">,</span>
+        <span class="token keyword">const</span> <span class="token keyword">char</span> __user <span class="token operator">*</span><span class="token keyword">const</span> __user <span class="token operator">*</span><span class="token punctuation">,</span> envp<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword">return</span> <span class="token function">do_execve</span><span class="token punctuation">(</span><span class="token function">getname</span><span class="token punctuation">(</span>filename<span class="token punctuation">)</span><span class="token punctuation">,</span> argv<span class="token punctuation">,</span> envp<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>学过了系统调用一节，你会发现，原理是exec这个系统调用最终调用的load_elf_binary。</p>
+<p>exec比较特殊，它是一组函数：</p>
+<ul>
+<li>包含p的函数（execvp, execlp）会在PATH路径下面寻找程序；</li>
+<li>不包含p的函数需要输入程序的全路径；</li>
+<li>包含v的函数（execv, execvp, execve）以数组的形式接收参数；</li>
+<li>包含l的函数（execl, execlp, execle）以列表的形式接收参数；</li>
+<li>包含e的函数（execve, execle）以数组的形式接收环境变量。</li>
+</ul>
+<p><img src="/images/《趣谈Linux操作系统》学习笔记/exec系列函数.jpg" alt="exec系列函数"></p>
+<h4 id="5-3-进程树"><a href="#5-3-进程树" class="headerlink" title="5.3 进程树"></a>5.3 进程树</h4><p>既然所有的进程都是从父进程fork过来的，那总归有一个祖宗进程，这就是咱们系统启动的init进程。</p>
+<p><img src="/images/《趣谈Linux操作系统》学习笔记/linux进程树.jpeg" alt="linux进程树"></p>
+<p>在解析Linux的启动过程的时候，1号进程是/sbin/init。如果在centOS 7里面，我们ls一下，可以看到，这个进程是被软链接到systemd的。</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">/sbin/init -<span class="token operator">&gt;</span> <span class="token punctuation">..</span>/lib/systemd/systemd<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>系统启动之后，init进程会启动很多的daemon进程，为系统运行提供服务，然后就是启动getty，让用户登录，登录后运行shell，用户启动的进程都是通过shell运行的，从而形成了一棵进程树。</p>
+<p>我们可以通过ps -ef命令查看当前系统启动的进程，我们会发现有三类进程。</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ <span class="token function">ps</span> -ef
+<span class="token environment constant">UID</span>        PID  <span class="token environment constant">PPID</span>  C STIME TTY          TIME CMD
+root         <span class="token number">1</span>     <span class="token number">0</span>  <span class="token number">0</span>  <span class="token number">2018</span> ?        00:00:29 /usr/lib/systemd/systemd --system --deserialize <span class="token number">21</span>
+root         <span class="token number">2</span>     <span class="token number">0</span>  <span class="token number">0</span>  <span class="token number">2018</span> ?        00:00:00 <span class="token punctuation">[</span>kthreadd<span class="token punctuation">]</span>
+root         <span class="token number">3</span>     <span class="token number">2</span>  <span class="token number">0</span>  <span class="token number">2018</span> ?        00:00:00 <span class="token punctuation">[</span>ksoftirqd/0<span class="token punctuation">]</span>
+root         <span class="token number">5</span>     <span class="token number">2</span>  <span class="token number">0</span>  <span class="token number">2018</span> ?        00:00:00 <span class="token punctuation">[</span>kworker/0:0H<span class="token punctuation">]</span>
+root         <span class="token number">9</span>     <span class="token number">2</span>  <span class="token number">0</span>  <span class="token number">2018</span> ?        00:00:40 <span class="token punctuation">[</span>rcu_sched<span class="token punctuation">]</span>
+<span class="token punctuation">..</span><span class="token punctuation">..</span><span class="token punctuation">..</span>
+root       <span class="token number">337</span>     <span class="token number">2</span>  <span class="token number">0</span>  <span class="token number">2018</span> ?        00:00:01 <span class="token punctuation">[</span>kworker/3:1H<span class="token punctuation">]</span>
+root       <span class="token number">380</span>     <span class="token number">1</span>  <span class="token number">0</span>  <span class="token number">2018</span> ?        00:00:00 /usr/lib/systemd/systemd-udevd
+root       <span class="token number">415</span>     <span class="token number">1</span>  <span class="token number">0</span>  <span class="token number">2018</span> ?        00:00:01 /sbin/auditd
+root       <span class="token number">498</span>     <span class="token number">1</span>  <span class="token number">0</span>  <span class="token number">2018</span> ?        00:00:03 /usr/lib/systemd/systemd-logind
+<span class="token punctuation">..</span><span class="token punctuation">..</span><span class="token punctuation">..</span>
+root       <span class="token number">852</span>     <span class="token number">1</span>  <span class="token number">0</span>  <span class="token number">2018</span> ?        00:06:25 /usr/sbin/rsyslogd -n
+root      <span class="token number">2580</span>     <span class="token number">1</span>  <span class="token number">0</span>  <span class="token number">2018</span> ?        00:00:00 /usr/sbin/sshd -D
+root     <span class="token number">29058</span>     <span class="token number">2</span>  <span class="token number">0</span> Jan03 ?        00:00:01 <span class="token punctuation">[</span>kworker/1:2<span class="token punctuation">]</span>
+root     <span class="token number">29672</span>     <span class="token number">2</span>  <span class="token number">0</span> Jan04 ?        00:00:09 <span class="token punctuation">[</span>kworker/2:1<span class="token punctuation">]</span>
+root     <span class="token number">30467</span>     <span class="token number">1</span>  <span class="token number">0</span> Jan06 ?        00:00:00 /usr/sbin/crond -n
+root     <span class="token number">31574</span>     <span class="token number">2</span>  <span class="token number">0</span> Jan08 ?        00:00:01 <span class="token punctuation">[</span>kworker/u128:2<span class="token punctuation">]</span>
+<span class="token punctuation">..</span><span class="token punctuation">..</span><span class="token punctuation">..</span>
+root     <span class="token number">32792</span>  <span class="token number">2580</span>  <span class="token number">0</span> Jan10 ?        00:00:00 sshd: root@pts/0
+root     <span class="token number">32794</span> <span class="token number">32792</span>  <span class="token number">0</span> Jan10 pts/0    00:00:00 -bash
+root     <span class="token number">32901</span> <span class="token number">32794</span>  <span class="token number">0</span> 00:01 pts/0    00:00:00 <span class="token function">ps</span> -ef<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>你会发现，PID 1的进程就是我们的init进程systemd，PID 2的进程是内核线程kthreadd，这两个我们在内核启动的时候都见过。其中用户态的不带中括号，内核态的带中括号。</p>
+<p>接下来进程号依次增大，但是你会看所有带中括号的内核态的进程，祖先都是2号进程。而用户态的进程，祖先都是1号进程。tty那一列，是问号的，说明不是前台启动的，一般都是后台的服务。</p>
+<p>pts的父进程是sshd，bash的父进程是pts，ps -ef这个命令的父进程是bash。这样整个链条都比较清晰了。</p>
+<h4 id="5-4-总结"><a href="#5-4-总结" class="headerlink" title="5.4 总结"></a>5.4 总结</h4><p>我们首先通过图右边的文件编译过程，生成so文件和可执行文件，放在硬盘上。下图左边的用户态的进程A执行fork，创建进程B，在进程B的处理逻辑中，执行exec系列系统调用。这个系统调用会通过load_elf_binary方法，将刚才生成的可执行文件，加载到进程B的内存中执行。</p>
+<p><img src="/images/《趣谈Linux操作系统》学习笔记/进程从代码到二进制到运行的过程.jpeg" alt="进程从代码到二进制到运行的过程"></p>
+
                 
             </div>
             <hr/>
@@ -1283,7 +1407,7 @@ asmlinkage <span class="token keyword">const</span> sys_call_ptr_t sys_call_tabl
             <br>
             
             &nbsp;<i class="fas fa-chart-area"></i>&nbsp;站点总字数:&nbsp;<span
-                class="white-color">412.6k</span>&nbsp;字
+                class="white-color">415.5k</span>&nbsp;字
             
             
             
