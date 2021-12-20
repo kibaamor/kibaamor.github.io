@@ -438,14 +438,14 @@
                 
                 <div class="info-break-policy">
                     <i class="far fa-file-word fa-fw"></i>文章字数:&nbsp;&nbsp;
-                    12.8k
+                    15.2k
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-clock fa-fw"></i>阅读时长:&nbsp;&nbsp;
-                    49 分
+                    58 分
                 </div>
                 
 
@@ -1213,6 +1213,103 @@ cpumask_t                   cpus_allowed<span class="token punctuation">;</span>
 <span class="token keyword">struct</span> <span class="token class-name">sched_info</span>           sched_info<span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
 <h3 id="7-5-总结"><a href="#7-5-总结" class="headerlink" title="7.5 总结"></a>7.5 总结</h3><p>画一个图总结一下。这个图是进程管理task_struct的的结构图。其中红色的部分是今天讲的部分，你可以对着这张图说出它们的含义。</p>
 <p><img src="/images/《趣谈Linux操作系统》学习笔记/进程管理task_struct的结构图（上）.jpeg" alt="进程管理task_struct的结构图（上）"></p>
+<h2 id="八、进程数据结构（中）"><a href="#八、进程数据结构（中）" class="headerlink" title="八、进程数据结构（中）"></a>八、进程数据结构（中）</h2><h3 id="8-1-运行统计信息"><a href="#8-1-运行统计信息" class="headerlink" title="8.1 运行统计信息"></a>8.1 运行统计信息</h3><p>在进程的运行过程中，会有一些统计量，具体你可以看下面的列表。这里面有进程在用户态和内核态消耗的时间、上下文切换的次数等等。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c">u64             utime<span class="token punctuation">;</span><span class="token comment">//用户态消耗的CPU时间</span>
+u64             stime<span class="token punctuation">;</span><span class="token comment">//内核态消耗的CPU时间</span>
+<span class="token keyword">unsigned</span> <span class="token keyword">long</span>   nvcsw<span class="token punctuation">;</span><span class="token comment">//自愿(voluntary)上下文切换计数</span>
+<span class="token keyword">unsigned</span> <span class="token keyword">long</span>   nivcsw<span class="token punctuation">;</span><span class="token comment">//非自愿(involuntary)上下文切换计数</span>
+u64             start_time<span class="token punctuation">;</span><span class="token comment">//进程启动时间，不包含睡眠时间</span>
+u64             real_start_time<span class="token punctuation">;</span><span class="token comment">//进程启动时间，包含睡眠时间</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<h3 id="8-2-进程亲缘关系"><a href="#8-2-进程亲缘关系" class="headerlink" title="8.2 进程亲缘关系"></a>8.2 进程亲缘关系</h3><p>从我们之前讲的创建进程的过程，可以看出，任何一个进程都有父进程。所以，整个进程其实就是一棵进程树。而拥有同一父进程的所有进程都具有兄弟关系。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">struct</span> <span class="token class-name">task_struct</span> __rcu <span class="token operator">*</span>real_parent<span class="token punctuation">;</span> <span class="token comment">/* real parent process */</span>
+<span class="token keyword">struct</span> <span class="token class-name">task_struct</span> __rcu <span class="token operator">*</span>parent<span class="token punctuation">;</span> <span class="token comment">/* recipient of SIGCHLD, wait4() reports */</span>
+<span class="token keyword">struct</span> <span class="token class-name">list_head</span> children<span class="token punctuation">;</span>      <span class="token comment">/* list of my children */</span>
+<span class="token keyword">struct</span> <span class="token class-name">list_head</span> sibling<span class="token punctuation">;</span>       <span class="token comment">/* linkage in my parent's children list */</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span></span></code></pre>
+<ul>
+<li>parent指向其父进程。当它终止时，必须向它的父进程发送信号。</li>
+<li>children表示链表的头部。链表中的所有元素都是它的子进程。</li>
+<li>sibling用于把当前进程插入到兄弟链表中。</li>
+</ul>
+<p><img src="/images/《趣谈Linux操作系统》学习笔记/进程亲缘关系.jpeg" alt="进程亲缘关系"></p>
+<p>通常情况下，real_parent和parent是一样的，但是也会有另外的情况存在。例如，bash创建一个进程，那进程的parent和real_parent就都是bash。如果在bash上使用GDB来debug一个进程，这个时候GDB是real_parent，bash是这个进程的parent。</p>
+<h3 id="8-3-进程权限"><a href="#8-3-进程权限" class="headerlink" title="8.3 进程权限"></a>8.3 进程权限</h3><p>在Linux里面，对于进程权限的定义如下：</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token comment">/* Objective and real subjective task credentials (COW): */</span>
+<span class="token keyword">const</span> <span class="token keyword">struct</span> <span class="token class-name">cred</span> __rcu         <span class="token operator">*</span>real_cred<span class="token punctuation">;</span>
+<span class="token comment">/* Effective (overridable) subjective task credentials (COW): */</span>
+<span class="token keyword">const</span> <span class="token keyword">struct</span> <span class="token class-name">cred</span> __rcu         <span class="token operator">*</span>cred<span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span></span></code></pre>
+<p>这个结构的注释里，有两个名词比较拗口，Objective和Subjective。事实上，所谓的权限，就是我能操纵谁，谁能操纵我。</p>
+<p>“谁能操作我”，很显然，这个时候我就是被操作的对象，就是Objective，那个想操作我的就是Subjective。“我能操作谁”，这个时候我就是Subjective，那个要被我操作的就是Objectvie。</p>
+<p>“操作”，就是一个对象对另一个对象进行某些动作。当动作要实施的时候，就要审核权限，当两边的权限匹配上了，就可以实施操作。其中，real_cred就是说明谁能操作我这个进程，而cred就是说明我这个进程能够操作谁。</p>
+<p>这里cred的定义如下：</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">struct</span> <span class="token class-name">cred</span> <span class="token punctuation">{</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+        kuid_t          uid<span class="token punctuation">;</span>            <span class="token comment">/* real UID of the task */</span>
+        kgid_t          gid<span class="token punctuation">;</span>            <span class="token comment">/* real GID of the task */</span>
+        kuid_t          suid<span class="token punctuation">;</span>           <span class="token comment">/* saved UID of the task */</span>
+        kgid_t          sgid<span class="token punctuation">;</span>           <span class="token comment">/* saved GID of the task */</span>
+        kuid_t          euid<span class="token punctuation">;</span>           <span class="token comment">/* effective UID of the task */</span>
+        kgid_t          egid<span class="token punctuation">;</span>           <span class="token comment">/* effective GID of the task */</span>
+        kuid_t          fsuid<span class="token punctuation">;</span>          <span class="token comment">/* UID for VFS ops */</span>
+        kgid_t          fsgid<span class="token punctuation">;</span>          <span class="token comment">/* GID for VFS ops */</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+        kernel_cap_t    cap_inheritable<span class="token punctuation">;</span> <span class="token comment">/* caps our children can inherit */</span>
+        kernel_cap_t    cap_permitted<span class="token punctuation">;</span>  <span class="token comment">/* caps we're permitted */</span>
+        kernel_cap_t    cap_effective<span class="token punctuation">;</span>  <span class="token comment">/* caps we can actually use */</span>
+        kernel_cap_t    cap_bset<span class="token punctuation">;</span>       <span class="token comment">/* capability bounding set */</span>
+        kernel_cap_t    cap_ambient<span class="token punctuation">;</span>    <span class="token comment">/* Ambient capability set */</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+<span class="token punctuation">}</span> __randomize_layout<span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>从这里的定义可以看出，大部分是关于 <strong>用户和用户所属的用户组信息</strong> 。</p>
+<ol>
+<li><p>第一个是uid和gid，注释是real user/group id。一般情况下，谁启动的进程，就是谁的ID。但是权限审核的时候，往往不比较这两个，也就是说不大起作用。</p>
+</li>
+<li><p>第二个是euid和egid，注释是effective user/group id。一看这个名字，就知道这个是起“作用”的。当这个进程要操作消息队列、共享内存、信号量等对象的时候，其实就是在比较这个用户和组是否有权限。</p>
+</li>
+<li><p>第三个是fsuid和fsgid，也就是filesystem user/group id。这个是对文件操作会审核的权限。</p>
+</li>
+</ol>
+<p>一般说来，fsuid、euid，和uid是一样的，fsgid、egid，和gid也是一样的。因为谁启动的进程，就应该审核启动的用户到底有没有这个权限。</p>
+<p><img src="/images/《趣谈Linux操作系统》学习笔记/进程权限举例.jpeg" alt="进程权限举例.jpeg"></p>
+<p>例如，用户A想玩一个游戏，这个游戏的程序是用户B安装的。游戏这个程序文件的权限为rwxr–r—。A是没有权限运行这个程序的，因而用户B要给用户A权限才行。用户B说没问题，都是朋友嘛，于是用户B就给这个程序设定了所有的用户都能执行的权限rwxr-xr-x，说兄弟你玩吧。</p>
+<p>例如，用户A想玩一个游戏，这个游戏的程序是用户B安装的。游戏这个程序文件的权限为rwxr–r—。A是没有权限运行这个程序的，因而用户B要给用户A权限才行。用户B说没问题，都是朋友嘛，于是用户B就给这个程序设定了所有的用户都能执行的权限rwxr-xr-x，说兄弟你玩吧。</p>
+<p>于是，用户A就获得了运行这个游戏的权限。当游戏运行起来之后，游戏进程的uid、euid、fsuid都是用户A。看起来没有问题，玩的很开心。</p>
+<p>用户A好不容易通过一关，想保存通关数据的时候，发现坏了，这个游戏的玩家数据是保存在另一个文件里面的。这个文件权限rw———-，只给用户B开了写入权限，而游戏进程的euid和fsuid都是用户A，当然写不进去了。完了，这一局白玩儿了。</p>
+<p>那怎么解决这个问题呢？我们可以通过chmod u+s program命令，给这个游戏程序设置set-user-ID的标识位，把游戏的权限变成rwsr-xr-x。这个时候，用户A再启动这个游戏的时候，创建的进程uid当然还是用户A，但是euid和fsuid就不是用户A了，因为看到了set-user-id标识，就改为文件的所有者的ID，也就是说，euid和fsuid都改成用户B了，这样就能够将通关结果保存下来。</p>
+<p>在Linux里面，一个进程可以随时通过setuid设置用户ID，所以，游戏程序的用户B的ID还会保存在一个地方，这就是suid和sgid，也就是saved uid和save gid。这样就可以很方便地使用setuid，通过设置uid或者suid来改变权限。</p>
+<p>除了以用户和用户组控制权限，Linux还有另一个机制就是 <strong>capabilities</strong> 。</p>
+<p>原来控制进程的权限，要么是高权限的root用户，要么是一般权限的普通用户，这时候的问题是，root用户权限太大，而普通用户权限太小。有时候一个普通用户想做一点高权限的事情，必须给他整个root的权限。这个太不安全了。</p>
+<p>于是，我们引入新的机制capabilities，用位图表示权限，在capability.h可以找到定义的权限。我这里列举几个。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">define</span> <span class="token expression">CAP_CHOWN            <span class="token number">0</span></span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">define</span> <span class="token expression">CAP_KILL             <span class="token number">5</span></span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">define</span> <span class="token expression">CAP_NET_BIND_SERVICE <span class="token number">10</span></span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">define</span> <span class="token expression">CAP_NET_RAW          <span class="token number">13</span></span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">define</span> <span class="token expression">CAP_SYS_MODULE       <span class="token number">16</span></span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">define</span> <span class="token expression">CAP_SYS_RAWIO        <span class="token number">17</span></span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">define</span> <span class="token expression">CAP_SYS_BOOT         <span class="token number">22</span></span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">define</span> <span class="token expression">CAP_SYS_TIME         <span class="token number">25</span></span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">define</span> <span class="token expression">CAP_AUDIT_READ       <span class="token number">37</span></span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">define</span> <span class="token expression">CAP_LAST_CAP         CAP_AUDIT_READ</span></span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>对于普通用户运行的进程，当有这个权限的时候，就能做这些操作；没有的时候，就不能做，这样粒度要小很多。</p>
+<p>cap_permitted表示进程能够使用的权限。但是真正起作用的是cap_effective。cap_permitted中可以包含cap_effective中没有的权限。一个进程可以在必要的时候，放弃自己的某些权限，这样更加安全。假设自己因为代码漏洞被攻破了，但是如果啥也干不了，就没办法进一步突破。</p>
+<p>cap_inheritable表示当可执行文件的扩展属性设置了inheritable位时，调用exec执行该程序会继承调用者的inheritable集合，并将其加入到permitted集合。但在非root用户下执行exec时，通常不会保留inheritable集合，但是往往又是非root用户，才想保留权限，所以非常鸡肋。</p>
+<p>cap_bset，也就是capability bounding set，是系统中所有进程允许保留的权限。如果这个集合中不存在某个权限，那么系统中的所有进程都没有这个权限。即使以超级用户权限执行的进程，也是一样的。</p>
+<p>这样有很多好处。例如，系统启动以后，将加载内核模块的权限去掉，那所有进程都不能加载内核模块。这样，即便这台机器被攻破，也做不了太多有害的事情。</p>
+<p>cap_ambient是比较新加入内核的，就是为了解决cap_inheritable鸡肋的状况，也就是，非root用户进程使用exec执行一个程序的时候，如何保留权限的问题。当执行exec的时候，cap_ambient会被添加到cap_permitted中，同时设置到cap_effective中。</p>
+<h3 id="8-4-内存管理"><a href="#8-4-内存管理" class="headerlink" title="8.4 内存管理"></a>8.4 内存管理</h3><p>每个进程都有自己独立的虚拟内存空间，这需要有一个数据结构来表示，就是mm_struct。这个我们在内存管理那一节详细讲述。这里你先有个印象。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">struct</span> <span class="token class-name">mm_struct</span>                <span class="token operator">*</span>mm<span class="token punctuation">;</span>
+<span class="token keyword">struct</span> <span class="token class-name">mm_struct</span>                <span class="token operator">*</span>active_mm<span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre>
+<h3 id="8-5-文件与文件系统"><a href="#8-5-文件与文件系统" class="headerlink" title="8.5 文件与文件系统"></a>8.5 文件与文件系统</h3><p>每个进程有一个文件系统的数据结构，还有一个打开文件的数据结构。这个我们放到文件系统那一节详细讲述。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token comment">/* Filesystem information: */</span>
+<span class="token keyword">struct</span> <span class="token class-name">fs_struct</span>                <span class="token operator">*</span>fs<span class="token punctuation">;</span>
+<span class="token comment">/* Open file information: */</span>
+<span class="token keyword">struct</span> <span class="token class-name">files_struct</span>             <span class="token operator">*</span>files<span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span></span></code></pre>
+<h3 id="8-6-总结"><a href="#8-6-总结" class="headerlink" title="8.6 总结"></a>8.6 总结</h3><p>这一节，我们终于把进程管理复杂的数据结构基本讲完了，请你重点记住以下两点：</p>
+<ul>
+<li>进程亲缘关系维护的数据结构，是一种很有参考价值的实现方式，在内核中会多个地方出现类似的结构；</li>
+<li>进程权限中setuid的原理，这一点比较难理解，但是很重要，面试经常会考。</li>
+</ul>
+<p>你可以对着下面这张图，看看自己是否真的理解了，进程树是如何组织的，以及如何控制进程的权限的。</p>
+<p><img src="/images/《趣谈Linux操作系统》学习笔记/进程管理task_struct的结构图（中）.jpeg" alt="进程管理task_struct的结构图（中）"></p>
 
                 
             </div>
@@ -1614,7 +1711,7 @@ cpumask_t                   cpus_allowed<span class="token punctuation">;</span>
             <br>
             
             &nbsp;<i class="fas fa-chart-area"></i>&nbsp;站点总字数:&nbsp;<span
-                class="white-color">419.3k</span>&nbsp;字
+                class="white-color">421.7k</span>&nbsp;字
             
             
             
