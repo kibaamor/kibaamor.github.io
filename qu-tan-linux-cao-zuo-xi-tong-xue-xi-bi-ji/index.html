@@ -650,7 +650,7 @@ regs<span class="token operator">-&gt;</span>flags <span class="token operator">
 <p>从用户态来看，创建进程其实就是立项，也就是启动一个项目。这个项目需要人去执行。有多个人并行执行不同的部分，这就叫 <strong>多线程（Multithreading）</strong> 。如果只有一个人，那它就是这个项目的主线程。</p>
 <p>但是从内核态来看，无论是进程，还是线程，我们都可以统称为任务（Task），都使用相同的数据结构，平放在同一个链表中。</p>
 <p>这里的函数kthreadd，负责所有内核态的线程的调度和管理，是内核态所有线程运行的祖先。</p>
-<h3 id="四、系统调用"><a href="#四、系统调用" class="headerlink" title="四、系统调用"></a>四、系统调用</h3><h4 id="4-1-glibc对系统调用的封装"><a href="#4-1-glibc对系统调用的封装" class="headerlink" title="4.1 glibc对系统调用的封装"></a>4.1 glibc对系统调用的封装</h4><p>在glibc的源代码中，有个文件syscalls.list，里面列着所有glibc的函数对应的系统调用，就像下面这个样子：</p>
+<h2 id="四、系统调用"><a href="#四、系统调用" class="headerlink" title="四、系统调用"></a>四、系统调用</h2><h3 id="4-1-glibc对系统调用的封装"><a href="#4-1-glibc对系统调用的封装" class="headerlink" title="4.1 glibc对系统调用的封装"></a>4.1 glibc对系统调用的封装</h3><p>在glibc的源代码中，有个文件syscalls.list，里面列着所有glibc的函数对应的系统调用，就像下面这个样子：</p>
 <pre class="line-numbers language-text" data-language="text"><code class="language-text"># File name Caller  Syscall name    Args    Strong name Weak names
 open        -       open            Ci:siv  __libc_open __open open<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre>
 <p>另外，glibc还有一个脚本make-syscall.sh，可以根据上面的配置文件，对于每一个封装好的系统调用，生成一个文件。这个文件里面定义了一些宏，例如#define SYSCALL_NAME open。</p>
@@ -668,7 +668,7 @@ open        -       open            Ci:siv  __libc_open __open open<span aria-hi
     <span class="token expression">cmpl $<span class="token operator">-</span><span class="token number">4095</span><span class="token punctuation">,</span> <span class="token operator">%</span>eax<span class="token punctuation">;</span>                          </span><span class="token punctuation">\</span>
     <span class="token expression">jae SYSCALL_ERROR_LABEL</span></span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
 <p>里面对于任何一个系统调用，会调用DO_CALL。这也是一个宏，这个宏32位和64位的定义是不一样的。</p>
-<h4 id="4-2-32位系统调用过程"><a href="#4-2-32位系统调用过程" class="headerlink" title="4.2 32位系统调用过程"></a>4.2 32位系统调用过程</h4><p>我们先来看32位的情况（i386目录下的sysdep.h文件）。</p>
+<h3 id="4-2-32位系统调用过程"><a href="#4-2-32位系统调用过程" class="headerlink" title="4.2 32位系统调用过程"></a>4.2 32位系统调用过程</h3><p>我们先来看32位的情况（i386目录下的sysdep.h文件）。</p>
 <pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token comment">/* Linux takes system call arguments in registers:
     syscall number  %eax         call-clobbered
     arg 1           %ebx         call-saved
@@ -725,7 +725,7 @@ open        -       open            Ci:siv  __libc_open __open open<span aria-hi
 <p>iret指令将原来用户态保存的现场恢复回来，包含代码段、指令指针寄存器等。这时候用户态进程恢复执行。</p>
 <p>这里我总结一下32位的系统调用是如何执行的。</p>
 <p><img src="/images/《趣谈Linux操作系统》学习笔记/32位系统调用执行过程.jpg" alt="32位系统调用执行过程"></p>
-<h4 id="4-3-64位系统调用过程"><a href="#4-3-64位系统调用过程" class="headerlink" title="4.3 64位系统调用过程"></a>4.3 64位系统调用过程</h4><p>我们再来看64位的情况（x86_64下的sysdep.h文件）。</p>
+<h3 id="4-3-64位系统调用过程"><a href="#4-3-64位系统调用过程" class="headerlink" title="4.3 64位系统调用过程"></a>4.3 64位系统调用过程</h3><p>我们再来看64位的情况（x86_64下的sysdep.h文件）。</p>
 <pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token comment">/* The Linux/x86-64 kernel expects the system call parameters in
    registers according to the following table:
     syscall number  rax
@@ -807,7 +807,7 @@ syscall_return_via_sysret<span class="token operator">:</span>
 <p>这里，返回用户态的指令变成了sysretq。</p>
 <p>我们这里总结一下64位的系统调用是如何执行的。</p>
 <p><img src="/images/《趣谈Linux操作系统》学习笔记/64位系统调用执行过程.jpg" alt="64位系统调用执行过程.jpg"></p>
-<h4 id="4-4-系统调用表"><a href="#4-4-系统调用表" class="headerlink" title="4.4 系统调用表"></a>4.4 系统调用表</h4><p>32位的系统调用表定义在面arch/x86/entry/syscalls/syscall_32.tbl文件里。例如open是这样定义的：</p>
+<h3 id="4-4-系统调用表"><a href="#4-4-系统调用表" class="headerlink" title="4.4 系统调用表"></a>4.4 系统调用表</h3><p>32位的系统调用表定义在面arch/x86/entry/syscalls/syscall_32.tbl文件里。例如open是这样定义的：</p>
 <pre class="line-numbers language-text" data-language="text"><code class="language-text">5   i386    open            sys_open  compat_sys_open<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
 <p>64位的系统调用定义在另一个文件arch/x86/entry/syscalls/syscall_64.tbl里。例如open是这样定义的：</p>
 <pre class="line-numbers language-text" data-language="text"><code class="language-text">2   common  open            sys_open<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
@@ -883,7 +883,7 @@ asmlinkage <span class="token keyword">const</span> sys_call_ptr_t sys_call_tabl
     <span class="token punctuation">[</span><span class="token number">0</span> <span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span> __NR_syscall_max<span class="token punctuation">]</span> <span class="token operator">=</span> <span class="token operator">&amp;</span>sys_ni_syscall<span class="token punctuation">,</span>
 <span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;asm/syscalls_64.h&gt;</span></span>
 <span class="token punctuation">}</span><span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
-<h3 id="五、进程"><a href="#五、进程" class="headerlink" title="五、进程"></a>五、进程</h3><h4 id="5-1-源码编译"><a href="#5-1-源码编译" class="headerlink" title="5.1 源码编译"></a>5.1 源码编译</h4><p>CPU是不能执行文本文件里面的指令的，这些指令只有人能看懂，CPU能够执行的命令是二进制的，比如“0101”这种，所以这些指令还需要翻译一下，这个翻译的过程就是编译（Compile）。</p>
+<h2 id="五、进程"><a href="#五、进程" class="headerlink" title="五、进程"></a>五、进程</h2><h3 id="5-1-源码编译"><a href="#5-1-源码编译" class="headerlink" title="5.1 源码编译"></a>5.1 源码编译</h3><p>CPU是不能执行文本文件里面的指令的，这些指令只有人能看懂，CPU能够执行的命令是二进制的，比如“0101”这种，所以这些指令还需要翻译一下，这个翻译的过程就是编译（Compile）。</p>
 <p>在Linux下面，二进制的程序也要有严格的格式，这个格式我们称为ELF（Executeable and Linkable Format，可执行与可链接格式）。这个格式可以根据编译的结果不同，分为不同的格式。</p>
 <p><img src="/images/《趣谈Linux操作系统》学习笔记/从文本文件编译成二进制格式.jpeg" alt="从文本文件编译成二进制格式.jpeg"></p>
 <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">gcc -c -fPIC mylib.c
@@ -935,7 +935,7 @@ gcc -c -fPIC test_mylib.c<span aria-hidden="true" class="line-numbers-rows"><spa
 <p> PLT这个时候会转而调用PLT[0]，也即第一项，PLT[0]转而调用GOT[2]，这里面是ld-linux.so的入口函数，这个函数会找到加载到内存中的libdynamic_mylib.so里面的对应函数的地址，然后把这个地址放在GOT[y]里面。下次，PLT[x]的代理函数就能够直接调用了。</p>
 </li>
 </ol>
-<h4 id="5-2-运行程序为进程"><a href="#5-2-运行程序为进程" class="headerlink" title="5.2 运行程序为进程"></a>5.2 运行程序为进程</h4><p>在内核中，有这样一个数据结构，用来定义加载二进制文件的方法。</p>
+<h3 id="5-2-运行程序为进程"><a href="#5-2-运行程序为进程" class="headerlink" title="5.2 运行程序为进程"></a>5.2 运行程序为进程</h3><p>在内核中，有这样一个数据结构，用来定义加载二进制文件的方法。</p>
 <pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">struct</span> <span class="token class-name">linux_binfmt</span> <span class="token punctuation">{</span>
         <span class="token keyword">struct</span> <span class="token class-name">list_head</span> lh<span class="token punctuation">;</span>
         <span class="token keyword">struct</span> <span class="token class-name">module</span> <span class="token operator">*</span>module<span class="token punctuation">;</span>
@@ -972,7 +972,7 @@ gcc -c -fPIC test_mylib.c<span aria-hidden="true" class="line-numbers-rows"><spa
 <li>包含e的函数（execve, execle）以数组的形式接收环境变量。</li>
 </ul>
 <p><img src="/images/《趣谈Linux操作系统》学习笔记/exec系列函数.jpg" alt="exec系列函数"></p>
-<h4 id="5-3-进程树"><a href="#5-3-进程树" class="headerlink" title="5.3 进程树"></a>5.3 进程树</h4><p>既然所有的进程都是从父进程fork过来的，那总归有一个祖宗进程，这就是咱们系统启动的init进程。</p>
+<h3 id="5-3-进程树"><a href="#5-3-进程树" class="headerlink" title="5.3 进程树"></a>5.3 进程树</h3><p>既然所有的进程都是从父进程fork过来的，那总归有一个祖宗进程，这就是咱们系统启动的init进程。</p>
 <p><img src="/images/《趣谈Linux操作系统》学习笔记/linux进程树.jpeg" alt="linux进程树"></p>
 <p>在解析Linux的启动过程的时候，1号进程是/sbin/init。如果在centOS 7里面，我们ls一下，可以看到，这个进程是被软链接到systemd的。</p>
 <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">/sbin/init -<span class="token operator">&gt;</span> <span class="token punctuation">..</span>/lib/systemd/systemd<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
@@ -1004,12 +1004,12 @@ root     <span class="token number">32901</span> <span class="token number">3279
 <p>你会发现，PID 1的进程就是我们的init进程systemd，PID 2的进程是内核线程kthreadd，这两个我们在内核启动的时候都见过。其中用户态的不带中括号，内核态的带中括号。</p>
 <p>接下来进程号依次增大，但是你会看所有带中括号的内核态的进程，祖先都是2号进程。而用户态的进程，祖先都是1号进程。tty那一列，是问号的，说明不是前台启动的，一般都是后台的服务。</p>
 <p>pts的父进程是sshd，bash的父进程是pts，ps -ef这个命令的父进程是bash。这样整个链条都比较清晰了。</p>
-<h4 id="5-4-总结"><a href="#5-4-总结" class="headerlink" title="5.4 总结"></a>5.4 总结</h4><p>我们首先通过图右边的文件编译过程，生成so文件和可执行文件，放在硬盘上。下图左边的用户态的进程A执行fork，创建进程B，在进程B的处理逻辑中，执行exec系列系统调用。这个系统调用会通过load_elf_binary方法，将刚才生成的可执行文件，加载到进程B的内存中执行。</p>
+<h3 id="5-4-总结"><a href="#5-4-总结" class="headerlink" title="5.4 总结"></a>5.4 总结</h3><p>我们首先通过图右边的文件编译过程，生成so文件和可执行文件，放在硬盘上。下图左边的用户态的进程A执行fork，创建进程B，在进程B的处理逻辑中，执行exec系列系统调用。这个系统调用会通过load_elf_binary方法，将刚才生成的可执行文件，加载到进程B的内存中执行。</p>
 <p><img src="/images/《趣谈Linux操作系统》学习笔记/进程从代码到二进制到运行的过程.jpeg" alt="进程从代码到二进制到运行的过程"></p>
-<h3 id="六、线程"><a href="#六、线程" class="headerlink" title="六、线程"></a>六、线程</h3><h4 id="6-1-为什么要有线程？"><a href="#6-1-为什么要有线程？" class="headerlink" title="6.1 为什么要有线程？"></a>6.1 为什么要有线程？</h4><p>对于任何一个进程来讲，即便我们没有主动去创建线程，进程也是默认有一个主线程的。线程是负责执行二进制指令的，一行一行执行下去。进程要比线程管的宽多了，除了执行指令之外，内存、文件系统等等都要它来管。</p>
+<h2 id="六、线程"><a href="#六、线程" class="headerlink" title="六、线程"></a>六、线程</h2><h3 id="6-1-为什么要有线程？"><a href="#6-1-为什么要有线程？" class="headerlink" title="6.1 为什么要有线程？"></a>6.1 为什么要有线程？</h3><p>对于任何一个进程来讲，即便我们没有主动去创建线程，进程也是默认有一个主线程的。线程是负责执行二进制指令的，一行一行执行下去。进程要比线程管的宽多了，除了执行指令之外，内存、文件系统等等都要它来管。</p>
 <p><strong>进程相当于一个项目，而线程就是为了完成项目需求，而建立的一个个开发任务。</strong></p>
 <p>使用进程实现并行执行的问题也有两个。第一，创建进程占用资源太多；第二，进程之间的通信需要数据在不同的内存空间传来传去，无法共享。</p>
-<h4 id="6-2-如何创建线程？"><a href="#6-2-如何创建线程？" class="headerlink" title="6.2 如何创建线程？"></a>6.2 如何创建线程？</h4><pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;pthread.h&gt;</span></span>
+<h3 id="6-2-如何创建线程？"><a href="#6-2-如何创建线程？" class="headerlink" title="6.2 如何创建线程？"></a>6.2 如何创建线程？</h3><pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;pthread.h&gt;</span></span>
 <span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;stdio.h&gt;</span></span>
 <span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;stdlib.h&gt;</span></span>
 
@@ -1063,7 +1063,7 @@ root     <span class="token number">32901</span> <span class="token number">3279
 <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">gcc download.c -lpthread<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
 <p>总结一下，一个普通线程的创建和运行过程。</p>
 <p><img src="/images/《趣谈Linux操作系统》学习笔记/线程的创建和运行过程.jpg" alt="线程的创建和运行过程"></p>
-<h4 id="6-3-线程的数据"><a href="#6-3-线程的数据" class="headerlink" title="6.3 线程的数据"></a>6.3 线程的数据</h4><p>我们把线程访问的数据细分成三类。</p>
+<h3 id="6-3-线程的数据"><a href="#6-3-线程的数据" class="headerlink" title="6.3 线程的数据"></a>6.3 线程的数据</h3><p>我们把线程访问的数据细分成三类。</p>
 <p><img src="/images/《趣谈Linux操作系统》学习笔记/线程访问的数据.jpg" alt="线程访问的数据"></p>
 <ol>
 <li><p>线程栈上的本地数据</p>
@@ -1088,7 +1088,7 @@ root     <span class="token number">32901</span> <span class="token number">3279
 <p> 而等到线程退出的时候，就会调用析构函数释放value。</p>
 </li>
 </ol>
-<h4 id="6-4-数据的保护"><a href="#6-4-数据的保护" class="headerlink" title="6.4 数据的保护"></a>6.4 数据的保护</h4><p>Mutex，全称Mutual Exclusion，中文叫互斥。顾名思义，有你没我，有我没你。它的模式就是在共享数据访问的时候，去申请加把锁，谁先拿到锁，谁就拿到了访问权限，其他人就只好在门外等着，等这个人访问结束，把锁打开，其他人再去争夺，还是遵循谁先拿到谁访问。</p>
+<h3 id="6-4-数据的保护"><a href="#6-4-数据的保护" class="headerlink" title="6.4 数据的保护"></a>6.4 数据的保护</h3><p>Mutex，全称Mutual Exclusion，中文叫互斥。顾名思义，有你没我，有我没你。它的模式就是在共享数据访问的时候，去申请加把锁，谁先拿到锁，谁就拿到了访问权限，其他人就只好在门外等着，等这个人访问结束，把锁打开，其他人再去争夺，还是遵循谁先拿到谁访问。</p>
 <p>使用Mutex，首先要使用pthread_mutex_init函数初始化这个mutex，初始化后，就可以用它来保护共享变量了。</p>
 <p>pthread_mutex_lock() 就是去抢那把锁的函数，如果抢到了，就可以执行下一行程序，对共享变量进行访；如果没抢到，就被阻塞在那里等待。</p>
 <p>如果不想被阻塞，可以使用pthread_mutex_trylock去抢那把锁，如果抢到了，就可以执行下一行程序，对共享变量进行访问；如果没抢到，不会被阻塞，而是返回一个错误码。</p>
@@ -1098,13 +1098,13 @@ root     <span class="token number">32901</span> <span class="token number">3279
 <p>这其实就是条件变量，也就是说如果没事儿，就让大家歇着，有事儿了就去通知，别让人家没事儿就来问问，浪费大家的时间。</p>
 <p>但是当它接到了通知，来操作共享资源的时候，还是需要抢互斥锁，因为可能很多人都受到了通知，都来访问了，所以 <strong>条件变量和互斥锁是配合使用的</strong> 。</p>
 <p><img src="/images/《趣谈Linux操作系统》学习笔记/条件变量和互斥锁配合使用流程.jpeg" alt="条件变量和互斥锁配合使用流程"></p>
-<h4 id="6-5-总结"><a href="#6-5-总结" class="headerlink" title="6.5 总结"></a>6.5 总结</h4><p><img src="/images/《趣谈Linux操作系统》学习笔记/多线程总结.png" alt="多线程总结"></p>
-<h3 id="七、进程数据结构（上）"><a href="#七、进程数据结构（上）" class="headerlink" title="七、进程数据结构（上）"></a>七、进程数据结构（上）</h3><p>在Linux里面，无论是进程，还是线程，到了内核里面，我们统一都叫任务（Task），由一个统一的结构task_struct进行管理。</p>
+<h3 id="6-5-总结"><a href="#6-5-总结" class="headerlink" title="6.5 总结"></a>6.5 总结</h3><p><img src="/images/《趣谈Linux操作系统》学习笔记/多线程总结.png" alt="多线程总结"></p>
+<h2 id="七、进程数据结构（上）"><a href="#七、进程数据结构（上）" class="headerlink" title="七、进程数据结构（上）"></a>七、进程数据结构（上）</h2><p>在Linux里面，无论是进程，还是线程，到了内核里面，我们统一都叫任务（Task），由一个统一的结构task_struct进行管理。</p>
 <p><img src="/images/《趣谈Linux操作系统》学习笔记/Linux中的任务.jpeg" alt="Linux中的任务.jpeg"></p>
 <p>Linux内核有一个链表，将所有的task_struct串起来。</p>
 <pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">struct</span> <span class="token class-name">list_head</span>        tasks<span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
 <p>接下来，我们来看每一个任务都应该包含哪些字段。</p>
-<h4 id="7-1-任务ID"><a href="#7-1-任务ID" class="headerlink" title="7.1 任务ID"></a>7.1 任务ID</h4><p>每一个任务都应该有一个ID，作为这个任务的唯一标识。到时候排期啊、下发任务啊等等，都按ID来，就不会产生歧义。</p>
+<h3 id="7-1-任务ID"><a href="#7-1-任务ID" class="headerlink" title="7.1 任务ID"></a>7.1 任务ID</h3><p>每一个任务都应该有一个ID，作为这个任务的唯一标识。到时候排期啊、下发任务啊等等，都按ID来，就不会产生歧义。</p>
 <p>task_struct里面涉及任务ID的，有下面几个：</p>
 <pre class="line-numbers language-c" data-language="c"><code class="language-c">pid_t pid<span class="token punctuation">;</span>
 pid_t tgid<span class="token punctuation">;</span>
@@ -1122,7 +1122,7 @@ pid_t tgid<span class="token punctuation">;</span>
 <p> 好了，有了tgid，我们就知道tast_struct代表的是一个进程还是代表一个线程了。</p>
 </li>
 </ol>
-<h4 id="7-2-信号处理"><a href="#7-2-信号处理" class="headerlink" title="7.2 信号处理"></a>7.2 信号处理</h4><p>task_struct里面关于信号处理的字段。</p>
+<h3 id="7-2-信号处理"><a href="#7-2-信号处理" class="headerlink" title="7.2 信号处理"></a>7.2 信号处理</h3><p>task_struct里面关于信号处理的字段。</p>
 <pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token comment">/* Signal handlers: */</span>
 <span class="token keyword">struct</span> <span class="token class-name">signal_struct</span>    <span class="token operator">*</span>signal<span class="token punctuation">;</span>
 <span class="token keyword">struct</span> <span class="token class-name">sighand_struct</span>   <span class="token operator">*</span>sighand<span class="token punctuation">;</span>
@@ -1137,7 +1137,7 @@ size_t                  sas_ss_size<span class="token punctuation">;</span>
 <p>信号处理函数默认使用用户态的函数栈，当然也可以开辟新的栈专门用于信号处理，这就是sas_ss_xxx这三个变量的作用。</p>
 <p>上面我说了下发信号的时候，需要区分进程和线程。从这里我们其实也能看出一些端倪。</p>
 <p>task_struct里面有一个struct sigpending pending。如果我们进入struct signal_struct *signal去看的话，还有一个struct sigpending shared_pending。它们一个是本任务的，一个是线程组共享的。</p>
-<h4 id="7-3-任务状态"><a href="#7-3-任务状态" class="headerlink" title="7.3 任务状态"></a>7.3 任务状态</h4><p>在task_struct里面，涉及任务状态的是下面这几个变量：</p>
+<h3 id="7-3-任务状态"><a href="#7-3-任务状态" class="headerlink" title="7.3 任务状态"></a>7.3 任务状态</h3><p>在task_struct里面，涉及任务状态的是下面这几个变量：</p>
 <pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">volatile</span> <span class="token keyword">long</span> state<span class="token punctuation">;</span>    <span class="token comment">/* -1 unrunnable, 0 runnable, &gt;0 stopped */</span>
 <span class="token keyword">int</span> exit_state<span class="token punctuation">;</span>
 <span class="token keyword">unsigned</span> <span class="token keyword">int</span> flags<span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span></span></code></pre>
@@ -1191,7 +1191,7 @@ size_t                  sas_ss_size<span class="token punctuation">;</span>
 <li><strong>PF_VCPU</strong> 表示进程运行在虚拟CPU上。在函数account_system_time中，统计进程的系统运行时间，如果有这个flag，就调用account_guest_time，按照客户机的时间进行统计。</li>
 <li><strong>PF_FORKNOEXEC</strong> 表示fork完了，还没有exec。在_do_fork函数里面调用copy_process，这个时候把flag设置为PF_FORKNOEXEC。当exec中调用了load_elf_binary的时候，又把这个flag去掉。</li>
 </ul>
-<h4 id="7-4-进程调度"><a href="#7-4-进程调度" class="headerlink" title="7.4 进程调度"></a>7.4 进程调度</h4><p>进程的状态切换往往涉及调度，下面这些字段都是用于调度的。为了让你理解task_struct进程管理的全貌，我先在这里列一下，咱们后面会有单独的章节讲解，这里你只要大概看一下里面的注释就好了。</p>
+<h3 id="7-4-进程调度"><a href="#7-4-进程调度" class="headerlink" title="7.4 进程调度"></a>7.4 进程调度</h3><p>进程的状态切换往往涉及调度，下面这些字段都是用于调度的。为了让你理解task_struct进程管理的全貌，我先在这里列一下，咱们后面会有单独的章节讲解，这里你只要大概看一下里面的注释就好了。</p>
 <pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token comment">//是否在运行队列上</span>
 <span class="token keyword">int</span>                         on_rq<span class="token punctuation">;</span>
 <span class="token comment">//优先级</span>
@@ -1211,7 +1211,7 @@ size_t                  sas_ss_size<span class="token punctuation">;</span>
 <span class="token keyword">int</span>                         nr_cpus_allowed<span class="token punctuation">;</span>
 cpumask_t                   cpus_allowed<span class="token punctuation">;</span>
 <span class="token keyword">struct</span> <span class="token class-name">sched_info</span>           sched_info<span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
-<h4 id="7-5-总结"><a href="#7-5-总结" class="headerlink" title="7.5 总结"></a>7.5 总结</h4><p>画一个图总结一下。这个图是进程管理task_struct的的结构图。其中红色的部分是今天讲的部分，你可以对着这张图说出它们的含义。</p>
+<h3 id="7-5-总结"><a href="#7-5-总结" class="headerlink" title="7.5 总结"></a>7.5 总结</h3><p>画一个图总结一下。这个图是进程管理task_struct的的结构图。其中红色的部分是今天讲的部分，你可以对着这张图说出它们的含义。</p>
 <p><img src="/images/《趣谈Linux操作系统》学习笔记/进程管理task_struct的结构图（上）.jpeg" alt="进程管理task_struct的结构图（上）"></p>
 
                 
