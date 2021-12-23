@@ -438,14 +438,14 @@
                 
                 <div class="info-break-policy">
                     <i class="far fa-file-word fa-fw"></i>文章字数:&nbsp;&nbsp;
-                    32.8k
+                    36k
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-clock fa-fw"></i>阅读时长:&nbsp;&nbsp;
-                    129 分
+                    141 分
                 </div>
                 
 
@@ -2727,6 +2727,136 @@ internal_function
 <h3 id="14-4-总结"><a href="#14-4-总结" class="headerlink" title="14.4 总结"></a>14.4 总结</h3><p>线程的调用过程解析完毕了，我画了一个图总结一下。这个图对比了创建进程和创建线程在用户态和内核态的不同。</p>
 <p>创建进程的话，调用的系统调用是fork，在copy_process函数里面，会将五大结构files_struct、fs_struct、sighand_struct、signal_struct、mm_struct都复制一遍，从此父进程和子进程各用各的数据结构。而创建线程的话，调用的是系统调用clone，在copy_process函数里面， 五大结构仅仅是引用计数加一，也即线程共享进程的数据结构。</p>
 <p><img src="/images/《趣谈Linux操作系统》学习笔记/创建进程和创建线程过程对比.jpeg" alt="创建进程和创建线程过程对比"></p>
+<h2 id="十五、内存管理（上）"><a href="#十五、内存管理（上）" class="headerlink" title="十五、内存管理（上）"></a>十五、内存管理（上）</h2><p>平时我们说计算机的“计算”两个字，其实说的就是两方面，第一，进程和线程对于CPU的使用；第二，对于内存的管理。</p>
+<h3 id="15-1-独享内存空间的原理"><a href="#15-1-独享内存空间的原理" class="headerlink" title="15.1 独享内存空间的原理"></a>15.1 独享内存空间的原理</h3><p>内存都被分成一块一块儿的，都编好了号。</p>
+<p>操作系统会给进程分配一个虚拟地址。所有进程看到的这个地址都是一样的，里面的内存都是从0开始编号。</p>
+<p>在程序里面，指令写入的地址是虚拟地址。例如，位置为10M的内存区域，操作系统会提供一种机制，将不同进程的虚拟地址和不同内存的物理地址映射起来。</p>
+<p>当程序要访问虚拟地址的时候，由内核的数据结构进行转换，转换成不同的物理地址，这样不同的进程运行的时候，写入的是不同的物理地址，这样就不会冲突了。</p>
+<h3 id="15-2-规划虚拟地址空间"><a href="#15-2-规划虚拟地址空间" class="headerlink" title="15.2 规划虚拟地址空间"></a>15.2 规划虚拟地址空间</h3><p>操作系统的内存管理，主要分为三个方面。</p>
+<ul>
+<li>第一，物理内存的管理；</li>
+<li>第二，虚拟地址的管理；</li>
+<li>第三，虚拟地址和物理地址如何映射。</li>
+</ul>
+<p>接下来，我们都会围绕虚拟地址和物理地址展开。这两个概念有点绕，很多时候你可能会犯糊涂：这个地方，我们用的是虚拟地址呢，还是物理地址呢？所以，请你在学习这一章节的时候，时刻问自己这个问题。</p>
+<p>一个程序：</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;stdio.h&gt;</span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;stdlib.h&gt;</span></span>
+
+<span class="token keyword">int</span> max_length <span class="token operator">=</span> <span class="token number">128</span><span class="token punctuation">;</span>
+
+<span class="token keyword">char</span> <span class="token operator">*</span> <span class="token function">generate</span><span class="token punctuation">(</span><span class="token keyword">int</span> length<span class="token punctuation">)</span><span class="token punctuation">{</span>
+  <span class="token keyword">int</span> i<span class="token punctuation">;</span>
+  <span class="token keyword">char</span> <span class="token operator">*</span> buffer <span class="token operator">=</span> <span class="token punctuation">(</span><span class="token keyword">char</span><span class="token operator">*</span><span class="token punctuation">)</span> <span class="token function">malloc</span> <span class="token punctuation">(</span>length<span class="token operator">+</span><span class="token number">1</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+  <span class="token keyword">if</span> <span class="token punctuation">(</span>buffer <span class="token operator">==</span> <span class="token constant">NULL</span><span class="token punctuation">)</span>
+    <span class="token keyword">return</span> <span class="token constant">NULL</span><span class="token punctuation">;</span>
+  <span class="token keyword">for</span> <span class="token punctuation">(</span>i<span class="token operator">=</span><span class="token number">0</span><span class="token punctuation">;</span> i<span class="token operator">&lt;</span>length<span class="token punctuation">;</span> i<span class="token operator">++</span><span class="token punctuation">)</span><span class="token punctuation">{</span>
+    buffer<span class="token punctuation">[</span>i<span class="token punctuation">]</span><span class="token operator">=</span><span class="token function">rand</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token operator">%</span><span class="token number">26</span><span class="token operator">+</span><span class="token string">'a'</span><span class="token punctuation">;</span>
+  <span class="token punctuation">}</span>
+  buffer<span class="token punctuation">[</span>length<span class="token punctuation">]</span><span class="token operator">=</span><span class="token string">'\0'</span><span class="token punctuation">;</span>
+  <span class="token keyword">return</span> buffer<span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+
+<span class="token keyword">int</span> <span class="token function">main</span><span class="token punctuation">(</span><span class="token keyword">int</span> argc<span class="token punctuation">,</span> <span class="token keyword">char</span> <span class="token operator">*</span>argv<span class="token punctuation">[</span><span class="token punctuation">]</span><span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+  <span class="token keyword">int</span> num<span class="token punctuation">;</span>
+  <span class="token keyword">char</span> <span class="token operator">*</span> buffer<span class="token punctuation">;</span>
+
+  <span class="token function">printf</span> <span class="token punctuation">(</span><span class="token string">"Input the string length : "</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+  <span class="token function">scanf</span> <span class="token punctuation">(</span><span class="token string">"%d"</span><span class="token punctuation">,</span> <span class="token operator">&amp;</span>num<span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+  <span class="token keyword">if</span><span class="token punctuation">(</span>num <span class="token operator">&gt;</span> max_length<span class="token punctuation">)</span><span class="token punctuation">{</span>
+    num <span class="token operator">=</span> max_length<span class="token punctuation">;</span>
+  <span class="token punctuation">}</span>
+
+  buffer <span class="token operator">=</span> <span class="token function">generate</span><span class="token punctuation">(</span>num<span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+  <span class="token function">printf</span> <span class="token punctuation">(</span><span class="token string">"Random string is: %s\n"</span><span class="token punctuation">,</span>buffer<span class="token punctuation">)</span><span class="token punctuation">;</span>
+  <span class="token function">free</span> <span class="token punctuation">(</span>buffer<span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+  <span class="token keyword">return</span> <span class="token number">0</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>这个程序比较简单，就是根据用户输入的整数来生成字符串，最长是128。由于字符串的长度不是固定的，因而不能提前知道，需要动态地分配内存，使用malloc函数。当然用完了需要释放内存，这就要使用free函数。</p>
+<p>我们来总结一下，这个简单的程序使用哪些内存的几种方式：</p>
+<ul>
+<li>代码需要放在内存里面；</li>
+<li>全局变量，例如max_length；</li>
+<li>常量字符串”Input the string length : “；</li>
+<li>函数栈，例如局部变量num是作为参数传给generate函数的，这里面涉及了函数调用，局部变量，函数参数等都是保存在函数栈上面的；</li>
+<li>堆，malloc分配的内存在堆里面；</li>
+<li>这里面涉及对glibc的调用，所以glibc的代码是以so文件的形式存在的，也需要放在内存里面。</li>
+</ul>
+<p>这就完了吗？还没有呢，别忘了malloc会调用系统调用，进入内核，所以这个程序一旦运行起来，内核部分还需要分配内存：</p>
+<ul>
+<li>内核的代码要在内存里面；</li>
+<li>内核中也有全局变量；</li>
+<li>每个进程都要有一个task_struct；</li>
+<li>每个进程还有一个内核栈；</li>
+<li>在内核里面也有动态分配的内存；</li>
+<li>虚拟地址到物理地址的映射表放在哪里？</li>
+</ul>
+<p>对于内存的访问，用户态的进程使用虚拟地址，这点毫无疑问，内核态的也基本都是使用虚拟地址，只有最后一项容易让人产生疑问。虚拟地址到物理地址的映射表，这个感觉起来是内存管理模块的一部分，这个是“实”是“虚”呢？这个问题先保留，我们暂不讨论，放到内存映射那一节见分晓。</p>
+<p>既然都是虚拟地址，我们就先不管映射到物理地址以后是如何布局的，反正现在至少从“虚”的角度来看，这一大片连续的内存空间都是我的了。</p>
+<p>首先，这么大的虚拟空间一切二，一部分用来放内核的东西，称为 <strong>内核空间</strong> ，一部分用来放进程的东西，称为 <strong>用户空间</strong> 。用户空间在下，在低地址，内核空间在上，在高地址。这两部分空间的分界线因为32位和64位的不同而不同。</p>
+<p>对于普通进程来说，内核空间的那部分虽然虚拟地址在那里，但是不能访问。</p>
+<p>我们从最低位开始排起，先是 <strong>Text Segment</strong> 、 <strong>Data Segment</strong> 和 <strong>BSS Segment</strong> 。Text Segment是存放二进制可执行代码的位置，Data Segment存放静态常量，BSS Segment存放未初始化的静态变量。是不是觉得这几个名字很熟悉？没错，咱们前面讲ELF格式的时候提到过，在二进制执行文件里面，就有这三个部分。这里就是把二进制执行文件的三个部分加载到内存里面。</p>
+<p>接下来是 <strong>堆（Heap）段</strong> 。堆是往高地址增长的，是用来动态分配内存的区域，malloc就是在这里面分配的。</p>
+<p>接下来的区域是 <strong>Memory Mapping Segment</strong> 。这块地址可以用来把文件映射进内存用的，如果二进制的执行文件依赖于某个动态链接库，就是在这个区域里面将so文件映射到了内存中。</p>
+<p>再下面就是 <strong>栈（Stack）地址段</strong> 。主线程的函数调用的函数栈就是用这里的。</p>
+<p>如果需要进行更高权限的工作，就需要调用系统调用，进入内核。</p>
+<p>到了内核里面，无论是从哪个进程进来的，看到的都是同一个内核空间，看到的都是同一个进程列表。虽然内核栈是各用个的，但是如果想知道的话，还是能够知道每个进程的内核栈在哪里的。所以，如果要访问一些公共的数据结构，需要进行锁保护。</p>
+<p>内核的代码访问内核的数据结构，大部分的情况下都是使用虚拟地址的，虽然内核代码权限很大，但是能够使用的虚拟地址范围也只能在内核空间，也即内核代码访问内核数据结构（不能访问用户空间）。</p>
+<p>在内核里面也会有内核的代码，同样有Text Segment、Data Segment和BSS Segment，别忘了咱们讲内核启动的时候，内核代码也是ELF格式的。</p>
+<h2 id="十六、内存管理（下）"><a href="#十六、内存管理（下）" class="headerlink" title="十六、内存管理（下）"></a>十六、内存管理（下）</h2><p>接下来，我们需要知道，如何将其映射成为物理地址呢？</p>
+<p>你可能已经想到了，咱们前面讲x86 CPU的时候，讲过分段机制，咱们规划虚拟空间的时候，也是将空间分成多个段进行保存。</p>
+<p>那就直接用分段机制呗。我们来看看分段机制的原理。</p>
+<p><img src="/images/《趣谈Linux操作系统》学习笔记/分段机制的原理.jpg" alt="分段机制的原理"></p>
+<p>分段机制下的虚拟地址由两部分组成， <strong>段选择子</strong> 和 <strong>段内偏移量</strong> 。段选择子就保存在咱们前面讲过的段寄存器里面。段选择子里面最重要的是段号，用作段表的索引。段表里面保存的是这个段的 <strong>基地址</strong> 、 <strong>段的界限</strong> 和 <strong>特权等级</strong> 等。虚拟地址中的段内偏移量应该位于0和段界限之间。如果段内偏移量是合法的，就将段基地址加上段内偏移量得到物理内存地址。</p>
+<p>我们来看看Linux是如何使用这个机制的。</p>
+<p>在Linux里面，段表全称 <strong>段描述符表（segment descriptors）</strong> ，放在 <strong>全局描述符表GDT（Global Descriptor Table）</strong> 里面，会有下面的宏来初始化段描述符表里面的表项。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">define</span> <span class="token expression"><span class="token function">GDT_ENTRY_INIT</span><span class="token punctuation">(</span>flags<span class="token punctuation">,</span> base<span class="token punctuation">,</span> limit<span class="token punctuation">)</span> <span class="token punctuation">{</span> <span class="token punctuation">{</span> <span class="token punctuation">{</span> </span><span class="token punctuation">\</span>
+        <span class="token expression"><span class="token punctuation">.</span>a <span class="token operator">=</span> <span class="token punctuation">(</span><span class="token punctuation">(</span>limit<span class="token punctuation">)</span> <span class="token operator">&amp;</span> <span class="token number">0xffff</span><span class="token punctuation">)</span> <span class="token operator">|</span> <span class="token punctuation">(</span><span class="token punctuation">(</span><span class="token punctuation">(</span>base<span class="token punctuation">)</span> <span class="token operator">&amp;</span> <span class="token number">0xffff</span><span class="token punctuation">)</span> <span class="token operator">&lt;&lt;</span> <span class="token number">16</span><span class="token punctuation">)</span><span class="token punctuation">,</span> </span><span class="token punctuation">\</span>
+        <span class="token expression"><span class="token punctuation">.</span>b <span class="token operator">=</span> <span class="token punctuation">(</span><span class="token punctuation">(</span><span class="token punctuation">(</span>base<span class="token punctuation">)</span> <span class="token operator">&amp;</span> <span class="token number">0xff0000</span><span class="token punctuation">)</span> <span class="token operator">&gt;&gt;</span> <span class="token number">16</span><span class="token punctuation">)</span> <span class="token operator">|</span> <span class="token punctuation">(</span><span class="token punctuation">(</span><span class="token punctuation">(</span>flags<span class="token punctuation">)</span> <span class="token operator">&amp;</span> <span class="token number">0xf0ff</span><span class="token punctuation">)</span> <span class="token operator">&lt;&lt;</span> <span class="token number">8</span><span class="token punctuation">)</span> <span class="token operator">|</span> </span><span class="token punctuation">\</span>
+            <span class="token expression"><span class="token punctuation">(</span><span class="token punctuation">(</span>limit<span class="token punctuation">)</span> <span class="token operator">&amp;</span> <span class="token number">0xf0000</span><span class="token punctuation">)</span> <span class="token operator">|</span> <span class="token punctuation">(</span><span class="token punctuation">(</span>base<span class="token punctuation">)</span> <span class="token operator">&amp;</span> <span class="token number">0xff000000</span><span class="token punctuation">)</span><span class="token punctuation">,</span> </span><span class="token punctuation">\</span>
+    <span class="token expression"><span class="token punctuation">}</span> <span class="token punctuation">}</span> <span class="token punctuation">}</span></span></span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>一个段表项由段基地址base、段界限limit，还有一些标识符组成。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token function">DEFINE_PER_CPU_PAGE_ALIGNED</span><span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">gdt_page</span><span class="token punctuation">,</span> gdt_page<span class="token punctuation">)</span> <span class="token operator">=</span> <span class="token punctuation">{</span> <span class="token punctuation">.</span>gdt <span class="token operator">=</span> <span class="token punctuation">{</span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">ifdef</span> <span class="token expression">CONFIG_X86_64</span></span>
+    <span class="token punctuation">[</span>GDT_ENTRY_KERNEL32_CS<span class="token punctuation">]</span>         <span class="token operator">=</span> <span class="token function">GDT_ENTRY_INIT</span><span class="token punctuation">(</span><span class="token number">0xc09b</span><span class="token punctuation">,</span> <span class="token number">0</span><span class="token punctuation">,</span> <span class="token number">0xfffff</span><span class="token punctuation">)</span><span class="token punctuation">,</span>
+    <span class="token punctuation">[</span>GDT_ENTRY_KERNEL_CS<span class="token punctuation">]</span>           <span class="token operator">=</span> <span class="token function">GDT_ENTRY_INIT</span><span class="token punctuation">(</span><span class="token number">0xa09b</span><span class="token punctuation">,</span> <span class="token number">0</span><span class="token punctuation">,</span> <span class="token number">0xfffff</span><span class="token punctuation">)</span><span class="token punctuation">,</span>
+    <span class="token punctuation">[</span>GDT_ENTRY_KERNEL_DS<span class="token punctuation">]</span>           <span class="token operator">=</span> <span class="token function">GDT_ENTRY_INIT</span><span class="token punctuation">(</span><span class="token number">0xc093</span><span class="token punctuation">,</span> <span class="token number">0</span><span class="token punctuation">,</span> <span class="token number">0xfffff</span><span class="token punctuation">)</span><span class="token punctuation">,</span>
+    <span class="token punctuation">[</span>GDT_ENTRY_DEFAULT_USER32_CS<span class="token punctuation">]</span>   <span class="token operator">=</span> <span class="token function">GDT_ENTRY_INIT</span><span class="token punctuation">(</span><span class="token number">0xc0fb</span><span class="token punctuation">,</span> <span class="token number">0</span><span class="token punctuation">,</span> <span class="token number">0xfffff</span><span class="token punctuation">)</span><span class="token punctuation">,</span>
+    <span class="token punctuation">[</span>GDT_ENTRY_DEFAULT_USER_DS<span class="token punctuation">]</span>     <span class="token operator">=</span> <span class="token function">GDT_ENTRY_INIT</span><span class="token punctuation">(</span><span class="token number">0xc0f3</span><span class="token punctuation">,</span> <span class="token number">0</span><span class="token punctuation">,</span> <span class="token number">0xfffff</span><span class="token punctuation">)</span><span class="token punctuation">,</span>
+    <span class="token punctuation">[</span>GDT_ENTRY_DEFAULT_USER_CS<span class="token punctuation">]</span>     <span class="token operator">=</span> <span class="token function">GDT_ENTRY_INIT</span><span class="token punctuation">(</span><span class="token number">0xa0fb</span><span class="token punctuation">,</span> <span class="token number">0</span><span class="token punctuation">,</span> <span class="token number">0xfffff</span><span class="token punctuation">)</span><span class="token punctuation">,</span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">else</span></span>
+    <span class="token punctuation">[</span>GDT_ENTRY_KERNEL_CS<span class="token punctuation">]</span>           <span class="token operator">=</span> <span class="token function">GDT_ENTRY_INIT</span><span class="token punctuation">(</span><span class="token number">0xc09a</span><span class="token punctuation">,</span> <span class="token number">0</span><span class="token punctuation">,</span> <span class="token number">0xfffff</span><span class="token punctuation">)</span><span class="token punctuation">,</span>
+    <span class="token punctuation">[</span>GDT_ENTRY_KERNEL_DS<span class="token punctuation">]</span>           <span class="token operator">=</span> <span class="token function">GDT_ENTRY_INIT</span><span class="token punctuation">(</span><span class="token number">0xc092</span><span class="token punctuation">,</span> <span class="token number">0</span><span class="token punctuation">,</span> <span class="token number">0xfffff</span><span class="token punctuation">)</span><span class="token punctuation">,</span>
+    <span class="token punctuation">[</span>GDT_ENTRY_DEFAULT_USER_CS<span class="token punctuation">]</span>     <span class="token operator">=</span> <span class="token function">GDT_ENTRY_INIT</span><span class="token punctuation">(</span><span class="token number">0xc0fa</span><span class="token punctuation">,</span> <span class="token number">0</span><span class="token punctuation">,</span> <span class="token number">0xfffff</span><span class="token punctuation">)</span><span class="token punctuation">,</span>
+    <span class="token punctuation">[</span>GDT_ENTRY_DEFAULT_USER_DS<span class="token punctuation">]</span>     <span class="token operator">=</span> <span class="token function">GDT_ENTRY_INIT</span><span class="token punctuation">(</span><span class="token number">0xc0f2</span><span class="token punctuation">,</span> <span class="token number">0</span><span class="token punctuation">,</span> <span class="token number">0xfffff</span><span class="token punctuation">)</span><span class="token punctuation">,</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">endif</span></span>
+<span class="token punctuation">}</span> <span class="token punctuation">}</span><span class="token punctuation">;</span>
+<span class="token function">EXPORT_PER_CPU_SYMBOL_GPL</span><span class="token punctuation">(</span>gdt_page<span class="token punctuation">)</span><span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>这里面对于64位的和32位的，都定义了内核代码段、内核数据段、用户代码段和用户数据段。</p>
+<p>另外，还会定义下面四个段选择子，指向上面的段描述符表项。这四个段选择子看着是不是有点眼熟？咱们讲内核初始化的时候，启动第一个用户态的进程，就是将这四个值赋值给段寄存器。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">define</span> <span class="token expression"><span class="token function">__KERNEL_CS</span>         <span class="token punctuation">(</span>GDT_ENTRY_KERNEL_CS<span class="token operator">*</span><span class="token number">8</span><span class="token punctuation">)</span></span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">define</span> <span class="token expression"><span class="token function">__KERNEL_DS</span>         <span class="token punctuation">(</span>GDT_ENTRY_KERNEL_DS<span class="token operator">*</span><span class="token number">8</span><span class="token punctuation">)</span></span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">define</span> <span class="token expression"><span class="token function">__USER_DS</span>           <span class="token punctuation">(</span>GDT_ENTRY_DEFAULT_USER_DS<span class="token operator">*</span><span class="token number">8</span> <span class="token operator">+</span> <span class="token number">3</span><span class="token punctuation">)</span></span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">define</span> <span class="token expression"><span class="token function">__USER_CS</span>           <span class="token punctuation">(</span>GDT_ENTRY_DEFAULT_USER_CS<span class="token operator">*</span><span class="token number">8</span> <span class="token operator">+</span> <span class="token number">3</span><span class="token punctuation">)</span></span></span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span></span></code></pre>
+<p>通过分析，我们发现，所有的段的起始地址都是一样的，都是0。这算哪门子分段嘛！所以，在Linux操作系统中，并没有使用到全部的分段功能。那分段是不是完全没有用处呢？分段可以做权限审核，例如用户态DPL是3，内核态DPL是0。当用户态试图访问内核态的时候，会因为权限不足而报错。</p>
+<p>其实Linux倾向于另外一种从虚拟地址到物理地址的转换方式，称为 <strong>分页（Paging）</strong> 。</p>
+<p>对于物理内存，操作系统把它分成一块一块大小相同的页，这样更方便管理，例如有的内存页面长时间不用了，可以暂时写到硬盘上，称为 <strong>换出</strong> 。一旦需要的时候，再加载进来，叫作 <strong>换入</strong> 。这样可以扩大可用物理内存的大小，提高物理内存的利用率。</p>
+<p>这个换入和换出都是以页为单位的。页面的大小一般为4KB。为了能够定位和访问每个页，需要有个页表，保存每个页的起始地址，再加上在页内的偏移量，组成线性地址，就能对于内存中的每个位置进行访问了。</p>
+<p><img src="/images/《趣谈Linux操作系统》学习笔记/分页机制的原理.jpg" alt="分页机制的原理"></p>
+<p>32位环境下，虚拟地址空间共4GB。如果分成4KB一个页，那就是1M个页。每个页表项需要4个字节来存储，那么整个4GB空间的映射就需要4MB的内存来存储映射表。如果每个进程都有自己的映射表，100个进程就需要400MB的内存。对于内核来讲，有点大了 。</p>
+<p>页表中所有页表项必须提前建好，并且要求是连续的。如果不连续，就没有办法通过虚拟地址里面的页号找到对应的页表项了。</p>
+<p>那怎么办呢？我们可以试着将页表再分页，4G的空间需要4M的页表来存储映射。我们把这4M分成1K（1024）个4K，每个4K又能放在一页里面，这样1K个4K就是1K个页，这1K个页也需要一个表进行管理，我们称为页目录表，这个页目录表里面有1K项，每项4个字节，页目录表大小也是4K。</p>
+<p>页目录有1K项，用10位就可以表示访问页目录的哪一项。这一项其实对应的是一整页的页表项，也即4K的页表项。每个页表项也是4个字节，因而一整页的页表项是1K个。再用10位就可以表示访问页表项的哪一项，页表项中的一项对应的就是一个页，是存放数据的页，这个页的大小是4K，用12位可以定位这个页内的任何一个位置。</p>
+<p>这样加起来正好32位，也就是用前10位定位到页目录表中的一项。将这一项对应的页表取出来共1k项，再用中间10位定位到页表中的一项，将这一项对应的存放数据的页取出来，再用最后12位定位到页中的具体位置访问数据。</p>
+<p><img src="/images/《趣谈Linux操作系统》学习笔记/两级分页.jpg" alt="两级分页"></p>
+<p>比如说，上面图中，我们假设只给这个进程分配了一个数据页。如果只使用页表，也需要完整的1M个页表项共4M的内存，但是如果使用了页目录，页目录需要1K个全部分配，占用内存4K，但是里面只有一项使用了。到了页表项，只需要分配能够管理那个数据页的页表项页就可以了，也就是说，最多4K，这样内存就节省多了。</p>
+<p>当然对于64位的系统，两级肯定不够了，就变成了四级目录，分别是全局页目录项PGD（Page Global Directory）、上层页目录项PUD（Page Upper Directory）、中间页目录项PMD（Page Middle Directory）和页表项PTE（Page Table Entry）。</p>
+<p><img src="/images/《趣谈Linux操作系统》学习笔记/四级分页.jpg" alt="四级分页"></p>
 
                 
             </div>
@@ -3128,7 +3258,7 @@ internal_function
             <br>
             
             &nbsp;<i class="fas fa-chart-area"></i>&nbsp;站点总字数:&nbsp;<span
-                class="white-color">439.1k</span>&nbsp;字
+                class="white-color">442.3k</span>&nbsp;字
             
             
             
