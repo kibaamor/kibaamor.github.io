@@ -438,14 +438,14 @@
                 
                 <div class="info-break-policy">
                     <i class="far fa-file-word fa-fw"></i>文章字数:&nbsp;&nbsp;
-                    65.2k
+                    68.7k
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-clock fa-fw"></i>阅读时长:&nbsp;&nbsp;
-                    257 分
+                    272 分
                 </div>
                 
 
@@ -806,7 +806,7 @@ syscall_return_via_sysret<span class="token operator">:</span>
     <span class="token expression">sysretq<span class="token punctuation">;</span></span></span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span></span></code></pre>
 <p>这里，返回用户态的指令变成了sysretq。</p>
 <p>我们这里总结一下64位的系统调用是如何执行的。</p>
-<p><img src="/images/《趣谈Linux操作系统》学习笔记/64位系统调用执行过程.jpg" alt="64位系统调用执行过程.jpg"></p>
+<p><img src="/images/《趣谈Linux操作系统》学习笔记/64位系统调用执行过程.jpg" alt="64位系统调用执行过程"></p>
 <h3 id="4-4-系统调用表"><a href="#4-4-系统调用表" class="headerlink" title="4.4 系统调用表"></a>4.4 系统调用表</h3><p>32位的系统调用表定义在面arch/x86/entry/syscalls/syscall_32.tbl文件里。例如open是这样定义的：</p>
 <pre class="line-numbers language-text" data-language="text"><code class="language-text">5   i386    open            sys_open  compat_sys_open<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
 <p>64位的系统调用定义在另一个文件arch/x86/entry/syscalls/syscall_64.tbl里。例如open是这样定义的：</p>
@@ -890,7 +890,7 @@ asmlinkage <span class="token keyword">const</span> sys_call_ptr_t sys_call_tabl
 gcc -c -fPIC test_mylib.c<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre>
 <ol>
 <li><p>可重定位文件<br> 在编译的时候，先做预处理工作，例如将头文件嵌入到正文中，将定义的宏展开，然后就是真正的编译过程，最终编译成为.o文件，这就是ELF的第一种类型，<strong>可重定位文件（Relocatable File）</strong> 。</p>
-<p> <img src="/images/《趣谈Linux操作系统》学习笔记/可重定位文件格式.jpg" alt="可重定位文件格式.jpg"></p>
+<p> <img src="/images/《趣谈Linux操作系统》学习笔记/可重定位文件格式.jpg" alt="可重定位文件格式"></p>
 <p> ELF文件的头是用于描述整个文件的。这个文件格式在内核中有定义，分别为struct elf32_hdr和struct elf64_hdr。</p>
 <p> 接下来来看一个一个的section，也叫节。</p>
 <ul>
@@ -5028,6 +5028,310 @@ ino <span class="token operator">=</span> <span class="token function">ext4_find
 <p>如果说file结构是一个文件打开以后才创建的，dentry是放在一个dentry cache里面的，文件关闭了，他依然存在，因而他可以更长期的维护内存中的文件的表示和硬盘上文件的表示之间的关系。</p>
 <p>inode结构就表示硬盘上的inode，包括块设备号等。</p>
 <p>几乎每一种结构都有自己对应的operation结构，里面都是一些方法，因而当后面遇到对于某种结构进行处理的时候，如果不容易找到相应的处理函数，就先找这个operation结构，就清楚了。</p>
+<h2 id="二十五、文件缓存"><a href="#二十五、文件缓存" class="headerlink" title="二十五、文件缓存"></a>二十五、文件缓存</h2><h3 id="25-1-系统调用层和虚拟文件系统层"><a href="#25-1-系统调用层和虚拟文件系统层" class="headerlink" title="25.1 系统调用层和虚拟文件系统层"></a>25.1 系统调用层和虚拟文件系统层</h3><p>文件系统的读写，其实就是调用系统函数read和write。由于读和写的很多逻辑是相似的，这里我们一起来看一下这个过程。</p>
+<p>下面的代码就是read和write的系统调用，在内核里面的定义。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token function">SYSCALL_DEFINE3</span><span class="token punctuation">(</span>read<span class="token punctuation">,</span> <span class="token keyword">unsigned</span> <span class="token keyword">int</span><span class="token punctuation">,</span> fd<span class="token punctuation">,</span> <span class="token keyword">char</span> __user <span class="token operator">*</span><span class="token punctuation">,</span> buf<span class="token punctuation">,</span> size_t<span class="token punctuation">,</span> count<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword">struct</span> <span class="token class-name">fd</span> f <span class="token operator">=</span> <span class="token function">fdget_pos</span><span class="token punctuation">(</span>fd<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    loff_t pos <span class="token operator">=</span> <span class="token function">file_pos_read</span><span class="token punctuation">(</span>f<span class="token punctuation">.</span>file<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    ret <span class="token operator">=</span> <span class="token function">vfs_read</span><span class="token punctuation">(</span>f<span class="token punctuation">.</span>file<span class="token punctuation">,</span> buf<span class="token punctuation">,</span> count<span class="token punctuation">,</span> <span class="token operator">&amp;</span>pos<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+<span class="token punctuation">}</span>
+
+
+<span class="token function">SYSCALL_DEFINE3</span><span class="token punctuation">(</span>write<span class="token punctuation">,</span> <span class="token keyword">unsigned</span> <span class="token keyword">int</span><span class="token punctuation">,</span> fd<span class="token punctuation">,</span> <span class="token keyword">const</span> <span class="token keyword">char</span> __user <span class="token operator">*</span><span class="token punctuation">,</span> buf<span class="token punctuation">,</span>
+        size_t<span class="token punctuation">,</span> count<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword">struct</span> <span class="token class-name">fd</span> f <span class="token operator">=</span> <span class="token function">fdget_pos</span><span class="token punctuation">(</span>fd<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    loff_t pos <span class="token operator">=</span> <span class="token function">file_pos_read</span><span class="token punctuation">(</span>f<span class="token punctuation">.</span>file<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    ret <span class="token operator">=</span> <span class="token function">vfs_write</span><span class="token punctuation">(</span>f<span class="token punctuation">.</span>file<span class="token punctuation">,</span> buf<span class="token punctuation">,</span> count<span class="token punctuation">,</span> <span class="token operator">&amp;</span>pos<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>对于read来讲，里面调用vfs_read-&gt;<strong>vfs_read。对于write来讲，里面调用vfs_write-&gt;</strong>vfs_write。</p>
+<p>下面是<strong>vfs_read和</strong>vfs_write的代码。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c">ssize_t <span class="token function">__vfs_read</span><span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">file</span> <span class="token operator">*</span>file<span class="token punctuation">,</span> <span class="token keyword">char</span> __user <span class="token operator">*</span>buf<span class="token punctuation">,</span> size_t count<span class="token punctuation">,</span>
+        loff_t <span class="token operator">*</span>pos<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword">if</span> <span class="token punctuation">(</span>file<span class="token operator">-&gt;</span>f_op<span class="token operator">-&gt;</span>read<span class="token punctuation">)</span>
+        <span class="token keyword">return</span> file<span class="token operator">-&gt;</span>f_op<span class="token operator">-&gt;</span><span class="token function">read</span><span class="token punctuation">(</span>file<span class="token punctuation">,</span> buf<span class="token punctuation">,</span> count<span class="token punctuation">,</span> pos<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">else</span> <span class="token keyword">if</span> <span class="token punctuation">(</span>file<span class="token operator">-&gt;</span>f_op<span class="token operator">-&gt;</span>read_iter<span class="token punctuation">)</span>
+        <span class="token keyword">return</span> <span class="token function">new_sync_read</span><span class="token punctuation">(</span>file<span class="token punctuation">,</span> buf<span class="token punctuation">,</span> count<span class="token punctuation">,</span> pos<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">else</span>
+        <span class="token keyword">return</span> <span class="token operator">-</span>EINVAL<span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+
+ssize_t <span class="token function">__vfs_write</span><span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">file</span> <span class="token operator">*</span>file<span class="token punctuation">,</span> <span class="token keyword">const</span> <span class="token keyword">char</span> __user <span class="token operator">*</span>p<span class="token punctuation">,</span> size_t count<span class="token punctuation">,</span>
+         loff_t <span class="token operator">*</span>pos<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword">if</span> <span class="token punctuation">(</span>file<span class="token operator">-&gt;</span>f_op<span class="token operator">-&gt;</span>write<span class="token punctuation">)</span>
+        <span class="token keyword">return</span> file<span class="token operator">-&gt;</span>f_op<span class="token operator">-&gt;</span><span class="token function">write</span><span class="token punctuation">(</span>file<span class="token punctuation">,</span> p<span class="token punctuation">,</span> count<span class="token punctuation">,</span> pos<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">else</span> <span class="token keyword">if</span> <span class="token punctuation">(</span>file<span class="token operator">-&gt;</span>f_op<span class="token operator">-&gt;</span>write_iter<span class="token punctuation">)</span>
+        <span class="token keyword">return</span> <span class="token function">new_sync_write</span><span class="token punctuation">(</span>file<span class="token punctuation">,</span> p<span class="token punctuation">,</span> count<span class="token punctuation">,</span> pos<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">else</span>
+        <span class="token keyword">return</span> <span class="token operator">-</span>EINVAL<span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>上一节，我们讲了，每一个打开的文件，都有一个struct file结构。这里面有一个struct file_operations f_op，用于定义对这个文件做的操作。<strong>vfs_read会调用相应文件系统的file_operations里面的read操作，</strong>vfs_write会调用相应文件系统file_operations里的write操作。</p>
+<h3 id="25-2-ext4文件系统层"><a href="#25-2-ext4文件系统层" class="headerlink" title="25.2 ext4文件系统层"></a>25.2 ext4文件系统层</h3><p>对于ext4文件系统来讲，内核定义了一个ext4_file_operations。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">const</span> <span class="token keyword">struct</span> <span class="token class-name">file_operations</span> ext4_file_operations <span class="token operator">=</span> <span class="token punctuation">{</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    <span class="token punctuation">.</span>read_iter  <span class="token operator">=</span> ext4_file_read_iter<span class="token punctuation">,</span>
+    <span class="token punctuation">.</span>write_iter <span class="token operator">=</span> ext4_file_write_iter<span class="token punctuation">,</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>由于ext4没有定义read和write函数，于是会调用ext4_file_read_iter和ext4_file_write_iter。</p>
+<p>ext4_file_read_iter会调用generic_file_read_iter，ext4_file_write_iter会调用__generic_file_write_iter。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c">ssize_t
+<span class="token function">generic_file_read_iter</span><span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">kiocb</span> <span class="token operator">*</span>iocb<span class="token punctuation">,</span> <span class="token keyword">struct</span> <span class="token class-name">iov_iter</span> <span class="token operator">*</span>iter<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    <span class="token keyword">if</span> <span class="token punctuation">(</span>iocb<span class="token operator">-&gt;</span>ki_flags <span class="token operator">&amp;</span> IOCB_DIRECT<span class="token punctuation">)</span> <span class="token punctuation">{</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+        <span class="token keyword">struct</span> <span class="token class-name">address_space</span> <span class="token operator">*</span>mapping <span class="token operator">=</span> file<span class="token operator">-&gt;</span>f_mapping<span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+        retval <span class="token operator">=</span> mapping<span class="token operator">-&gt;</span>a_ops<span class="token operator">-&gt;</span><span class="token function">direct_IO</span><span class="token punctuation">(</span>iocb<span class="token punctuation">,</span> iter<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    retval <span class="token operator">=</span> <span class="token function">generic_file_buffered_read</span><span class="token punctuation">(</span>iocb<span class="token punctuation">,</span> iter<span class="token punctuation">,</span> retval<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+
+ssize_t <span class="token function">__generic_file_write_iter</span><span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">kiocb</span> <span class="token operator">*</span>iocb<span class="token punctuation">,</span> <span class="token keyword">struct</span> <span class="token class-name">iov_iter</span> <span class="token operator">*</span>from<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    <span class="token keyword">if</span> <span class="token punctuation">(</span>iocb<span class="token operator">-&gt;</span>ki_flags <span class="token operator">&amp;</span> IOCB_DIRECT<span class="token punctuation">)</span> <span class="token punctuation">{</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+        written <span class="token operator">=</span> <span class="token function">generic_file_direct_write</span><span class="token punctuation">(</span>iocb<span class="token punctuation">,</span> from<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    <span class="token punctuation">}</span> <span class="token keyword">else</span> <span class="token punctuation">{</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+        written <span class="token operator">=</span> <span class="token function">generic_perform_write</span><span class="token punctuation">(</span>file<span class="token punctuation">,</span> from<span class="token punctuation">,</span> iocb<span class="token operator">-&gt;</span>ki_pos<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    <span class="token punctuation">}</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>generic_file_read_iter和__generic_file_write_iter有相似的逻辑，就是要区分是否用缓存。</p>
+<p>缓存其实就是内存中的一块空间。因为内存比硬盘快的多，Linux为了改进性能，有时候会选择不直接操作硬盘，而是将读写都在内存中，然后批量读取或者写入硬盘。一旦能够命中内存，读写效率就会大幅度提高。</p>
+<p>因此，根据是否使用内存做缓存，我们可以把文件的I/O操作分为两种类型。</p>
+<p>第一种类型是<strong>缓存I/O</strong>。大多数文件系统的默认I/O操作都是缓存I/O。对于读操作来讲，操作系统会先检查，内核的缓冲区有没有需要的数据。如果已经缓存了，那就直接从缓存中返回；否则从磁盘中读取，然后缓存在操作系统的缓存中。对于写操作来讲，操作系统会先将数据从用户空间复制到内核空间的缓存中。这时对用户程序来说，写操作就已经完成。至于什么时候再写到磁盘中由操作系统决定，除非显式地调用了sync同步命令。</p>
+<p>第二种类型是<strong>直接IO</strong>，就是应用程序直接访问磁盘数据，而不经过内核缓冲区，从而减少了在内核缓存和用户程序之间数据复制。</p>
+<p>如果在读的逻辑generic_file_read_iter里面，发现设置了IOCB_DIRECT，则会调用address_space的direct_IO的函数，将数据直接读取硬盘。我们在mmap映射文件到内存的时候讲过address_space，它主要用于在内存映射的时候将文件和内存页产生关联。</p>
+<p>同样，对于缓存来讲，也需要文件和内存页进行关联，这就要用到address_space。address_space的相关操作定义在struct address_space_operations结构中。对于ext4文件系统来讲， address_space的操作定义在ext4_aops，direct_IO对应的函数是ext4_direct_IO。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">static</span> <span class="token keyword">const</span> <span class="token keyword">struct</span> <span class="token class-name">address_space_operations</span> ext4_aops <span class="token operator">=</span> <span class="token punctuation">{</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    <span class="token punctuation">.</span>direct_IO      <span class="token operator">=</span> ext4_direct_IO<span class="token punctuation">,</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+<span class="token punctuation">}</span><span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>如果在写的逻辑__generic_file_write_iter里面，发现设置了IOCB_DIRECT，则调用generic_file_direct_write，里面同样会调用address_space的direct_IO的函数，将数据直接写入硬盘。</p>
+<p>ext4_direct_IO最终会调用到__blockdev_direct_IO-&gt;do_blockdev_direct_IO，这就跨过了缓存层，直接到了文件系统的设备驱动层。由于文件系统是块设备，所以这个调用的是blockdev相关的函数，有关块设备驱动程序的原理我们下一章详细讲，这一节我们就讲到文件系统到块设备的分界线部分。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token comment">/*
+ * This is a library function for use by filesystem drivers.
+ */</span>
+<span class="token keyword">static</span> <span class="token keyword">inline</span> ssize_t
+<span class="token function">do_blockdev_direct_IO</span><span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">kiocb</span> <span class="token operator">*</span>iocb<span class="token punctuation">,</span> <span class="token keyword">struct</span> <span class="token class-name">inode</span> <span class="token operator">*</span>inode<span class="token punctuation">,</span>
+              <span class="token keyword">struct</span> <span class="token class-name">block_device</span> <span class="token operator">*</span>bdev<span class="token punctuation">,</span> <span class="token keyword">struct</span> <span class="token class-name">iov_iter</span> <span class="token operator">*</span>iter<span class="token punctuation">,</span>
+              get_block_t get_block<span class="token punctuation">,</span> dio_iodone_t end_io<span class="token punctuation">,</span>
+              dio_submit_t submit_io<span class="token punctuation">,</span> <span class="token keyword">int</span> flags<span class="token punctuation">)</span>
+<span class="token punctuation">{</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>接下来，我们重点看带缓存的部分如果进行读写。</p>
+<h3 id="25-3-带缓存的写入操作"><a href="#25-3-带缓存的写入操作" class="headerlink" title="25.3 带缓存的写入操作"></a>25.3 带缓存的写入操作</h3><p>我们先来看带缓存写入的函数generic_perform_write。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c">ssize_t <span class="token function">generic_perform_write</span><span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">file</span> <span class="token operator">*</span>file<span class="token punctuation">,</span>
+                <span class="token keyword">struct</span> <span class="token class-name">iov_iter</span> <span class="token operator">*</span>i<span class="token punctuation">,</span> loff_t pos<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword">struct</span> <span class="token class-name">address_space</span> <span class="token operator">*</span>mapping <span class="token operator">=</span> file<span class="token operator">-&gt;</span>f_mapping<span class="token punctuation">;</span>
+    <span class="token keyword">const</span> <span class="token keyword">struct</span> <span class="token class-name">address_space_operations</span> <span class="token operator">*</span>a_ops <span class="token operator">=</span> mapping<span class="token operator">-&gt;</span>a_ops<span class="token punctuation">;</span>
+    <span class="token keyword">do</span> <span class="token punctuation">{</span>
+        <span class="token keyword">struct</span> <span class="token class-name">page</span> <span class="token operator">*</span>page<span class="token punctuation">;</span>
+        <span class="token keyword">unsigned</span> <span class="token keyword">long</span> offset<span class="token punctuation">;</span>   <span class="token comment">/* Offset into pagecache page */</span>
+        <span class="token keyword">unsigned</span> <span class="token keyword">long</span> bytes<span class="token punctuation">;</span>    <span class="token comment">/* Bytes to write to page */</span>
+        status <span class="token operator">=</span> a_ops<span class="token operator">-&gt;</span><span class="token function">write_begin</span><span class="token punctuation">(</span>file<span class="token punctuation">,</span> mapping<span class="token punctuation">,</span> pos<span class="token punctuation">,</span> bytes<span class="token punctuation">,</span> flags<span class="token punctuation">,</span>
+                        <span class="token operator">&amp;</span>page<span class="token punctuation">,</span> <span class="token operator">&amp;</span>fsdata<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        copied <span class="token operator">=</span> <span class="token function">iov_iter_copy_from_user_atomic</span><span class="token punctuation">(</span>page<span class="token punctuation">,</span> i<span class="token punctuation">,</span> offset<span class="token punctuation">,</span> bytes<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token function">flush_dcache_page</span><span class="token punctuation">(</span>page<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        status <span class="token operator">=</span> a_ops<span class="token operator">-&gt;</span><span class="token function">write_end</span><span class="token punctuation">(</span>file<span class="token punctuation">,</span> mapping<span class="token punctuation">,</span> pos<span class="token punctuation">,</span> bytes<span class="token punctuation">,</span> copied<span class="token punctuation">,</span>
+                        page<span class="token punctuation">,</span> fsdata<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        pos <span class="token operator">+=</span> copied<span class="token punctuation">;</span>
+        written <span class="token operator">+=</span> copied<span class="token punctuation">;</span>
+
+
+        <span class="token function">balance_dirty_pages_ratelimited</span><span class="token punctuation">(</span>mapping<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span> <span class="token keyword">while</span> <span class="token punctuation">(</span><span class="token function">iov_iter_count</span><span class="token punctuation">(</span>i<span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>这个函数里，是一个while循环。我们需要找出这次写入影响的所有的页，然后依次写入。对于每一个循环，主要做四件事情：</p>
+<ul>
+<li>对于每一页，先调用address_space的write_begin做一些准备；</li>
+<li>调用iov_iter_copy_from_user_atomic，将写入的内容从用户态拷贝到内核态的页中；</li>
+<li>调用address_space的write_end完成写操作；</li>
+<li>调用balance_dirty_pages_ratelimited，看脏页是否太多，需要写回硬盘。所谓脏页，就是写入到缓存，但是还没有写入到硬盘的页面。</li>
+</ul>
+<p>我们依次来看这四个步骤。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">static</span> <span class="token keyword">const</span> <span class="token keyword">struct</span> <span class="token class-name">address_space_operations</span> ext4_aops <span class="token operator">=</span> <span class="token punctuation">{</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    <span class="token punctuation">.</span>write_begin        <span class="token operator">=</span> ext4_write_begin<span class="token punctuation">,</span>
+    <span class="token punctuation">.</span>write_end          <span class="token operator">=</span> ext4_write_end<span class="token punctuation">,</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>第一步，对于ext4来讲，调用的是ext4_write_begin。</p>
+<p>ext4是一种日志文件系统，是为了防止突然断电的时候的数据丢失，引入了<strong>日志（Journal）</strong>模式。日志文件系统比非日志文件系统多了一个Journal区域。文件在ext4中分两部分存储，一部分是文件的元数据，另一部分是数据。元数据和数据的操作日志Journal也是分开管理的。你可以在挂载ext4的时候，选择Journal模式。这种模式在将数据写入文件系统前，必须等待元数据和数据的日志已经落盘才能发挥作用。这样性能比较差，但是最安全。</p>
+<p>另一种模式是<strong>order模式</strong>。这个模式不记录数据的日志，只记录元数据的日志，但是在写元数据的日志前，必须先确保数据已经落盘。这个折中，是默认模式。</p>
+<p>还有一种模式是<strong>writeback</strong>，不记录数据的日志，仅记录元数据的日志，并且不保证数据比元数据先落盘。这个性能最好，但是最不安全。</p>
+<p>在ext4_write_begin，我们能看到对于ext4_journal_start的调用，就是在做日志相关的工作。</p>
+<p>在ext4_write_begin中，还做了另外一件重要的事情，就是调用grab_cache_page_write_begin来，得到应该写入的缓存页。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">struct</span> <span class="token class-name">page</span> <span class="token operator">*</span><span class="token function">grab_cache_page_write_begin</span><span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">address_space</span> <span class="token operator">*</span>mapping<span class="token punctuation">,</span>
+                    pgoff_t index<span class="token punctuation">,</span> <span class="token keyword">unsigned</span> flags<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword">struct</span> <span class="token class-name">page</span> <span class="token operator">*</span>page<span class="token punctuation">;</span>
+    <span class="token keyword">int</span> fgp_flags <span class="token operator">=</span> FGP_LOCK<span class="token operator">|</span>FGP_WRITE<span class="token operator">|</span>FGP_CREAT<span class="token punctuation">;</span>
+    page <span class="token operator">=</span> <span class="token function">pagecache_get_page</span><span class="token punctuation">(</span>mapping<span class="token punctuation">,</span> index<span class="token punctuation">,</span> fgp_flags<span class="token punctuation">,</span>
+            <span class="token function">mapping_gfp_mask</span><span class="token punctuation">(</span>mapping<span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">if</span> <span class="token punctuation">(</span>page<span class="token punctuation">)</span>
+        <span class="token function">wait_for_stable_page</span><span class="token punctuation">(</span>page<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">return</span> page<span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>在内核中，缓存以页为单位放在内存里面，那我们如何知道，一个文件的哪些数据已经被放到缓存中了呢？每一个打开的文件都有一个struct file结构，每个struct file结构都有一个struct address_space用于关联文件和内存，就是在这个结构里面，有一棵树，用于保存所有与这个文件相关的的缓存页。</p>
+<p>我们查找的时候，往往需要根据文件中的偏移量找出相应的页面，而基数树radix tree这种数据结构能够快速根据一个长整型查找到其相应的对象，因而这里缓存页就放在radix基数树里面。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">struct</span> <span class="token class-name">address_space</span> <span class="token punctuation">{</span>
+    <span class="token keyword">struct</span> <span class="token class-name">inode</span>            <span class="token operator">*</span>host<span class="token punctuation">;</span>      <span class="token comment">/* owner: inode, block_device */</span>
+    <span class="token keyword">struct</span> <span class="token class-name">radix_tree_root</span>  page_tree<span class="token punctuation">;</span>  <span class="token comment">/* radix tree of all pages */</span>
+    spinlock_t              tree_lock<span class="token punctuation">;</span>  <span class="token comment">/* and lock protecting it */</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>pagecache_get_page就是根据pgoff_t index这个长整型，在这棵树里面查找缓存页，如果找不到就会创建一个缓存页。</p>
+<p>第二步，调用iov_iter_copy_from_user_atomic。先将分配好的页面调用kmap_atomic映射到内核里面的一个虚拟地址，然后将用户态的数据拷贝到内核态的页面的虚拟地址中，调用kunmap_atomic把内核里面的映射删除。</p>
+<p>第三步，调用ext4_write_end完成写入。这里面会调用ext4_journal_stop完成日志的写入，会调用block_write_end-&gt;__block_commit_write-&gt;mark_buffer_dirty，将修改过的缓存标记为脏页。可以看出，其实所谓的完成写入，并没有真正写入硬盘，仅仅是写入缓存后，标记为脏页。</p>
+<p>但是这里有一个问题，数据很危险，一旦宕机就没有了，所以需要一种机制，将写入的页面真正写到硬盘中，我们称为回写（Write Back）。</p>
+<p>第四步，调用 balance_dirty_pages_ratelimited，是回写脏页的一个很好的时机。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token comment">/**
+ * balance_dirty_pages_ratelimited - balance dirty memory state
+ * @mapping: address_space which was dirtied
+ *
+ * Processes which are dirtying memory should call in here once for each page
+ * which was newly dirtied.  The function will periodically check the system's
+ * dirty state and will initiate writeback if needed.
+  */</span>
+<span class="token keyword">void</span> <span class="token function">balance_dirty_pages_ratelimited</span><span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">address_space</span> <span class="token operator">*</span>mapping<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword">struct</span> <span class="token class-name">inode</span> <span class="token operator">*</span>inode <span class="token operator">=</span> mapping<span class="token operator">-&gt;</span>host<span class="token punctuation">;</span>
+    <span class="token keyword">struct</span> <span class="token class-name">backing_dev_info</span> <span class="token operator">*</span>bdi <span class="token operator">=</span> <span class="token function">inode_to_bdi</span><span class="token punctuation">(</span>inode<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">struct</span> <span class="token class-name">bdi_writeback</span> <span class="token operator">*</span>wb <span class="token operator">=</span> <span class="token constant">NULL</span><span class="token punctuation">;</span>
+    <span class="token keyword">int</span> ratelimit<span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token function">unlikely</span><span class="token punctuation">(</span>current<span class="token operator">-&gt;</span>nr_dirtied <span class="token operator">&gt;=</span> ratelimit<span class="token punctuation">)</span><span class="token punctuation">)</span>
+        <span class="token function">balance_dirty_pages</span><span class="token punctuation">(</span>mapping<span class="token punctuation">,</span> wb<span class="token punctuation">,</span> current<span class="token operator">-&gt;</span>nr_dirtied<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>在balance_dirty_pages_ratelimited里面，发现脏页的数目超过了规定的数目，就调用balance_dirty_pages-&gt;wb_start_background_writeback，启动一个背后线程开始回写。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">void</span> <span class="token function">wb_start_background_writeback</span><span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">bdi_writeback</span> <span class="token operator">*</span>wb<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token comment">/*
+     * We just wake up the flusher thread. It will perform background
+     * writeback as soon as there is no other work to do.
+     */</span>
+    <span class="token function">wb_wakeup</span><span class="token punctuation">(</span>wb<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+
+
+<span class="token keyword">static</span> <span class="token keyword">void</span> <span class="token function">wb_wakeup</span><span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">bdi_writeback</span> <span class="token operator">*</span>wb<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token function">spin_lock_bh</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>wb<span class="token operator">-&gt;</span>work_lock<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token function">test_bit</span><span class="token punctuation">(</span>WB_registered<span class="token punctuation">,</span> <span class="token operator">&amp;</span>wb<span class="token operator">-&gt;</span>state<span class="token punctuation">)</span><span class="token punctuation">)</span>
+        <span class="token function">mod_delayed_work</span><span class="token punctuation">(</span>bdi_wq<span class="token punctuation">,</span> <span class="token operator">&amp;</span>wb<span class="token operator">-&gt;</span>dwork<span class="token punctuation">,</span> <span class="token number">0</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token function">spin_unlock_bh</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>wb<span class="token operator">-&gt;</span>work_lock<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+
+<span class="token comment">/* bdi_wq serves all asynchronous writeback tasks */</span>
+<span class="token keyword">struct</span> <span class="token class-name">workqueue_struct</span> <span class="token operator">*</span>bdi_wq<span class="token punctuation">;</span>
+
+
+<span class="token comment">/**
+ * mod_delayed_work - modify delay of or queue a delayed work
+ * @wq: workqueue to use
+ * @dwork: work to queue
+ * @delay: number of jiffies to wait before queueing
+ *
+ * mod_delayed_work_on() on local CPU.
+ */</span>
+<span class="token keyword">static</span> <span class="token keyword">inline</span> bool <span class="token function">mod_delayed_work</span><span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">workqueue_struct</span> <span class="token operator">*</span>wq<span class="token punctuation">,</span>
+                    <span class="token keyword">struct</span> <span class="token class-name">delayed_work</span> <span class="token operator">*</span>dwork<span class="token punctuation">,</span>
+                    <span class="token keyword">unsigned</span> <span class="token keyword">long</span> delay<span class="token punctuation">)</span>
+<span class="token punctuation">{</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>通过上面的代码，我们可以看出，bdi_wq是一个全局变量，所有回写的任务都挂在这个队列上。mod_delayed_work函数负责将一个回写任务bdi_writeback挂在这个队列上。bdi_writeback有个成员变量struct delayed_work dwork，bdi_writeback就是以delayed_work的身份挂到队列上的，并且把delay设置为0，意思就是一刻不等，马上执行。</p>
+<p>那具体这个任务由谁来执行呢？这里的bdi的意思是backing device info，用于描述后端存储相关的信息。每个块设备都会有这样一个结构，并且在初始化块设备的时候，调用bdi_init初始化这个结构，在初始化bdi的时候，也会调用wb_init初始化bdi_writeback。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">static</span> <span class="token keyword">int</span> <span class="token function">wb_init</span><span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">bdi_writeback</span> <span class="token operator">*</span>wb<span class="token punctuation">,</span> <span class="token keyword">struct</span> <span class="token class-name">backing_dev_info</span> <span class="token operator">*</span>bdi<span class="token punctuation">,</span>
+           <span class="token keyword">int</span> blkcg_id<span class="token punctuation">,</span> gfp_t gfp<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    wb<span class="token operator">-&gt;</span>bdi <span class="token operator">=</span> bdi<span class="token punctuation">;</span>
+    wb<span class="token operator">-&gt;</span>last_old_flush <span class="token operator">=</span> jiffies<span class="token punctuation">;</span>
+    <span class="token function">INIT_LIST_HEAD</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>wb<span class="token operator">-&gt;</span>b_dirty<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token function">INIT_LIST_HEAD</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>wb<span class="token operator">-&gt;</span>b_io<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token function">INIT_LIST_HEAD</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>wb<span class="token operator">-&gt;</span>b_more_io<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token function">INIT_LIST_HEAD</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>wb<span class="token operator">-&gt;</span>b_dirty_time<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    wb<span class="token operator">-&gt;</span>bw_time_stamp <span class="token operator">=</span> jiffies<span class="token punctuation">;</span>
+    wb<span class="token operator">-&gt;</span>balanced_dirty_ratelimit <span class="token operator">=</span> INIT_BW<span class="token punctuation">;</span>
+    wb<span class="token operator">-&gt;</span>dirty_ratelimit <span class="token operator">=</span> INIT_BW<span class="token punctuation">;</span>
+    wb<span class="token operator">-&gt;</span>write_bandwidth <span class="token operator">=</span> INIT_BW<span class="token punctuation">;</span>
+    wb<span class="token operator">-&gt;</span>avg_write_bandwidth <span class="token operator">=</span> INIT_BW<span class="token punctuation">;</span>
+    <span class="token function">spin_lock_init</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>wb<span class="token operator">-&gt;</span>work_lock<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token function">INIT_LIST_HEAD</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>wb<span class="token operator">-&gt;</span>work_list<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token function">INIT_DELAYED_WORK</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>wb<span class="token operator">-&gt;</span>dwork<span class="token punctuation">,</span> wb_workfn<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    wb<span class="token operator">-&gt;</span>dirty_sleep <span class="token operator">=</span> jiffies<span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+<span class="token punctuation">}</span>
+
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">define</span> <span class="token expression"><span class="token function">__INIT_DELAYED_WORK</span><span class="token punctuation">(</span>_work<span class="token punctuation">,</span> _func<span class="token punctuation">,</span> _tflags<span class="token punctuation">)</span>              </span><span class="token punctuation">\</span>
+    <span class="token expression"><span class="token keyword">do</span> <span class="token punctuation">{</span>                                                        </span><span class="token punctuation">\</span>
+        <span class="token expression"><span class="token function">INIT_WORK</span><span class="token punctuation">(</span><span class="token operator">&amp;</span><span class="token punctuation">(</span>_work<span class="token punctuation">)</span><span class="token operator">-&gt;</span>work<span class="token punctuation">,</span> <span class="token punctuation">(</span>_func<span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                     </span><span class="token punctuation">\</span>
+        <span class="token expression"><span class="token function">__setup_timer</span><span class="token punctuation">(</span><span class="token operator">&amp;</span><span class="token punctuation">(</span>_work<span class="token punctuation">)</span><span class="token operator">-&gt;</span>timer<span class="token punctuation">,</span> delayed_work_timer_fn<span class="token punctuation">,</span>   </span><span class="token punctuation">\</span>
+                  <span class="token expression"><span class="token punctuation">(</span><span class="token keyword">unsigned</span> <span class="token keyword">long</span><span class="token punctuation">)</span><span class="token punctuation">(</span>_work<span class="token punctuation">)</span><span class="token punctuation">,</span>                       </span></span>\<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>这里面最重要的是INIT_DELAYED_WORK。其实就是初始化一个timer，也即定时器，到时候我们就执行wb_workfn这个函数。</p>
+<p>接下来的调用链为：wb_workfn-&gt;wb_do_writeback-&gt;wb_writeback-&gt;writeback_sb_inodes-&gt;__writeback_single_inode-&gt;do_writepages，写入页面到硬盘。</p>
+<p>在调用write的最后，当发现缓存的数据太多的时候，会触发回写，这仅仅是回写的一种场景。另外还有几种场景也会触发回写：</p>
+<ul>
+<li>用户主动调用sync，将缓存刷到硬盘上去，最终会调用wakeup_flusher_threads，同步脏页；</li>
+<li>当内存十分紧张，以至于无法分配页面的时候，会调用free_more_memory，最终会调用wakeup_flusher_threads，释放脏页；</li>
+<li>脏页已经更新了较长时间，时间上超过了timer，需要及时回写，保持内存和磁盘上数据一致性。</li>
+</ul>
+<h3 id="25-4-带缓存的读操作"><a href="#25-4-带缓存的读操作" class="headerlink" title="25.4 带缓存的读操作"></a>25.4 带缓存的读操作</h3><p>带缓存的写分析完了，接下来，我们看带缓存的读，对应的是函数generic_file_buffered_read。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">static</span> ssize_t <span class="token function">generic_file_buffered_read</span><span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">kiocb</span> <span class="token operator">*</span>iocb<span class="token punctuation">,</span>
+        <span class="token keyword">struct</span> <span class="token class-name">iov_iter</span> <span class="token operator">*</span>iter<span class="token punctuation">,</span> ssize_t written<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword">struct</span> <span class="token class-name">file</span> <span class="token operator">*</span>filp <span class="token operator">=</span> iocb<span class="token operator">-&gt;</span>ki_filp<span class="token punctuation">;</span>
+    <span class="token keyword">struct</span> <span class="token class-name">address_space</span> <span class="token operator">*</span>mapping <span class="token operator">=</span> filp<span class="token operator">-&gt;</span>f_mapping<span class="token punctuation">;</span>
+    <span class="token keyword">struct</span> <span class="token class-name">inode</span> <span class="token operator">*</span>inode <span class="token operator">=</span> mapping<span class="token operator">-&gt;</span>host<span class="token punctuation">;</span>
+    <span class="token keyword">for</span> <span class="token punctuation">(</span><span class="token punctuation">;</span><span class="token punctuation">;</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+        <span class="token keyword">struct</span> <span class="token class-name">page</span> <span class="token operator">*</span>page<span class="token punctuation">;</span>
+        pgoff_t end_index<span class="token punctuation">;</span>
+        loff_t isize<span class="token punctuation">;</span>
+        page <span class="token operator">=</span> <span class="token function">find_get_page</span><span class="token punctuation">(</span>mapping<span class="token punctuation">,</span> index<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token operator">!</span>page<span class="token punctuation">)</span> <span class="token punctuation">{</span>
+            <span class="token keyword">if</span> <span class="token punctuation">(</span>iocb<span class="token operator">-&gt;</span>ki_flags <span class="token operator">&amp;</span> IOCB_NOWAIT<span class="token punctuation">)</span>
+                <span class="token keyword">goto</span> would_block<span class="token punctuation">;</span>
+            <span class="token function">page_cache_sync_readahead</span><span class="token punctuation">(</span>mapping<span class="token punctuation">,</span>
+                    ra<span class="token punctuation">,</span> filp<span class="token punctuation">,</span>
+                    index<span class="token punctuation">,</span> last_index <span class="token operator">-</span> index<span class="token punctuation">)</span><span class="token punctuation">;</span>
+            page <span class="token operator">=</span> <span class="token function">find_get_page</span><span class="token punctuation">(</span>mapping<span class="token punctuation">,</span> index<span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token function">unlikely</span><span class="token punctuation">(</span>page <span class="token operator">==</span> <span class="token constant">NULL</span><span class="token punctuation">)</span><span class="token punctuation">)</span>
+                <span class="token keyword">goto</span> no_cached_page<span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token function">PageReadahead</span><span class="token punctuation">(</span>page<span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+            <span class="token function">page_cache_async_readahead</span><span class="token punctuation">(</span>mapping<span class="token punctuation">,</span>
+                    ra<span class="token punctuation">,</span> filp<span class="token punctuation">,</span> page<span class="token punctuation">,</span>
+                    index<span class="token punctuation">,</span> last_index <span class="token operator">-</span> index<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+        <span class="token comment">/*
+         * Ok, we have the page, and it's up-to-date, so
+         * now we can copy it to user space...
+         */</span>
+        ret <span class="token operator">=</span> <span class="token function">copy_page_to_iter</span><span class="token punctuation">(</span>page<span class="token punctuation">,</span> offset<span class="token punctuation">,</span> nr<span class="token punctuation">,</span> iter<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>读取比写入总体而言简单一些，主要涉及预读的问题。</p>
+<p>在generic_file_buffered_read函数中，我们需要先找到page cache里面是否有缓存页。如果没有找到，不但读取这一页，还要进行预读，这需要在page_cache_sync_readahead函数中实现。预读完了以后，再试一把查找缓存页，应该能找到了。</p>
+<p>如果第一次找缓存页就找到了，我们还是要判断，是不是应该继续预读；如果需要，就调用page_cache_async_readahead发起一个异步预读。</p>
+<p>最后，copy_page_to_iter会将内容从内核缓存页拷贝到用户内存空间。</p>
+<h3 id="25-5-总结"><a href="#25-5-总结" class="headerlink" title="25.5 总结"></a>25.5 总结</h3><p>在系统调用层我们需要仔细学习read和write。在VFS层调用的是vfs_read和vfs_write并且调用file_operation。在ext4层调用的是ext4_file_read_iter和ext4_file_write_iter。</p>
+<p>接下来就是分叉。你需要知道缓存I/O和直接I/O。直接I/O读写的流程是一样的，调用ext4_direct_IO，再往下就调用块设备层了。缓存I/O读写的流程不一样。对于读，从块设备读取到缓存中，然后从缓存中拷贝到用户态。对于写，从用户态拷贝到缓存，设置缓存页为脏，然后启动一个线程写入块设备。</p>
+<p><img src="/images/《趣谈Linux操作系统》学习笔记/文件缓存总结.png" alt="文件缓存总结"></p>
 
                 
             </div>
@@ -5429,7 +5733,7 @@ ino <span class="token operator">=</span> <span class="token function">ext4_find
             <br>
             
             &nbsp;<i class="fas fa-chart-area"></i>&nbsp;站点总字数:&nbsp;<span
-                class="white-color">471.6k</span>&nbsp;字
+                class="white-color">475k</span>&nbsp;字
             
             
             
