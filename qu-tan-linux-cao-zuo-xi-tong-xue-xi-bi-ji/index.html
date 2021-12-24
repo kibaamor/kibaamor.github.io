@@ -438,14 +438,14 @@
                 
                 <div class="info-break-policy">
                     <i class="far fa-file-word fa-fw"></i>文章字数:&nbsp;&nbsp;
-                    72.6k
+                    76.8k
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-clock fa-fw"></i>阅读时长:&nbsp;&nbsp;
-                    286 分
+                    304 分
                 </div>
                 
 
@@ -5421,6 +5421,480 @@ crct10dif_common       <span class="token number">12595</span>  <span class="tok
 <p><img src="/images/《趣谈Linux操作系统》学习笔记/守护进程udev.jpg" alt="守护进程udev"></p>
 <p>有了文件系统接口之后，我们不但可以通过文件系统的命令行操作设备，也可以通过程序，调用read、write函数，像读写文件一样操作设备。但是有些任务只使用读写很难完成，例如检查特定于设备的功能和属性，超出了通用文件系统的限制。所以，对于设备来讲，还有一种接口称为ioctl，表示输入输出控制接口，是用于配置和修改特定设备属性的通用接口，这个我们后面几节会详细说。</p>
 <h3 id="26-4-总结"><a href="#26-4-总结" class="headerlink" title="26.4 总结"></a>26.4 总结</h3><p><img src="/images/《趣谈Linux操作系统》学习笔记/输入输出系统.jpg" alt="输入输出系统"></p>
+<h2 id="二十七、字符设备（上）"><a href="#二十七、字符设备（上）" class="headerlink" title="二十七、字符设备（上）"></a>二十七、字符设备（上）</h2><p>先来讲稍微简单一点的字符设备驱动。</p>
+<p>这一节，我找了两个比较简单的字符设备驱动来解析一下。一个是输入字符设备，鼠标。代码在drivers/input/mouse/logibm.c这里。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token comment">/*
+ * Logitech Bus Mouse Driver for Linux
+ */</span>
+<span class="token function">module_init</span><span class="token punctuation">(</span>logibm_init<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token function">module_exit</span><span class="token punctuation">(</span>logibm_exit<span class="token punctuation">)</span><span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>另外一个是输出字符设备，打印机，代码drivers/char/lp.c这里。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token comment">/*
+ * Generic parallel printer driver
+ */</span>
+<span class="token function">module_init</span><span class="token punctuation">(</span>lp_init_module<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token function">module_exit</span><span class="token punctuation">(</span>lp_cleanup_module<span class="token punctuation">)</span><span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<h3 id="27-1-内核模块"><a href="#27-1-内核模块" class="headerlink" title="27.1 内核模块"></a>27.1 内核模块</h3><p>设备驱动程序是一个内核模块，以ko的文件形式存在，可以通过insmod加载到内核中。那我们首先来看一下，怎么样才能构建一个内核模块呢？</p>
+<p>一个内核模块应该由以下几部分组成。</p>
+<p><strong>第一部分，头文件部分。</strong>一般的内核模块，都需要include下面两个头文件：</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;linux/module.h&gt;</span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;linux/init.h&gt;</span></span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre>
+<p><strong>第二部分，定义一些函数，用于处理内核模块的主要逻辑。</strong>例如打开、关闭、读取、写入设备的函数或者响应中断的函数。</p>
+<p>例如，logibm.c里面就定义了logibm_open。logibm_close就是处理打开和关闭的，定义了logibm_interrupt就是用来响应中断的。再如，lp.c里面就定义了lp_read，lp_write就是处理读写的。</p>
+<p><strong>第三部分，定义一个file_operations结构</strong>。前面我们讲过，设备是可以通过文件系统的接口进行访问的。咱们讲文件系统的时候说过，对于某种文件系统的操作，都是放在file_operations里面的。例如ext4就定义了这么一个结构，里面都是ext4_xxx之类的函数。设备要想被文件系统的接口操作，也需要定义这样一个结构。</p>
+<p>例如，lp.c里面就定义了这样一个结构。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">static</span> <span class="token keyword">const</span> <span class="token keyword">struct</span> <span class="token class-name">file_operations</span> lp_fops <span class="token operator">=</span> <span class="token punctuation">{</span>
+    <span class="token punctuation">.</span>owner          <span class="token operator">=</span> THIS_MODULE<span class="token punctuation">,</span>
+    <span class="token punctuation">.</span>write          <span class="token operator">=</span> lp_write<span class="token punctuation">,</span>
+    <span class="token punctuation">.</span>unlocked_ioctl <span class="token operator">=</span> lp_ioctl<span class="token punctuation">,</span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">ifdef</span> <span class="token expression">CONFIG_COMPAT</span></span>
+    <span class="token punctuation">.</span>compat_ioctl   <span class="token operator">=</span> lp_compat_ioctl<span class="token punctuation">,</span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">endif</span></span>
+    <span class="token punctuation">.</span>open           <span class="token operator">=</span> lp_open<span class="token punctuation">,</span>
+    <span class="token punctuation">.</span>release        <span class="token operator">=</span> lp_release<span class="token punctuation">,</span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">ifdef</span> <span class="token expression">CONFIG_PARPORT_1284</span></span>
+    <span class="token punctuation">.</span>read           <span class="token operator">=</span> lp_read<span class="token punctuation">,</span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">endif</span></span>
+    <span class="token punctuation">.</span>llseek         <span class="token operator">=</span> noop_llseek<span class="token punctuation">,</span>
+<span class="token punctuation">}</span><span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>在logibm.c里面，我们找不到这样的结构，是因为它属于众多输入设备的一种，而输入设备的操作被统一定义在drivers/input/input.c里面，logibm.c只是定义了一些自己独有的操作。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">static</span> <span class="token keyword">const</span> <span class="token keyword">struct</span> <span class="token class-name">file_operations</span> input_devices_fileops <span class="token operator">=</span> <span class="token punctuation">{</span>
+    <span class="token punctuation">.</span>owner      <span class="token operator">=</span> THIS_MODULE<span class="token punctuation">,</span>
+    <span class="token punctuation">.</span>open       <span class="token operator">=</span> input_proc_devices_open<span class="token punctuation">,</span>
+    <span class="token punctuation">.</span>poll       <span class="token operator">=</span> input_proc_devices_poll<span class="token punctuation">,</span>
+    <span class="token punctuation">.</span>read       <span class="token operator">=</span> seq_read<span class="token punctuation">,</span>
+    <span class="token punctuation">.</span>llseek     <span class="token operator">=</span> seq_lseek<span class="token punctuation">,</span>
+    <span class="token punctuation">.</span>release    <span class="token operator">=</span> seq_release<span class="token punctuation">,</span>
+<span class="token punctuation">}</span><span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p><strong>第四部分，定义整个模块的初始化函数和退出函数</strong>，用于加载和卸载这个ko的时候调用。</p>
+<p>例如lp.c就定义了lp_init_module和lp_cleanup_module，logibm.c就定义了logibm_init和logibm_exit。</p>
+<p><strong>第五部分，调用module_init和module_exit</strong>，分别指向上面两个初始化函数和退出函数。</p>
+<p><strong>第六部分，声明一下lisense，调用MODULE_LICENSE。</strong></p>
+<p>有了这六部分，一个内核模块就基本合格了，可以工作了。</p>
+<h3 id="27-2-打开字符设备"><a href="#27-2-打开字符设备" class="headerlink" title="27.2 打开字符设备"></a>27.2 打开字符设备</h3><p>字符设备可不是一个普通的内核模块，它有自己独特的行为。接下来，我们就沿着打开一个字符设备的过程，看看字符设备这个内核模块做了哪些特殊的事情。</p>
+<p><img src="/images/《趣谈Linux操作系统》学习笔记/打开一个字符设备的过程.jpeg" alt="打开一个字符设备的过程"></p>
+<p>要使用一个字符设备，我们首先要把写好的内核模块，通过insmod加载进内核。这个时候，先调用的就是module_init调用的初始化函数。</p>
+<p>例如，在lp.c的初始化函数lp_init对应的代码如下：</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">static</span> <span class="token keyword">int</span> __init <span class="token function">lp_init</span> <span class="token punctuation">(</span><span class="token keyword">void</span><span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token function">register_chrdev</span> <span class="token punctuation">(</span>LP_MAJOR<span class="token punctuation">,</span> <span class="token string">"lp"</span><span class="token punctuation">,</span> <span class="token operator">&amp;</span>lp_fops<span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+        <span class="token function">printk</span> <span class="token punctuation">(</span>KERN_ERR <span class="token string">"lp: unable to get major %d\n"</span><span class="token punctuation">,</span> LP_MAJOR<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token keyword">return</span> <span class="token operator">-</span>EIO<span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+<span class="token punctuation">}</span>
+
+<span class="token keyword">int</span> <span class="token function">__register_chrdev</span><span class="token punctuation">(</span><span class="token keyword">unsigned</span> <span class="token keyword">int</span> major<span class="token punctuation">,</span> <span class="token keyword">unsigned</span> <span class="token keyword">int</span> baseminor<span class="token punctuation">,</span>
+              <span class="token keyword">unsigned</span> <span class="token keyword">int</span> count<span class="token punctuation">,</span> <span class="token keyword">const</span> <span class="token keyword">char</span> <span class="token operator">*</span>name<span class="token punctuation">,</span>
+              <span class="token keyword">const</span> <span class="token keyword">struct</span> <span class="token class-name">file_operations</span> <span class="token operator">*</span>fops<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword">struct</span> <span class="token class-name">char_device_struct</span> <span class="token operator">*</span>cd<span class="token punctuation">;</span>
+    <span class="token keyword">struct</span> <span class="token class-name">cdev</span> <span class="token operator">*</span>cdev<span class="token punctuation">;</span>
+    <span class="token keyword">int</span> err <span class="token operator">=</span> <span class="token operator">-</span>ENOMEM<span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    cd <span class="token operator">=</span> <span class="token function">__register_chrdev_region</span><span class="token punctuation">(</span>major<span class="token punctuation">,</span> baseminor<span class="token punctuation">,</span> count<span class="token punctuation">,</span> name<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    cdev <span class="token operator">=</span> <span class="token function">cdev_alloc</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    cdev<span class="token operator">-&gt;</span>owner <span class="token operator">=</span> fops<span class="token operator">-&gt;</span>owner<span class="token punctuation">;</span>
+    cdev<span class="token operator">-&gt;</span>ops <span class="token operator">=</span> fops<span class="token punctuation">;</span>
+    <span class="token function">kobject_set_name</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>cdev<span class="token operator">-&gt;</span>kobj<span class="token punctuation">,</span> <span class="token string">"%s"</span><span class="token punctuation">,</span> name<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    err <span class="token operator">=</span> <span class="token function">cdev_add</span><span class="token punctuation">(</span>cdev<span class="token punctuation">,</span> <span class="token function">MKDEV</span><span class="token punctuation">(</span>cd<span class="token operator">-&gt;</span>major<span class="token punctuation">,</span> baseminor<span class="token punctuation">)</span><span class="token punctuation">,</span> count<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    cd<span class="token operator">-&gt;</span>cdev <span class="token operator">=</span> cdev<span class="token punctuation">;</span>
+    <span class="token keyword">return</span> major <span class="token operator">?</span> <span class="token number">0</span> <span class="token operator">:</span> cd<span class="token operator">-&gt;</span>major<span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>在字符设备驱动的内核模块加载的时候，最重要的一件事情就是，注册这个字符设备。注册的方式是调用__register_chrdev_region，注册字符设备的主次设备号和名称，然后分配一个struct cdev结构，将cdev的ops成员变量指向这个模块声明的file_operations。然后，cdev_add会将这个字符设备添加到内核中一个叫作struct kobj_map *cdev_map的结构，来统一管理所有字符设备。</p>
+<p>其中，MKDEV(cd-&gt;major, baseminor)表示将主设备号和次设备号生成一个dev_t的整数，然后将这个整数dev_t和cdev关联起来。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token comment">/**
+ * cdev_add() - add a char device to the system
+ * @p: the cdev structure for the device
+ * @dev: the first device number for which this device is responsible
+ * @count: the number of consecutive minor numbers corresponding to this
+ *         device
+ *
+ * cdev_add() adds the device represented by @p to the system, making it
+ * live immediately.  A negative error code is returned on failure.
+ */</span>
+<span class="token keyword">int</span> <span class="token function">cdev_add</span><span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">cdev</span> <span class="token operator">*</span>p<span class="token punctuation">,</span> dev_t dev<span class="token punctuation">,</span> <span class="token keyword">unsigned</span> count<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword">int</span> error<span class="token punctuation">;</span>
+
+    p<span class="token operator">-&gt;</span>dev <span class="token operator">=</span> dev<span class="token punctuation">;</span>
+    p<span class="token operator">-&gt;</span>count <span class="token operator">=</span> count<span class="token punctuation">;</span>
+
+    error <span class="token operator">=</span> <span class="token function">kobj_map</span><span class="token punctuation">(</span>cdev_map<span class="token punctuation">,</span> dev<span class="token punctuation">,</span> count<span class="token punctuation">,</span> <span class="token constant">NULL</span><span class="token punctuation">,</span>
+             exact_match<span class="token punctuation">,</span> exact_lock<span class="token punctuation">,</span> p<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token function">kobject_get</span><span class="token punctuation">(</span>p<span class="token operator">-&gt;</span>kobj<span class="token punctuation">.</span>parent<span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+    <span class="token keyword">return</span> <span class="token number">0</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>在logibm.c中，我们在logibm_init找不到注册字符设备，这是因为input.c里面的初始化函数input_init会调用register_chrdev_region，注册输入的字符设备，会在logibm_init中调用input_register_device，将logibm.c这个字符设备注册到input.c里面去，这就相当于input.c对多个输入字符设备进行统一的管理。</p>
+<p>内核模块加载完毕后，接下来要通过mknod在/dev下面创建一个设备文件，只有有了这个设备文件，我们才能通过文件系统的接口，对这个设备文件进行操作。</p>
+<p>mknod也是一个系统调用，定义如下：</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token function">SYSCALL_DEFINE3</span><span class="token punctuation">(</span>mknod<span class="token punctuation">,</span> <span class="token keyword">const</span> <span class="token keyword">char</span> __user <span class="token operator">*</span><span class="token punctuation">,</span> filename<span class="token punctuation">,</span> umode_t<span class="token punctuation">,</span> mode<span class="token punctuation">,</span> <span class="token keyword">unsigned</span><span class="token punctuation">,</span> dev<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword">return</span> <span class="token function">sys_mknodat</span><span class="token punctuation">(</span>AT_FDCWD<span class="token punctuation">,</span> filename<span class="token punctuation">,</span> mode<span class="token punctuation">,</span> dev<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+
+<span class="token function">SYSCALL_DEFINE4</span><span class="token punctuation">(</span>mknodat<span class="token punctuation">,</span> <span class="token keyword">int</span><span class="token punctuation">,</span> dfd<span class="token punctuation">,</span> <span class="token keyword">const</span> <span class="token keyword">char</span> __user <span class="token operator">*</span><span class="token punctuation">,</span> filename<span class="token punctuation">,</span> umode_t<span class="token punctuation">,</span> mode<span class="token punctuation">,</span>
+        <span class="token keyword">unsigned</span><span class="token punctuation">,</span> dev<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword">struct</span> <span class="token class-name">dentry</span> <span class="token operator">*</span>dentry<span class="token punctuation">;</span>
+    <span class="token keyword">struct</span> <span class="token class-name">path</span> path<span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    dentry <span class="token operator">=</span> <span class="token function">user_path_create</span><span class="token punctuation">(</span>dfd<span class="token punctuation">,</span> filename<span class="token punctuation">,</span> <span class="token operator">&amp;</span>path<span class="token punctuation">,</span> lookup_flags<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    <span class="token keyword">switch</span> <span class="token punctuation">(</span>mode <span class="token operator">&amp;</span> S_IFMT<span class="token punctuation">)</span> <span class="token punctuation">{</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+        <span class="token keyword">case</span> S_IFCHR<span class="token operator">:</span> <span class="token keyword">case</span> S_IFBLK<span class="token operator">:</span>
+            error <span class="token operator">=</span> <span class="token function">vfs_mknod</span><span class="token punctuation">(</span>path<span class="token punctuation">.</span>dentry<span class="token operator">-&gt;</span>d_inode<span class="token punctuation">,</span>dentry<span class="token punctuation">,</span>mode<span class="token punctuation">,</span>
+                    <span class="token function">new_decode_dev</span><span class="token punctuation">(</span>dev<span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token keyword">break</span><span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    <span class="token punctuation">}</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>我们可以在这个系统调用里看到，在文件系统上，顺着路径找到/dev/xxx所在的文件夹，然后为这个新创建的设备文件创建一个dentry。这是维护文件和inode之间的关联关系的结构。</p>
+<p>接下来，如果是字符文件S_IFCHR或者设备文件S_IFBLK，我们就调用vfs_mknod。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">int</span> <span class="token function">vfs_mknod</span><span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">inode</span> <span class="token operator">*</span>dir<span class="token punctuation">,</span> <span class="token keyword">struct</span> <span class="token class-name">dentry</span> <span class="token operator">*</span>dentry<span class="token punctuation">,</span> umode_t mode<span class="token punctuation">,</span> dev_t dev<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    error <span class="token operator">=</span> dir<span class="token operator">-&gt;</span>i_op<span class="token operator">-&gt;</span><span class="token function">mknod</span><span class="token punctuation">(</span>dir<span class="token punctuation">,</span> dentry<span class="token punctuation">,</span> mode<span class="token punctuation">,</span> dev<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>这里需要调用对应的文件系统的inode_operations。应该调用哪个文件系统呢？</p>
+<p>如果我们在linux下面执行mount命令，能看到下面这一行：</p>
+<pre class="line-numbers language-text" data-language="text"><code class="language-text">devtmpfs on /dev type devtmpfs (rw,nosuid,size=3989584k,nr_inodes=997396,mode=755)<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>也就是说，/dev下面的文件系统的名称为devtmpfs，我们可以在内核中找到它。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">static</span> <span class="token keyword">struct</span> <span class="token class-name">dentry</span> <span class="token operator">*</span><span class="token function">dev_mount</span><span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">file_system_type</span> <span class="token operator">*</span>fs_type<span class="token punctuation">,</span> <span class="token keyword">int</span> flags<span class="token punctuation">,</span>
+              <span class="token keyword">const</span> <span class="token keyword">char</span> <span class="token operator">*</span>dev_name<span class="token punctuation">,</span> <span class="token keyword">void</span> <span class="token operator">*</span>data<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">ifdef</span> <span class="token expression">CONFIG_TMPFS</span></span>
+    <span class="token keyword">return</span> <span class="token function">mount_single</span><span class="token punctuation">(</span>fs_type<span class="token punctuation">,</span> flags<span class="token punctuation">,</span> data<span class="token punctuation">,</span> shmem_fill_super<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">else</span></span>
+    <span class="token keyword">return</span> <span class="token function">mount_single</span><span class="token punctuation">(</span>fs_type<span class="token punctuation">,</span> flags<span class="token punctuation">,</span> data<span class="token punctuation">,</span> ramfs_fill_super<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">endif</span></span>
+<span class="token punctuation">}</span>
+
+
+<span class="token keyword">static</span> <span class="token keyword">struct</span> <span class="token class-name">file_system_type</span> dev_fs_type <span class="token operator">=</span> <span class="token punctuation">{</span>
+    <span class="token punctuation">.</span>name <span class="token operator">=</span> <span class="token string">"devtmpfs"</span><span class="token punctuation">,</span>
+    <span class="token punctuation">.</span>mount <span class="token operator">=</span> dev_mount<span class="token punctuation">,</span>
+    <span class="token punctuation">.</span>kill_sb <span class="token operator">=</span> kill_litter_super<span class="token punctuation">,</span>
+<span class="token punctuation">}</span><span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>从这里可以看出，devtmpfs在挂载的时候，有两种模式，一种是ramfs，一种是shmem都是基于内存的文件系统。这里你先不用管，基于内存的文件系统具体是怎么回事儿。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">static</span> <span class="token keyword">const</span> <span class="token keyword">struct</span> <span class="token class-name">inode_operations</span> ramfs_dir_inode_operations <span class="token operator">=</span> <span class="token punctuation">{</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    <span class="token punctuation">.</span>mknod      <span class="token operator">=</span> ramfs_mknod<span class="token punctuation">,</span>
+<span class="token punctuation">}</span><span class="token punctuation">;</span>
+
+
+<span class="token keyword">static</span> <span class="token keyword">const</span> <span class="token keyword">struct</span> <span class="token class-name">inode_operations</span> shmem_dir_inode_operations <span class="token operator">=</span> <span class="token punctuation">{</span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">ifdef</span> <span class="token expression">CONFIG_TMPFS</span></span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    <span class="token punctuation">.</span>mknod      <span class="token operator">=</span> shmem_mknod<span class="token punctuation">,</span>
+<span class="token punctuation">}</span><span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>这两个mknod虽然实现不同，但是都会调用到用一个函数init_special_inode。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">void</span> <span class="token function">init_special_inode</span><span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">inode</span> <span class="token operator">*</span>inode<span class="token punctuation">,</span> umode_t mode<span class="token punctuation">,</span> dev_t rdev<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    inode<span class="token operator">-&gt;</span>i_mode <span class="token operator">=</span> mode<span class="token punctuation">;</span>
+    <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token function">S_ISCHR</span><span class="token punctuation">(</span>mode<span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+        inode<span class="token operator">-&gt;</span>i_fop <span class="token operator">=</span> <span class="token operator">&amp;</span>def_chr_fops<span class="token punctuation">;</span>
+        inode<span class="token operator">-&gt;</span>i_rdev <span class="token operator">=</span> rdev<span class="token punctuation">;</span>
+    <span class="token punctuation">}</span> <span class="token keyword">else</span> <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token function">S_ISBLK</span><span class="token punctuation">(</span>mode<span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+        inode<span class="token operator">-&gt;</span>i_fop <span class="token operator">=</span> <span class="token operator">&amp;</span>def_blk_fops<span class="token punctuation">;</span>
+        inode<span class="token operator">-&gt;</span>i_rdev <span class="token operator">=</span> rdev<span class="token punctuation">;</span>
+    <span class="token punctuation">}</span> <span class="token keyword">else</span> <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token function">S_ISFIFO</span><span class="token punctuation">(</span>mode<span class="token punctuation">)</span><span class="token punctuation">)</span>
+        inode<span class="token operator">-&gt;</span>i_fop <span class="token operator">=</span> <span class="token operator">&amp;</span>pipefifo_fops<span class="token punctuation">;</span>
+    <span class="token keyword">else</span> <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token function">S_ISSOCK</span><span class="token punctuation">(</span>mode<span class="token punctuation">)</span><span class="token punctuation">)</span>
+        <span class="token punctuation">;</span>   <span class="token comment">/* leave it no_open_fops */</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>显然这个文件是个特殊文件，inode也是特殊的。这里这个inode可以关联字符设备、块设备、FIFO文件、Socket等。我们这里只看字符设备。</p>
+<p>这里的inode的file_operations指向一个def_chr_fops，这里面只有一个open，就等着你打开它。</p>
+<p>另外，inode的i_rdev指向这个设备的dev_t。还记得cdev_map吗？通过这个dev_t，可以找到我们刚在加载的字符设备cdev。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">const</span> <span class="token keyword">struct</span> <span class="token class-name">file_operations</span> def_chr_fops <span class="token operator">=</span> <span class="token punctuation">{</span>
+    <span class="token punctuation">.</span>open <span class="token operator">=</span> chrdev_open<span class="token punctuation">,</span>
+<span class="token punctuation">}</span><span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span></span></code></pre>
+<p>到目前为止，我们只是创建了/dev下面的一个文件，并且和相应的设备号关联起来。但是，我们还没有打开这个/dev下面的设备文件。</p>
+<p>现在我们来打开它。打开一个文件的流程，我们在 <strong>文件系统</strong> 那一节讲过了，这里不再重复。最终就像打开字符设备的图中一样，打开文件的进程的task_struct里，有一个数组代表它打开的文件，下标就是文件描述符fd，每一个打开的文件都有一个struct file结构，会指向一个dentry项。dentry可以用来关联inode。这个dentry就是咱们上面mknod的时候创建的。</p>
+<p>在进程里面调用open函数，最终对调用到这个特殊的inode的open函数，也就是chrdev_open。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">static</span> <span class="token keyword">int</span> <span class="token function">chrdev_open</span><span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">inode</span> <span class="token operator">*</span>inode<span class="token punctuation">,</span> <span class="token keyword">struct</span> <span class="token class-name">file</span> <span class="token operator">*</span>filp<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword">const</span> <span class="token keyword">struct</span> <span class="token class-name">file_operations</span> <span class="token operator">*</span>fops<span class="token punctuation">;</span>
+    <span class="token keyword">struct</span> <span class="token class-name">cdev</span> <span class="token operator">*</span>p<span class="token punctuation">;</span>
+    <span class="token keyword">struct</span> <span class="token class-name">cdev</span> <span class="token operator">*</span>new <span class="token operator">=</span> <span class="token constant">NULL</span><span class="token punctuation">;</span>
+    <span class="token keyword">int</span> ret <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span>
+
+    p <span class="token operator">=</span> inode<span class="token operator">-&gt;</span>i_cdev<span class="token punctuation">;</span>
+    <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token operator">!</span>p<span class="token punctuation">)</span> <span class="token punctuation">{</span>
+        <span class="token keyword">struct</span> <span class="token class-name">kobject</span> <span class="token operator">*</span>kobj<span class="token punctuation">;</span>
+        <span class="token keyword">int</span> idx<span class="token punctuation">;</span>
+        kobj <span class="token operator">=</span> <span class="token function">kobj_lookup</span><span class="token punctuation">(</span>cdev_map<span class="token punctuation">,</span> inode<span class="token operator">-&gt;</span>i_rdev<span class="token punctuation">,</span> <span class="token operator">&amp;</span>idx<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        new <span class="token operator">=</span> <span class="token function">container_of</span><span class="token punctuation">(</span>kobj<span class="token punctuation">,</span> <span class="token keyword">struct</span> <span class="token class-name">cdev</span><span class="token punctuation">,</span> kobj<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        p <span class="token operator">=</span> inode<span class="token operator">-&gt;</span>i_cdev<span class="token punctuation">;</span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token operator">!</span>p<span class="token punctuation">)</span> <span class="token punctuation">{</span>
+            inode<span class="token operator">-&gt;</span>i_cdev <span class="token operator">=</span> p <span class="token operator">=</span> new<span class="token punctuation">;</span>
+            <span class="token function">list_add</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>inode<span class="token operator">-&gt;</span>i_devices<span class="token punctuation">,</span> <span class="token operator">&amp;</span>p<span class="token operator">-&gt;</span>list<span class="token punctuation">)</span><span class="token punctuation">;</span>
+            new <span class="token operator">=</span> <span class="token constant">NULL</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+    <span class="token punctuation">}</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    fops <span class="token operator">=</span> <span class="token function">fops_get</span><span class="token punctuation">(</span>p<span class="token operator">-&gt;</span>ops<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    <span class="token function">replace_fops</span><span class="token punctuation">(</span>filp<span class="token punctuation">,</span> fops<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">if</span> <span class="token punctuation">(</span>filp<span class="token operator">-&gt;</span>f_op<span class="token operator">-&gt;</span>open<span class="token punctuation">)</span> <span class="token punctuation">{</span>
+        ret <span class="token operator">=</span> filp<span class="token operator">-&gt;</span>f_op<span class="token operator">-&gt;</span><span class="token function">open</span><span class="token punctuation">(</span>inode<span class="token punctuation">,</span> filp<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    <span class="token punctuation">}</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>在这个函数里面，我们首先看这个inode的i_cdev，是否已经关联到cdev。如果第一次打开，当然没有。没有没关系，inode里面有i_rdev呀，也就是有dev_t。我们可以通过它在cdev_map中找cdev。咱们上面注册过了，所以肯定能够找到。找到后我们就将inode的i_cdev，关联到找到的cdev new。</p>
+<p>找到cdev就好办了。cdev里面有file_operations，这是设备驱动程序自己定义的。我们可以通过它来操作设备驱动程序，把它付给struct file里面的file_operations。这样以后操作文件描述符，就是直接操作设备了。</p>
+<p>最后，我们需要调用设备驱动程序的file_operations的open函数，真正打开设备。对于打印机，调用的是lp_open。对于鼠标调用的是input_proc_devices_open，最终会调用到logibm_open。这些多和设备相关，你不必看懂它们。</p>
+<h3 id="27-3-写入字符设备"><a href="#27-3-写入字符设备" class="headerlink" title="27.3 写入字符设备"></a>27.3 写入字符设备</h3><p>当我们像打开一个文件一样打开一个字符设备之后，接下来就是对这个设备的读写。对于文件的读写咱们在文件系统那一章详细讲述过，读写的过程是类似的，所以这里我们只解析打印机驱动写入的过程。</p>
+<p><img src="/images/《趣谈Linux操作系统》学习笔记/打印机驱动写入的过程.jpeg" alt="打印机驱动写入的过程"></p>
+<p>写入一个字符设备，就是用文件系统的标准接口write，参数文件描述符fd，在内核里面调用的sys_write，在sys_write里面根据文件描述符fd得到struct file结构。接下来再调用vfs_write。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c">ssize_t <span class="token function">__vfs_write</span><span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">file</span> <span class="token operator">*</span>file<span class="token punctuation">,</span> <span class="token keyword">const</span> <span class="token keyword">char</span> __user <span class="token operator">*</span>p<span class="token punctuation">,</span> size_t count<span class="token punctuation">,</span> loff_t <span class="token operator">*</span>pos<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword">if</span> <span class="token punctuation">(</span>file<span class="token operator">-&gt;</span>f_op<span class="token operator">-&gt;</span>write<span class="token punctuation">)</span>
+        <span class="token keyword">return</span> file<span class="token operator">-&gt;</span>f_op<span class="token operator">-&gt;</span><span class="token function">write</span><span class="token punctuation">(</span>file<span class="token punctuation">,</span> p<span class="token punctuation">,</span> count<span class="token punctuation">,</span> pos<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">else</span> <span class="token keyword">if</span> <span class="token punctuation">(</span>file<span class="token operator">-&gt;</span>f_op<span class="token operator">-&gt;</span>write_iter<span class="token punctuation">)</span>
+        <span class="token keyword">return</span> <span class="token function">new_sync_write</span><span class="token punctuation">(</span>file<span class="token punctuation">,</span> p<span class="token punctuation">,</span> count<span class="token punctuation">,</span> pos<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">else</span>
+        <span class="token keyword">return</span> <span class="token operator">-</span>EINVAL<span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>我们可以看到，在__vfs_write里面，我们会调用struct file结构里的file_operations的write函数。上面我们打开字符设备的时候，已经将struct file结构里面的file_operations指向了设备驱动程序的file_operations结构，所以这里的write函数最终会调用到lp_write。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">static</span> ssize_t <span class="token function">lp_write</span><span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">file</span> <span class="token operator">*</span> file<span class="token punctuation">,</span> <span class="token keyword">const</span> <span class="token keyword">char</span> __user <span class="token operator">*</span> buf<span class="token punctuation">,</span>
+                size_t count<span class="token punctuation">,</span> loff_t <span class="token operator">*</span>ppos<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword">unsigned</span> <span class="token keyword">int</span> minor <span class="token operator">=</span> <span class="token function">iminor</span><span class="token punctuation">(</span><span class="token function">file_inode</span><span class="token punctuation">(</span>file<span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">struct</span> <span class="token class-name">parport</span> <span class="token operator">*</span>port <span class="token operator">=</span> lp_table<span class="token punctuation">[</span>minor<span class="token punctuation">]</span><span class="token punctuation">.</span>dev<span class="token operator">-&gt;</span>port<span class="token punctuation">;</span>
+    <span class="token keyword">char</span> <span class="token operator">*</span>kbuf <span class="token operator">=</span> lp_table<span class="token punctuation">[</span>minor<span class="token punctuation">]</span><span class="token punctuation">.</span>lp_buffer<span class="token punctuation">;</span>
+    ssize_t retv <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span>
+    ssize_t written<span class="token punctuation">;</span>
+    size_t copy_size <span class="token operator">=</span> count<span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    <span class="token comment">/* Need to copy the data from user-space. */</span>
+    <span class="token keyword">if</span> <span class="token punctuation">(</span>copy_size <span class="token operator">&gt;</span> LP_BUFFER_SIZE<span class="token punctuation">)</span>
+        copy_size <span class="token operator">=</span> LP_BUFFER_SIZE<span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token function">copy_from_user</span> <span class="token punctuation">(</span>kbuf<span class="token punctuation">,</span> buf<span class="token punctuation">,</span> copy_size<span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+        retv <span class="token operator">=</span> <span class="token operator">-</span>EFAULT<span class="token punctuation">;</span>
+        <span class="token keyword">goto</span> out_unlock<span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    <span class="token keyword">do</span> <span class="token punctuation">{</span>
+        <span class="token comment">/* Write the data. */</span>
+        written <span class="token operator">=</span> <span class="token function">parport_write</span> <span class="token punctuation">(</span>port<span class="token punctuation">,</span> kbuf<span class="token punctuation">,</span> copy_size<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span>written <span class="token operator">&gt;</span> <span class="token number">0</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+            copy_size <span class="token operator">-=</span> written<span class="token punctuation">;</span>
+            count <span class="token operator">-=</span> written<span class="token punctuation">;</span>
+            buf  <span class="token operator">+=</span> written<span class="token punctuation">;</span>
+            retv <span class="token operator">+=</span> written<span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token function">need_resched</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span>
+            <span class="token function">schedule</span> <span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+
+        <span class="token keyword">if</span> <span class="token punctuation">(</span>count<span class="token punctuation">)</span> <span class="token punctuation">{</span>
+            copy_size <span class="token operator">=</span> count<span class="token punctuation">;</span>
+            <span class="token keyword">if</span> <span class="token punctuation">(</span>copy_size <span class="token operator">&gt;</span> LP_BUFFER_SIZE<span class="token punctuation">)</span>
+                copy_size <span class="token operator">=</span> LP_BUFFER_SIZE<span class="token punctuation">;</span>
+
+
+            <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token function">copy_from_user</span><span class="token punctuation">(</span>kbuf<span class="token punctuation">,</span> buf<span class="token punctuation">,</span> copy_size<span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+                <span class="token keyword">if</span> <span class="token punctuation">(</span>retv <span class="token operator">==</span> <span class="token number">0</span><span class="token punctuation">)</span>
+                    retv <span class="token operator">=</span> <span class="token operator">-</span>EFAULT<span class="token punctuation">;</span>
+                <span class="token keyword">break</span><span class="token punctuation">;</span>
+            <span class="token punctuation">}</span>
+        <span class="token punctuation">}</span>
+    <span class="token punctuation">}</span> <span class="token keyword">while</span> <span class="token punctuation">(</span>count <span class="token operator">&gt;</span> <span class="token number">0</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>这个设备驱动程序的写入函数的实现还是比较典型的。先是调用copy_from_user将数据从用户态拷贝到内核态的缓存中，然后调用parport_write写入外部设备。这里还有一个schedule函数，也即写入的过程中，给其他线程抢占CPU的机会。然后，如果count还是大于0，也就是数据还没有写完，那我们就接着copy_from_user，接着parport_write，直到写完为止。</p>
+<h3 id="27-4-使用IOCTL控制设备"><a href="#27-4-使用IOCTL控制设备" class="headerlink" title="27.4 使用IOCTL控制设备"></a>27.4 使用IOCTL控制设备</h3><p>对于I/O设备来讲，我们前面也说过，除了读写设备，还会调用ioctl，做一些特殊的I/O操作。</p>
+<p><img src="/images/《趣谈Linux操作系统》学习笔记/使用IOCTL控制设备.jpeg" alt="使用IOCTL控制设备"></p>
+<p>ioctl也是一个系统调用，它在内核里面的定义如下：</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token function">SYSCALL_DEFINE3</span><span class="token punctuation">(</span>ioctl<span class="token punctuation">,</span> <span class="token keyword">unsigned</span> <span class="token keyword">int</span><span class="token punctuation">,</span> fd<span class="token punctuation">,</span> <span class="token keyword">unsigned</span> <span class="token keyword">int</span><span class="token punctuation">,</span> cmd<span class="token punctuation">,</span> <span class="token keyword">unsigned</span> <span class="token keyword">long</span><span class="token punctuation">,</span> arg<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword">int</span> error<span class="token punctuation">;</span>
+    <span class="token keyword">struct</span> <span class="token class-name">fd</span> f <span class="token operator">=</span> <span class="token function">fdget</span><span class="token punctuation">(</span>fd<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    error <span class="token operator">=</span> <span class="token function">do_vfs_ioctl</span><span class="token punctuation">(</span>f<span class="token punctuation">.</span>file<span class="token punctuation">,</span> fd<span class="token punctuation">,</span> cmd<span class="token punctuation">,</span> arg<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token function">fdput</span><span class="token punctuation">(</span>f<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">return</span> error<span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>其中，fd是这个设备的文件描述符，cmd是传给这个设备的命令，arg是命令的参数。其中，对于命令和命令的参数，使用ioctl系统调用的用户和驱动程序的开发人员约定好行为即可。</p>
+<p>其实cmd看起来是一个int，其实他的组成比较复杂，它由几部分组成：</p>
+<ul>
+<li>最低八位为NR，是命令号；</li>
+<li>然后八位是TYPE，是类型；</li>
+<li>然后十四位是参数的大小；</li>
+<li>最高两位是DIR，是方向，表示写入、读出，还是读写。</li>
+</ul>
+<p>由于组成比较复杂，有一些宏是专门用于组成这个cmd值的。</p>
+<p>由于组成比较复杂，有一些宏是专门用于组成这个cmd值的。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token comment">/*
+ * Used to create numbers.
+ */</span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">define</span> <span class="token expression"><span class="token function">_IO</span><span class="token punctuation">(</span>type<span class="token punctuation">,</span>nr<span class="token punctuation">)</span>        <span class="token function">_IOC</span><span class="token punctuation">(</span>_IOC_NONE<span class="token punctuation">,</span><span class="token punctuation">(</span>type<span class="token punctuation">)</span><span class="token punctuation">,</span><span class="token punctuation">(</span>nr<span class="token punctuation">)</span><span class="token punctuation">,</span><span class="token number">0</span><span class="token punctuation">)</span></span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">define</span> <span class="token expression"><span class="token function">_IOR</span><span class="token punctuation">(</span>type<span class="token punctuation">,</span>nr<span class="token punctuation">,</span>size<span class="token punctuation">)</span>  <span class="token function">_IOC</span><span class="token punctuation">(</span>_IOC_READ<span class="token punctuation">,</span><span class="token punctuation">(</span>type<span class="token punctuation">)</span><span class="token punctuation">,</span><span class="token punctuation">(</span>nr<span class="token punctuation">)</span><span class="token punctuation">,</span><span class="token punctuation">(</span><span class="token function">_IOC_TYPECHECK</span><span class="token punctuation">(</span>size<span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">)</span></span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">define</span> <span class="token expression"><span class="token function">_IOW</span><span class="token punctuation">(</span>type<span class="token punctuation">,</span>nr<span class="token punctuation">,</span>size<span class="token punctuation">)</span>  <span class="token function">_IOC</span><span class="token punctuation">(</span>_IOC_WRITE<span class="token punctuation">,</span><span class="token punctuation">(</span>type<span class="token punctuation">)</span><span class="token punctuation">,</span><span class="token punctuation">(</span>nr<span class="token punctuation">)</span><span class="token punctuation">,</span><span class="token punctuation">(</span><span class="token function">_IOC_TYPECHECK</span><span class="token punctuation">(</span>size<span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">)</span></span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">define</span> <span class="token expression"><span class="token function">_IOWR</span><span class="token punctuation">(</span>type<span class="token punctuation">,</span>nr<span class="token punctuation">,</span>size<span class="token punctuation">)</span> <span class="token function">_IOC</span><span class="token punctuation">(</span>_IOC_READ<span class="token operator">|</span>_IOC_WRITE<span class="token punctuation">,</span><span class="token punctuation">(</span>type<span class="token punctuation">)</span><span class="token punctuation">,</span><span class="token punctuation">(</span>nr<span class="token punctuation">)</span><span class="token punctuation">,</span><span class="token punctuation">(</span><span class="token function">_IOC_TYPECHECK</span><span class="token punctuation">(</span>size<span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">)</span></span></span>
+
+<span class="token comment">/* used to decode ioctl numbers.. */</span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">define</span> <span class="token expression"><span class="token function">_IOC_DIR</span><span class="token punctuation">(</span>nr<span class="token punctuation">)</span>        <span class="token punctuation">(</span><span class="token punctuation">(</span><span class="token punctuation">(</span>nr<span class="token punctuation">)</span> <span class="token operator">&gt;&gt;</span> _IOC_DIRSHIFT<span class="token punctuation">)</span> <span class="token operator">&amp;</span> _IOC_DIRMASK<span class="token punctuation">)</span></span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">define</span> <span class="token expression"><span class="token function">_IOC_TYPE</span><span class="token punctuation">(</span>nr<span class="token punctuation">)</span>       <span class="token punctuation">(</span><span class="token punctuation">(</span><span class="token punctuation">(</span>nr<span class="token punctuation">)</span> <span class="token operator">&gt;&gt;</span> _IOC_TYPESHIFT<span class="token punctuation">)</span> <span class="token operator">&amp;</span> _IOC_TYPEMASK<span class="token punctuation">)</span></span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">define</span> <span class="token expression"><span class="token function">_IOC_NR</span><span class="token punctuation">(</span>nr<span class="token punctuation">)</span>         <span class="token punctuation">(</span><span class="token punctuation">(</span><span class="token punctuation">(</span>nr<span class="token punctuation">)</span> <span class="token operator">&gt;&gt;</span> _IOC_NRSHIFT<span class="token punctuation">)</span> <span class="token operator">&amp;</span> _IOC_NRMASK<span class="token punctuation">)</span></span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">define</span> <span class="token expression"><span class="token function">_IOC_SIZE</span><span class="token punctuation">(</span>nr<span class="token punctuation">)</span>       <span class="token punctuation">(</span><span class="token punctuation">(</span><span class="token punctuation">(</span>nr<span class="token punctuation">)</span> <span class="token operator">&gt;&gt;</span> _IOC_SIZESHIFT<span class="token punctuation">)</span> <span class="token operator">&amp;</span> _IOC_SIZEMASK<span class="token punctuation">)</span></span></span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>在用户程序中，可以通过上面的”Used to create numbers“这些宏，根据参数生成cmd，在驱动程序中，可以通过下面的”used to decode ioctl numbers“这些宏，解析cmd后，执行指令。</p>
+<p>ioctl中会调用do_vfs_ioctl，这里面对于已经定义好的cmd，进行相应的处理。如果不是默认定义好的cmd，则执行默认操作。对于普通文件，调用file_ioctl；对于其他文件调用vfs_ioctl。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">int</span> <span class="token function">do_vfs_ioctl</span><span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">file</span> <span class="token operator">*</span>filp<span class="token punctuation">,</span> <span class="token keyword">unsigned</span> <span class="token keyword">int</span> fd<span class="token punctuation">,</span> <span class="token keyword">unsigned</span> <span class="token keyword">int</span> cmd<span class="token punctuation">,</span>
+         <span class="token keyword">unsigned</span> <span class="token keyword">long</span> arg<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword">int</span> error <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span>
+    <span class="token keyword">int</span> __user <span class="token operator">*</span>argp <span class="token operator">=</span> <span class="token punctuation">(</span><span class="token keyword">int</span> __user <span class="token operator">*</span><span class="token punctuation">)</span>arg<span class="token punctuation">;</span>
+    <span class="token keyword">struct</span> <span class="token class-name">inode</span> <span class="token operator">*</span>inode <span class="token operator">=</span> <span class="token function">file_inode</span><span class="token punctuation">(</span>filp<span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+    <span class="token keyword">switch</span> <span class="token punctuation">(</span>cmd<span class="token punctuation">)</span> <span class="token punctuation">{</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    <span class="token keyword">case</span> FIONBIO<span class="token operator">:</span>
+        error <span class="token operator">=</span> <span class="token function">ioctl_fionbio</span><span class="token punctuation">(</span>filp<span class="token punctuation">,</span> argp<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token keyword">break</span><span class="token punctuation">;</span>
+
+    <span class="token keyword">case</span> FIOASYNC<span class="token operator">:</span>
+        error <span class="token operator">=</span> <span class="token function">ioctl_fioasync</span><span class="token punctuation">(</span>fd<span class="token punctuation">,</span> filp<span class="token punctuation">,</span> argp<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token keyword">break</span><span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    <span class="token keyword">case</span> FICLONE<span class="token operator">:</span>
+        <span class="token keyword">return</span> <span class="token function">ioctl_file_clone</span><span class="token punctuation">(</span>filp<span class="token punctuation">,</span> arg<span class="token punctuation">,</span> <span class="token number">0</span><span class="token punctuation">,</span> <span class="token number">0</span><span class="token punctuation">,</span> <span class="token number">0</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+    <span class="token keyword">default</span><span class="token operator">:</span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token function">S_ISREG</span><span class="token punctuation">(</span>inode<span class="token operator">-&gt;</span>i_mode<span class="token punctuation">)</span><span class="token punctuation">)</span>
+            error <span class="token operator">=</span> <span class="token function">file_ioctl</span><span class="token punctuation">(</span>filp<span class="token punctuation">,</span> cmd<span class="token punctuation">,</span> arg<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token keyword">else</span>
+            error <span class="token operator">=</span> <span class="token function">vfs_ioctl</span><span class="token punctuation">(</span>filp<span class="token punctuation">,</span> cmd<span class="token punctuation">,</span> arg<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token keyword">break</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+    <span class="token keyword">return</span> error<span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>由于咱们这里是设备驱动程序，所以调用的是vfs_ioctl。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token comment">/**
+ * vfs_ioctl - call filesystem specific ioctl methods
+ * @filp:   open file to invoke ioctl method on
+ * @cmd:    ioctl command to execute
+ * @arg:    command-specific argument for ioctl
+ *
+ * Invokes filesystem specific -&gt;unlocked_ioctl, if one exists; otherwise
+ * returns -ENOTTY.
+ *
+ * Returns 0 on success, -errno on error.
+ */</span>
+<span class="token keyword">long</span> <span class="token function">vfs_ioctl</span><span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">file</span> <span class="token operator">*</span>filp<span class="token punctuation">,</span> <span class="token keyword">unsigned</span> <span class="token keyword">int</span> cmd<span class="token punctuation">,</span> <span class="token keyword">unsigned</span> <span class="token keyword">long</span> arg<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword">int</span> error <span class="token operator">=</span> <span class="token operator">-</span>ENOTTY<span class="token punctuation">;</span>
+
+    <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token operator">!</span>filp<span class="token operator">-&gt;</span>f_op<span class="token operator">-&gt;</span>unlocked_ioctl<span class="token punctuation">)</span>
+        <span class="token keyword">goto</span> out<span class="token punctuation">;</span>
+
+    error <span class="token operator">=</span> filp<span class="token operator">-&gt;</span>f_op<span class="token operator">-&gt;</span><span class="token function">unlocked_ioctl</span><span class="token punctuation">(</span>filp<span class="token punctuation">,</span> cmd<span class="token punctuation">,</span> arg<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">if</span> <span class="token punctuation">(</span>error <span class="token operator">==</span> <span class="token operator">-</span>ENOIOCTLCMD<span class="token punctuation">)</span>
+        error <span class="token operator">=</span> <span class="token operator">-</span>ENOTTY<span class="token punctuation">;</span>
+ out<span class="token operator">:</span>
+    <span class="token keyword">return</span> error<span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>这里面调用的是struct file里file_operations的unlocked_ioctl函数。我们前面初始化设备驱动的时候，已经将file_operations指向设备驱动的file_operations了。这里调用的是设备驱动的unlocked_ioctl。对于打印机程序来讲，调用的是lp_ioctl。可以看出来，这里面就是switch语句，它会根据不同的cmd，做不同的操作。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">static</span> <span class="token keyword">long</span> <span class="token function">lp_ioctl</span><span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">file</span> <span class="token operator">*</span>file<span class="token punctuation">,</span> <span class="token keyword">unsigned</span> <span class="token keyword">int</span> cmd<span class="token punctuation">,</span>
+            <span class="token keyword">unsigned</span> <span class="token keyword">long</span> arg<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword">unsigned</span> <span class="token keyword">int</span> minor<span class="token punctuation">;</span>
+    <span class="token keyword">struct</span> <span class="token class-name">timeval</span> par_timeout<span class="token punctuation">;</span>
+    <span class="token keyword">int</span> ret<span class="token punctuation">;</span>
+
+    minor <span class="token operator">=</span> <span class="token function">iminor</span><span class="token punctuation">(</span><span class="token function">file_inode</span><span class="token punctuation">(</span>file<span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token function">mutex_lock</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>lp_mutex<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">switch</span> <span class="token punctuation">(</span>cmd<span class="token punctuation">)</span> <span class="token punctuation">{</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    <span class="token keyword">default</span><span class="token operator">:</span>
+        ret <span class="token operator">=</span> <span class="token function">lp_do_ioctl</span><span class="token punctuation">(</span>minor<span class="token punctuation">,</span> cmd<span class="token punctuation">,</span> arg<span class="token punctuation">,</span> <span class="token punctuation">(</span><span class="token keyword">void</span> __user <span class="token operator">*</span><span class="token punctuation">)</span>arg<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token keyword">break</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+    <span class="token function">mutex_unlock</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>lp_mutex<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">return</span> ret<span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+
+<span class="token keyword">static</span> <span class="token keyword">int</span> <span class="token function">lp_do_ioctl</span><span class="token punctuation">(</span><span class="token keyword">unsigned</span> <span class="token keyword">int</span> minor<span class="token punctuation">,</span> <span class="token keyword">unsigned</span> <span class="token keyword">int</span> cmd<span class="token punctuation">,</span>
+    <span class="token keyword">unsigned</span> <span class="token keyword">long</span> arg<span class="token punctuation">,</span> <span class="token keyword">void</span> __user <span class="token operator">*</span>argp<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword">int</span> status<span class="token punctuation">;</span>
+    <span class="token keyword">int</span> retval <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span>
+
+    <span class="token keyword">switch</span> <span class="token punctuation">(</span> cmd <span class="token punctuation">)</span> <span class="token punctuation">{</span>
+        <span class="token keyword">case</span> LPTIME<span class="token operator">:</span>
+            <span class="token keyword">if</span> <span class="token punctuation">(</span>arg <span class="token operator">&gt;</span> UINT_MAX <span class="token operator">/</span> HZ<span class="token punctuation">)</span>
+                <span class="token keyword">return</span> <span class="token operator">-</span>EINVAL<span class="token punctuation">;</span>
+            <span class="token function">LP_TIME</span><span class="token punctuation">(</span>minor<span class="token punctuation">)</span> <span class="token operator">=</span> arg <span class="token operator">*</span> HZ<span class="token operator">/</span><span class="token number">100</span><span class="token punctuation">;</span>
+            <span class="token keyword">break</span><span class="token punctuation">;</span>
+        <span class="token keyword">case</span> LPCHAR<span class="token operator">:</span>
+            <span class="token function">LP_CHAR</span><span class="token punctuation">(</span>minor<span class="token punctuation">)</span> <span class="token operator">=</span> arg<span class="token punctuation">;</span>
+            <span class="token keyword">break</span><span class="token punctuation">;</span>
+        <span class="token keyword">case</span> LPABORT<span class="token operator">:</span>
+            <span class="token keyword">if</span> <span class="token punctuation">(</span>arg<span class="token punctuation">)</span>
+                <span class="token function">LP_F</span><span class="token punctuation">(</span>minor<span class="token punctuation">)</span> <span class="token operator">|=</span> LP_ABORT<span class="token punctuation">;</span>
+            <span class="token keyword">else</span>
+                <span class="token function">LP_F</span><span class="token punctuation">(</span>minor<span class="token punctuation">)</span> <span class="token operator">&amp;=</span> <span class="token operator">~</span>LP_ABORT<span class="token punctuation">;</span>
+            <span class="token keyword">break</span><span class="token punctuation">;</span>
+        <span class="token keyword">case</span> LPABORTOPEN<span class="token operator">:</span>
+            <span class="token keyword">if</span> <span class="token punctuation">(</span>arg<span class="token punctuation">)</span>
+                <span class="token function">LP_F</span><span class="token punctuation">(</span>minor<span class="token punctuation">)</span> <span class="token operator">|=</span> LP_ABORTOPEN<span class="token punctuation">;</span>
+            <span class="token keyword">else</span>
+                <span class="token function">LP_F</span><span class="token punctuation">(</span>minor<span class="token punctuation">)</span> <span class="token operator">&amp;=</span> <span class="token operator">~</span>LP_ABORTOPEN<span class="token punctuation">;</span>
+            <span class="token keyword">break</span><span class="token punctuation">;</span>
+        <span class="token keyword">case</span> LPCAREFUL<span class="token operator">:</span>
+            <span class="token keyword">if</span> <span class="token punctuation">(</span>arg<span class="token punctuation">)</span>
+                <span class="token function">LP_F</span><span class="token punctuation">(</span>minor<span class="token punctuation">)</span> <span class="token operator">|=</span> LP_CAREFUL<span class="token punctuation">;</span>
+            <span class="token keyword">else</span>
+                <span class="token function">LP_F</span><span class="token punctuation">(</span>minor<span class="token punctuation">)</span> <span class="token operator">&amp;=</span> <span class="token operator">~</span>LP_CAREFUL<span class="token punctuation">;</span>
+            <span class="token keyword">break</span><span class="token punctuation">;</span>
+        <span class="token keyword">case</span> LPWAIT<span class="token operator">:</span>
+            <span class="token function">LP_WAIT</span><span class="token punctuation">(</span>minor<span class="token punctuation">)</span> <span class="token operator">=</span> arg<span class="token punctuation">;</span>
+            <span class="token keyword">break</span><span class="token punctuation">;</span>
+        <span class="token keyword">case</span> LPSETIRQ<span class="token operator">:</span>
+            <span class="token keyword">return</span> <span class="token operator">-</span>EINVAL<span class="token punctuation">;</span>
+            <span class="token keyword">break</span><span class="token punctuation">;</span>
+        <span class="token keyword">case</span> LPGETIRQ<span class="token operator">:</span>
+            <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token function">copy_to_user</span><span class="token punctuation">(</span>argp<span class="token punctuation">,</span> <span class="token operator">&amp;</span><span class="token function">LP_IRQ</span><span class="token punctuation">(</span>minor<span class="token punctuation">)</span><span class="token punctuation">,</span>
+                    <span class="token keyword">sizeof</span><span class="token punctuation">(</span><span class="token keyword">int</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">)</span>
+                <span class="token keyword">return</span> <span class="token operator">-</span>EFAULT<span class="token punctuation">;</span>
+            <span class="token keyword">break</span><span class="token punctuation">;</span>
+        <span class="token keyword">case</span> LPGETSTATUS<span class="token operator">:</span>
+            <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token function">mutex_lock_interruptible</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>lp_table<span class="token punctuation">[</span>minor<span class="token punctuation">]</span><span class="token punctuation">.</span>port_mutex<span class="token punctuation">)</span><span class="token punctuation">)</span>
+                <span class="token keyword">return</span> <span class="token operator">-</span>EINTR<span class="token punctuation">;</span>
+            <span class="token function">lp_claim_parport_or_block</span> <span class="token punctuation">(</span><span class="token operator">&amp;</span>lp_table<span class="token punctuation">[</span>minor<span class="token punctuation">]</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+            status <span class="token operator">=</span> <span class="token function">r_str</span><span class="token punctuation">(</span>minor<span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token function">lp_release_parport</span> <span class="token punctuation">(</span><span class="token operator">&amp;</span>lp_table<span class="token punctuation">[</span>minor<span class="token punctuation">]</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token function">mutex_unlock</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>lp_table<span class="token punctuation">[</span>minor<span class="token punctuation">]</span><span class="token punctuation">.</span>port_mutex<span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+            <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token function">copy_to_user</span><span class="token punctuation">(</span>argp<span class="token punctuation">,</span> <span class="token operator">&amp;</span>status<span class="token punctuation">,</span> <span class="token keyword">sizeof</span><span class="token punctuation">(</span><span class="token keyword">int</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">)</span>
+                <span class="token keyword">return</span> <span class="token operator">-</span>EFAULT<span class="token punctuation">;</span>
+            <span class="token keyword">break</span><span class="token punctuation">;</span>
+        <span class="token keyword">case</span> LPRESET<span class="token operator">:</span>
+            <span class="token function">lp_reset</span><span class="token punctuation">(</span>minor<span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token keyword">break</span><span class="token punctuation">;</span>
+        <span class="token keyword">case</span> LPGETFLAGS<span class="token operator">:</span>
+            status <span class="token operator">=</span> <span class="token function">LP_F</span><span class="token punctuation">(</span>minor<span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token function">copy_to_user</span><span class="token punctuation">(</span>argp<span class="token punctuation">,</span> <span class="token operator">&amp;</span>status<span class="token punctuation">,</span> <span class="token keyword">sizeof</span><span class="token punctuation">(</span><span class="token keyword">int</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">)</span>
+                <span class="token keyword">return</span> <span class="token operator">-</span>EFAULT<span class="token punctuation">;</span>
+            <span class="token keyword">break</span><span class="token punctuation">;</span>
+        <span class="token keyword">default</span><span class="token operator">:</span>
+            retval <span class="token operator">=</span> <span class="token operator">-</span>EINVAL<span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+    <span class="token keyword">return</span> retval<span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<h3 id="27-5-总结"><a href="#27-5-总结" class="headerlink" title="27.5 总结"></a>27.5 总结</h3><p>一个字符设备要能够工作，需要三部分配合。</p>
+<p>第一，有一个设备驱动程序的ko模块，里面有模块初始化函数、中断处理函数、设备操作函数。这里面封装了对于外部设备的操作。加载设备驱动程序模块的时候，模块初始化函数会被调用。在内核维护所有字符设备驱动的数据结构cdev_map里面注册，我们就可以很容易根据设备号，找到相应的设备驱动程序。</p>
+<p>第二，在/dev目录下有一个文件表示这个设备，这个文件在特殊的devtmpfs文件系统上，因而也有相应的dentry和inode。这里的inode是一个特殊的inode，里面有设备号。通过它，我们可以在cdev_map中找到设备驱动程序，里面还有针对字符设备文件的默认操作def_chr_fops。</p>
+<p>第三，打开一个字符设备文件和打开一个普通的文件有类似的数据结构，有文件描述符、有struct file、指向字符设备文件的dentry和inode。字符设备文件的相关操作file_operations一开始指向def_chr_fops，在调用def_chr_fops里面的chrdev_open函数的时候，修改为指向设备操作函数，从而读写一个字符设备文件就会直接变成读写外部设备了。</p>
+<p><img src="/images/《趣谈Linux操作系统》学习笔记/打印机字符设备.jpeg" alt="打印机字符设备"></p>
 
                 
             </div>
@@ -5822,7 +6296,7 @@ crct10dif_common       <span class="token number">12595</span>  <span class="tok
             <br>
             
             &nbsp;<i class="fas fa-chart-area"></i>&nbsp;站点总字数:&nbsp;<span
-                class="white-color">478.9k</span>&nbsp;字
+                class="white-color">483.2k</span>&nbsp;字
             
             
             
