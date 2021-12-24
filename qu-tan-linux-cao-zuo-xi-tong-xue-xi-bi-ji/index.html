@@ -438,14 +438,14 @@
                 
                 <div class="info-break-policy">
                     <i class="far fa-file-word fa-fw"></i>文章字数:&nbsp;&nbsp;
-                    48.4k
+                    56k
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-clock fa-fw"></i>阅读时长:&nbsp;&nbsp;
-                    190 分
+                    222 分
                 </div>
                 
 
@@ -2246,7 +2246,8 @@ retint_kernel:
 <span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
         <span class="token function">put_pid</span><span class="token punctuation">(</span>pid<span class="token punctuation">)</span><span class="token punctuation">;</span>
     <span class="token punctuation">}</span>
-<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
 <h3 id="13-1-fork的第一件大事：复制结构"><a href="#13-1-fork的第一件大事：复制结构" class="headerlink" title="13.1 fork的第一件大事：复制结构"></a>13.1 fork的第一件大事：复制结构</h3><p>_do_fork里面做的第一件大事就是copy_process。</p>
 <p>这里我们再把task_struct的结构图拿出来，对比着看如何一个个复制。</p>
 <p><img src="/images/《趣谈Linux操作系统》学习笔记/fork复制结构.png" alt="fork复制结构"></p>
@@ -3008,7 +3009,8 @@ set_brk<span class="token operator">:</span>
     <span class="token keyword">return</span> brk<span class="token punctuation">;</span>
 out<span class="token operator">:</span>
     retval <span class="token operator">=</span> mm<span class="token operator">-&gt;</span>brk<span class="token punctuation">;</span>
-    <span class="token keyword">return</span> retval<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+    <span class="token keyword">return</span> retval<span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
 <p>前面我们讲过了，堆是从低地址向高地址增长的，sys_brk函数的参数brk是新的堆顶位置，而当前的mm-&gt;brk是原来堆顶的位置。</p>
 <p>首先要做的第一个事情，将原来的堆顶和现在的堆顶，都按照页对齐地址，然后比较大小。如果两者相同，说明这次增加的堆的量很小，还在一个页里面，不需要另行分配页，直接跳到set_brk那里，设置mm-&gt;brk为新的brk就可以了。</p>
 <p>如果发现新旧堆顶不在一个页里面，麻烦了，这下要跨页了。如果发现新堆顶小于旧堆顶，这说明不是新分配内存了，而是释放内存了，释放的还不小，至少释放了一页，于是调用do_munmap将这一页的内存映射去掉。</p>
@@ -3056,7 +3058,8 @@ out<span class="token operator">:</span>
     <span class="token keyword">if</span> <span class="token punctuation">(</span>flags <span class="token operator">&amp;</span> VM_LOCKED<span class="token punctuation">)</span>
         mm<span class="token operator">-&gt;</span>locked_vm <span class="token operator">+=</span> <span class="token punctuation">(</span>len <span class="token operator">&gt;&gt;</span> PAGE_SHIFT<span class="token punctuation">)</span><span class="token punctuation">;</span>
     vma<span class="token operator">-&gt;</span>vm_flags <span class="token operator">|=</span> VM_SOFTDIRTY<span class="token punctuation">;</span>
-    <span class="token keyword">return</span> <span class="token number">0</span><span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+    <span class="token keyword">return</span> <span class="token number">0</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
 <p>在do_brk中，调用find_vma_links找到将来的vm_area_struct节点在红黑树的位置，找到它的父节点、前序节点。接下来调用vma_merge，看这个新节点是否能够和现有树中的节点合并。如果地址是连着的，能够合并，则不用创建新的vm_area_struct了，直接跳到out，更新统计值即可；如果不能合并，则创建新的vm_area_struct，既加到anon_vma_chain链表中，也加到红黑树中。</p>
 <h3 id="17-3-内核态的布局"><a href="#17-3-内核态的布局" class="headerlink" title="17.3 内核态的布局"></a>17.3 内核态的布局</h3><p>内核态的虚拟空间和某一个进程没有关系，所有进程通过系统调用进入到内核之后，看到的虚拟地址空间都是一样的。</p>
 <p>这里强调一下，千万别以为到了内核里面，咱们就会直接使用物理内存地址了，想当然地认为下面讨论的都是物理内存地址，不是的，这里讨论的还是虚拟内存地址，但是由于内核总是涉及管理物理内存，因而总是隐隐约约发生关系，所以这里必须思路清晰，分清楚物理内存地址和虚拟内存地址。</p>
@@ -3356,7 +3359,8 @@ out<span class="token operator">:</span>
         page <span class="token operator">=</span> <span class="token function">rmqueue</span><span class="token punctuation">(</span>ac<span class="token operator">-&gt;</span>preferred_zoneref<span class="token operator">-&gt;</span>zone<span class="token punctuation">,</span> zone<span class="token punctuation">,</span> order<span class="token punctuation">,</span>
                 gfp_mask<span class="token punctuation">,</span> alloc_flags<span class="token punctuation">,</span> ac<span class="token operator">-&gt;</span>migratetype<span class="token punctuation">)</span><span class="token punctuation">;</span>
 <span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
-<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+    <span class="token punctuation">}</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
 <p>每一个zone，都有伙伴系统维护的各种大小的队列，就像上面伙伴系统原理里讲的那样。这里调用rmqueue就很好理解了，就是找到合适大小的那个队列，把页面取下来。</p>
 <p>接下来的调用链是rmqueue-&gt;<strong>rmqueue-&gt;</strong>rmqueue_smallest。在这里，我们能清楚看到伙伴系统的逻辑。</p>
 <pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">static</span> <span class="token keyword">inline</span>
@@ -3384,7 +3388,8 @@ out<span class="token operator">:</span>
     <span class="token punctuation">}</span>
 
 
-    <span class="token keyword">return</span> <span class="token constant">NULL</span><span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+    <span class="token keyword">return</span> <span class="token constant">NULL</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
 <p>从当前的order，也即指数开始，在伙伴系统的free_area找2^order大小的页块。如果链表的第一个不为空，就找到了；如果为空，就到更大的order的页块链表里面去找。找到以后，除了将页块从链表中取下来，我们还要把多余的的部分放到其他页块链表里面。expand就是干这个事情的。area–就是伙伴系统那个表里面的前一项，前一项里面的页块大小是当前项的页块大小除以2，size右移一位也就是除以2，list_add就是加到链表上，nr_free++就是计数加1。</p>
 <pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">static</span> <span class="token keyword">inline</span> <span class="token keyword">void</span> <span class="token function">expand</span><span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">zone</span> <span class="token operator">*</span>zone<span class="token punctuation">,</span> <span class="token keyword">struct</span> <span class="token class-name">page</span> <span class="token operator">*</span>page<span class="token punctuation">,</span>
     <span class="token keyword">int</span> low<span class="token punctuation">,</span> <span class="token keyword">int</span> high<span class="token punctuation">,</span> <span class="token keyword">struct</span> <span class="token class-name">free_area</span> <span class="token operator">*</span>area<span class="token punctuation">,</span>
@@ -3555,7 +3560,8 @@ new_slab<span class="token operator">:</span>
 
     freelist <span class="token operator">=</span> <span class="token function">new_slab_objects</span><span class="token punctuation">(</span>s<span class="token punctuation">,</span> gfpflags<span class="token punctuation">,</span> node<span class="token punctuation">,</span> <span class="token operator">&amp;</span>c<span class="token punctuation">)</span><span class="token punctuation">;</span>
 <span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
-    <span class="token keyword">return</span> freeli<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+    <span class="token keyword">return</span> freeli<span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
 <p>在这里，我们首先再次尝试一下kmem_cache_cpu的freelist。为什么呢？万一当前进程被中断，等回来的时候，别人已经释放了一些缓存，说不定又有空间了呢。如果找到了，就跳到load_freelist，在这里将freelist指向下一个空闲项，返回就可以了。</p>
 <p>如果freelist还是没有，则跳到new_slab里面去。这里面我们先去kmem_cache_cpu的partial里面看。如果partial不是空的，那就将kmem_cache_cpu的page，也就是快速通道的那一大块内存，替换为partial里面的大块内存。然后redo，重新试下。这次应该就可以成功了。</p>
 <p>如果真的还不行，那就要到new_slab_objects了。</p>
@@ -3586,7 +3592,8 @@ new_slab<span class="token operator">:</span>
     <span class="token punctuation">}</span> <span class="token keyword">else</span>
         freelist <span class="token operator">=</span> <span class="token constant">NULL</span><span class="token punctuation">;</span>
 
-    <span class="token keyword">return</span> freelis<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+    <span class="token keyword">return</span> freelist<span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
 <p>在这里面，get_partial会根据node id，找到相应的kmem_cache_node，然后调用get_partial_node，开始在这个节点进行分配。</p>
 <pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token comment">/*
  * Try to allocate a partial slab from a specific node.
@@ -3620,7 +3627,8 @@ new_slab<span class="token operator">:</span>
             <span class="token keyword">break</span><span class="token punctuation">;</span>
     <span class="token punctuation">}</span>
 <span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
-    <span class="token keyword">return</span> object<span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+    <span class="token keyword">return</span> object<span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
 <p>acquire_slab会从kmem_cache_node的partial链表中拿下一大块内存来，并且将freelist，也就是第一块空闲的缓存块，赋值给t。并且当第一轮循环的时候，将kmem_cache_cpu的page指向取下来的这一大块内存，返回的object就是这块内存里面的第一个缓存块t。如果kmem_cache_cpu也有一个partial，就会进行第二轮，再次取下一大块内存来，这次调用put_cpu_partial，放到kmem_cache_cpu的partial里面。</p>
 <p>如果kmem_cache_node里面也没有空闲的内存，这就说明原来分配的页里面都放满了，就要回到new_slab_objects函数，里面new_slab函数会调用allocate_slab。</p>
 <pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">static</span> <span class="token keyword">struct</span> <span class="token class-name">page</span> <span class="token operator">*</span><span class="token function">allocate_slab</span><span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">kmem_cache</span> <span class="token operator">*</span>s<span class="token punctuation">,</span> gfp_t flags<span class="token punctuation">,</span> <span class="token keyword">int</span> node<span class="token punctuation">)</span>
@@ -3713,7 +3721,8 @@ new_slab<span class="token operator">:</span>
         <span class="token punctuation">}</span>
 <span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
     <span class="token punctuation">}</span>
-<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
 <p>这里面有个lru列表。从下面的定义，我们可以想象，所有的页面都被挂在LRU列表中。LRU是Least Recent Use，也就是最近最少使用。也就是说，这个列表里面会按照活跃程度进行排序，这样就容易把不怎么用的内存页拿出来做处理。</p>
 <p>内存页总共分两类，一类是<strong>匿名页</strong>，和虚拟地址空间进行关联；一类是<strong>内存映射</strong>，不但和虚拟地址空间关联，还和文件管理关联。</p>
 <p>它们每一类都有两个列表，一个是active，一个是inactive。顾名思义，active就是比较活跃的，inactive就是不怎么活跃的。这两个里面的页会变化，过一段时间，活跃的可能变为不活跃，不活跃的可能变为活跃。如果要换出内存，那就是从不活跃的列表中找出最不活跃的，换出到硬盘上。</p>
@@ -3752,6 +3761,737 @@ new_slab<span class="token operator">:</span>
 <li>Slub Allocator将从伙伴系统申请的大内存块切成小块，分配给其他系统。</li>
 </ul>
 <p><img src="/images/《趣谈Linux操作系统》学习笔记/物理内存的管理.jpeg" alt="物理内存的管理"></p>
+<h2 id="二十、用户态内存映射"><a href="#二十、用户态内存映射" class="headerlink" title="二十、用户态内存映射"></a>二十、用户态内存映射</h2><h3 id="20-1-mmap的原理"><a href="#20-1-mmap的原理" class="headerlink" title="20.1 mmap的原理"></a>20.1 mmap的原理</h3><p>在虚拟地址空间那一节，我们知道，每一个进程都有一个列表vm_area_struct，指向虚拟地址空间的不同的内存块，这个变量的名字叫mmap。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">struct</span> <span class="token class-name">mm_struct</span> <span class="token punctuation">{</span>
+    <span class="token keyword">struct</span> <span class="token class-name">vm_area_struct</span> <span class="token operator">*</span>mmap<span class="token punctuation">;</span>        <span class="token comment">/* list of VMAs */</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+<span class="token punctuation">}</span>
+
+<span class="token keyword">struct</span> <span class="token class-name">vm_area_struct</span> <span class="token punctuation">{</span>
+    <span class="token comment">/*
+     * For areas with an address space and backing store,
+     * linkage into the address_space-&gt;i_mmap interval tree.
+     */</span>
+    <span class="token keyword">struct</span> <span class="token punctuation">{</span>
+        <span class="token keyword">struct</span> <span class="token class-name">rb_node</span> rb<span class="token punctuation">;</span>
+        <span class="token keyword">unsigned</span> <span class="token keyword">long</span> rb_subtree_last<span class="token punctuation">;</span>
+    <span class="token punctuation">}</span> shared<span class="token punctuation">;</span>
+
+    <span class="token comment">/*
+     * A file's MAP_PRIVATE vma can be in both i_mmap tree and anon_vma
+     * list, after a COW of one of the file pages.  A MAP_SHARED vma
+     * can only be in the i_mmap tree.  An anonymous MAP_PRIVATE, stack
+     * or brk vma (with NULL file) can only be in an anon_vma list.
+     */</span>
+    <span class="token keyword">struct</span> <span class="token class-name">list_head</span> anon_vma_chain<span class="token punctuation">;</span> <span class="token comment">/* Serialized by mmap_sem &amp;
+                      * page_table_lock */</span>
+    <span class="token keyword">struct</span> <span class="token class-name">anon_vma</span> <span class="token operator">*</span>anon_vma<span class="token punctuation">;</span>  <span class="token comment">/* Serialized by page_table_lock */</span>
+
+    <span class="token comment">/* Function pointers to deal with this struct. */</span>
+    <span class="token keyword">const</span> <span class="token keyword">struct</span> <span class="token class-name">vm_operations_struct</span> <span class="token operator">*</span>vm_ops<span class="token punctuation">;</span>
+    <span class="token comment">/* Information about our backing store: */</span>
+    <span class="token keyword">unsigned</span> <span class="token keyword">long</span> vm_pgoff<span class="token punctuation">;</span>     <span class="token comment">/* Offset (within vm_file) in PAGE_SIZE
+                       units */</span>
+    <span class="token keyword">struct</span> <span class="token class-name">file</span> <span class="token operator">*</span> vm_file<span class="token punctuation">;</span>      <span class="token comment">/* File we map to (can be NULL). */</span>
+    <span class="token keyword">void</span> <span class="token operator">*</span> vm_private_data<span class="token punctuation">;</span>     <span class="token comment">/* was vm_pte (shared mem) */</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>其实内存映射不仅仅是物理内存和虚拟内存之间的映射，还包括将文件中的内容映射到虚拟内存空间。这个时候，访问内存空间就能够访问到文件里面的数据。而仅有物理内存和虚拟内存的映射，是一种特殊情况。</p>
+<p><img src="/images/《趣谈Linux操作系统》学习笔记/将文件中的内容映射到虚拟内存空间.jpg" alt="将文件中的内容映射到虚拟内存空间"></p>
+<p>前面咱们讲堆的时候讲过，如果我们要申请小块内存，就用brk。brk函数之前已经解析过了，这里就不多说了。如果申请一大块内存，就要用mmap。对于堆的申请来讲，mmap是映射内存空间到物理内存。</p>
+<p>另外，如果一个进程想映射一个文件到自己的虚拟内存空间，也要通过mmap系统调用。这个时候mmap是映射内存空间到物理内存再到文件。可见mmap这个系统调用是核心，我们现在来看mmap这个系统调用。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token function">SYSCALL_DEFINE6</span><span class="token punctuation">(</span>mmap<span class="token punctuation">,</span> <span class="token keyword">unsigned</span> <span class="token keyword">long</span><span class="token punctuation">,</span> addr<span class="token punctuation">,</span> <span class="token keyword">unsigned</span> <span class="token keyword">long</span><span class="token punctuation">,</span> len<span class="token punctuation">,</span>
+                <span class="token keyword">unsigned</span> <span class="token keyword">long</span><span class="token punctuation">,</span> prot<span class="token punctuation">,</span> <span class="token keyword">unsigned</span> <span class="token keyword">long</span><span class="token punctuation">,</span> flags<span class="token punctuation">,</span>
+                <span class="token keyword">unsigned</span> <span class="token keyword">long</span><span class="token punctuation">,</span> fd<span class="token punctuation">,</span> <span class="token keyword">unsigned</span> <span class="token keyword">long</span><span class="token punctuation">,</span> off<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+        error <span class="token operator">=</span> <span class="token function">sys_mmap_pgoff</span><span class="token punctuation">(</span>addr<span class="token punctuation">,</span> len<span class="token punctuation">,</span> prot<span class="token punctuation">,</span> flags<span class="token punctuation">,</span> fd<span class="token punctuation">,</span> off <span class="token operator">&gt;&gt;</span> PAGE_SHIFT<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+<span class="token punctuation">}</span>
+
+<span class="token function">SYSCALL_DEFINE6</span><span class="token punctuation">(</span>mmap_pgoff<span class="token punctuation">,</span> <span class="token keyword">unsigned</span> <span class="token keyword">long</span><span class="token punctuation">,</span> addr<span class="token punctuation">,</span> <span class="token keyword">unsigned</span> <span class="token keyword">long</span><span class="token punctuation">,</span> len<span class="token punctuation">,</span>
+        <span class="token keyword">unsigned</span> <span class="token keyword">long</span><span class="token punctuation">,</span> prot<span class="token punctuation">,</span> <span class="token keyword">unsigned</span> <span class="token keyword">long</span><span class="token punctuation">,</span> flags<span class="token punctuation">,</span>
+        <span class="token keyword">unsigned</span> <span class="token keyword">long</span><span class="token punctuation">,</span> fd<span class="token punctuation">,</span> <span class="token keyword">unsigned</span> <span class="token keyword">long</span><span class="token punctuation">,</span> pgoff<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword">struct</span> <span class="token class-name">file</span> <span class="token operator">*</span>file <span class="token operator">=</span> <span class="token constant">NULL</span><span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    file <span class="token operator">=</span> <span class="token function">fget</span><span class="token punctuation">(</span>fd<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    retval <span class="token operator">=</span> <span class="token function">vm_mmap_pgoff</span><span class="token punctuation">(</span>file<span class="token punctuation">,</span> addr<span class="token punctuation">,</span> len<span class="token punctuation">,</span> prot<span class="token punctuation">,</span> flags<span class="token punctuation">,</span> pgoff<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">return</span> retval<span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>如果要映射到文件，fd会传进来一个文件描述符，并且mmap_pgoff里面通过fget函数，根据文件描述符获得struct file。struct file表示打开的一个文件。</p>
+<p>接下来的调用链是vm_mmap_pgoff-&gt;do_mmap_pgoff-&gt;do_mmap。这里面主要干了两件事情：</p>
+<ul>
+<li>调用get_unmapped_area找到一个没有映射的区域；</li>
+<li>调用mmap_region映射这个区域。</li>
+</ul>
+<p>我们先来看get_unmapped_area函数。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">unsigned</span> <span class="token keyword">long</span>
+<span class="token function">get_unmapped_area</span><span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">file</span> <span class="token operator">*</span>file<span class="token punctuation">,</span> <span class="token keyword">unsigned</span> <span class="token keyword">long</span> addr<span class="token punctuation">,</span> <span class="token keyword">unsigned</span> <span class="token keyword">long</span> len<span class="token punctuation">,</span>
+        <span class="token keyword">unsigned</span> <span class="token keyword">long</span> pgoff<span class="token punctuation">,</span> <span class="token keyword">unsigned</span> <span class="token keyword">long</span> flags<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword">unsigned</span> <span class="token keyword">long</span> <span class="token punctuation">(</span><span class="token operator">*</span>get_area<span class="token punctuation">)</span><span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">file</span> <span class="token operator">*</span><span class="token punctuation">,</span> <span class="token keyword">unsigned</span> <span class="token keyword">long</span><span class="token punctuation">,</span>
+                  <span class="token keyword">unsigned</span> <span class="token keyword">long</span><span class="token punctuation">,</span> <span class="token keyword">unsigned</span> <span class="token keyword">long</span><span class="token punctuation">,</span> <span class="token keyword">unsigned</span> <span class="token keyword">long</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    get_area <span class="token operator">=</span> current<span class="token operator">-&gt;</span>mm<span class="token operator">-&gt;</span>get_unmapped_area<span class="token punctuation">;</span>
+    <span class="token keyword">if</span> <span class="token punctuation">(</span>file<span class="token punctuation">)</span> <span class="token punctuation">{</span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span>file<span class="token operator">-&gt;</span>f_op<span class="token operator">-&gt;</span>get_unmapped_area<span class="token punctuation">)</span>
+            get_area <span class="token operator">=</span> file<span class="token operator">-&gt;</span>f_op<span class="token operator">-&gt;</span>get_unmapped_area<span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>这里面如果是匿名映射，则调用mm_struct里面的get_unmapped_area函数。这个函数其实是arch_get_unmapped_area。它会调用find_vma_prev，在表示虚拟内存区域的vm_area_struct红黑树上找到相应的位置。之所以叫prev，是说这个时候虚拟内存区域还没有建立，找到前一个vm_area_struct。</p>
+<p>如果不是匿名映射，而是映射到一个文件，这样在Linux里面，每个打开的文件都有一个struct file结构，里面有一个file_operations，用来表示和这个文件相关的操作。如果是我们熟知的ext4文件系统，调用的是thp_get_unmapped_area。如果我们仔细看这个函数，最终还是调用mm_struct里面的get_unmapped_area函数。殊途同归。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">const</span> <span class="token keyword">struct</span> <span class="token class-name">file_operations</span> ext4_file_operations <span class="token operator">=</span> <span class="token punctuation">{</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+        <span class="token punctuation">.</span>mmap           <span class="token operator">=</span> ext4_file_mmap
+        <span class="token punctuation">.</span>get_unmapped_area <span class="token operator">=</span> thp_get_unmapped_area<span class="token punctuation">,</span>
+<span class="token punctuation">}</span><span class="token punctuation">;</span>
+
+
+<span class="token keyword">unsigned</span> <span class="token keyword">long</span> <span class="token function">__thp_get_unmapped_area</span><span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">file</span> <span class="token operator">*</span>filp<span class="token punctuation">,</span> <span class="token keyword">unsigned</span> <span class="token keyword">long</span> len<span class="token punctuation">,</span>
+                loff_t off<span class="token punctuation">,</span> <span class="token keyword">unsigned</span> <span class="token keyword">long</span> flags<span class="token punctuation">,</span> <span class="token keyword">unsigned</span> <span class="token keyword">long</span> size<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+        <span class="token keyword">unsigned</span> <span class="token keyword">long</span> addr<span class="token punctuation">;</span>
+        loff_t off_end <span class="token operator">=</span> off <span class="token operator">+</span> len<span class="token punctuation">;</span>
+        loff_t off_align <span class="token operator">=</span> <span class="token function">round_up</span><span class="token punctuation">(</span>off<span class="token punctuation">,</span> size<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token keyword">unsigned</span> <span class="token keyword">long</span> len_pad<span class="token punctuation">;</span>
+        len_pad <span class="token operator">=</span> len <span class="token operator">+</span> size<span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+        addr <span class="token operator">=</span> current<span class="token operator">-&gt;</span>mm<span class="token operator">-&gt;</span><span class="token function">get_unmapped_area</span><span class="token punctuation">(</span>filp<span class="token punctuation">,</span> <span class="token number">0</span><span class="token punctuation">,</span> len_pad<span class="token punctuation">,</span>
+                                              off <span class="token operator">&gt;&gt;</span> PAGE_SHIFT<span class="token punctuation">,</span> flags<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        addr <span class="token operator">+=</span> <span class="token punctuation">(</span>off <span class="token operator">-</span> addr<span class="token punctuation">)</span> <span class="token operator">&amp;</span> <span class="token punctuation">(</span>size <span class="token operator">-</span> <span class="token number">1</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token keyword">return</span> addr<span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>我们再来看mmap_region，看它如何映射这个虚拟内存区域。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">unsigned</span> <span class="token keyword">long</span> <span class="token function">mmap_region</span><span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">file</span> <span class="token operator">*</span>file<span class="token punctuation">,</span> <span class="token keyword">unsigned</span> <span class="token keyword">long</span> addr<span class="token punctuation">,</span>
+        <span class="token keyword">unsigned</span> <span class="token keyword">long</span> len<span class="token punctuation">,</span> vm_flags_t vm_flags<span class="token punctuation">,</span> <span class="token keyword">unsigned</span> <span class="token keyword">long</span> pgoff<span class="token punctuation">,</span>
+        <span class="token keyword">struct</span> <span class="token class-name">list_head</span> <span class="token operator">*</span>uf<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword">struct</span> <span class="token class-name">mm_struct</span> <span class="token operator">*</span>mm <span class="token operator">=</span> current<span class="token operator">-&gt;</span>mm<span class="token punctuation">;</span>
+    <span class="token keyword">struct</span> <span class="token class-name">vm_area_struct</span> <span class="token operator">*</span>vma<span class="token punctuation">,</span> <span class="token operator">*</span>prev<span class="token punctuation">;</span>
+    <span class="token keyword">struct</span> <span class="token class-name">rb_node</span> <span class="token operator">*</span><span class="token operator">*</span>rb_link<span class="token punctuation">,</span> <span class="token operator">*</span>rb_parent<span class="token punctuation">;</span>
+
+
+    <span class="token comment">/*
+     * Can we just expand an old mapping?
+     */</span>
+    vma <span class="token operator">=</span> <span class="token function">vma_merge</span><span class="token punctuation">(</span>mm<span class="token punctuation">,</span> prev<span class="token punctuation">,</span> addr<span class="token punctuation">,</span> addr <span class="token operator">+</span> len<span class="token punctuation">,</span> vm_flags<span class="token punctuation">,</span>
+            <span class="token constant">NULL</span><span class="token punctuation">,</span> file<span class="token punctuation">,</span> pgoff<span class="token punctuation">,</span> <span class="token constant">NULL</span><span class="token punctuation">,</span> NULL_VM_UFFD_CTX<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">if</span> <span class="token punctuation">(</span>vma<span class="token punctuation">)</span>
+        <span class="token keyword">goto</span> out<span class="token punctuation">;</span>
+
+
+    <span class="token comment">/*
+     * Determine the object being mapped and call the appropriate
+     * specific mapper. the address has already been validated, but
+     * not unmapped, but the maps are removed from the list.
+     */</span>
+    vma <span class="token operator">=</span> <span class="token function">kmem_cache_zalloc</span><span class="token punctuation">(</span>vm_area_cachep<span class="token punctuation">,</span> GFP_KERNEL<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token operator">!</span>vma<span class="token punctuation">)</span> <span class="token punctuation">{</span>
+        error <span class="token operator">=</span> <span class="token operator">-</span>ENOMEM<span class="token punctuation">;</span>
+        <span class="token keyword">goto</span> unacct_error<span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+
+
+    vma<span class="token operator">-&gt;</span>vm_mm <span class="token operator">=</span> mm<span class="token punctuation">;</span>
+    vma<span class="token operator">-&gt;</span>vm_start <span class="token operator">=</span> addr<span class="token punctuation">;</span>
+    vma<span class="token operator">-&gt;</span>vm_end <span class="token operator">=</span> addr <span class="token operator">+</span> len<span class="token punctuation">;</span>
+    vma<span class="token operator">-&gt;</span>vm_flags <span class="token operator">=</span> vm_flags<span class="token punctuation">;</span>
+    vma<span class="token operator">-&gt;</span>vm_page_prot <span class="token operator">=</span> <span class="token function">vm_get_page_prot</span><span class="token punctuation">(</span>vm_flags<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    vma<span class="token operator">-&gt;</span>vm_pgoff <span class="token operator">=</span> pgoff<span class="token punctuation">;</span>
+    <span class="token function">INIT_LIST_HEAD</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>vma<span class="token operator">-&gt;</span>anon_vma_chain<span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+
+    <span class="token keyword">if</span> <span class="token punctuation">(</span>file<span class="token punctuation">)</span> <span class="token punctuation">{</span>
+        vma<span class="token operator">-&gt;</span>vm_file <span class="token operator">=</span> <span class="token function">get_file</span><span class="token punctuation">(</span>file<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        error <span class="token operator">=</span> <span class="token function">call_mmap</span><span class="token punctuation">(</span>file<span class="token punctuation">,</span> vma<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        addr <span class="token operator">=</span> vma<span class="token operator">-&gt;</span>vm_start<span class="token punctuation">;</span>
+        vm_flags <span class="token operator">=</span> vma<span class="token operator">-&gt;</span>vm_flags<span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    <span class="token function">vma_link</span><span class="token punctuation">(</span>mm<span class="token punctuation">,</span> vma<span class="token punctuation">,</span> prev<span class="token punctuation">,</span> rb_link<span class="token punctuation">,</span> rb_parent<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">return</span> addr<span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>还记得咱们刚找到了虚拟内存区域的前一个vm_area_struct，我们首先要看，是否能够基于它进行扩展，也即调用vma_merge，和前一个vm_area_struct合并到一起。</p>
+<p>如果不能，就需要调用kmem_cache_zalloc，在Slub里面创建一个新的vm_area_struct对象，设置起始和结束位置，将它加入队列。如果是映射到文件，则设置vm_file为目标文件，调用call_mmap。其实就是调用file_operations的mmap函数。对于ext4文件系统，调用的是ext4_file_mmap。从这个函数的参数可以看出，这一刻文件和内存开始发生关系了。这里我们将vm_area_struct的内存操作设置为文件系统操作，也就是说，读写内存其实就是读写文件系统。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">static</span> <span class="token keyword">inline</span> <span class="token keyword">int</span> <span class="token function">call_mmap</span><span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">file</span> <span class="token operator">*</span>file<span class="token punctuation">,</span> <span class="token keyword">struct</span> <span class="token class-name">vm_area_struct</span> <span class="token operator">*</span>vma<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword">return</span> file<span class="token operator">-&gt;</span>f_op<span class="token operator">-&gt;</span><span class="token function">mmap</span><span class="token punctuation">(</span>file<span class="token punctuation">,</span> vma<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+
+<span class="token keyword">static</span> <span class="token keyword">int</span> <span class="token function">ext4_file_mmap</span><span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">file</span> <span class="token operator">*</span>file<span class="token punctuation">,</span> <span class="token keyword">struct</span> <span class="token class-name">vm_area_struct</span> <span class="token operator">*</span>vma<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+      vma<span class="token operator">-&gt;</span>vm_ops <span class="token operator">=</span> <span class="token operator">&amp;</span>ext4_file_vm_ops<span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>我们再回到mmap_region函数。最终，vma_link函数将新创建的vm_area_struct挂在了mm_struct里面的红黑树上。</p>
+<p>这个时候，从内存到文件的映射关系，至少要在逻辑层面建立起来。那从文件到内存的映射关系呢？vma_link还做了另外一件事情，就是__vma_link_file。这个东西要用于建立这层映射关系。</p>
+<p>对于打开的文件，会有一个结构struct file来表示。它有个成员指向struct address_space结构，这里面有棵变量名为i_mmap的红黑树，vm_area_struct就挂在这棵树上。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">struct</span> <span class="token class-name">address_space</span> <span class="token punctuation">{</span>
+    <span class="token keyword">struct</span> <span class="token class-name">inode</span>        <span class="token operator">*</span>host<span class="token punctuation">;</span>                      <span class="token comment">/* owner: inode, block_device */</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    <span class="token keyword">struct</span> <span class="token class-name">rb_root</span>      i_mmap<span class="token punctuation">;</span>                     <span class="token comment">/* tree of private and shared mappings */</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    <span class="token keyword">const</span> <span class="token keyword">struct</span> <span class="token class-name">address_space_operations</span> <span class="token operator">*</span>a_ops<span class="token punctuation">;</span>   <span class="token comment">/* methods */</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+<span class="token punctuation">}</span>
+
+<span class="token keyword">static</span> <span class="token keyword">void</span> <span class="token function">__vma_link_file</span><span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">vm_area_struct</span> <span class="token operator">*</span>vma<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword">struct</span> <span class="token class-name">file</span> <span class="token operator">*</span>file<span class="token punctuation">;</span>
+
+    file <span class="token operator">=</span> vma<span class="token operator">-&gt;</span>vm_file<span class="token punctuation">;</span>
+    <span class="token keyword">if</span> <span class="token punctuation">(</span>file<span class="token punctuation">)</span> <span class="token punctuation">{</span>
+        <span class="token keyword">struct</span> <span class="token class-name">address_space</span> <span class="token operator">*</span>mapping <span class="token operator">=</span> file<span class="token operator">-&gt;</span>f_mapping<span class="token punctuation">;</span>
+        <span class="token function">vma_interval_tree_insert</span><span class="token punctuation">(</span>vma<span class="token punctuation">,</span> <span class="token operator">&amp;</span>mapping<span class="token operator">-&gt;</span>i_mmap<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>到这里，内存映射的内容要告一段落了。你可能会困惑，好像还没和物理内存发生任何关系，还是在虚拟内存里面折腾呀？</p>
+<p>对的，因为到目前为止，我们还没有开始真正访问内存呀！这个时候，内存管理并不直接分配物理内存，因为物理内存相对于虚拟地址空间太宝贵了，只有等你真正用的那一刻才会开始分配。</p>
+<h3 id="20-2-用户态缺页异常"><a href="#20-2-用户态缺页异常" class="headerlink" title="20.2 用户态缺页异常"></a>20.2 用户态缺页异常</h3><p>一旦开始访问虚拟内存的某个地址，如果我们发现，并没有对应的物理页，那就触发缺页中断，调用do_page_fault。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c">dotraplinkage <span class="token keyword">void</span> notrace
+<span class="token function">do_page_fault</span><span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">pt_regs</span> <span class="token operator">*</span>regs<span class="token punctuation">,</span> <span class="token keyword">unsigned</span> <span class="token keyword">long</span> error_code<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword">unsigned</span> <span class="token keyword">long</span> address <span class="token operator">=</span> <span class="token function">read_cr2</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span> <span class="token comment">/* Get the faulting address */</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    <span class="token function">__do_page_fault</span><span class="token punctuation">(</span>regs<span class="token punctuation">,</span> error_code<span class="token punctuation">,</span> address<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+<span class="token punctuation">}</span>
+<span class="token comment">/*
+ * This routine handles page faults.  It determines the address,
+ * and the problem, and then passes it off to one of the appropriate
+ * routines.
+ */</span>
+<span class="token keyword">static</span> noinline <span class="token keyword">void</span>
+<span class="token function">__do_page_fault</span><span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">pt_regs</span> <span class="token operator">*</span>regs<span class="token punctuation">,</span> <span class="token keyword">unsigned</span> <span class="token keyword">long</span> error_code<span class="token punctuation">,</span>
+        <span class="token keyword">unsigned</span> <span class="token keyword">long</span> address<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword">struct</span> <span class="token class-name">vm_area_struct</span> <span class="token operator">*</span>vma<span class="token punctuation">;</span>
+    <span class="token keyword">struct</span> <span class="token class-name">task_struct</span> <span class="token operator">*</span>tsk<span class="token punctuation">;</span>
+    <span class="token keyword">struct</span> <span class="token class-name">mm_struct</span> <span class="token operator">*</span>mm<span class="token punctuation">;</span>
+    tsk <span class="token operator">=</span> current<span class="token punctuation">;</span>
+    mm <span class="token operator">=</span> tsk<span class="token operator">-&gt;</span>mm<span class="token punctuation">;</span>
+
+
+    <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token function">unlikely</span><span class="token punctuation">(</span><span class="token function">fault_in_kernel_space</span><span class="token punctuation">(</span>address<span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token function">vmalloc_fault</span><span class="token punctuation">(</span>address<span class="token punctuation">)</span> <span class="token operator">&gt;=</span> <span class="token number">0</span><span class="token punctuation">)</span>
+            <span class="token keyword">return</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    vma <span class="token operator">=</span> <span class="token function">find_vma</span><span class="token punctuation">(</span>mm<span class="token punctuation">,</span> address<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    fault <span class="token operator">=</span> <span class="token function">handle_mm_fault</span><span class="token punctuation">(</span>vma<span class="token punctuation">,</span> address<span class="token punctuation">,</span> flags<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>在__do_page_fault里面，先要判断缺页中断是否发生在内核。如果发生在内核则调用vmalloc_fault，这就和咱们前面学过的虚拟内存的布局对应上了。在内核里面，vmalloc区域需要内核页表映射到物理页。咱们这里把内核的这部分放放，接着看用户空间的部分。</p>
+<p>接下来在用户空间里面，找到你访问的那个地址所在的区域vm_area_struct，然后调用handle_mm_fault来映射这个区域。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">static</span> <span class="token keyword">int</span> <span class="token function">__handle_mm_fault</span><span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">vm_area_struct</span> <span class="token operator">*</span>vma<span class="token punctuation">,</span> <span class="token keyword">unsigned</span> <span class="token keyword">long</span> address<span class="token punctuation">,</span>
+        <span class="token keyword">unsigned</span> <span class="token keyword">int</span> flags<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword">struct</span> <span class="token class-name">vm_fault</span> vmf <span class="token operator">=</span> <span class="token punctuation">{</span>
+        <span class="token punctuation">.</span>vma <span class="token operator">=</span> vma<span class="token punctuation">,</span>
+        <span class="token punctuation">.</span>address <span class="token operator">=</span> address <span class="token operator">&amp;</span> PAGE_MASK<span class="token punctuation">,</span>
+        <span class="token punctuation">.</span>flags <span class="token operator">=</span> flags<span class="token punctuation">,</span>
+        <span class="token punctuation">.</span>pgoff <span class="token operator">=</span> <span class="token function">linear_page_index</span><span class="token punctuation">(</span>vma<span class="token punctuation">,</span> address<span class="token punctuation">)</span><span class="token punctuation">,</span>
+        <span class="token punctuation">.</span>gfp_mask <span class="token operator">=</span> <span class="token function">__get_fault_gfp_mask</span><span class="token punctuation">(</span>vma<span class="token punctuation">)</span><span class="token punctuation">,</span>
+    <span class="token punctuation">}</span><span class="token punctuation">;</span>
+    <span class="token keyword">struct</span> <span class="token class-name">mm_struct</span> <span class="token operator">*</span>mm <span class="token operator">=</span> vma<span class="token operator">-&gt;</span>vm_mm<span class="token punctuation">;</span>
+    pgd_t <span class="token operator">*</span>pgd<span class="token punctuation">;</span>
+    p4d_t <span class="token operator">*</span>p4d<span class="token punctuation">;</span>
+    <span class="token keyword">int</span> ret<span class="token punctuation">;</span>
+
+    pgd <span class="token operator">=</span> <span class="token function">pgd_offset</span><span class="token punctuation">(</span>mm<span class="token punctuation">,</span> address<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    p4d <span class="token operator">=</span> <span class="token function">p4d_alloc</span><span class="token punctuation">(</span>mm<span class="token punctuation">,</span> pgd<span class="token punctuation">,</span> address<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    vmf<span class="token punctuation">.</span>pud <span class="token operator">=</span> <span class="token function">pud_alloc</span><span class="token punctuation">(</span>mm<span class="token punctuation">,</span> p4d<span class="token punctuation">,</span> address<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    vmf<span class="token punctuation">.</span>pmd <span class="token operator">=</span> <span class="token function">pmd_alloc</span><span class="token punctuation">(</span>mm<span class="token punctuation">,</span> vmf<span class="token punctuation">.</span>pud<span class="token punctuation">,</span> address<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    <span class="token keyword">return</span> <span class="token function">handle_pte_fault</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>vmf<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>到这里，终于看到了我们熟悉的PGD、P4G、PUD、PMD、PTE，这就是前面讲页表的时候，讲述的四级页表的概念，因为暂且不考虑五级页表，我们暂时忽略P4G。</p>
+<p><img src="/images/《趣谈Linux操作系统》学习笔记/四级页表.jpg" alt="四级页表"></p>
+<p>pgd_t 用于全局页目录项，pud_t 用于上层页目录项，pmd_t 用于中间页目录项，pte_t 用于直接页表项。</p>
+<p>每个进程都有独立的地址空间，为了这个进程独立完成映射，每个进程都有独立的进程页表，这个页表的最顶级的pgd存放在task_struct中的mm_struct的pgd变量里面。</p>
+<p>在一个进程新创建的时候，会调用fork，对于内存的部分会调用copy_mm，里面调用dup_mm。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token comment">/*
+ * Allocate a new mm structure and copy contents from the
+ * mm structure of the passed in task structure.
+ */</span>
+<span class="token keyword">static</span> <span class="token keyword">struct</span> <span class="token class-name">mm_struct</span> <span class="token operator">*</span><span class="token function">dup_mm</span><span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">task_struct</span> <span class="token operator">*</span>tsk<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword">struct</span> <span class="token class-name">mm_struct</span> <span class="token operator">*</span>mm<span class="token punctuation">,</span> <span class="token operator">*</span>oldmm <span class="token operator">=</span> current<span class="token operator">-&gt;</span>mm<span class="token punctuation">;</span>
+    mm <span class="token operator">=</span> <span class="token function">allocate_mm</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token function">memcpy</span><span class="token punctuation">(</span>mm<span class="token punctuation">,</span> oldmm<span class="token punctuation">,</span> <span class="token keyword">sizeof</span><span class="token punctuation">(</span><span class="token operator">*</span>mm<span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token operator">!</span><span class="token function">mm_init</span><span class="token punctuation">(</span>mm<span class="token punctuation">,</span> tsk<span class="token punctuation">,</span> mm<span class="token operator">-&gt;</span>user_ns<span class="token punctuation">)</span><span class="token punctuation">)</span>
+        <span class="token keyword">goto</span> fail_nomem<span class="token punctuation">;</span>
+    err <span class="token operator">=</span> <span class="token function">dup_mmap</span><span class="token punctuation">(</span>mm<span class="token punctuation">,</span> oldmm<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">return</span> mm<span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>在这里，除了创建一个新的mm_struct，并且通过memcpy将它和父进程的弄成一模一样之外，我们还需要调用mm_init进行初始化。接下来，mm_init调用mm_alloc_pgd，分配全局页目录项，赋值给mm_struct的pdg成员变量。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">static</span> <span class="token keyword">inline</span> <span class="token keyword">int</span> <span class="token function">mm_alloc_pgd</span><span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">mm_struct</span> <span class="token operator">*</span>mm<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    mm<span class="token operator">-&gt;</span>pgd <span class="token operator">=</span> <span class="token function">pgd_alloc</span><span class="token punctuation">(</span>mm<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">return</span> <span class="token number">0</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>pgd_alloc里面除了分配PDG之外，还做了很重要的一个事情，就是调用pgd_ctor。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">static</span> <span class="token keyword">void</span> <span class="token function">pgd_ctor</span><span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">mm_struct</span> <span class="token operator">*</span>mm<span class="token punctuation">,</span> pgd_t <span class="token operator">*</span>pgd<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token comment">/* If the pgd points to a shared pagetable level (either the
+       ptes in non-PAE, or shared PMD in PAE), then just copy the
+       references from swapper_pg_dir. */</span>
+    <span class="token keyword">if</span> <span class="token punctuation">(</span>CONFIG_PGTABLE_LEVELS <span class="token operator">==</span> <span class="token number">2</span> <span class="token operator">||</span>
+        <span class="token punctuation">(</span>CONFIG_PGTABLE_LEVELS <span class="token operator">==</span> <span class="token number">3</span> <span class="token operator">&amp;&amp;</span> SHARED_KERNEL_PMD<span class="token punctuation">)</span> <span class="token operator">||</span>
+        CONFIG_PGTABLE_LEVELS <span class="token operator">&gt;=</span> <span class="token number">4</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+        <span class="token function">clone_pgd_range</span><span class="token punctuation">(</span>pgd <span class="token operator">+</span> KERNEL_PGD_BOUNDARY<span class="token punctuation">,</span>
+                swapper_pg_dir <span class="token operator">+</span> KERNEL_PGD_BOUNDARY<span class="token punctuation">,</span>
+                KERNEL_PGD_PTRS<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>pgd_ctor干了什么事情呢？我们注意看里面的注释，它拷贝了对于swapper_pg_dir的引用。swapper_pg_dir是内核页表的最顶级的全局页目录。</p>
+<p>一个进程的虚拟地址空间包含用户态和内核态两部分。为了从虚拟地址空间映射到物理页面，页表也分为用户地址空间的页表和内核页表，这就和上面遇到的vmalloc有关系了。在内核里面，映射靠内核页表，这里内核页表会拷贝一份到进程的页表。至于swapper_pg_dir是什么，怎么初始化的，怎么工作的，我们还是先放一放，放到下一节统一讨论。</p>
+<p>至此，一个进程fork完毕之后，有了内核页表，有了自己顶级的pgd，但是对于用户地址空间来讲，还完全没有映射过。这需要等到这个进程在某个CPU上运行，并且对内存访问的那一刻了。</p>
+<p>当这个进程被调度到某个CPU上运行的时候，咱们在 <strong>调度（上）</strong> 那一节讲过，要调用context_switch进行上下文切换。对于内存方面的切换会调用switch_mm_irqs_off，这里面会调用 load_new_mm_cr3。</p>
+<p>cr3是CPU的一个寄存器，它会指向当前进程的顶级pgd。如果CPU的指令要访问进程的虚拟内存，它就会自动从cr3里面得到pgd在物理内存的地址，然后根据里面的页表解析虚拟内存的地址为物理内存，从而访问真正的物理内存上的数据。</p>
+<p>这里需要注意两点。第一点，cr3里面存放当前进程的顶级pgd，这个是硬件的要求。cr3里面需要存放pgd在物理内存的地址，不能是虚拟地址。因而load_new_mm_cr3里面会使用__pa，将mm_struct里面的成员变量pdg（mm_struct里面存的都是虚拟地址）变为物理地址，才能加载到cr3里面去。</p>
+<p>第二点，用户进程在运行的过程中，访问虚拟内存中的数据，会被cr3里面指向的页表转换为物理地址后，才在物理内存中访问数据，这个过程都是在用户态运行的，地址转换的过程无需进入内核态。</p>
+<p>只有访问虚拟内存的时候，发现没有映射多物理内存，页表也没有创建过，才触发缺页异常。进入内核调用do_page_fault，一直调用到<strong>handle_mm_fault，这才有了上面解析到这个函数的时候，我们看到的代码。既然原来没有创建过页表，那只好补上这一课。于是，</strong>handle_mm_fault调用pud_alloc和pmd_alloc，来创建相应的页目录项，最后调用handle_pte_fault来创建页表项。</p>
+<p>绕了一大圈，终于将页表整个机制的各个部分串了起来。但是咱们的故事还没讲完，物理的内存还没找到。我们还得接着分析handle_pte_fault的实现。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">static</span> <span class="token keyword">int</span> <span class="token function">handle_pte_fault</span><span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">vm_fault</span> <span class="token operator">*</span>vmf<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    pte_t entry<span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    vmf<span class="token operator">-&gt;</span>pte <span class="token operator">=</span> <span class="token function">pte_offset_map</span><span class="token punctuation">(</span>vmf<span class="token operator">-&gt;</span>pmd<span class="token punctuation">,</span> vmf<span class="token operator">-&gt;</span>address<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    vmf<span class="token operator">-&gt;</span>orig_pte <span class="token operator">=</span> <span class="token operator">*</span>vmf<span class="token operator">-&gt;</span>pte<span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token operator">!</span>vmf<span class="token operator">-&gt;</span>pte<span class="token punctuation">)</span> <span class="token punctuation">{</span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token function">vma_is_anonymous</span><span class="token punctuation">(</span>vmf<span class="token operator">-&gt;</span>vma<span class="token punctuation">)</span><span class="token punctuation">)</span>
+            <span class="token keyword">return</span> <span class="token function">do_anonymous_page</span><span class="token punctuation">(</span>vmf<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token keyword">else</span>
+            <span class="token keyword">return</span> <span class="token function">do_fault</span><span class="token punctuation">(</span>vmf<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+
+    <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token operator">!</span><span class="token function">pte_present</span><span class="token punctuation">(</span>vmf<span class="token operator">-&gt;</span>orig_pte<span class="token punctuation">)</span><span class="token punctuation">)</span>
+        <span class="token keyword">return</span> <span class="token function">do_swap_page</span><span class="token punctuation">(</span>vmf<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>这里面总的来说分了三种情况。如果PTE，也就是页表项，从来没有出现过，那就是新映射的页。如果是匿名页，就是第一种情况，应该映射到一个物理内存页，在这里调用的是do_anonymous_page。如果是映射到文件，调用的就是do_fault，这是第二种情况。如果PTE原来出现过，说明原来页面在物理内存中，后来换出到硬盘了，现在应该换回来，调用的是do_swap_page。</p>
+<p>我们来看第一种情况，do_anonymous_page。对于匿名页的映射，我们需要先通过pte_alloc分配一个页表项，然后通过alloc_zeroed_user_highpage_movable分配一个页。之后它会调用alloc_pages_vma，并最终调用__alloc_pages_nodemask。</p>
+<p>这个函数你还记得吗？就是咱们伙伴系统的核心函数，专门用来分配物理页面的。do_anonymous_page接下来要调用mk_pte，将页表项指向新分配的物理页，set_pte_at会将页表项塞到页表里面。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">static</span> <span class="token keyword">int</span> <span class="token function">do_anonymous_page</span><span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">vm_fault</span> <span class="token operator">*</span>vmf<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword">struct</span> <span class="token class-name">vm_area_struct</span> <span class="token operator">*</span>vma <span class="token operator">=</span> vmf<span class="token operator">-&gt;</span>vma<span class="token punctuation">;</span>
+    <span class="token keyword">struct</span> <span class="token class-name">mem_cgroup</span> <span class="token operator">*</span>memcg<span class="token punctuation">;</span>
+    <span class="token keyword">struct</span> <span class="token class-name">page</span> <span class="token operator">*</span>page<span class="token punctuation">;</span>
+    <span class="token keyword">int</span> ret <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span>
+    pte_t entry<span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token function">pte_alloc</span><span class="token punctuation">(</span>vma<span class="token operator">-&gt;</span>vm_mm<span class="token punctuation">,</span> vmf<span class="token operator">-&gt;</span>pmd<span class="token punctuation">,</span> vmf<span class="token operator">-&gt;</span>address<span class="token punctuation">)</span><span class="token punctuation">)</span>
+        <span class="token keyword">return</span> VM_FAULT_OOM<span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    page <span class="token operator">=</span> <span class="token function">alloc_zeroed_user_highpage_movable</span><span class="token punctuation">(</span>vma<span class="token punctuation">,</span> vmf<span class="token operator">-&gt;</span>address<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    entry <span class="token operator">=</span> <span class="token function">mk_pte</span><span class="token punctuation">(</span>page<span class="token punctuation">,</span> vma<span class="token operator">-&gt;</span>vm_page_prot<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">if</span> <span class="token punctuation">(</span>vma<span class="token operator">-&gt;</span>vm_flags <span class="token operator">&amp;</span> VM_WRITE<span class="token punctuation">)</span>
+        entry <span class="token operator">=</span> <span class="token function">pte_mkwrite</span><span class="token punctuation">(</span><span class="token function">pte_mkdirty</span><span class="token punctuation">(</span>entry<span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+    vmf<span class="token operator">-&gt;</span>pte <span class="token operator">=</span> <span class="token function">pte_offset_map_lock</span><span class="token punctuation">(</span>vma<span class="token operator">-&gt;</span>vm_mm<span class="token punctuation">,</span> vmf<span class="token operator">-&gt;</span>pmd<span class="token punctuation">,</span> vmf<span class="token operator">-&gt;</span>address<span class="token punctuation">,</span>
+            <span class="token operator">&amp;</span>vmf<span class="token operator">-&gt;</span>ptl<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    <span class="token function">set_pte_at</span><span class="token punctuation">(</span>vma<span class="token operator">-&gt;</span>vm_mm<span class="token punctuation">,</span> vmf<span class="token operator">-&gt;</span>address<span class="token punctuation">,</span> vmf<span class="token operator">-&gt;</span>pte<span class="token punctuation">,</span> entry<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>第二种情况映射到文件do_fault，最终我们会调用__do_fault。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">static</span> <span class="token keyword">int</span> <span class="token function">__do_fault</span><span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">vm_fault</span> <span class="token operator">*</span>vmf<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword">struct</span> <span class="token class-name">vm_area_struct</span> <span class="token operator">*</span>vma <span class="token operator">=</span> vmf<span class="token operator">-&gt;</span>vma<span class="token punctuation">;</span>
+    <span class="token keyword">int</span> ret<span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    ret <span class="token operator">=</span> vma<span class="token operator">-&gt;</span>vm_ops<span class="token operator">-&gt;</span><span class="token function">fault</span><span class="token punctuation">(</span>vmf<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    <span class="token keyword">return</span> ret<span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>这里调用了struct vm_operations_struct vm_ops的fault函数。还记得咱们上面用mmap映射文件的时候，对于ext4文件系统，vm_ops指向了ext4_file_vm_ops，也就是调用了ext4_filemap_fault。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">static</span> <span class="token keyword">const</span> <span class="token keyword">struct</span> <span class="token class-name">vm_operations_struct</span> ext4_file_vm_ops <span class="token operator">=</span> <span class="token punctuation">{</span>
+    <span class="token punctuation">.</span>fault      <span class="token operator">=</span> ext4_filemap_fault<span class="token punctuation">,</span>
+    <span class="token punctuation">.</span>map_pages  <span class="token operator">=</span> filemap_map_pages<span class="token punctuation">,</span>
+    <span class="token punctuation">.</span>page_mkwrite   <span class="token operator">=</span> ext4_page_mkwrite<span class="token punctuation">,</span>
+<span class="token punctuation">}</span><span class="token punctuation">;</span>
+
+<span class="token keyword">int</span> <span class="token function">ext4_filemap_fault</span><span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">vm_fault</span> <span class="token operator">*</span>vmf<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword">struct</span> <span class="token class-name">inode</span> <span class="token operator">*</span>inode <span class="token operator">=</span> <span class="token function">file_inode</span><span class="token punctuation">(</span>vmf<span class="token operator">-&gt;</span>vma<span class="token operator">-&gt;</span>vm_file<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    err <span class="token operator">=</span> <span class="token function">filemap_fault</span><span class="token punctuation">(</span>vmf<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    <span class="token keyword">return</span> err<span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>ext4_filemap_fault里面的逻辑我们很容易就能读懂。vm_file就是咱们当时mmap的时候映射的那个文件，然后我们需要调用filemap_fault。对于文件映射来说，一般这个文件会在物理内存里面有页面作为它的缓存，find_get_page就是找那个页。如果找到了，就调用do_async_mmap_readahead，预读一些数据到内存里面；如果没有，就跳到no_cached_page。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">int</span> <span class="token function">filemap_fault</span><span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">vm_fault</span> <span class="token operator">*</span>vmf<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword">int</span> error<span class="token punctuation">;</span>
+    <span class="token keyword">struct</span> <span class="token class-name">file</span> <span class="token operator">*</span>file <span class="token operator">=</span> vmf<span class="token operator">-&gt;</span>vma<span class="token operator">-&gt;</span>vm_file<span class="token punctuation">;</span>
+    <span class="token keyword">struct</span> <span class="token class-name">address_space</span> <span class="token operator">*</span>mapping <span class="token operator">=</span> file<span class="token operator">-&gt;</span>f_mapping<span class="token punctuation">;</span>
+    <span class="token keyword">struct</span> <span class="token class-name">inode</span> <span class="token operator">*</span>inode <span class="token operator">=</span> mapping<span class="token operator">-&gt;</span>host<span class="token punctuation">;</span>
+    pgoff_t offset <span class="token operator">=</span> vmf<span class="token operator">-&gt;</span>pgoff<span class="token punctuation">;</span>
+    <span class="token keyword">struct</span> <span class="token class-name">page</span> <span class="token operator">*</span>page<span class="token punctuation">;</span>
+    <span class="token keyword">int</span> ret <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    page <span class="token operator">=</span> <span class="token function">find_get_page</span><span class="token punctuation">(</span>mapping<span class="token punctuation">,</span> offset<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token function">likely</span><span class="token punctuation">(</span>page<span class="token punctuation">)</span> <span class="token operator">&amp;&amp;</span> <span class="token operator">!</span><span class="token punctuation">(</span>vmf<span class="token operator">-&gt;</span>flags <span class="token operator">&amp;</span> FAULT_FLAG_TRIED<span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+        <span class="token function">do_async_mmap_readahead</span><span class="token punctuation">(</span>vmf<span class="token operator">-&gt;</span>vma<span class="token punctuation">,</span> ra<span class="token punctuation">,</span> file<span class="token punctuation">,</span> page<span class="token punctuation">,</span> offset<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span> <span class="token keyword">else</span> <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token operator">!</span>page<span class="token punctuation">)</span> <span class="token punctuation">{</span>
+        <span class="token keyword">goto</span> no_cached_page<span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    vmf<span class="token operator">-&gt;</span>page <span class="token operator">=</span> page<span class="token punctuation">;</span>
+    <span class="token keyword">return</span> ret <span class="token operator">|</span> VM_FAULT_LOCKED<span class="token punctuation">;</span>
+no_cached_page<span class="token operator">:</span>
+    error <span class="token operator">=</span> <span class="token function">page_cache_read</span><span class="token punctuation">(</span>file<span class="token punctuation">,</span> offset<span class="token punctuation">,</span> vmf<span class="token operator">-&gt;</span>gfp_mask<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>如果没有物理内存中的缓存页，那我们就调用page_cache_read。在这里显示分配一个缓存页，将这一页加到lru表里面，然后在address_space中调用address_space_operations的readpage函数，将文件内容读到内存中。address_space的作用咱们上面也介绍过了。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">static</span> <span class="token keyword">int</span> <span class="token function">page_cache_read</span><span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">file</span> <span class="token operator">*</span>file<span class="token punctuation">,</span> pgoff_t offset<span class="token punctuation">,</span> gfp_t gfp_mask<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword">struct</span> <span class="token class-name">address_space</span> <span class="token operator">*</span>mapping <span class="token operator">=</span> file<span class="token operator">-&gt;</span>f_mapping<span class="token punctuation">;</span>
+    <span class="token keyword">struct</span> <span class="token class-name">page</span> <span class="token operator">*</span>page<span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    page <span class="token operator">=</span> <span class="token function">__page_cache_alloc</span><span class="token punctuation">(</span>gfp_mask<span class="token operator">|</span>__GFP_COLD<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    ret <span class="token operator">=</span> <span class="token function">add_to_page_cache_lru</span><span class="token punctuation">(</span>page<span class="token punctuation">,</span> mapping<span class="token punctuation">,</span> offset<span class="token punctuation">,</span> gfp_mask <span class="token operator">&amp;</span> GFP_KERNEL<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    ret <span class="token operator">=</span> mapping<span class="token operator">-&gt;</span>a_ops<span class="token operator">-&gt;</span><span class="token function">readpage</span><span class="token punctuation">(</span>file<span class="token punctuation">,</span> page<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>struct address_space_operations对于ext4文件系统的定义如下所示。这么说来，上面的readpage调用的其实是ext4_readpage。因为我们还没讲到文件系统，这里我们不详细介绍ext4_readpage具体干了什么。你只要知道，最后会调用ext4_read_inline_page，这里面有部分逻辑和内存映射有关就行了。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">static</span> <span class="token keyword">const</span> <span class="token keyword">struct</span> <span class="token class-name">address_space_operations</span> ext4_aops <span class="token operator">=</span> <span class="token punctuation">{</span>
+    <span class="token punctuation">.</span>readpage       <span class="token operator">=</span> ext4_readpage<span class="token punctuation">,</span>
+    <span class="token punctuation">.</span>readpages      <span class="token operator">=</span> ext4_readpages<span class="token punctuation">,</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+<span class="token punctuation">}</span><span class="token punctuation">;</span>
+
+<span class="token keyword">static</span> <span class="token keyword">int</span> <span class="token function">ext4_read_inline_page</span><span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">inode</span> <span class="token operator">*</span>inode<span class="token punctuation">,</span> <span class="token keyword">struct</span> <span class="token class-name">page</span> <span class="token operator">*</span>page<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword">void</span> <span class="token operator">*</span>kaddr<span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    kaddr <span class="token operator">=</span> <span class="token function">kmap_atomic</span><span class="token punctuation">(</span>page<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    ret <span class="token operator">=</span> <span class="token function">ext4_read_inline_data</span><span class="token punctuation">(</span>inode<span class="token punctuation">,</span> kaddr<span class="token punctuation">,</span> len<span class="token punctuation">,</span> <span class="token operator">&amp;</span>iloc<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token function">flush_dcache_page</span><span class="token punctuation">(</span>page<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token function">kunmap_atomic</span><span class="token punctuation">(</span>kaddr<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>在ext4_read_inline_page函数里，我们需要先调用kmap_atomic，将物理内存映射到内核的虚拟地址空间，得到内核中的地址kaddr。 我们在前面提到过kmap_atomic，它是用来做临时内核映射的。本来把物理内存映射到用户虚拟地址空间，不需要在内核里面映射一把。但是，现在因为要从文件里面读取数据并写入这个物理页面，又不能使用物理地址，我们只能使用虚拟地址，这就需要在内核里面临时映射一把。临时映射后，ext4_read_inline_data读取文件到这个虚拟地址。读取完毕后，我们取消这个临时映射kunmap_atomic就行了。</p>
+<p>至于kmap_atomic的具体实现，我们还是放到内核映射部分再讲。</p>
+<p>我们再来看第三种情况，do_swap_page。之前我们讲过物理内存管理，你这里可以回忆一下。如果长时间不用，就要换出到硬盘，也就是swap，现在这部分数据又要访问了，我们还得想办法再次读到内存中来。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">int</span> <span class="token function">do_swap_page</span><span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">vm_fault</span> <span class="token operator">*</span>vmf<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword">struct</span> <span class="token class-name">vm_area_struct</span> <span class="token operator">*</span>vma <span class="token operator">=</span> vmf<span class="token operator">-&gt;</span>vma<span class="token punctuation">;</span>
+    <span class="token keyword">struct</span> <span class="token class-name">page</span> <span class="token operator">*</span>page<span class="token punctuation">,</span> <span class="token operator">*</span>swapcache<span class="token punctuation">;</span>
+    <span class="token keyword">struct</span> <span class="token class-name">mem_cgroup</span> <span class="token operator">*</span>memcg<span class="token punctuation">;</span>
+    swp_entry_t entry<span class="token punctuation">;</span>
+    pte_t pte<span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    entry <span class="token operator">=</span> <span class="token function">pte_to_swp_entry</span><span class="token punctuation">(</span>vmf<span class="token operator">-&gt;</span>orig_pte<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    page <span class="token operator">=</span> <span class="token function">lookup_swap_cache</span><span class="token punctuation">(</span>entry<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token operator">!</span>page<span class="token punctuation">)</span> <span class="token punctuation">{</span>
+        page <span class="token operator">=</span> <span class="token function">swapin_readahead</span><span class="token punctuation">(</span>entry<span class="token punctuation">,</span> GFP_HIGHUSER_MOVABLE<span class="token punctuation">,</span> vma<span class="token punctuation">,</span>
+                    vmf<span class="token operator">-&gt;</span>address<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    <span class="token punctuation">}</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    swapcache <span class="token operator">=</span> page<span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    pte <span class="token operator">=</span> <span class="token function">mk_pte</span><span class="token punctuation">(</span>page<span class="token punctuation">,</span> vma<span class="token operator">-&gt;</span>vm_page_prot<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    <span class="token function">set_pte_at</span><span class="token punctuation">(</span>vma<span class="token operator">-&gt;</span>vm_mm<span class="token punctuation">,</span> vmf<span class="token operator">-&gt;</span>address<span class="token punctuation">,</span> vmf<span class="token operator">-&gt;</span>pte<span class="token punctuation">,</span> pte<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    vmf<span class="token operator">-&gt;</span>orig_pte <span class="token operator">=</span> pte<span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    <span class="token function">swap_free</span><span class="token punctuation">(</span>entry<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>do_swap_page函数会先查找swap文件有没有缓存页。如果没有，就调用swapin_readahead，将swap文件读到内存中来，形成内存页，并通过mk_pte生成页表项。set_pte_at将页表项插入页表，swap_free将swap文件清理。因为重新加载回内存了，不再需要swap文件了。</p>
+<p>swapin_readahead会最终调用swap_readpage，在这里，我们看到了熟悉的readpage函数，也就是说读取普通文件和读取swap文件，过程是一样的，同样需要用kmap_atomic做临时映射。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">int</span> <span class="token function">swap_readpage</span><span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">page</span> <span class="token operator">*</span>page<span class="token punctuation">,</span> bool do_poll<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword">struct</span> <span class="token class-name">bio</span> <span class="token operator">*</span>bio<span class="token punctuation">;</span>
+    <span class="token keyword">int</span> ret <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span>
+    <span class="token keyword">struct</span> <span class="token class-name">swap_info_struct</span> <span class="token operator">*</span>sis <span class="token operator">=</span> <span class="token function">page_swap_info</span><span class="token punctuation">(</span>page<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    blk_qc_t qc<span class="token punctuation">;</span>
+    <span class="token keyword">struct</span> <span class="token class-name">block_device</span> <span class="token operator">*</span>bdev<span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    <span class="token keyword">if</span> <span class="token punctuation">(</span>sis<span class="token operator">-&gt;</span>flags <span class="token operator">&amp;</span> SWP_FILE<span class="token punctuation">)</span> <span class="token punctuation">{</span>
+        <span class="token keyword">struct</span> <span class="token class-name">file</span> <span class="token operator">*</span>swap_file <span class="token operator">=</span> sis<span class="token operator">-&gt;</span>swap_file<span class="token punctuation">;</span>
+        <span class="token keyword">struct</span> <span class="token class-name">address_space</span> <span class="token operator">*</span>mapping <span class="token operator">=</span> swap_file<span class="token operator">-&gt;</span>f_mapping<span class="token punctuation">;</span>
+        ret <span class="token operator">=</span> mapping<span class="token operator">-&gt;</span>a_ops<span class="token operator">-&gt;</span><span class="token function">readpage</span><span class="token punctuation">(</span>swap_file<span class="token punctuation">,</span> page<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token keyword">return</span> ret<span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>通过上面复杂的过程，用户态缺页异常处理完毕了。物理内存中有了页面，页表也建立好了映射。接下来，用户程序在虚拟内存空间里面，可以通过虚拟地址顺利经过页表映射的访问物理页面上的数据了。</p>
+<p>为了加快映射速度，我们不需要每次从虚拟地址到物理地址的转换都走一遍页表。</p>
+<p><img src="/images/《趣谈Linux操作系统》学习笔记/TLB快表.jpg" alt="TLB快表"></p>
+<h3 id="20-3-总结"><a href="#20-3-总结" class="headerlink" title="20.3 总结"></a>20.3 总结</h3><p>总结一下，用户态的内存映射机制包含以下几个部分。</p>
+<ul>
+<li>用户态内存映射函数mmap，包括用它来做匿名映射和文件映射。</li>
+<li>用户态的页表结构，存储位置在mm_struct中。</li>
+<li>在用户态访问没有映射的内存会引发缺页异常，分配物理页表、补齐页表。如果是匿名映射则分配物理内存；如果是swap，则将swap文件读入；如果是文件映射，则将文件读入。</li>
+</ul>
+<p><img src="/images/《趣谈Linux操作系统》学习笔记/用户态的内存映射机制.jpg" alt="用户态的内存映射机制"></p>
+<h2 id="二十一、内核态内存映射"><a href="#二十一、内核态内存映射" class="headerlink" title="二十一、内核态内存映射"></a>二十一、内核态内存映射</h2><p>内核态的内存映射机制，主要包含以下几个部分：</p>
+<ul>
+<li>内核态内存映射函数vmalloc、kmap_atomic是如何工作的；</li>
+<li>内核态页表是放在哪里的，如何工作的？swapper_pg_dir是怎么回事；</li>
+<li>出现了内核态缺页异常应该怎么办？</li>
+</ul>
+<h3 id="21-1-内核页表"><a href="#21-1-内核页表" class="headerlink" title="21.1 内核页表"></a>21.1 内核页表</h3><p>和用户态页表不同，在系统初始化的时候，我们就要创建内核页表了。</p>
+<p>我们从内核页表的根swapper_pg_dir开始找线索，在arch/x86/include/asm/pgtable_64.h中就能找到它的定义。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">extern</span> pud_t level3_kernel_pgt<span class="token punctuation">[</span><span class="token number">512</span><span class="token punctuation">]</span><span class="token punctuation">;</span>
+<span class="token keyword">extern</span> pud_t level3_ident_pgt<span class="token punctuation">[</span><span class="token number">512</span><span class="token punctuation">]</span><span class="token punctuation">;</span>
+<span class="token keyword">extern</span> pmd_t level2_kernel_pgt<span class="token punctuation">[</span><span class="token number">512</span><span class="token punctuation">]</span><span class="token punctuation">;</span>
+<span class="token keyword">extern</span> pmd_t level2_fixmap_pgt<span class="token punctuation">[</span><span class="token number">512</span><span class="token punctuation">]</span><span class="token punctuation">;</span>
+<span class="token keyword">extern</span> pmd_t level2_ident_pgt<span class="token punctuation">[</span><span class="token number">512</span><span class="token punctuation">]</span><span class="token punctuation">;</span>
+<span class="token keyword">extern</span> pte_t level1_fixmap_pgt<span class="token punctuation">[</span><span class="token number">512</span><span class="token punctuation">]</span><span class="token punctuation">;</span>
+<span class="token keyword">extern</span> pgd_t init_top_pgt<span class="token punctuation">[</span><span class="token punctuation">]</span><span class="token punctuation">;</span>
+
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">define</span> <span class="token expression">swapper_pg_dir init_top_pgt</span></span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>swapper_pg_dir指向内核最顶级的目录pgd，同时出现的还有几个页表目录。我们可以回忆一下，64位系统的虚拟地址空间的布局，其中XXX_ident_pgt对应的是直接映射区，XXX_kernel_pgt对应的是内核代码区，XXX_fixmap_pgt对应的是固定映射区。</p>
+<p>它们是在哪里初始化的呢？在汇编语言的文件里面的arch\x86\kernel\head_64.S。这段代码比较难看懂，你只要明白它是干什么的就行了。</p>
+<pre class="line-numbers language-asm" data-language="asm"><code class="language-asm">__INITDATA
+
+
+NEXT_PAGE(init_top_pgt)
+    .quad   level3_ident_pgt - __START_KERNEL_map + _KERNPG_TABLE
+    .org    init_top_pgt + PGD_PAGE_OFFSET*8, 0
+    .quad   level3_ident_pgt - __START_KERNEL_map + _KERNPG_TABLE
+    .org    init_top_pgt + PGD_START_KERNEL*8, 0
+    /* (2^48-(2*1024*1024*1024))/(2^39) = 511 */
+    .quad   level3_kernel_pgt - __START_KERNEL_map + _PAGE_TABLE
+
+NEXT_PAGE(level3_ident_pgt)
+    .quad   level2_ident_pgt - __START_KERNEL_map + _KERNPG_TABLE
+    .fill   511, 8, 0
+NEXT_PAGE(level2_ident_pgt)
+    /* Since I easily can, map the first 1G.
+     * Don't set NX because code runs from these pages.
+     */
+    PMDS(0, __PAGE_KERNEL_IDENT_LARGE_EXEC, PTRS_PER_PMD)
+
+NEXT_PAGE(level3_kernel_pgt)
+    .fill   L3_START_KERNEL,8,0
+    /* (2^48-(2*1024*1024*1024)-((2^39)*511))/(2^30) = 510 */
+    .quad   level2_kernel_pgt - __START_KERNEL_map + _KERNPG_TABLE
+    .quad   level2_fixmap_pgt - __START_KERNEL_map + _PAGE_TABLE
+
+NEXT_PAGE(level2_kernel_pgt)
+    /*
+     * 512 MB kernel mapping. We spend a full page on this pagetable
+     * anyway.
+     *
+     * The kernel code+data+bss must not be bigger than that.
+     *
+     * (NOTE: at +512MB starts the module area, see MODULES_VADDR.
+     *  If you want to increase this then increase MODULES_VADDR
+     *  too.)
+     */
+    PMDS(0, __PAGE_KERNEL_LARGE_EXEC,
+        KERNEL_IMAGE_SIZE/PMD_SIZE)
+
+NEXT_PAGE(level2_fixmap_pgt)
+    .fill   506,8,0
+    .quad   level1_fixmap_pgt - __START_KERNEL_map + _PAGE_TABLE
+    /* 8MB reserved for vsyscalls + a 2MB hole = 4 + 1 entries */
+    .fill   5,8,0
+
+NEXT_PAGE(level1_fixmap_pgt)
+    .fill   51<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>内核页表的顶级目录init_top_pgt，定义在__INITDATA里面。咱们讲过ELF的格式，也讲过虚拟内存空间的布局。它们都有代码段，还有一些初始化了的全局变量，放在.init区域。这些说的就是这个区域。可以看到，页表的根其实是全局变量，这就使得我们初始化的时候，甚至内存管理还没有初始化的时候，很容易就可以定位到。</p>
+<p>接下来，定义init_top_pgt包含哪些项，这个汇编代码比较难懂了。你可以简单地认为，quad是声明了一项的内容，org是跳到了某个位置。</p>
+<p>所以，init_top_pgt有三项，上来先有一项，指向的是level3_ident_pgt，也即直接映射区页表的三级目录。为什么要减去__START_KERNEL_map呢？因为level3_ident_pgt是定义在内核代码里的，写代码的时候，写的都是虚拟地址，谁写代码的时候也不知道将来加载的物理地址是多少呀，对不对？</p>
+<p>因为level3_ident_pgt是在虚拟地址的内核代码段里的，而<strong>START_KERNEL_map正是虚拟地址空间的内核代码段的起始地址，这在讲64位虚拟地址空间的时候都讲过了，要是想不起来就赶紧去回顾一下。这样，level3_ident_pgt减去</strong>START_KERNEL_map才是物理地址。</p>
+<p>第一项定义完了以后，接下来我们跳到PGD_PAGE_OFFSET的位置，再定义一项。从定义可以看出，这一项就应该是<strong>PAGE_OFFSET_BASE对应的。</strong>PAGE_OFFSET_BASE是虚拟地址空间里面内核的起始地址。第二项也指向level3_ident_pgt，直接映射区。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c">PGD_PAGE_OFFSET <span class="token operator">=</span> <span class="token function">pgd_index</span><span class="token punctuation">(</span>__PAGE_OFFSET_BASE<span class="token punctuation">)</span>
+PGD_START_KERNEL <span class="token operator">=</span> <span class="token function">pgd_index</span><span class="token punctuation">(</span>__START_KERNEL_map<span class="token punctuation">)</span>
+L3_START_KERNEL <span class="token operator">=</span> <span class="token function">pud_index</span><span class="token punctuation">(</span>__START_KERNEL_map<span class="token punctuation">)</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span></span></code></pre>
+<p>第二项定义完了以后，接下来跳到PGD_START_KERNEL的位置，再定义一项。从定义可以看出，这一项应该是<strong>START_KERNEL_map对应的项，</strong>START_KERNEL_map是虚拟地址空间里面内核代码段的起始地址。第三项指向level3_kernel_pgt，内核代码区。</p>
+<p>接下来的代码就很类似了，就是初始化个表项，然后指向下一级目录，最终形成下面这张图。</p>
+<p><img src="/images/《趣谈Linux操作系统》学习笔记/内核页表结构.png" alt="内核页表结构"></p>
+<p>内核页表定义完了，一开始这里面的页表能够覆盖的内存范围比较小。例如，内核代码区512M，直接映射区1G。这个时候，其实只要能够映射基本的内核代码和数据结构就可以了。可以看出，里面还空着很多项，可以用于将来映射巨大的内核虚拟地址空间，等用到的时候再进行映射。</p>
+<p>如果是用户态进程页表，会有mm_struct指向进程顶级目录pgd，对于内核来讲，也定义了一个mm_struct，指向swapper_pg_dir。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">struct</span> <span class="token class-name">mm_struct</span> init_mm <span class="token operator">=</span> <span class="token punctuation">{</span>
+    <span class="token punctuation">.</span>mm_rb      <span class="token operator">=</span> RB_ROOT<span class="token punctuation">,</span>
+    <span class="token punctuation">.</span>pgd        <span class="token operator">=</span> swapper_pg_dir<span class="token punctuation">,</span>
+    <span class="token punctuation">.</span>mm_users   <span class="token operator">=</span> <span class="token function">ATOMIC_INIT</span><span class="token punctuation">(</span><span class="token number">2</span><span class="token punctuation">)</span><span class="token punctuation">,</span>
+    <span class="token punctuation">.</span>mm_count   <span class="token operator">=</span> <span class="token function">ATOMIC_INIT</span><span class="token punctuation">(</span><span class="token number">1</span><span class="token punctuation">)</span><span class="token punctuation">,</span>
+    <span class="token punctuation">.</span>mmap_sem   <span class="token operator">=</span> <span class="token function">__RWSEM_INITIALIZER</span><span class="token punctuation">(</span>init_mm<span class="token punctuation">.</span>mmap_sem<span class="token punctuation">)</span><span class="token punctuation">,</span>
+    <span class="token punctuation">.</span>page_table_lock <span class="token operator">=</span>  <span class="token function">__SPIN_LOCK_UNLOCKED</span><span class="token punctuation">(</span>init_mm<span class="token punctuation">.</span>page_table_lock<span class="token punctuation">)</span><span class="token punctuation">,</span>
+    <span class="token punctuation">.</span>mmlist     <span class="token operator">=</span> <span class="token function">LIST_HEAD_INIT</span><span class="token punctuation">(</span>init_mm<span class="token punctuation">.</span>mmlist<span class="token punctuation">)</span><span class="token punctuation">,</span>
+    <span class="token punctuation">.</span>user_ns    <span class="token operator">=</span> <span class="token operator">&amp;</span>init_user_ns<span class="token punctuation">,</span>
+    <span class="token function">INIT_MM_CONTEXT</span><span class="token punctuation">(</span>init_mm<span class="token punctuation">)</span>
+<span class="token punctuation">}</span><span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>定义完了内核页表，接下来是初始化内核页表，在系统启动的时候start_kernel会调用setup_arch。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">void</span> __init <span class="token function">setup_arch</span><span class="token punctuation">(</span><span class="token keyword">char</span> <span class="token operator">*</span><span class="token operator">*</span>cmdline_p<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token comment">/*
+     * copy kernel address range established so far and switch
+     * to the proper swapper page table
+     */</span>
+    <span class="token function">clone_pgd_range</span><span class="token punctuation">(</span>swapper_pg_dir     <span class="token operator">+</span> KERNEL_PGD_BOUNDARY<span class="token punctuation">,</span>
+            initial_page_table <span class="token operator">+</span> KERNEL_PGD_BOUNDARY<span class="token punctuation">,</span>
+            KERNEL_PGD_PTRS<span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+    <span class="token function">load_cr3</span><span class="token punctuation">(</span>swapper_pg_dir<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token function">__flush_tlb_all</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    init_mm<span class="token punctuation">.</span>start_code <span class="token operator">=</span> <span class="token punctuation">(</span><span class="token keyword">unsigned</span> <span class="token keyword">long</span><span class="token punctuation">)</span> _text<span class="token punctuation">;</span>
+    init_mm<span class="token punctuation">.</span>end_code <span class="token operator">=</span> <span class="token punctuation">(</span><span class="token keyword">unsigned</span> <span class="token keyword">long</span><span class="token punctuation">)</span> _etext<span class="token punctuation">;</span>
+    init_mm<span class="token punctuation">.</span>end_data <span class="token operator">=</span> <span class="token punctuation">(</span><span class="token keyword">unsigned</span> <span class="token keyword">long</span><span class="token punctuation">)</span> _edata<span class="token punctuation">;</span>
+    init_mm<span class="token punctuation">.</span>brk <span class="token operator">=</span> _brk_end<span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    <span class="token function">init_mem_mapping</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>在setup_arch中，load_cr3(swapper_pg_dir)说明内核页表要开始起作用了，并且刷新了TLB，初始化init_mm的成员变量，最重要的就是init_mem_mapping。最终它会调用kernel_physical_mapping_init。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token comment">/*
+ * Create page table mapping for the physical memory for specific physical
+ * addresses. The virtual and physical addresses have to be aligned on PMD level
+ * down. It returns the last physical address mapped.
+ */</span>
+<span class="token keyword">unsigned</span> <span class="token keyword">long</span> __meminit
+<span class="token function">kernel_physical_mapping_init</span><span class="token punctuation">(</span><span class="token keyword">unsigned</span> <span class="token keyword">long</span> paddr_start<span class="token punctuation">,</span>
+                 <span class="token keyword">unsigned</span> <span class="token keyword">long</span> paddr_end<span class="token punctuation">,</span>
+                 <span class="token keyword">unsigned</span> <span class="token keyword">long</span> page_size_mask<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword">unsigned</span> <span class="token keyword">long</span> vaddr<span class="token punctuation">,</span> vaddr_start<span class="token punctuation">,</span> vaddr_end<span class="token punctuation">,</span> vaddr_next<span class="token punctuation">,</span> paddr_last<span class="token punctuation">;</span>
+
+    paddr_last <span class="token operator">=</span> paddr_end<span class="token punctuation">;</span>
+    vaddr <span class="token operator">=</span> <span class="token punctuation">(</span><span class="token keyword">unsigned</span> <span class="token keyword">long</span><span class="token punctuation">)</span><span class="token function">__va</span><span class="token punctuation">(</span>paddr_start<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    vaddr_end <span class="token operator">=</span> <span class="token punctuation">(</span><span class="token keyword">unsigned</span> <span class="token keyword">long</span><span class="token punctuation">)</span><span class="token function">__va</span><span class="token punctuation">(</span>paddr_end<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    vaddr_start <span class="token operator">=</span> vaddr<span class="token punctuation">;</span>
+
+    <span class="token keyword">for</span> <span class="token punctuation">(</span><span class="token punctuation">;</span> vaddr <span class="token operator">&lt;</span> vaddr_end<span class="token punctuation">;</span> vaddr <span class="token operator">=</span> vaddr_next<span class="token punctuation">)</span> <span class="token punctuation">{</span>
+        pgd_t <span class="token operator">*</span>pgd <span class="token operator">=</span> <span class="token function">pgd_offset_k</span><span class="token punctuation">(</span>vaddr<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        p4d_t <span class="token operator">*</span>p4d<span class="token punctuation">;</span>
+
+        vaddr_next <span class="token operator">=</span> <span class="token punctuation">(</span>vaddr <span class="token operator">&amp;</span> PGDIR_MASK<span class="token punctuation">)</span> <span class="token operator">+</span> PGDIR_SIZE<span class="token punctuation">;</span>
+
+        <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token function">pgd_val</span><span class="token punctuation">(</span><span class="token operator">*</span>pgd<span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+            p4d <span class="token operator">=</span> <span class="token punctuation">(</span>p4d_t <span class="token operator">*</span><span class="token punctuation">)</span><span class="token function">pgd_page_vaddr</span><span class="token punctuation">(</span><span class="token operator">*</span>pgd<span class="token punctuation">)</span><span class="token punctuation">;</span>
+            paddr_last <span class="token operator">=</span> <span class="token function">phys_p4d_init</span><span class="token punctuation">(</span>p4d<span class="token punctuation">,</span> <span class="token function">__pa</span><span class="token punctuation">(</span>vaddr<span class="token punctuation">)</span><span class="token punctuation">,</span>
+                           <span class="token function">__pa</span><span class="token punctuation">(</span>vaddr_end<span class="token punctuation">)</span><span class="token punctuation">,</span>
+                           page_size_mask<span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token keyword">continue</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+
+        p4d <span class="token operator">=</span> <span class="token function">alloc_low_page</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        paddr_last <span class="token operator">=</span> <span class="token function">phys_p4d_init</span><span class="token punctuation">(</span>p4d<span class="token punctuation">,</span> <span class="token function">__pa</span><span class="token punctuation">(</span>vaddr<span class="token punctuation">)</span><span class="token punctuation">,</span> <span class="token function">__pa</span><span class="token punctuation">(</span>vaddr_end<span class="token punctuation">)</span><span class="token punctuation">,</span>
+                       page_size_mask<span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+        <span class="token function">p4d_populate</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>init_mm<span class="token punctuation">,</span> <span class="token function">p4d_offset</span><span class="token punctuation">(</span>pgd<span class="token punctuation">,</span> vaddr<span class="token punctuation">)</span><span class="token punctuation">,</span> <span class="token punctuation">(</span>pud_t <span class="token operator">*</span><span class="token punctuation">)</span> p4d<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+    <span class="token function">__flush_tlb_all</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+    <span class="token keyword">return</span> paddr_l<span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>在kernel_physical_mapping_init里，我们先通过__va将物理地址转换为虚拟地址，然后在创建虚拟地址和物理地址的映射页表。</p>
+<p>你可能会问，怎么这么麻烦啊？既然对于内核来讲，我们可以用<strong>va和</strong>pa直接在虚拟地址和物理地址之间直接转来转去，为啥还要辛辛苦苦建立页表呢？因为这是CPU和内存的硬件的需求，也就是说，CPU在保护模式下访问虚拟地址的时候，就会用CR3这个寄存器，这个寄存器是CPU定义的，作为操作系统，我们是软件，只能按照硬件的要求来。</p>
+<p>你可能又会问了，按照咱们将初始化的时候的过程，系统早早就进入了保护模式，到了setup_arch里面才load_cr3，如果使用cr3是硬件的要求，那之前是怎么办的呢？如果你仔细去看arch\x86\kernel\head_64.S，这里面除了初始化内核页表之外，在这之前，还有另一个页表early_top_pgt。看到关键字early了嘛？这个页表就是专门用在真正的内核页表初始化之前，为了遵循硬件的要求而设置的。早期页表不是我们这节的重点，这里我就不展开多说了。</p>
+<h3 id="21-2-vmalloc和kmap-atomic原理"><a href="#21-2-vmalloc和kmap-atomic原理" class="headerlink" title="21.2 vmalloc和kmap_atomic原理"></a>21.2 vmalloc和kmap_atomic原理</h3><p>在用户态可以通过malloc函数分配内存，当然malloc在分配比较大的内存的时候，底层调用的是mmap，当然也可以直接通过mmap做内存映射，在内核里面也有相应的函数。</p>
+<p>在虚拟地址空间里面，有个vmalloc区域，从VMALLOC_START开始到VMALLOC_END，可以用于映射一段物理内存。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token comment">/**
+ *  vmalloc  -  allocate virtually contiguous memory
+ *  @size:      allocation size
+ *  Allocate enough pages to cover @size from the page level
+ *  allocator and map them into contiguous kernel virtual space.
+ *
+ *  For tight control over page level allocator and protection flags
+ *  use __vmalloc() instead.
+ */</span>
+<span class="token keyword">void</span> <span class="token operator">*</span><span class="token function">vmalloc</span><span class="token punctuation">(</span><span class="token keyword">unsigned</span> <span class="token keyword">long</span> size<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword">return</span> <span class="token function">__vmalloc_node_flags</span><span class="token punctuation">(</span>size<span class="token punctuation">,</span> NUMA_NO_NODE<span class="token punctuation">,</span>
+                    GFP_KERNEL<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+
+<span class="token keyword">static</span> <span class="token keyword">void</span> <span class="token operator">*</span><span class="token function">__vmalloc_node</span><span class="token punctuation">(</span><span class="token keyword">unsigned</span> <span class="token keyword">long</span> size<span class="token punctuation">,</span> <span class="token keyword">unsigned</span> <span class="token keyword">long</span> align<span class="token punctuation">,</span>
+                gfp_t gfp_mask<span class="token punctuation">,</span> pgprot_t prot<span class="token punctuation">,</span>
+                <span class="token keyword">int</span> node<span class="token punctuation">,</span> <span class="token keyword">const</span> <span class="token keyword">void</span> <span class="token operator">*</span>caller<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword">return</span> <span class="token function">__vmalloc_node_range</span><span class="token punctuation">(</span>size<span class="token punctuation">,</span> align<span class="token punctuation">,</span> VMALLOC_START<span class="token punctuation">,</span> VMALLOC_END<span class="token punctuation">,</span>
+                gfp_mask<span class="token punctuation">,</span> prot<span class="token punctuation">,</span> <span class="token number">0</span><span class="token punctuation">,</span> node<span class="token punctuation">,</span> caller<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>我们再来看内核的临时映射函数kmap_atomic的实现。从下面的代码我们可以看出，如果是32位有高端地址的，就需要调用set_pte通过内核页表进行临时映射；如果是64位没有高端地址的，就调用page_address，里面会调用lowmem_page_address。其实低端内存的映射，会直接使用__va进行临时映射。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">void</span> <span class="token operator">*</span><span class="token function">kmap_atomic_prot</span><span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">page</span> <span class="token operator">*</span>page<span class="token punctuation">,</span> pgprot_t prot<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token operator">!</span><span class="token function">PageHighMem</span><span class="token punctuation">(</span>page<span class="token punctuation">)</span><span class="token punctuation">)</span>
+        <span class="token keyword">return</span> <span class="token function">page_address</span><span class="token punctuation">(</span>page<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    vaddr <span class="token operator">=</span> <span class="token function">__fix_to_virt</span><span class="token punctuation">(</span>FIX_KMAP_BEGIN <span class="token operator">+</span> idx<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token function">set_pte</span><span class="token punctuation">(</span>kmap_pte<span class="token operator">-</span>idx<span class="token punctuation">,</span> <span class="token function">mk_pte</span><span class="token punctuation">(</span>page<span class="token punctuation">,</span> prot<span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    <span class="token keyword">return</span> <span class="token punctuation">(</span><span class="token keyword">void</span> <span class="token operator">*</span><span class="token punctuation">)</span>vaddr<span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+
+<span class="token keyword">void</span> <span class="token operator">*</span><span class="token function">kmap_atomic</span><span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">page</span> <span class="token operator">*</span>page<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword">return</span> <span class="token function">kmap_atomic_prot</span><span class="token punctuation">(</span>page<span class="token punctuation">,</span> kmap_prot<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+
+<span class="token keyword">static</span> __always_inline <span class="token keyword">void</span> <span class="token operator">*</span><span class="token function">lowmem_page_address</span><span class="token punctuation">(</span><span class="token keyword">const</span> <span class="token keyword">struct</span> <span class="token class-name">page</span> <span class="token operator">*</span>page<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword">return</span> <span class="token function">page_to_virt</span><span class="token punctuation">(</span>page<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">define</span> <span class="token expression"><span class="token function">page_to_virt</span><span class="token punctuation">(</span>x<span class="token punctuation">)</span> <span class="token function">__va</span><span class="token punctuation">(</span><span class="token function">PFN_PHYS</span><span class="token punctuation">(</span><span class="token function">page_to_pfn</span><span class="token punctuation">(</span>x<span class="token punctuation">)</span></span></span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<h3 id="21-3-内核态缺页异常"><a href="#21-3-内核态缺页异常" class="headerlink" title="21.3 内核态缺页异常"></a>21.3 内核态缺页异常</h3><p>可以看出，kmap_atomic和vmalloc不同。kmap_atomic发现，没有页表的时候，就直接创建页表进行映射了。而vmalloc没有，它只分配了内核的虚拟地址。所以，访问它的时候，会产生缺页异常。</p>
+<p>内核态的缺页异常还是会调用do_page_fault，但是会走到咱们上面用户态缺页异常中没有解析的那部分vmalloc_fault。这个函数并不复杂，主要用于关联内核页表项。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token comment">/*
+ * 32-bit:
+ *
+ *   Handle a fault on the vmalloc or module mapping area
+ */</span>
+<span class="token keyword">static</span> noinline <span class="token keyword">int</span> <span class="token function">vmalloc_fault</span><span class="token punctuation">(</span><span class="token keyword">unsigned</span> <span class="token keyword">long</span> address<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword">unsigned</span> <span class="token keyword">long</span> pgd_paddr<span class="token punctuation">;</span>
+    pmd_t <span class="token operator">*</span>pmd_k<span class="token punctuation">;</span>
+    pte_t <span class="token operator">*</span>pte_k<span class="token punctuation">;</span>
+
+    <span class="token comment">/* Make sure we are in vmalloc area: */</span>
+    <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token operator">!</span><span class="token punctuation">(</span>address <span class="token operator">&gt;=</span> VMALLOC_START <span class="token operator">&amp;&amp;</span> address <span class="token operator">&lt;</span> VMALLOC_END<span class="token punctuation">)</span><span class="token punctuation">)</span>
+        <span class="token keyword">return</span> <span class="token operator">-</span><span class="token number">1</span><span class="token punctuation">;</span>
+
+    <span class="token comment">/*
+     * Synchronize this task's top level page-table
+     * with the 'reference' page table.
+     *
+     * Do _not_ use "current" here. We might be inside
+     * an interrupt in the middle of a task switch..
+     */</span>
+    pgd_paddr <span class="token operator">=</span> <span class="token function">read_cr3_pa</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    pmd_k <span class="token operator">=</span> <span class="token function">vmalloc_sync_one</span><span class="token punctuation">(</span><span class="token function">__va</span><span class="token punctuation">(</span>pgd_paddr<span class="token punctuation">)</span><span class="token punctuation">,</span> address<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token operator">!</span>pmd_k<span class="token punctuation">)</span>
+        <span class="token keyword">return</span> <span class="token operator">-</span><span class="token number">1</span><span class="token punctuation">;</span>
+
+    pte_k <span class="token operator">=</span> <span class="token function">pte_offset_kernel</span><span class="token punctuation">(</span>pmd_k<span class="token punctuation">,</span> address<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token operator">!</span><span class="token function">pte_present</span><span class="token punctuation">(</span><span class="token operator">*</span>pte_k<span class="token punctuation">)</span><span class="token punctuation">)</span>
+        <span class="token keyword">return</span> <span class="token operator">-</span><span class="token number">1</span><span class="token punctuation">;</span>
+
+    <span class="token keyword">return</span> <span class="token number">0</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<h3 id="21-4-总结"><a href="#21-4-总结" class="headerlink" title="21.4 总结"></a>21.4 总结</h3><p>物理内存根据NUMA架构分节点。每个节点里面再分区域。每个区域里面再分页。</p>
+<p>物理页面通过伙伴系统进行分配。分配的物理页面要变成虚拟地址让上层可以访问，kswapd可以根据物理页面的使用情况对页面进行换入换出。</p>
+<p>对于内存的分配需求，可能来自内核态，也可能来自用户态。</p>
+<p>对于内核态，kmalloc在分配大内存的时候，以及vmalloc分配不连续物理页的时候，直接使用伙伴系统，分配后转换为虚拟地址，访问的时候需要通过内核页表进行映射。</p>
+<p>对于kmem_cache以及kmalloc分配小内存，则使用slub分配器，将伙伴系统分配出来的大块内存切成一小块一小块进行分配。</p>
+<p>kmem_cache和kmalloc的部分不会被换出，因为用这两个函数分配的内存多用于保持内核关键的数据结构。内核态中vmalloc分配的部分会被换出，因而当访问的时候，发现不在，就会调用do_page_fault。</p>
+<p>对于用户态的内存分配，或者直接调用mmap系统调用分配，或者调用malloc。调用malloc的时候，如果分配小的内存，就用sys_brk系统调用；如果分配大的内存，还是用sys_mmap系统调用。正常情况下，用户态的内存都是可以换出的，因而一旦发现内存中不存在，就会调用do_page_fault。</p>
+<p><img src="/images/《趣谈Linux操作系统》学习笔记/内存管理的体系.png" alt="内存管理的体系"></p>
 
                 
             </div>
@@ -4153,7 +4893,7 @@ new_slab<span class="token operator">:</span>
             <br>
             
             &nbsp;<i class="fas fa-chart-area"></i>&nbsp;站点总字数:&nbsp;<span
-                class="white-color">454.8k</span>&nbsp;字
+                class="white-color">462.4k</span>&nbsp;字
             
             
             
