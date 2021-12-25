@@ -438,14 +438,14 @@
                 
                 <div class="info-break-policy">
                     <i class="far fa-file-word fa-fw"></i>文章字数:&nbsp;&nbsp;
-                    81.3k
+                    85.5k
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-clock fa-fw"></i>阅读时长:&nbsp;&nbsp;
-                    323 分
+                    342 分
                 </div>
                 
 
@@ -6373,6 +6373,508 @@ next_cpu<span class="token operator">:</span>
 <p>irq_desc是一个用于描述用户注册的中断处理函数的结构，为了能够根据中断向量得到irq_desc结构，会把这些结构放在一个基数树里面，方便查找。</p>
 <p>irq_desc里面有一个成员是irqaction，指向设备驱动程序里面注册的中断处理函数。</p>
 <p><img src="/images/《趣谈Linux操作系统》学习笔记/中断的处理过程.png" alt="中断的处理过程"></p>
+<h2 id="二十九、块设备（上）"><a href="#二十九、块设备（上）" class="headerlink" title="二十九、块设备（上）"></a>二十九、块设备（上）</h2><h3 id="29-1-打开流程"><a href="#29-1-打开流程" class="headerlink" title="29.1 打开流程"></a>29.1 打开流程</h3><p>块设备一般会被格式化为文件系统，但是，下面的讲述中，你可能会有一点困惑。你会看到各种各样的dentry和inode。块设备涉及三种文件系统，所以你看到的这些dentry和inode可能都不是一回事儿，请注意分辨。</p>
+<p>块设备需要mknod吗？对于启动盘，你可能觉得，启动了就在那里了。可是如果我们要插进一块新的USB盘，还是要有这个操作的。</p>
+<p>mknod还是会创建在/dev路径下面，这一点和字符设备一样。/dev路径下面是devtmpfs文件系统。<strong>这是块设备遇到的第一个文件系统</strong>。我们会为这个块设备文件，分配一个特殊的inode，这一点和字符设备也是一样的。只不过字符设备走S_ISCHR这个分支，对应inode的file_operations是def_chr_fops；而块设备走S_ISBLK这个分支，对应的inode的file_operations是def_blk_fops。这里要注意，inode里面的i_rdev被设置成了块设备的设备号dev_t，这个我们后面会用到，你先记住有这么一回事儿。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">void</span> <span class="token function">init_special_inode</span><span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">inode</span> <span class="token operator">*</span>inode<span class="token punctuation">,</span> umode_t mode<span class="token punctuation">,</span> dev_t rdev<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    inode<span class="token operator">-&gt;</span>i_mode <span class="token operator">=</span> mode<span class="token punctuation">;</span>
+    <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token function">S_ISCHR</span><span class="token punctuation">(</span>mode<span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+        inode<span class="token operator">-&gt;</span>i_fop <span class="token operator">=</span> <span class="token operator">&amp;</span>def_chr_fops<span class="token punctuation">;</span>
+        inode<span class="token operator">-&gt;</span>i_rdev <span class="token operator">=</span> rdev<span class="token punctuation">;</span>
+    <span class="token punctuation">}</span> <span class="token keyword">else</span> <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token function">S_ISBLK</span><span class="token punctuation">(</span>mode<span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+        inode<span class="token operator">-&gt;</span>i_fop <span class="token operator">=</span> <span class="token operator">&amp;</span>def_blk_fops<span class="token punctuation">;</span>
+        inode<span class="token operator">-&gt;</span>i_rdev <span class="token operator">=</span> rdev<span class="token punctuation">;</span>
+    <span class="token punctuation">}</span> <span class="token keyword">else</span> <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token function">S_ISFIFO</span><span class="token punctuation">(</span>mode<span class="token punctuation">)</span><span class="token punctuation">)</span>
+        inode<span class="token operator">-&gt;</span>i_fop <span class="token operator">=</span> <span class="token operator">&amp;</span>pipefifo_fops<span class="token punctuation">;</span>
+    <span class="token keyword">else</span> <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token function">S_ISSOCK</span><span class="token punctuation">(</span>mode<span class="token punctuation">)</span><span class="token punctuation">)</span>
+        <span class="token punctuation">;</span>   <span class="token comment">/* leave it no_open_fops */</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>特殊inode的默认file_operations是def_blk_fops，就像字符设备一样，有打开、读写这个块设备文件，但是我们常规操作不会这样做。我们会将这个块设备文件mount到一个文件夹下面。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">const</span> <span class="token keyword">struct</span> <span class="token class-name">file_operations</span> def_blk_fops <span class="token operator">=</span> <span class="token punctuation">{</span>
+    <span class="token punctuation">.</span>open           <span class="token operator">=</span> blkdev_open<span class="token punctuation">,</span>
+    <span class="token punctuation">.</span>release        <span class="token operator">=</span> blkdev_close<span class="token punctuation">,</span>
+    <span class="token punctuation">.</span>llseek         <span class="token operator">=</span> block_llseek<span class="token punctuation">,</span>
+    <span class="token punctuation">.</span>read_iter      <span class="token operator">=</span> blkdev_read_iter<span class="token punctuation">,</span>
+    <span class="token punctuation">.</span>write_iter     <span class="token operator">=</span> blkdev_write_iter<span class="token punctuation">,</span>
+    <span class="token punctuation">.</span>mmap           <span class="token operator">=</span> generic_file_mmap<span class="token punctuation">,</span>
+    <span class="token punctuation">.</span>fsync          <span class="token operator">=</span> blkdev_fsync<span class="token punctuation">,</span>
+    <span class="token punctuation">.</span>unlocked_ioctl <span class="token operator">=</span> block_ioctl<span class="token punctuation">,</span>
+    <span class="token punctuation">.</span>splice_read    <span class="token operator">=</span> generic_file_splice_read<span class="token punctuation">,</span>
+    <span class="token punctuation">.</span>splice_write   <span class="token operator">=</span> iter_file_splice_write<span class="token punctuation">,</span>
+    <span class="token punctuation">.</span>fallocate      <span class="token operator">=</span> blkdev_fallocate<span class="token punctuation">,</span>
+<span class="token punctuation">}</span><span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>不过，这里我们还是简单看一下，打开这个块设备的操作blkdev_open。它里面调用的是blkdev_get打开这个块设备，了解到这一点就可以了。</p>
+<p>接下来，我们要调用mount，将这个块设备文件挂载到一个文件夹下面。如果这个块设备原来被格式化为一种文件系统的格式，例如ext4，那我们调用的就是ext4相应的mount操作。<strong>这是块设备遇到的第二个文件系统</strong>，也是向这个块设备读写文件，需要基于的主流文件系统。咱们在文件系统那一节解析的对于文件的读写流程，都是基于这个文件系统的。</p>
+<p>还记得，咱们注册ext4文件系统的时候，有下面这样的结构：</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">static</span> <span class="token keyword">struct</span> <span class="token class-name">file_system_type</span> ext4_fs_type <span class="token operator">=</span> <span class="token punctuation">{</span>
+    <span class="token punctuation">.</span>owner      <span class="token operator">=</span> THIS_MODULE<span class="token punctuation">,</span>
+    <span class="token punctuation">.</span>name       <span class="token operator">=</span> <span class="token string">"ext4"</span><span class="token punctuation">,</span>
+    <span class="token punctuation">.</span>mount      <span class="token operator">=</span> ext4_mount<span class="token punctuation">,</span>
+    <span class="token punctuation">.</span>kill_sb    <span class="token operator">=</span> kill_block_super<span class="token punctuation">,</span>
+    <span class="token punctuation">.</span>fs_flags   <span class="token operator">=</span> FS_REQUIRES_DEV<span class="token punctuation">,</span>
+<span class="token punctuation">}</span><span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>在将一个硬盘的块设备mount成为ext4的时候，我们会调用ext4_mount-&gt;mount_bdev。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">static</span> <span class="token keyword">struct</span> <span class="token class-name">dentry</span> <span class="token operator">*</span><span class="token function">ext4_mount</span><span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">file_system_type</span> <span class="token operator">*</span>fs_type<span class="token punctuation">,</span> <span class="token keyword">int</span> flags<span class="token punctuation">,</span> <span class="token keyword">const</span> <span class="token keyword">char</span> <span class="token operator">*</span>dev_name<span class="token punctuation">,</span> <span class="token keyword">void</span> <span class="token operator">*</span>data<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword">return</span> <span class="token function">mount_bdev</span><span class="token punctuation">(</span>fs_type<span class="token punctuation">,</span> flags<span class="token punctuation">,</span> dev_name<span class="token punctuation">,</span> data<span class="token punctuation">,</span> ext4_fill_super<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+
+<span class="token keyword">struct</span> <span class="token class-name">dentry</span> <span class="token operator">*</span><span class="token function">mount_bdev</span><span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">file_system_type</span> <span class="token operator">*</span>fs_type<span class="token punctuation">,</span>
+    <span class="token keyword">int</span> flags<span class="token punctuation">,</span> <span class="token keyword">const</span> <span class="token keyword">char</span> <span class="token operator">*</span>dev_name<span class="token punctuation">,</span> <span class="token keyword">void</span> <span class="token operator">*</span>data<span class="token punctuation">,</span>
+    <span class="token keyword">int</span> <span class="token punctuation">(</span><span class="token operator">*</span>fill_super<span class="token punctuation">)</span><span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">super_block</span> <span class="token operator">*</span><span class="token punctuation">,</span> <span class="token keyword">void</span> <span class="token operator">*</span><span class="token punctuation">,</span> <span class="token keyword">int</span><span class="token punctuation">)</span><span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword">struct</span> <span class="token class-name">block_device</span> <span class="token operator">*</span>bdev<span class="token punctuation">;</span>
+    <span class="token keyword">struct</span> <span class="token class-name">super_block</span> <span class="token operator">*</span>s<span class="token punctuation">;</span>
+    fmode_t mode <span class="token operator">=</span> FMODE_READ <span class="token operator">|</span> FMODE_EXCL<span class="token punctuation">;</span>
+    <span class="token keyword">int</span> error <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span>
+
+    <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token operator">!</span><span class="token punctuation">(</span>flags <span class="token operator">&amp;</span> MS_RDONLY<span class="token punctuation">)</span><span class="token punctuation">)</span>
+        mode <span class="token operator">|=</span> FMODE_WRITE<span class="token punctuation">;</span>
+
+    bdev <span class="token operator">=</span> <span class="token function">blkdev_get_by_path</span><span class="token punctuation">(</span>dev_name<span class="token punctuation">,</span> mode<span class="token punctuation">,</span> fs_type<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    s <span class="token operator">=</span> <span class="token function">sget</span><span class="token punctuation">(</span>fs_type<span class="token punctuation">,</span> test_bdev_super<span class="token punctuation">,</span> set_bdev_super<span class="token punctuation">,</span> flags <span class="token operator">|</span> MS_NOSEC<span class="token punctuation">,</span> bdev<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    <span class="token keyword">return</span> <span class="token function">dget</span><span class="token punctuation">(</span>s<span class="token operator">-&gt;</span>s_root<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>mount_bdev主要做了两件大事情。第一，blkdev_get_by_path根据/dev/xxx这个名字，找到相应的设备并打开它；第二，sget根据打开的设备文件，填充ext4文件系统的super_block，从而以此为基础，建立一整套咱们在<strong>文件系统</strong>那一章讲的体系。</p>
+<p>一旦这套体系建立起来以后，对于文件的读写都是通过ext4文件系统这个体系进行的，创建的inode结构也是指向ext4文件系统的。文件系统那一章我们只解析了这部分，由于没有到达底层，也就没有关注块设备相关的操作。这一章我们重新回过头来，一方面看mount的时候，对于块设备都做了哪些操作，另一方面看读写的时候，到了底层，对于块设备做了哪些操作。</p>
+<p>这里我们先来看mount_bdev做的第一件大事情，通过blkdev_get_by_path，根据设备名/dev/xxx，得到struct block_device *bdev。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token comment">/**
+ * blkdev_get_by_path - open a block device by name
+ * @path: path to the block device to open
+ * @mode: FMODE_* mask
+ * @holder: exclusive holder identifier
+ *
+ * Open the blockdevice described by the device file at @path.  @mode
+ * and @holder are identical to blkdev_get().
+ *
+ * On success, the returned block_device has reference count of one.
+ */</span>
+<span class="token keyword">struct</span> <span class="token class-name">block_device</span> <span class="token operator">*</span><span class="token function">blkdev_get_by_path</span><span class="token punctuation">(</span><span class="token keyword">const</span> <span class="token keyword">char</span> <span class="token operator">*</span>path<span class="token punctuation">,</span> fmode_t mode<span class="token punctuation">,</span>
+                    <span class="token keyword">void</span> <span class="token operator">*</span>holder<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword">struct</span> <span class="token class-name">block_device</span> <span class="token operator">*</span>bdev<span class="token punctuation">;</span>
+    <span class="token keyword">int</span> err<span class="token punctuation">;</span>
+
+    bdev <span class="token operator">=</span> <span class="token function">lookup_bdev</span><span class="token punctuation">(</span>path<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    err <span class="token operator">=</span> <span class="token function">blkdev_get</span><span class="token punctuation">(</span>bdev<span class="token punctuation">,</span> mode<span class="token punctuation">,</span> holder<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    <span class="token keyword">return</span> bdev<span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>blkdev_get_by_path干了两件事情。第一个，lookup_bdev根据设备路径/dev/xxx得到block_device。第二个，打开这个设备，调用blkdev_get。</p>
+<p>咱们上面分析过def_blk_fops的默认打开设备函数blkdev_open，它也是调用blkdev_get的。块设备的打开往往不是直接调用设备文件的打开函数，而是调用mount来打开的。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token comment">/**
+ * lookup_bdev  - lookup a struct block_device by name
+ * @pathname:   special file representing the block device
+ *
+ * Get a reference to the blockdevice at @pathname in the current
+ * namespace if possible and return it.  Return ERR_PTR(error)
+ * otherwise.
+ */</span>
+<span class="token keyword">struct</span> <span class="token class-name">block_device</span> <span class="token operator">*</span><span class="token function">lookup_bdev</span><span class="token punctuation">(</span><span class="token keyword">const</span> <span class="token keyword">char</span> <span class="token operator">*</span>pathname<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword">struct</span> <span class="token class-name">block_device</span> <span class="token operator">*</span>bdev<span class="token punctuation">;</span>
+    <span class="token keyword">struct</span> <span class="token class-name">inode</span> <span class="token operator">*</span>inode<span class="token punctuation">;</span>
+    <span class="token keyword">struct</span> <span class="token class-name">path</span> path<span class="token punctuation">;</span>
+    <span class="token keyword">int</span> error<span class="token punctuation">;</span>
+
+    <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token operator">!</span>pathname <span class="token operator">||</span> <span class="token operator">!</span><span class="token operator">*</span>pathname<span class="token punctuation">)</span>
+        <span class="token keyword">return</span> <span class="token function">ERR_PTR</span><span class="token punctuation">(</span><span class="token operator">-</span>EINVAL<span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+    error <span class="token operator">=</span> <span class="token function">kern_path</span><span class="token punctuation">(</span>pathname<span class="token punctuation">,</span> LOOKUP_FOLLOW<span class="token punctuation">,</span> <span class="token operator">&amp;</span>path<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">if</span> <span class="token punctuation">(</span>error<span class="token punctuation">)</span>
+        <span class="token keyword">return</span> <span class="token function">ERR_PTR</span><span class="token punctuation">(</span>error<span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+    inode <span class="token operator">=</span> <span class="token function">d_backing_inode</span><span class="token punctuation">(</span>path<span class="token punctuation">.</span>dentry<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    bdev <span class="token operator">=</span> <span class="token function">bd_acquire</span><span class="token punctuation">(</span>inode<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    <span class="token keyword">goto</span> out<span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>lookup_bdev这里的pathname是设备的文件名，例如/dev/xxx。这个文件是在devtmpfs文件系统中的，kern_path可以在这个文件系统里面，一直找到它对应的dentry。接下来，d_backing_inode会获得inode。这个inode就是那个init_special_inode生成的特殊inode。</p>
+<p>接下来，bd_acquire通过这个特殊的inode，找到struct block_device。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">static</span> <span class="token keyword">struct</span> <span class="token class-name">block_device</span> <span class="token operator">*</span><span class="token function">bd_acquire</span><span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">inode</span> <span class="token operator">*</span>inode<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword">struct</span> <span class="token class-name">block_device</span> <span class="token operator">*</span>bdev<span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    bdev <span class="token operator">=</span> <span class="token function">bdget</span><span class="token punctuation">(</span>inode<span class="token operator">-&gt;</span>i_rdev<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">if</span> <span class="token punctuation">(</span>bdev<span class="token punctuation">)</span> <span class="token punctuation">{</span>
+        <span class="token function">spin_lock</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>bdev_lock<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token operator">!</span>inode<span class="token operator">-&gt;</span>i_bdev<span class="token punctuation">)</span> <span class="token punctuation">{</span>
+            <span class="token comment">/*
+             * We take an additional reference to bd_inode,
+             * and it's released in clear_inode() of inode.
+             * So, we can access it via -&gt;i_mapping always
+             * without igrab().
+             */</span>
+            <span class="token function">bdgrab</span><span class="token punctuation">(</span>bdev<span class="token punctuation">)</span><span class="token punctuation">;</span>
+            inode<span class="token operator">-&gt;</span>i_bdev <span class="token operator">=</span> bdev<span class="token punctuation">;</span>
+            inode<span class="token operator">-&gt;</span>i_mapping <span class="token operator">=</span> bdev<span class="token operator">-&gt;</span>bd_inode<span class="token operator">-&gt;</span>i_mapping<span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+    <span class="token punctuation">}</span>
+    <span class="token keyword">return</span> bdev<span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>bd_acquire中最主要的就是调用bdget，它的参数是特殊inode的i_rdev。这里面在mknod的时候，放的是设备号dev_t。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">struct</span> <span class="token class-name">block_device</span> <span class="token operator">*</span><span class="token function">bdget</span><span class="token punctuation">(</span>dev_t dev<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+        <span class="token keyword">struct</span> <span class="token class-name">block_device</span> <span class="token operator">*</span>bdev<span class="token punctuation">;</span>
+        <span class="token keyword">struct</span> <span class="token class-name">inode</span> <span class="token operator">*</span>inode<span class="token punctuation">;</span>
+
+        inode <span class="token operator">=</span> <span class="token function">iget5_locked</span><span class="token punctuation">(</span>blockdev_superblock<span class="token punctuation">,</span> <span class="token function">hash</span><span class="token punctuation">(</span>dev<span class="token punctuation">)</span><span class="token punctuation">,</span>
+                        bdev_test<span class="token punctuation">,</span> bdev_set<span class="token punctuation">,</span> <span class="token operator">&amp;</span>dev<span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+        bdev <span class="token operator">=</span> <span class="token operator">&amp;</span><span class="token function">BDEV_I</span><span class="token punctuation">(</span>inode<span class="token punctuation">)</span><span class="token operator">-&gt;</span>bdev<span class="token punctuation">;</span>
+
+        <span class="token keyword">if</span> <span class="token punctuation">(</span>inode<span class="token operator">-&gt;</span>i_state <span class="token operator">&amp;</span> I_NEW<span class="token punctuation">)</span> <span class="token punctuation">{</span>
+                bdev<span class="token operator">-&gt;</span>bd_contains <span class="token operator">=</span> <span class="token constant">NULL</span><span class="token punctuation">;</span>
+                bdev<span class="token operator">-&gt;</span>bd_super <span class="token operator">=</span> <span class="token constant">NULL</span><span class="token punctuation">;</span>
+                bdev<span class="token operator">-&gt;</span>bd_inode <span class="token operator">=</span> inode<span class="token punctuation">;</span>
+                bdev<span class="token operator">-&gt;</span>bd_block_size <span class="token operator">=</span> <span class="token function">i_blocksize</span><span class="token punctuation">(</span>inode<span class="token punctuation">)</span><span class="token punctuation">;</span>
+                bdev<span class="token operator">-&gt;</span>bd_part_count <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span>
+                bdev<span class="token operator">-&gt;</span>bd_invalidated <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span>
+                inode<span class="token operator">-&gt;</span>i_mode <span class="token operator">=</span> S_IFBLK<span class="token punctuation">;</span>
+                inode<span class="token operator">-&gt;</span>i_rdev <span class="token operator">=</span> dev<span class="token punctuation">;</span>
+                inode<span class="token operator">-&gt;</span>i_bdev <span class="token operator">=</span> bdev<span class="token punctuation">;</span>
+                inode<span class="token operator">-&gt;</span>i_data<span class="token punctuation">.</span>a_ops <span class="token operator">=</span> <span class="token operator">&amp;</span>def_blk_aops<span class="token punctuation">;</span>
+                <span class="token function">mapping_set_gfp_mask</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>inode<span class="token operator">-&gt;</span>i_data<span class="token punctuation">,</span> GFP_USER<span class="token punctuation">)</span><span class="token punctuation">;</span>
+                <span class="token function">spin_lock</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>bdev_lock<span class="token punctuation">)</span><span class="token punctuation">;</span>
+                <span class="token function">list_add</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>bdev<span class="token operator">-&gt;</span>bd_list<span class="token punctuation">,</span> <span class="token operator">&amp;</span>all_bdevs<span class="token punctuation">)</span><span class="token punctuation">;</span>
+                <span class="token function">spin_unlock</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>bdev_lock<span class="token punctuation">)</span><span class="token punctuation">;</span>
+                <span class="token function">unlock_new_inode</span><span class="token punctuation">(</span>inode<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+        <span class="token keyword">return</span> bdev<span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p><strong>在bdget中，我们遇到了第三个文件系统，bdev伪文件系统。</strong> bdget函数根据传进来的dev_t，在blockdev_superblock这个文件系统里面找到inode。这里注意，这个inode已经不是devtmpfs文件系统的inode了。blockdev_superblock的初始化在整个系统初始化的时候，会调用bdev_cache_init进行初始化。它的定义如下：</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">struct</span> <span class="token class-name">super_block</span> <span class="token operator">*</span>blockdev_superblock __read_mostly<span class="token punctuation">;</span>
+
+<span class="token keyword">static</span> <span class="token keyword">struct</span> <span class="token class-name">file_system_type</span> bd_type <span class="token operator">=</span> <span class="token punctuation">{</span>
+        <span class="token punctuation">.</span>name           <span class="token operator">=</span> <span class="token string">"bdev"</span><span class="token punctuation">,</span>
+        <span class="token punctuation">.</span>mount          <span class="token operator">=</span> bd_mount<span class="token punctuation">,</span>
+        <span class="token punctuation">.</span>kill_sb        <span class="token operator">=</span> kill_anon_super<span class="token punctuation">,</span>
+<span class="token punctuation">}</span><span class="token punctuation">;</span>
+
+<span class="token keyword">void</span> __init <span class="token function">bdev_cache_init</span><span class="token punctuation">(</span><span class="token keyword">void</span><span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+        <span class="token keyword">int</span> err<span class="token punctuation">;</span>
+        <span class="token keyword">static</span> <span class="token keyword">struct</span> <span class="token class-name">vfsmount</span> <span class="token operator">*</span>bd_mnt<span class="token punctuation">;</span>
+
+        bdev_cachep <span class="token operator">=</span> <span class="token function">kmem_cache_create</span><span class="token punctuation">(</span><span class="token string">"bdev_cache"</span><span class="token punctuation">,</span>
+            <span class="token keyword">sizeof</span><span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">bdev_inode</span><span class="token punctuation">)</span><span class="token punctuation">,</span> <span class="token number">0</span><span class="token punctuation">,</span>
+            <span class="token punctuation">(</span>SLAB_HWCACHE_ALIGN<span class="token operator">|</span>SLAB_RECLAIM_ACCOUNT<span class="token operator">|</span>SLAB_MEM_SPREAD<span class="token operator">|</span>SLAB_ACCOUNT<span class="token operator">|</span>SLAB_PANIC<span class="token punctuation">)</span><span class="token punctuation">,</span>
+            init_once<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        err <span class="token operator">=</span> <span class="token function">register_filesystem</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>bd_type<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span>err<span class="token punctuation">)</span>
+                <span class="token function">panic</span><span class="token punctuation">(</span><span class="token string">"Cannot register bdev pseudo-fs"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        bd_mnt <span class="token operator">=</span> <span class="token function">kern_mount</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>bd_type<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token function">IS_ERR</span><span class="token punctuation">(</span>bd_mnt<span class="token punctuation">)</span><span class="token punctuation">)</span>
+                <span class="token function">panic</span><span class="token punctuation">(</span><span class="token string">"Cannot create bdev pseudo-fs"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        blockdev_superblock <span class="token operator">=</span> bd_mnt<span class="token operator">-&gt;</span>mnt_sb<span class="token punctuation">;</span>   <span class="token comment">/* For writeback */</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>所有表示块设备的inode都保存在伪文件系统 bdev中，这些对用户层不可见，主要为了方便块设备的管理。Linux将块设备的block_device和bdev文件系统的块设备的inode，通过struct bdev_inode进行关联。所以，在bdget中，BDEV_I就是通过bdev文件系统的inode，获得整个struct bdev_inode结构的地址，然后取成员bdev，得到block_device。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">struct</span> <span class="token class-name">bdev_inode</span> <span class="token punctuation">{</span>
+    <span class="token keyword">struct</span> <span class="token class-name">block_device</span> bdev<span class="token punctuation">;</span>
+    <span class="token keyword">struct</span> <span class="token class-name">inode</span> vfs_inode<span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span></span></code></pre>
+<p>绕了一大圈，我们终于通过设备文件/dev/xxx，获得了设备的结构block_device。有点儿绕，我们再捋一下。设备文件/dev/xxx在devtmpfs文件系统中，找到devtmpfs文件系统中的inode，里面有dev_t。我们可以通过dev_t，在伪文件系统 bdev中找到对应的inode，然后根据struct bdev_inode找到关联的block_device。</p>
+<p>接下来，blkdev_get_by_path开始做第二件事情，在找到block_device之后，要调用blkdev_get打开这个设备。blkdev_get会调用__blkdev_get。</p>
+<p>在分析打开一个设备之前，我们先来看block_device这个结构是什么样的。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">struct</span> <span class="token class-name">block_device</span> <span class="token punctuation">{</span>
+    dev_t                   bd_dev<span class="token punctuation">;</span>  <span class="token comment">/* not a kdev_t - it's a search key */</span>
+    <span class="token keyword">int</span>                     bd_openers<span class="token punctuation">;</span>
+    <span class="token keyword">struct</span> <span class="token class-name">super_block</span> <span class="token operator">*</span>    bd_super<span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    <span class="token keyword">struct</span> <span class="token class-name">block_device</span> <span class="token operator">*</span>   bd_contains<span class="token punctuation">;</span>
+    <span class="token keyword">unsigned</span>                bd_block_size<span class="token punctuation">;</span>
+    <span class="token keyword">struct</span> <span class="token class-name">hd_struct</span> <span class="token operator">*</span>      bd_part<span class="token punctuation">;</span>
+    <span class="token keyword">unsigned</span>                bd_part_count<span class="token punctuation">;</span>
+    <span class="token keyword">int</span>                     bd_invalidated<span class="token punctuation">;</span>
+    <span class="token keyword">struct</span> <span class="token class-name">gendisk</span> <span class="token operator">*</span>        bd_disk<span class="token punctuation">;</span>
+    <span class="token keyword">struct</span> <span class="token class-name">request_queue</span> <span class="token operator">*</span>  bd_queue<span class="token punctuation">;</span>
+    <span class="token keyword">struct</span> <span class="token class-name">backing_dev_info</span> <span class="token operator">*</span>bd_bdi<span class="token punctuation">;</span>
+    <span class="token keyword">struct</span> <span class="token class-name">list_head</span>        bd_list<span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+<span class="token punctuation">}</span><span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>你应该能发现，这个结构和其他几个结构有着千丝万缕的联系，比较复杂。这是因为块设备本身就比较复杂。</p>
+<p>比方说，我们有一个磁盘/dev/sda，我们既可以把它整个格式化成一个文件系统，也可以把它分成多个分区/dev/sda1、 /dev/sda2，然后把每个分区格式化成不同的文件系统。如果我们访问某个分区的设备文件/dev/sda2，我们应该能知道它是哪个磁盘设备的。按说它们的驱动应该是一样的。如果我们访问整个磁盘的设备文件/dev/sda，我们也应该能知道它分了几个区域，所以就有了下图这个复杂的关系结构。</p>
+<p><img src="/images/《趣谈Linux操作系统》学习笔记/super_block结构.png" alt="super_block结构"></p>
+<p>struct gendisk是用来描述整个设备的，因而上面的例子中，gendisk只有一个实例，指向/dev/sda。它的定义如下：</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">struct</span> <span class="token class-name">gendisk</span> <span class="token punctuation">{</span>
+    <span class="token keyword">int</span> major<span class="token punctuation">;</span>                      <span class="token comment">/* major number of driver */</span>
+    <span class="token keyword">int</span> first_minor<span class="token punctuation">;</span>
+    <span class="token keyword">int</span> minors<span class="token punctuation">;</span>                     <span class="token comment">/* maximum number of minors, =1 for disks that can't be partitioned. */</span>
+    <span class="token keyword">char</span> disk_name<span class="token punctuation">[</span>DISK_NAME_LEN<span class="token punctuation">]</span><span class="token punctuation">;</span>  <span class="token comment">/* name of major driver */</span>
+    <span class="token keyword">char</span> <span class="token operator">*</span><span class="token punctuation">(</span><span class="token operator">*</span>devnode<span class="token punctuation">)</span><span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">gendisk</span> <span class="token operator">*</span>gd<span class="token punctuation">,</span> umode_t <span class="token operator">*</span>mode<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    <span class="token keyword">struct</span> <span class="token class-name">disk_part_tbl</span> __rcu <span class="token operator">*</span>part_tbl<span class="token punctuation">;</span>
+    <span class="token keyword">struct</span> <span class="token class-name">hd_struct</span> part0<span class="token punctuation">;</span>
+
+    <span class="token keyword">const</span> <span class="token keyword">struct</span> <span class="token class-name">block_device_operations</span> <span class="token operator">*</span>fops<span class="token punctuation">;</span>
+    <span class="token keyword">struct</span> <span class="token class-name">request_queue</span> <span class="token operator">*</span>queue<span class="token punctuation">;</span>
+    <span class="token keyword">void</span> <span class="token operator">*</span>private_data<span class="token punctuation">;</span>
+
+    <span class="token keyword">int</span> flags<span class="token punctuation">;</span>
+    <span class="token keyword">struct</span> <span class="token class-name">kobject</span> <span class="token operator">*</span>slave_dir<span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+<span class="token punctuation">}</span><span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>这里major是主设备号，first_minor表示第一个分区的从设备号，minors表示分区的数目。</p>
+<p>disk_name给出了磁盘块设备的名称。</p>
+<p>struct disk_part_tbl结构里是一个struct hd_struct的数组，用于表示各个分区。struct block_device_operations fops指向对于这个块设备的各种操作。struct request_queue queue是表示在这个块设备上的请求队列。</p>
+<p>struct hd_struct是用来表示某个分区的，在上面的例子中，有两个hd_struct的实例，分别指向/dev/sda1、 /dev/sda2。它的定义如下：</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">struct</span> <span class="token class-name">hd_struct</span> <span class="token punctuation">{</span>
+    sector_t start_sect<span class="token punctuation">;</span>
+    sector_t nr_sects<span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    <span class="token keyword">struct</span> <span class="token class-name">device</span> __dev<span class="token punctuation">;</span>
+    <span class="token keyword">struct</span> <span class="token class-name">kobject</span> <span class="token operator">*</span>holder_dir<span class="token punctuation">;</span>
+    <span class="token keyword">int</span> policy<span class="token punctuation">,</span> partno<span class="token punctuation">;</span>
+    <span class="token keyword">struct</span> <span class="token class-name">partition_meta_info</span> <span class="token operator">*</span>info<span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    <span class="token keyword">struct</span> <span class="token class-name">disk_stats</span> dkstats<span class="token punctuation">;</span>
+    <span class="token keyword">struct</span> <span class="token class-name">percpu_ref</span> ref<span class="token punctuation">;</span>
+    <span class="token keyword">struct</span> <span class="token class-name">rcu_head</span> rcu_head<span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>在hd_struct中，比较重要的成员变量保存了如下的信息：从磁盘的哪个扇区开始，到哪个扇区结束。</p>
+<p>而block_device既可以表示整个块设备，也可以表示某个分区，所以对于上面的例子，block_device有三个实例，分别指向/dev/sda1、/dev/sda2、/dev/sda。</p>
+<p>block_device的成员变量bd_disk，指向的gendisk就是整个块设备。这三个实例都指向同一个gendisk。bd_part指向的某个分区的hd_struct，bd_contains指向的是整个块设备的block_device。</p>
+<p>了解了这些复杂的关系，我们再来看打开设备文件的代码，就会清晰很多。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">static</span> <span class="token keyword">int</span> <span class="token function">__blkdev_get</span><span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">block_device</span> <span class="token operator">*</span>bdev<span class="token punctuation">,</span> fmode_t mode<span class="token punctuation">,</span> <span class="token keyword">int</span> for_part<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword">struct</span> <span class="token class-name">gendisk</span> <span class="token operator">*</span>disk<span class="token punctuation">;</span>
+    <span class="token keyword">struct</span> <span class="token class-name">module</span> <span class="token operator">*</span>owner<span class="token punctuation">;</span>
+    <span class="token keyword">int</span> ret<span class="token punctuation">;</span>
+    <span class="token keyword">int</span> partno<span class="token punctuation">;</span>
+    <span class="token keyword">int</span> perm <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span>
+
+    <span class="token keyword">if</span> <span class="token punctuation">(</span>mode <span class="token operator">&amp;</span> FMODE_READ<span class="token punctuation">)</span>
+        perm <span class="token operator">|=</span> MAY_READ<span class="token punctuation">;</span>
+    <span class="token keyword">if</span> <span class="token punctuation">(</span>mode <span class="token operator">&amp;</span> FMODE_WRITE<span class="token punctuation">)</span>
+        perm <span class="token operator">|=</span> MAY_WRITE<span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    disk <span class="token operator">=</span> <span class="token function">get_gendisk</span><span class="token punctuation">(</span>bdev<span class="token operator">-&gt;</span>bd_dev<span class="token punctuation">,</span> <span class="token operator">&amp;</span>partno<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    owner <span class="token operator">=</span> disk<span class="token operator">-&gt;</span>fops<span class="token operator">-&gt;</span>owner<span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token operator">!</span>bdev<span class="token operator">-&gt;</span>bd_openers<span class="token punctuation">)</span> <span class="token punctuation">{</span>
+        bdev<span class="token operator">-&gt;</span>bd_disk <span class="token operator">=</span> disk<span class="token punctuation">;</span>
+        bdev<span class="token operator">-&gt;</span>bd_queue <span class="token operator">=</span> disk<span class="token operator">-&gt;</span>queue<span class="token punctuation">;</span>
+        bdev<span class="token operator">-&gt;</span>bd_contains <span class="token operator">=</span> bdev<span class="token punctuation">;</span>
+
+        <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token operator">!</span>partno<span class="token punctuation">)</span> <span class="token punctuation">{</span>
+            ret <span class="token operator">=</span> <span class="token operator">-</span>ENXIO<span class="token punctuation">;</span>
+            bdev<span class="token operator">-&gt;</span>bd_part <span class="token operator">=</span> <span class="token function">disk_get_part</span><span class="token punctuation">(</span>disk<span class="token punctuation">,</span> partno<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+            <span class="token keyword">if</span> <span class="token punctuation">(</span>disk<span class="token operator">-&gt;</span>fops<span class="token operator">-&gt;</span>open<span class="token punctuation">)</span> <span class="token punctuation">{</span>
+                ret <span class="token operator">=</span> disk<span class="token operator">-&gt;</span>fops<span class="token operator">-&gt;</span><span class="token function">open</span><span class="token punctuation">(</span>bdev<span class="token punctuation">,</span> mode<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+            <span class="token punctuation">}</span>
+
+            <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token operator">!</span>ret<span class="token punctuation">)</span>
+                <span class="token function">bd_set_size</span><span class="token punctuation">(</span>bdev<span class="token punctuation">,</span><span class="token punctuation">(</span>loff_t<span class="token punctuation">)</span><span class="token function">get_capacity</span><span class="token punctuation">(</span>disk<span class="token punctuation">)</span><span class="token operator">&lt;&lt;</span><span class="token number">9</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+            <span class="token keyword">if</span> <span class="token punctuation">(</span>bdev<span class="token operator">-&gt;</span>bd_invalidated<span class="token punctuation">)</span> <span class="token punctuation">{</span>
+                <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token operator">!</span>ret<span class="token punctuation">)</span>
+                    <span class="token function">rescan_partitions</span><span class="token punctuation">(</span>disk<span class="token punctuation">,</span> bdev<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+            <span class="token punctuation">}</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+        <span class="token punctuation">}</span> <span class="token keyword">else</span> <span class="token punctuation">{</span>
+            <span class="token keyword">struct</span> <span class="token class-name">block_device</span> <span class="token operator">*</span>whole<span class="token punctuation">;</span>
+            whole <span class="token operator">=</span> <span class="token function">bdget_disk</span><span class="token punctuation">(</span>disk<span class="token punctuation">,</span> <span class="token number">0</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+            ret <span class="token operator">=</span> <span class="token function">__blkdev_get</span><span class="token punctuation">(</span>whole<span class="token punctuation">,</span> mode<span class="token punctuation">,</span> <span class="token number">1</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+            bdev<span class="token operator">-&gt;</span>bd_contains <span class="token operator">=</span> whole<span class="token punctuation">;</span>
+            bdev<span class="token operator">-&gt;</span>bd_part <span class="token operator">=</span> <span class="token function">disk_get_part</span><span class="token punctuation">(</span>disk<span class="token punctuation">,</span> partno<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+            <span class="token function">bd_set_size</span><span class="token punctuation">(</span>bdev<span class="token punctuation">,</span> <span class="token punctuation">(</span>loff_t<span class="token punctuation">)</span>bdev<span class="token operator">-&gt;</span>bd_part<span class="token operator">-&gt;</span>nr_sects <span class="token operator">&lt;&lt;</span> <span class="token number">9</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+    <span class="token punctuation">}</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    bdev<span class="token operator">-&gt;</span>bd_openers<span class="token operator">++</span><span class="token punctuation">;</span>
+    <span class="token keyword">if</span> <span class="token punctuation">(</span>for_part<span class="token punctuation">)</span>
+        bdev<span class="token operator">-&gt;</span>bd_part_count<span class="token operator">++</span><span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>在__blkdev_get函数中，我们先调用get_gendisk，根据block_device获取gendisk。具体代码如下：</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token comment">/**
+ * get_gendisk - get partitioning information for a given device
+ * @devt: device to get partitioning information for
+ * @partno: returned partition index
+ *
+ * This function gets the structure containing partitioning
+ * information for the given device @devt.
+ */</span>
+<span class="token keyword">struct</span> <span class="token class-name">gendisk</span> <span class="token operator">*</span><span class="token function">get_gendisk</span><span class="token punctuation">(</span>dev_t devt<span class="token punctuation">,</span> <span class="token keyword">int</span> <span class="token operator">*</span>partno<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword">struct</span> <span class="token class-name">gendisk</span> <span class="token operator">*</span>disk <span class="token operator">=</span> <span class="token constant">NULL</span><span class="token punctuation">;</span>
+
+    <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token function">MAJOR</span><span class="token punctuation">(</span>devt<span class="token punctuation">)</span> <span class="token operator">!=</span> BLOCK_EXT_MAJOR<span class="token punctuation">)</span> <span class="token punctuation">{</span>
+        <span class="token keyword">struct</span> <span class="token class-name">kobject</span> <span class="token operator">*</span>kobj<span class="token punctuation">;</span>
+
+        kobj <span class="token operator">=</span> <span class="token function">kobj_lookup</span><span class="token punctuation">(</span>bdev_map<span class="token punctuation">,</span> devt<span class="token punctuation">,</span> partno<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span>kobj<span class="token punctuation">)</span>
+            disk <span class="token operator">=</span> <span class="token function">dev_to_disk</span><span class="token punctuation">(</span><span class="token function">kobj_to_dev</span><span class="token punctuation">(</span>kobj<span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span> <span class="token keyword">else</span> <span class="token punctuation">{</span>
+        <span class="token keyword">struct</span> <span class="token class-name">hd_struct</span> <span class="token operator">*</span>part<span class="token punctuation">;</span>
+        part <span class="token operator">=</span> <span class="token function">idr_find</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>ext_devt_idr<span class="token punctuation">,</span> <span class="token function">blk_mangle_minor</span><span class="token punctuation">(</span><span class="token function">MINOR</span><span class="token punctuation">(</span>devt<span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span>part <span class="token operator">&amp;&amp;</span> <span class="token function">get_disk</span><span class="token punctuation">(</span><span class="token function">part_to_disk</span><span class="token punctuation">(</span>part<span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+            <span class="token operator">*</span>partno <span class="token operator">=</span> part<span class="token operator">-&gt;</span>partno<span class="token punctuation">;</span>
+            disk <span class="token operator">=</span> <span class="token function">part_to_disk</span><span class="token punctuation">(</span>part<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+    <span class="token punctuation">}</span>
+    <span class="token keyword">return</span> disk<span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>我们可以想象这里面有两种情况。第一种情况是，block_device是指向整个磁盘设备的。这个时候，我们只需要根据dev_t，在bdev_map中将对应的gendisk拿出来就好。</p>
+<p>bdev_map是干什么的呢？前面咱们学习字符设备驱动的时候讲过，任何一个字符设备初始化的时候，都需要调用__register_chrdev_region，注册这个字符设备。对于块设备也是类似的，每一个块设备驱动初始化的时候，都会调用add_disk注册一个gendisk。</p>
+<p>这里需要说明一下，gen的意思是general通用的意思，也就是说，所有的块设备，不仅仅是硬盘disk，都会用一个gendisk来表示，然后通过调用链add_disk-&gt;device_add_disk-&gt;blk_register_region，将dev_t和一个gendisk关联起来，保存在bdev_map中。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">static</span> <span class="token keyword">struct</span> <span class="token class-name">kobj_map</span> <span class="token operator">*</span>bdev_map<span class="token punctuation">;</span>
+
+<span class="token keyword">static</span> <span class="token keyword">inline</span> <span class="token keyword">void</span> <span class="token function">add_disk</span><span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">gendisk</span> <span class="token operator">*</span>disk<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token function">device_add_disk</span><span class="token punctuation">(</span><span class="token constant">NULL</span><span class="token punctuation">,</span> disk<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+
+<span class="token comment">/**
+ * device_add_disk - add partitioning information to kernel list
+ * @parent: parent device for the disk
+ * @disk: per-device partitioning information
+ *
+ * This function registers the partitioning information in @disk
+ * with the kernel.
+ */</span>
+<span class="token keyword">void</span> <span class="token function">device_add_disk</span><span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">device</span> <span class="token operator">*</span>parent<span class="token punctuation">,</span> <span class="token keyword">struct</span> <span class="token class-name">gendisk</span> <span class="token operator">*</span>disk<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+<span class="token function">blk_register_region</span><span class="token punctuation">(</span><span class="token function">disk_devt</span><span class="token punctuation">(</span>disk<span class="token punctuation">)</span><span class="token punctuation">,</span> disk<span class="token operator">-&gt;</span>minors<span class="token punctuation">,</span> <span class="token constant">NULL</span><span class="token punctuation">,</span>
+                exact_match<span class="token punctuation">,</span> exact_lock<span class="token punctuation">,</span> disk<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+<span class="token punctuation">}</span>
+
+<span class="token comment">/*
+ * Register device numbers dev..(dev+range-1)
+ * range must be nonzero
+ * The hash chain is sorted on range, so that subranges can override.
+ */</span>
+<span class="token keyword">void</span> <span class="token function">blk_register_region</span><span class="token punctuation">(</span>dev_t devt<span class="token punctuation">,</span> <span class="token keyword">unsigned</span> <span class="token keyword">long</span> range<span class="token punctuation">,</span> <span class="token keyword">struct</span> <span class="token class-name">module</span> <span class="token operator">*</span>module<span class="token punctuation">,</span>
+             <span class="token keyword">struct</span> <span class="token class-name">kobject</span> <span class="token operator">*</span><span class="token punctuation">(</span><span class="token operator">*</span>probe<span class="token punctuation">)</span><span class="token punctuation">(</span>dev_t<span class="token punctuation">,</span> <span class="token keyword">int</span> <span class="token operator">*</span><span class="token punctuation">,</span> <span class="token keyword">void</span> <span class="token operator">*</span><span class="token punctuation">)</span><span class="token punctuation">,</span>
+             <span class="token keyword">int</span> <span class="token punctuation">(</span><span class="token operator">*</span>lock<span class="token punctuation">)</span><span class="token punctuation">(</span>dev_t<span class="token punctuation">,</span> <span class="token keyword">void</span> <span class="token operator">*</span><span class="token punctuation">)</span><span class="token punctuation">,</span> <span class="token keyword">void</span> <span class="token operator">*</span>data<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token function">kobj_map</span><span class="token punctuation">(</span>bdev_map<span class="token punctuation">,</span> devt<span class="token punctuation">,</span> range<span class="token punctuation">,</span> module<span class="token punctuation">,</span> probe<span class="token punctuation">,</span> lock<span class="token punctuation">,</span> data<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>get_gendisk要处理的第二种情况是，block_device是指向某个分区的。这个时候我们要先得到hd_struct，然后通过hd_struct，找到对应的整个设备的gendisk，并且把partno设置为分区号。</p>
+<p>我们再回到__blkdev_get函数中，得到gendisk。接下来我们可以分两种情况。</p>
+<p>如果partno为0，也就是说，打开的是整个设备而不是分区，那我们就调用disk_get_part，获取gendisk中的分区数组，然后调用block_device_operations里面的open函数打开设备。</p>
+<p>如果partno不为0，也就是说打开的是分区，那我们就获取整个设备的block_device，赋值给变量struct block_device *whole，然后调用递归__blkdev_get，打开whole代表的整个设备，将bd_contains设置为变量whole。</p>
+<p>block_device_operations就是在驱动层了。例如在drivers/scsi/sd.c里面，也就是MODULE_DESCRIPTION(“SCSI disk (sd) driver”)中，就有这样的定义。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">static</span> <span class="token keyword">const</span> <span class="token keyword">struct</span> <span class="token class-name">block_device_operations</span> sd_fops <span class="token operator">=</span> <span class="token punctuation">{</span>
+    <span class="token punctuation">.</span>owner                  <span class="token operator">=</span> THIS_MODULE<span class="token punctuation">,</span>
+    <span class="token punctuation">.</span>open                   <span class="token operator">=</span> sd_open<span class="token punctuation">,</span>
+    <span class="token punctuation">.</span>release                <span class="token operator">=</span> sd_release<span class="token punctuation">,</span>
+    <span class="token punctuation">.</span>ioctl                  <span class="token operator">=</span> sd_ioctl<span class="token punctuation">,</span>
+    <span class="token punctuation">.</span>getgeo                 <span class="token operator">=</span> sd_getgeo<span class="token punctuation">,</span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">ifdef</span> <span class="token expression">CONFIG_COMPAT</span></span>
+    <span class="token punctuation">.</span>compat_ioctl           <span class="token operator">=</span> sd_compat_ioctl<span class="token punctuation">,</span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">endif</span></span>
+    <span class="token punctuation">.</span>check_events           <span class="token operator">=</span> sd_check_events<span class="token punctuation">,</span>
+    <span class="token punctuation">.</span>revalidate_disk        <span class="token operator">=</span> sd_revalidate_disk<span class="token punctuation">,</span>
+    <span class="token punctuation">.</span>unlock_native_capacity <span class="token operator">=</span> sd_unlock_native_capacity<span class="token punctuation">,</span>
+    <span class="token punctuation">.</span>pr_ops                 <span class="token operator">=</span> <span class="token operator">&amp;</span>sd_pr_ops<span class="token punctuation">,</span>
+<span class="token punctuation">}</span><span class="token punctuation">;</span>
+
+<span class="token comment">/**
+ *  sd_open - open a scsi disk device
+ *  @bdev: Block device of the scsi disk to open
+ *  @mode: FMODE_* mask
+ *
+ *  Returns 0 if successful. Returns a negated errno value in case
+ *  of error.
+ **/</span>
+<span class="token keyword">static</span> <span class="token keyword">int</span> <span class="token function">sd_open</span><span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">block_device</span> <span class="token operator">*</span>bdev<span class="token punctuation">,</span> fmode_t mode<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>在驱动层打开了磁盘设备之后，我们可以看到，在这个过程中，block_device相应的成员变量该填的都填上了，这才完成了mount_bdev的第一件大事，通过blkdev_get_by_path得到block_device。</p>
+<p>接下来就是第二件大事情，我们要通过sget，将block_device塞进superblock里面。注意，调用sget的时候，有一个参数是一个函数set_bdev_super。这里面将block_device设置进了super_block。而sget要做的，就是分配一个super_block，然后调用set_bdev_super这个callback函数。这里的super_block是ext4文件系统的super_block。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token function">sget</span><span class="token punctuation">(</span>fs_type<span class="token punctuation">,</span> test_bdev_super<span class="token punctuation">,</span> set_bdev_super<span class="token punctuation">,</span> flags <span class="token operator">|</span> MS_NOSEC<span class="token punctuation">,</span> bdev<span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+<span class="token keyword">static</span> <span class="token keyword">int</span> <span class="token function">set_bdev_super</span><span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">super_block</span> <span class="token operator">*</span>s<span class="token punctuation">,</span> <span class="token keyword">void</span> <span class="token operator">*</span>data<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    s<span class="token operator">-&gt;</span>s_bdev <span class="token operator">=</span> data<span class="token punctuation">;</span>
+    s<span class="token operator">-&gt;</span>s_dev <span class="token operator">=</span> s<span class="token operator">-&gt;</span>s_bdev<span class="token operator">-&gt;</span>bd_dev<span class="token punctuation">;</span>
+    s<span class="token operator">-&gt;</span>s_bdi <span class="token operator">=</span> <span class="token function">bdi_get</span><span class="token punctuation">(</span>s<span class="token operator">-&gt;</span>s_bdev<span class="token operator">-&gt;</span>bd_bdi<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">return</span> <span class="token number">0</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+
+<span class="token comment">/**
+ *  sget    -   find or create a superblock
+ *  @type:    filesystem type superblock should belong to
+ *  @test:    comparison callback
+ *  @set:     setup callback
+ *  @flags:   mount flags
+ *  @data:    argument to each of them
+ */</span>
+<span class="token keyword">struct</span> <span class="token class-name">super_block</span> <span class="token operator">*</span><span class="token function">sget</span><span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">file_system_type</span> <span class="token operator">*</span>type<span class="token punctuation">,</span>
+            <span class="token keyword">int</span> <span class="token punctuation">(</span><span class="token operator">*</span>test<span class="token punctuation">)</span><span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">super_block</span> <span class="token operator">*</span><span class="token punctuation">,</span><span class="token keyword">void</span> <span class="token operator">*</span><span class="token punctuation">)</span><span class="token punctuation">,</span>
+            <span class="token keyword">int</span> <span class="token punctuation">(</span><span class="token operator">*</span>set<span class="token punctuation">)</span><span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">super_block</span> <span class="token operator">*</span><span class="token punctuation">,</span><span class="token keyword">void</span> <span class="token operator">*</span><span class="token punctuation">)</span><span class="token punctuation">,</span>
+            <span class="token keyword">int</span> flags<span class="token punctuation">,</span>
+            <span class="token keyword">void</span> <span class="token operator">*</span>data<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    <span class="token keyword">return</span> <span class="token function">sget_userns</span><span class="token punctuation">(</span>type<span class="token punctuation">,</span> test<span class="token punctuation">,</span> set<span class="token punctuation">,</span> flags<span class="token punctuation">,</span> user_ns<span class="token punctuation">,</span> data<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+
+<span class="token comment">/**
+ *  sget_userns -   find or create a superblock
+ *  @type:  filesystem type superblock should belong to
+ *  @test:  comparison callback
+ *  @set:   setup callback
+ *  @flags: mount flags
+ *  @user_ns: User namespace for the super_block
+ *  @data:  argument to each of them
+ */</span>
+<span class="token keyword">struct</span> <span class="token class-name">super_block</span> <span class="token operator">*</span><span class="token function">sget_userns</span><span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">file_system_type</span> <span class="token operator">*</span>type<span class="token punctuation">,</span>
+            <span class="token keyword">int</span> <span class="token punctuation">(</span><span class="token operator">*</span>test<span class="token punctuation">)</span><span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">super_block</span> <span class="token operator">*</span><span class="token punctuation">,</span><span class="token keyword">void</span> <span class="token operator">*</span><span class="token punctuation">)</span><span class="token punctuation">,</span>
+            <span class="token keyword">int</span> <span class="token punctuation">(</span><span class="token operator">*</span>set<span class="token punctuation">)</span><span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">super_block</span> <span class="token operator">*</span><span class="token punctuation">,</span><span class="token keyword">void</span> <span class="token operator">*</span><span class="token punctuation">)</span><span class="token punctuation">,</span>
+            <span class="token keyword">int</span> flags<span class="token punctuation">,</span> <span class="token keyword">struct</span> <span class="token class-name">user_namespace</span> <span class="token operator">*</span>user_ns<span class="token punctuation">,</span>
+            <span class="token keyword">void</span> <span class="token operator">*</span>data<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword">struct</span> <span class="token class-name">super_block</span> <span class="token operator">*</span>s <span class="token operator">=</span> <span class="token constant">NULL</span><span class="token punctuation">;</span>
+    <span class="token keyword">struct</span> <span class="token class-name">super_block</span> <span class="token operator">*</span>old<span class="token punctuation">;</span>
+    <span class="token keyword">int</span> err<span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token operator">!</span>s<span class="token punctuation">)</span> <span class="token punctuation">{</span>
+        s <span class="token operator">=</span> <span class="token function">alloc_super</span><span class="token punctuation">(</span>type<span class="token punctuation">,</span> <span class="token punctuation">(</span>flags <span class="token operator">&amp;</span> <span class="token operator">~</span>MS_SUBMOUNT<span class="token punctuation">)</span><span class="token punctuation">,</span> user_ns<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    <span class="token punctuation">}</span>
+    err <span class="token operator">=</span> <span class="token function">set</span><span class="token punctuation">(</span>s<span class="token punctuation">,</span> data<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    s<span class="token operator">-&gt;</span>s_type <span class="token operator">=</span> type<span class="token punctuation">;</span>
+    <span class="token function">strlcpy</span><span class="token punctuation">(</span>s<span class="token operator">-&gt;</span>s_id<span class="token punctuation">,</span> type<span class="token operator">-&gt;</span>name<span class="token punctuation">,</span> <span class="token keyword">sizeof</span><span class="token punctuation">(</span>s<span class="token operator">-&gt;</span>s_id<span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token function">list_add_tail</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>s<span class="token operator">-&gt;</span>s_list<span class="token punctuation">,</span> <span class="token operator">&amp;</span>super_blocks<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token function">hlist_add_head</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>s<span class="token operator">-&gt;</span>s_instances<span class="token punctuation">,</span> <span class="token operator">&amp;</span>type<span class="token operator">-&gt;</span>fs_supers<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token function">spin_unlock</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>sb_lock<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token function">get_filesystem</span><span class="token punctuation">(</span>type<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token function">register_shrinker</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>s<span class="token operator">-&gt;</span>s_shrink<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">return</span> s<span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>好了，到此为止，mount中一个块设备的过程就结束了。设备打开了，形成了block_device结构，并且塞到了super_block中。</p>
+<p>有了ext4文件系统的super_block之后，接下来对于文件的读写过程，就和文件系统那一章的过程一摸一样了。只要不涉及真正写入设备的代码，super_block中的这个block_device就没啥用处。这也是为什么文件系统那一章，我们丝毫感觉不到它的存在，但是一旦到了底层，就到了block_device起作用的时候了，这个我们下一节仔细分析。</p>
+<h3 id="29-2-总结"><a href="#29-2-总结" class="headerlink" title="29.2 总结"></a>29.2 总结</h3><ol>
+<li>所有的块设备被一个map结构管理从dev_t到gendisk的映射；</li>
+<li>所有的block_device表示的设备或者分区都在bdev文件系统的inode列表中；</li>
+<li>mknod创建出来的块设备文件在devtemfs文件系统里面，特殊inode里面有块设备号；</li>
+<li>mount一个块设备上的文件系统，调用这个文件系统的mount接口；</li>
+<li>通过按照/dev/xxx在文件系统devtmpfs文件系统上搜索到特殊inode，得到块设备号；</li>
+<li>根据特殊inode里面的dev_t在bdev文件系统里面找到inode；</li>
+<li>根据bdev文件系统上的inode找到对应的block_device，根据dev_t在map中找到gendisk，将两者关联起来；</li>
+<li>找到block_device后打开设备，调用和block_device关联的gendisk里面的block_device_operations打开设备；</li>
+<li>创建被mount的文件系统的super_block。</li>
+</ol>
+<p><img src="/images/《趣谈Linux操作系统》学习笔记/块设备打开流程总结.png" alt="块设备打开流程总结"></p>
 
                 
             </div>
@@ -6774,7 +7276,7 @@ next_cpu<span class="token operator">:</span>
             <br>
             
             &nbsp;<i class="fas fa-chart-area"></i>&nbsp;站点总字数:&nbsp;<span
-                class="white-color">487.7k</span>&nbsp;字
+                class="white-color">491.9k</span>&nbsp;字
             
             
             
