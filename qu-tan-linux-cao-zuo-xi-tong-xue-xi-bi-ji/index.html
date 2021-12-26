@@ -438,14 +438,14 @@
                 
                 <div class="info-break-policy">
                     <i class="far fa-file-word fa-fw"></i>文章字数:&nbsp;&nbsp;
-                    94.4k
+                    102.1k
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-clock fa-fw"></i>阅读时长:&nbsp;&nbsp;
-                    379 分
+                    410 分
                 </div>
                 
 
@@ -7664,6 +7664,558 @@ key        shmid    owner perms    bytes nattch status
 <p>例如出现线上系统故障，这个时候，什么流程都来不及了，不可能发邮件，也来不及开会，所有的架构师、开发、运维都要被通知紧急出动。所以，7乘24小时不间断执行的系统都需要有告警系统，一旦出事情，就要通知到人，哪怕是半夜，也要电话叫起来，处理故障。</p>
 <p>对应到操作系统中，就是信号。信号没有特别复杂的数据结构，就是用一个代号一样的数字。Linux提供了几十种信号，分别代表不同的意义。信号之间依靠它们的值来区分。这就像咱们看警匪片，对于紧急的行动，都是说，“1号作战任务”开始执行，警察就开始行动了。情况紧急，不能啰里啰嗦了。</p>
 <p>信号可以在任何时候发送给某一进程，进程需要为这个信号配置信号处理函数。当某个信号发生的时候，就默认执行这个函数就可以了。这就相当于咱们运维一个系统应急手册，当遇到什么情况，做什么事情，都事先准备好，出了事情照着做就可以了。</p>
+<h3 id="32-信号（上）"><a href="#32-信号（上）" class="headerlink" title="32. 信号（上）"></a>32. 信号（上）</h3><p>在Linux操作系统中，为了响应各种各样的事件，也是定义了非常多的信号。我们可以通过kill -l命令，查看所有的信号。</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ <span class="token function">kill</span> -l
+ <span class="token number">1</span><span class="token punctuation">)</span> SIGHUP       <span class="token number">2</span><span class="token punctuation">)</span> SIGINT       <span class="token number">3</span><span class="token punctuation">)</span> SIGQUIT      <span class="token number">4</span><span class="token punctuation">)</span> SIGILL       <span class="token number">5</span><span class="token punctuation">)</span> SIGTRAP
+ <span class="token number">6</span><span class="token punctuation">)</span> SIGABRT      <span class="token number">7</span><span class="token punctuation">)</span> SIGBUS       <span class="token number">8</span><span class="token punctuation">)</span> SIGFPE       <span class="token number">9</span><span class="token punctuation">)</span> SIGKILL     <span class="token number">10</span><span class="token punctuation">)</span> SIGUSR1
+<span class="token number">11</span><span class="token punctuation">)</span> SIGSEGV     <span class="token number">12</span><span class="token punctuation">)</span> SIGUSR2     <span class="token number">13</span><span class="token punctuation">)</span> SIGPIPE     <span class="token number">14</span><span class="token punctuation">)</span> SIGALRM     <span class="token number">15</span><span class="token punctuation">)</span> SIGTERM
+<span class="token number">16</span><span class="token punctuation">)</span> SIGSTKFLT   <span class="token number">17</span><span class="token punctuation">)</span> SIGCHLD     <span class="token number">18</span><span class="token punctuation">)</span> SIGCONT     <span class="token number">19</span><span class="token punctuation">)</span> SIGSTOP     <span class="token number">20</span><span class="token punctuation">)</span> SIGTSTP
+<span class="token number">21</span><span class="token punctuation">)</span> SIGTTIN     <span class="token number">22</span><span class="token punctuation">)</span> SIGTTOU     <span class="token number">23</span><span class="token punctuation">)</span> SIGURG      <span class="token number">24</span><span class="token punctuation">)</span> SIGXCPU     <span class="token number">25</span><span class="token punctuation">)</span> SIGXFSZ
+<span class="token number">26</span><span class="token punctuation">)</span> SIGVTALRM   <span class="token number">27</span><span class="token punctuation">)</span> SIGPROF     <span class="token number">28</span><span class="token punctuation">)</span> SIGWINCH    <span class="token number">29</span><span class="token punctuation">)</span> SIGIO       <span class="token number">30</span><span class="token punctuation">)</span> SIGPWR
+<span class="token number">31</span><span class="token punctuation">)</span> SIGSYS      <span class="token number">34</span><span class="token punctuation">)</span> SIGRTMIN    <span class="token number">35</span><span class="token punctuation">)</span> SIGRTMIN+1  <span class="token number">36</span><span class="token punctuation">)</span> SIGRTMIN+2  <span class="token number">37</span><span class="token punctuation">)</span> SIGRTMIN+3
+<span class="token number">38</span><span class="token punctuation">)</span> SIGRTMIN+4  <span class="token number">39</span><span class="token punctuation">)</span> SIGRTMIN+5  <span class="token number">40</span><span class="token punctuation">)</span> SIGRTMIN+6  <span class="token number">41</span><span class="token punctuation">)</span> SIGRTMIN+7  <span class="token number">42</span><span class="token punctuation">)</span> SIGRTMIN+8
+<span class="token number">43</span><span class="token punctuation">)</span> SIGRTMIN+9  <span class="token number">44</span><span class="token punctuation">)</span> SIGRTMIN+10 <span class="token number">45</span><span class="token punctuation">)</span> SIGRTMIN+11 <span class="token number">46</span><span class="token punctuation">)</span> SIGRTMIN+12 <span class="token number">47</span><span class="token punctuation">)</span> SIGRTMIN+13
+<span class="token number">48</span><span class="token punctuation">)</span> SIGRTMIN+14 <span class="token number">49</span><span class="token punctuation">)</span> SIGRTMIN+15 <span class="token number">50</span><span class="token punctuation">)</span> SIGRTMAX-14 <span class="token number">51</span><span class="token punctuation">)</span> SIGRTMAX-13 <span class="token number">52</span><span class="token punctuation">)</span> SIGRTMAX-12
+<span class="token number">53</span><span class="token punctuation">)</span> SIGRTMAX-11 <span class="token number">54</span><span class="token punctuation">)</span> SIGRTMAX-10 <span class="token number">55</span><span class="token punctuation">)</span> SIGRTMAX-9  <span class="token number">56</span><span class="token punctuation">)</span> SIGRTMAX-8  <span class="token number">57</span><span class="token punctuation">)</span> SIGRTMAX-7
+<span class="token number">58</span><span class="token punctuation">)</span> SIGRTMAX-6  <span class="token number">59</span><span class="token punctuation">)</span> SIGRTMAX-5  <span class="token number">60</span><span class="token punctuation">)</span> SIGRTMAX-4  <span class="token number">61</span><span class="token punctuation">)</span> SIGRTMAX-3  <span class="token number">62</span><span class="token punctuation">)</span> SIGRTMAX-2
+<span class="token number">63</span><span class="token punctuation">)</span> SIGRTMAX-1  <span class="token number">64</span><span class="token punctuation">)</span> SIGRTMAX<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>这些信号都是什么作用呢？我们可以通过man 7 signal命令查看，里面会有一个列表。</p>
+<pre class="line-numbers language-text" data-language="text"><code class="language-text">Signal     Value     Action   Comment
+──────────────────────────────────────────────────────────────────────
+SIGHUP        1       Term    Hangup detected on controlling terminal
+                              or death of controlling process
+SIGINT        2       Term    Interrupt from keyboard
+SIGQUIT       3       Core    Quit from keyboard
+SIGILL        4       Core    Illegal Instruction
+
+
+SIGABRT       6       Core    Abort signal from abort(3)
+SIGFPE        8       Core    Floating point exception
+SIGKILL       9       Term    Kill signal
+SIGSEGV      11       Core    Invalid memory reference
+SIGPIPE      13       Term    Broken pipe: write to pipe with no
+                              readers
+SIGALRM      14       Term    Timer signal from alarm(2)
+SIGTERM      15       Term    Termination signal
+SIGUSR1   30,10,16    Term    User-defined signal 1
+SIGUSR2   31,12,17    Term    User-defined signal 2
+……<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>一旦有信号产生，我们就有下面这几种，用户进程对信号的处理方式。</p>
+<p>有下面这几种，用户进程对信号的处理方式。</p>
+<ol>
+<li><p>执行默认操作。</p>
+<p> Linux对每种信号都规定了默认操作，例如，上面列表中的Term，就是终止进程的意思。Core的意思是Core Dump，也即终止进程后，通过Core Dump将当前进程的运行状态保存在文件里面，方便程序员事后进行分析问题在哪里。</p>
+</li>
+<li><p>捕捉信号。</p>
+<p> 我们可以为信号定义一个信号处理函数。当信号发生时，我们就执行相应的信号处理函数。</p>
+</li>
+<li><p>忽略信号。</p>
+<p> 当我们不希望处理某些信号的时候，就可以忽略该信号，不做任何处理。有两个信号是应用进程无法捕捉和忽略的，即SIGKILL和SEGSTOP，它们用于在任何时候中断或结束某一进程。</p>
+</li>
+</ol>
+<p>接下来，我们来看一下信号处理最常见的流程。这个过程主要是分成两步，第一步是注册信号处理函数。第二步是发送信号。这一节我们主要看第一步。</p>
+<p>如果我们不想让某个信号执行默认操作，一种方法就是对特定的信号注册相应的信号处理函数，设置信号处理方式的是<strong>signal函数</strong>。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">typedef</span> <span class="token keyword">void</span> <span class="token punctuation">(</span><span class="token operator">*</span>sighandler_t<span class="token punctuation">)</span><span class="token punctuation">(</span><span class="token keyword">int</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+sighandler_t <span class="token function">signal</span><span class="token punctuation">(</span><span class="token keyword">int</span> signum<span class="token punctuation">,</span> sighandler_t handler<span class="token punctuation">)</span><span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre>
+<p>这其实就是定义一个方法，并且将这个方法和某个信号关联起来。当这个进程遇到这个信号的时候，就执行这个方法。</p>
+<p>如果我们在Linux下面执行man signal的话，会发现Linux不建议我们直接用这个方法，而是改用sigaction。定义如下：</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">int</span> <span class="token function">sigaction</span><span class="token punctuation">(</span><span class="token keyword">int</span> signum<span class="token punctuation">,</span> <span class="token keyword">const</span> <span class="token keyword">struct</span> <span class="token class-name">sigaction</span> <span class="token operator">*</span>act<span class="token punctuation">,</span>
+                     <span class="token keyword">struct</span> <span class="token class-name">sigaction</span> <span class="token operator">*</span>oldact<span class="token punctuation">)</span><span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre>
+<p>这两者的区别在哪里呢？其实它还是将信号和一个动作进行关联，只不过这个动作由一个结构struct sigaction表示了。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">struct</span> <span class="token class-name">sigaction</span> <span class="token punctuation">{</span>
+    __sighandler_t sa_handler<span class="token punctuation">;</span>
+    <span class="token keyword">unsigned</span> <span class="token keyword">long</span> sa_flags<span class="token punctuation">;</span>
+    __sigrestore_t sa_restorer<span class="token punctuation">;</span>
+    sigset_t sa_mask<span class="token punctuation">;</span>       <span class="token comment">/* mask last for extensibility */</span>
+<span class="token punctuation">}</span><span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>和signal类似的是，这里面还是有__sighandler_t。但是，其他成员变量可以让你更加细致地控制信号处理的行为。而signal函数没有给你机会设置这些。这里需要注意的是，<strong>signal不是系统调用，而是glibc封装的一个函数</strong>。这样就像man signal里面写的一样，不同的实现方式，设置的参数会不同，会导致行为的不同。</p>
+<p>例如，我们在glibc里面会看到了这样一个实现：</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">define</span> <span class="token expression">signal __sysv_signal</span></span>
+
+__sighandler_t
+<span class="token function">__sysv_signal</span> <span class="token punctuation">(</span><span class="token keyword">int</span> sig<span class="token punctuation">,</span> __sighandler_t handler<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+  <span class="token keyword">struct</span> <span class="token class-name">sigaction</span> act<span class="token punctuation">,</span> oact<span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+  act<span class="token punctuation">.</span>sa_handler <span class="token operator">=</span> handler<span class="token punctuation">;</span>
+  <span class="token function">__sigemptyset</span> <span class="token punctuation">(</span><span class="token operator">&amp;</span>act<span class="token punctuation">.</span>sa_mask<span class="token punctuation">)</span><span class="token punctuation">;</span>
+  act<span class="token punctuation">.</span>sa_flags <span class="token operator">=</span> SA_ONESHOT <span class="token operator">|</span> SA_NOMASK <span class="token operator">|</span> SA_INTERRUPT<span class="token punctuation">;</span>
+  act<span class="token punctuation">.</span>sa_flags <span class="token operator">&amp;=</span> <span class="token operator">~</span>SA_RESTART<span class="token punctuation">;</span>
+  <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token function">__sigaction</span> <span class="token punctuation">(</span>sig<span class="token punctuation">,</span> <span class="token operator">&amp;</span>act<span class="token punctuation">,</span> <span class="token operator">&amp;</span>oact<span class="token punctuation">)</span> <span class="token operator">&lt;</span> <span class="token number">0</span><span class="token punctuation">)</span>
+    <span class="token keyword">return</span> SIG_ERR<span class="token punctuation">;</span>
+  <span class="token keyword">return</span> oact<span class="token punctuation">.</span>sa_handler<span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+<span class="token function">weak_alias</span> <span class="token punctuation">(</span>__sysv_signal<span class="token punctuation">,</span> sysv_signal<span class="token punctuation">)</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>在这里面，sa_flags进行了默认的设置。SA_ONESHOT是什么意思呢？意思就是，这里设置的信号处理函数，仅仅起作用一次。用完了一次后，就设置回默认行为。这其实并不是我们想看到的。毕竟我们一旦安装了一个信号处理函数，肯定希望它一直起作用，直到我显式地关闭它。</p>
+<p>另外一个设置就是SA_NOMASK。我们通过__sigemptyset，将sa_mask设置为空。这样的设置表示在这个信号处理函数执行过程中，如果再有其他信号，哪怕相同的信号到来的时候，这个信号处理函数会被中断。如果一个信号处理函数真的被其他信号中断，其实问题也不大，因为当处理完了其他的信号处理函数后，还会回来接着处理这个信号处理函数的，但是对于相同的信号就有点尴尬了，这就需要这个信号处理函数写的比较有技巧了。</p>
+<p>例如，对于这个信号的处理过程中，要操作某个数据结构，因为是相同的信号，很可能操作的是同一个实例，这样的话，同步、死锁这些都要想好。其实一般的思路应该是，当某一个信号的信号处理函数运行的时候，我们暂时屏蔽这个信号。后面我们还会仔细分析屏蔽这个动作，屏蔽并不意味着信号一定丢失，而是暂存，这样能够做到信号处理函数对于相同的信号，处理完一个再处理下一个，这样信号处理函数的逻辑要简单得多。</p>
+<p>还有一个设置就是设置了SA_INTERRUPT，清除了SA_RESTART。这是什么意思呢？我们知道，信号的到来时间是不可预期的，有可能程序正在调用某个漫长的系统调用的时候（你可以在一台Linux机器上运行man 7 signal命令，在这里找Interruption of system calls and library functions by signal handlers的部分，里面说的非常详细），这个时候一个信号来了，会中断这个系统调用，去执行信号处理函数，那执行完了以后呢？系统调用怎么办呢？</p>
+<p>这时候有两种处理方法，一种就是SA_INTERRUPT，也即系统调用被中断了，就不再重试这个系统调用了，而是直接返回一个-EINTR常量，告诉调用方，这个系统调用被信号中断了，但是怎么处理你看着办。如果是这样的话，调用方可以根据自己的逻辑，重新调用或者直接返回，这会使得我们的代码非常复杂，在所有系统调用的返回值判断里面，都要特殊判断一下这个值。</p>
+<p>另外一种处理方法是SA_RESTART。这个时候系统调用会被自动重新启动，不需要调用方自己写代码。当然也可能存在问题，例如从终端读入一个字符，这个时候用户在终端输入一个’a’字符，在处理’a’字符的时候被信号中断了，等信号处理完毕，再次读入一个字符的时候，如果用户不再输入，就停在那里了，需要用户再次输入同一个字符。</p>
+<p>因而，建议你使用sigaction函数，根据自己的需要定制参数。</p>
+<p>接下来，我们来看sigaction具体做了些什么。</p>
+<p>还记得在学习系统调用那一节的时候，我们知道，glibc里面有个文件syscalls.list。这里面定义了库函数调用哪些系统调用，在这里我们找到了sigaction。</p>
+<pre class="line-numbers language-text" data-language="text"><code class="language-text">sigaction    -       sigaction       i:ipp   __sigaction     sigaction<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>接下来，在glibc中，<strong>sigaction会调用</strong>libc_sigaction，并最终调用的系统调用是rt_sigaction。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">int</span>
+<span class="token function">__sigaction</span> <span class="token punctuation">(</span><span class="token keyword">int</span> sig<span class="token punctuation">,</span> <span class="token keyword">const</span> <span class="token keyword">struct</span> <span class="token class-name">sigaction</span> <span class="token operator">*</span>act<span class="token punctuation">,</span> <span class="token keyword">struct</span> <span class="token class-name">sigaction</span> <span class="token operator">*</span>oact<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+  <span class="token keyword">return</span> <span class="token function">__libc_sigaction</span> <span class="token punctuation">(</span>sig<span class="token punctuation">,</span> act<span class="token punctuation">,</span> oact<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+
+<span class="token keyword">int</span>
+<span class="token function">__libc_sigaction</span> <span class="token punctuation">(</span><span class="token keyword">int</span> sig<span class="token punctuation">,</span> <span class="token keyword">const</span> <span class="token keyword">struct</span> <span class="token class-name">sigaction</span> <span class="token operator">*</span>act<span class="token punctuation">,</span> <span class="token keyword">struct</span> <span class="token class-name">sigaction</span> <span class="token operator">*</span>oact<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+  <span class="token keyword">int</span> result<span class="token punctuation">;</span>
+  <span class="token keyword">struct</span> <span class="token class-name">kernel_sigaction</span> kact<span class="token punctuation">,</span> koact<span class="token punctuation">;</span>
+
+  <span class="token keyword">if</span> <span class="token punctuation">(</span>act<span class="token punctuation">)</span>
+    <span class="token punctuation">{</span>
+      kact<span class="token punctuation">.</span>k_sa_handler <span class="token operator">=</span> act<span class="token operator">-&gt;</span>sa_handler<span class="token punctuation">;</span>
+      <span class="token function">memcpy</span> <span class="token punctuation">(</span><span class="token operator">&amp;</span>kact<span class="token punctuation">.</span>sa_mask<span class="token punctuation">,</span> <span class="token operator">&amp;</span>act<span class="token operator">-&gt;</span>sa_mask<span class="token punctuation">,</span> <span class="token keyword">sizeof</span> <span class="token punctuation">(</span>sigset_t<span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+      kact<span class="token punctuation">.</span>sa_flags <span class="token operator">=</span> act<span class="token operator">-&gt;</span>sa_flags <span class="token operator">|</span> SA_RESTORER<span class="token punctuation">;</span>
+
+      kact<span class="token punctuation">.</span>sa_restorer <span class="token operator">=</span> <span class="token operator">&amp;</span>restore_rt<span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+
+
+  result <span class="token operator">=</span> <span class="token function">INLINE_SYSCALL</span> <span class="token punctuation">(</span>rt_sigaction<span class="token punctuation">,</span> <span class="token number">4</span><span class="token punctuation">,</span>
+                           sig<span class="token punctuation">,</span> act <span class="token operator">?</span> <span class="token operator">&amp;</span>kact <span class="token operator">:</span> <span class="token constant">NULL</span><span class="token punctuation">,</span>
+                           oact <span class="token operator">?</span> <span class="token operator">&amp;</span>koact <span class="token operator">:</span> <span class="token constant">NULL</span><span class="token punctuation">,</span> _NSIG <span class="token operator">/</span> <span class="token number">8</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+  <span class="token keyword">if</span> <span class="token punctuation">(</span>oact <span class="token operator">&amp;&amp;</span> result <span class="token operator">&gt;=</span> <span class="token number">0</span><span class="token punctuation">)</span>
+    <span class="token punctuation">{</span>
+      oact<span class="token operator">-&gt;</span>sa_handler <span class="token operator">=</span> koact<span class="token punctuation">.</span>k_sa_handler<span class="token punctuation">;</span>
+      <span class="token function">memcpy</span> <span class="token punctuation">(</span><span class="token operator">&amp;</span>oact<span class="token operator">-&gt;</span>sa_mask<span class="token punctuation">,</span> <span class="token operator">&amp;</span>koact<span class="token punctuation">.</span>sa_mask<span class="token punctuation">,</span> <span class="token keyword">sizeof</span> <span class="token punctuation">(</span>sigset_t<span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+      oact<span class="token operator">-&gt;</span>sa_flags <span class="token operator">=</span> koact<span class="token punctuation">.</span>sa_flags<span class="token punctuation">;</span>
+      oact<span class="token operator">-&gt;</span>sa_restorer <span class="token operator">=</span> koact<span class="token punctuation">.</span>sa_restorer<span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+  <span class="token keyword">return</span> result<span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>这也是很多人看信号处理的内核实现的时候，比较困惑的地方。例如，内核代码注释里面会说，系统调用signal是为了兼容过去，系统调用sigaction也是为了兼容过去，连参数都变成了struct compat_old_sigaction，所以说，我们的库函数虽然调用的是sigaction，到了系统调用层，调用的可不是系统调用sigaction，而是系统调用rt_sigaction。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token function">SYSCALL_DEFINE4</span><span class="token punctuation">(</span>rt_sigaction<span class="token punctuation">,</span> <span class="token keyword">int</span><span class="token punctuation">,</span> sig<span class="token punctuation">,</span>
+        <span class="token keyword">const</span> <span class="token keyword">struct</span> <span class="token class-name">sigaction</span> __user <span class="token operator">*</span><span class="token punctuation">,</span> act<span class="token punctuation">,</span>
+        <span class="token keyword">struct</span> <span class="token class-name">sigaction</span> __user <span class="token operator">*</span><span class="token punctuation">,</span> oact<span class="token punctuation">,</span>
+        size_t<span class="token punctuation">,</span> sigsetsize<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword">struct</span> <span class="token class-name">k_sigaction</span> new_sa<span class="token punctuation">,</span> old_sa<span class="token punctuation">;</span>
+    <span class="token keyword">int</span> ret <span class="token operator">=</span> <span class="token operator">-</span>EINVAL<span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    <span class="token keyword">if</span> <span class="token punctuation">(</span>act<span class="token punctuation">)</span> <span class="token punctuation">{</span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token function">copy_from_user</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>new_sa<span class="token punctuation">.</span>sa<span class="token punctuation">,</span> act<span class="token punctuation">,</span> <span class="token keyword">sizeof</span><span class="token punctuation">(</span>new_sa<span class="token punctuation">.</span>sa<span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">)</span>
+            <span class="token keyword">return</span> <span class="token operator">-</span>EFAULT<span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+
+    ret <span class="token operator">=</span> <span class="token function">do_sigaction</span><span class="token punctuation">(</span>sig<span class="token punctuation">,</span> act <span class="token operator">?</span> <span class="token operator">&amp;</span>new_sa <span class="token operator">:</span> <span class="token constant">NULL</span><span class="token punctuation">,</span> oact <span class="token operator">?</span> <span class="token operator">&amp;</span>old_sa <span class="token operator">:</span> <span class="token constant">NULL</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+    <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token operator">!</span>ret <span class="token operator">&amp;&amp;</span> oact<span class="token punctuation">)</span> <span class="token punctuation">{</span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token function">copy_to_user</span><span class="token punctuation">(</span>oact<span class="token punctuation">,</span> <span class="token operator">&amp;</span>old_sa<span class="token punctuation">.</span>sa<span class="token punctuation">,</span> <span class="token keyword">sizeof</span><span class="token punctuation">(</span>old_sa<span class="token punctuation">.</span>sa<span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">)</span>
+            <span class="token keyword">return</span> <span class="token operator">-</span>EFAULT<span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+out<span class="token operator">:</span>
+    <span class="token keyword">return</span> ret<span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>在rt_sigaction里面，我们将用户态的struct sigaction结构，拷贝为内核态的k_sigaction，然后调用do_sigaction。do_sigaction也很简单，还记得进程内核的数据结构里，struct task_struct里面有一个成员sighand，里面有一个action。这是一个数组，下标是信号，内容就是信号处理函数，do_sigaction就是设置sighand里的信号处理函数。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">int</span> <span class="token function">do_sigaction</span><span class="token punctuation">(</span><span class="token keyword">int</span> sig<span class="token punctuation">,</span> <span class="token keyword">struct</span> <span class="token class-name">k_sigaction</span> <span class="token operator">*</span>act<span class="token punctuation">,</span> <span class="token keyword">struct</span> <span class="token class-name">k_sigaction</span> <span class="token operator">*</span>oact<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword">struct</span> <span class="token class-name">task_struct</span> <span class="token operator">*</span>p <span class="token operator">=</span> current<span class="token punctuation">,</span> <span class="token operator">*</span>t<span class="token punctuation">;</span>
+    <span class="token keyword">struct</span> <span class="token class-name">k_sigaction</span> <span class="token operator">*</span>k<span class="token punctuation">;</span>
+    sigset_t mask<span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    k <span class="token operator">=</span> <span class="token operator">&amp;</span>p<span class="token operator">-&gt;</span>sighand<span class="token operator">-&gt;</span>action<span class="token punctuation">[</span>sig<span class="token operator">-</span><span class="token number">1</span><span class="token punctuation">]</span><span class="token punctuation">;</span>
+
+    <span class="token function">spin_lock_irq</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>p<span class="token operator">-&gt;</span>sighand<span class="token operator">-&gt;</span>siglock<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">if</span> <span class="token punctuation">(</span>oact<span class="token punctuation">)</span>
+        <span class="token operator">*</span>oact <span class="token operator">=</span> <span class="token operator">*</span>k<span class="token punctuation">;</span>
+
+    <span class="token keyword">if</span> <span class="token punctuation">(</span>act<span class="token punctuation">)</span> <span class="token punctuation">{</span>
+        <span class="token function">sigdelsetmask</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>act<span class="token operator">-&gt;</span>sa<span class="token punctuation">.</span>sa_mask<span class="token punctuation">,</span>
+                  <span class="token function">sigmask</span><span class="token punctuation">(</span>SIGKILL<span class="token punctuation">)</span> <span class="token operator">|</span> <span class="token function">sigmask</span><span class="token punctuation">(</span>SIGSTOP<span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token operator">*</span>k <span class="token operator">=</span> <span class="token operator">*</span>act<span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    <span class="token punctuation">}</span>
+
+    <span class="token function">spin_unlock_irq</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>p<span class="token operator">-&gt;</span>sighand<span class="token operator">-&gt;</span>siglock<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">return</span> <span class="token number">0</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>至此，信号处理函数的注册已经完成了。</p>
+<h4 id="32-1-总结"><a href="#32-1-总结" class="headerlink" title="32.1 总结"></a>32.1 总结</h4><p>这一节讲了如何通过API注册一个信号处理函数，整个过程如下图所示。</p>
+<ul>
+<li>在用户程序里面，有两个函数可以调用，一个是signal，一个是sigaction，推荐使用sigaction。</li>
+<li>用户程序调用的是Glibc里面的函数，signal调用的是<strong>sysv_signal，里面默认设置了一些参数，使得signal的功能受到了限制，sigaction调用的是</strong>sigaction，参数用户可以任意设定。</li>
+<li>无论是<strong>sysv_signal还是</strong>sigaction，调用的都是统一的一个系统调用rt_sigaction。</li>
+<li>在内核中，rt_sigaction调用的是do_sigaction设置信号处理函数。在每一个进程的task_struct里面，都有一个sighand指向struct sighand_struct，里面是一个数组，下标是信号，里面的内容是信号处理函数。</li>
+</ul>
+<p><img src="/images/《趣谈Linux操作系统》学习笔记/通过API注册一个信号处理函数的过程.png" alt="通过API注册一个信号处理函数的过程"></p>
+<h3 id="33-信号（下）"><a href="#33-信号（下）" class="headerlink" title="33. 信号（下）"></a>33. 信号（下）</h3><h4 id="33-1-信号的发送"><a href="#33-1-信号的发送" class="headerlink" title="33.1 信号的发送"></a>33.1 信号的发送</h4><p>有时候，我们在终端输入某些组合键的时候，会给进程发送信号，例如，Ctrl+C产生SIGINT信号，Ctrl+Z产生SIGTSTP信号。</p>
+<p>有的时候，硬件异常也会产生信号。比如，执行了除以0的指令，CPU就会产生异常，然后把SIGFPE信号发送给进程。再如，进程访问了非法内存，内存管理模块就会产生异常，然后把信号SIGSEGV发送给进程。</p>
+<p>这里同样是硬件产生的，对于中断和信号还是要加以区别。咱们前面讲过，中断要注册中断处理函数，但是中断处理函数是在内核驱动里面的，信号也要注册信号处理函数，信号处理函数是在用户态进程里面的。</p>
+<p>对于硬件触发的，无论是中断，还是信号，肯定是先到内核的，然后内核对于中断和信号处理方式不同。一个是完全在内核里面处理完毕，一个是将信号放在对应的进程task_struct里信号相关的数据结构里面，然后等待进程在用户态去处理。当然有些严重的信号，内核会把进程干掉。但是，这也能看出来，中断和信号的严重程度不一样，信号影响的往往是某一个进程，处理慢了，甚至错了，也不过这个进程被干掉，而中断影响的是整个系统。一旦中断处理中有了bug，可能整个Linux都挂了。</p>
+<p>有时候，内核在某些情况下，也会给进程发送信号。例如，向读端已关闭的管道写数据时产生SIGPIPE信号，当子进程退出时，我们要给父进程发送SIG_CHLD信号等。</p>
+<p>最直接的发送信号的方法就是，通过命令kill来发送信号了。例如，我们都知道的kill -9 pid可以发送信号给一个进程，杀死它。</p>
+<p>另外，我们还可以通过kill或者sigqueue系统调用，发送信号给某个进程，也可以通过tkill或者tgkill发送信号给某个线程。虽然方式多种多样，但是最终都是调用了do_send_sig_info函数，将信号放在相应的task_struct的信号数据结构中。</p>
+<ul>
+<li>kill-&gt;kill_something_info-&gt;kill_pid_info-&gt;group_send_sig_info-&gt;do_send_sig_info</li>
+<li>tkill-&gt;do_tkill-&gt;do_send_specific-&gt;do_send_sig_info</li>
+<li>tgkill-&gt;do_tkill-&gt;do_send_specific-&gt;do_send_sig_info</li>
+<li>rt_sigqueueinfo-&gt;do_rt_sigqueueinfo-&gt;kill_proc_info-&gt;kill_pid_info-&gt;group_send_sig_info-&gt;do_send_sig_info</li>
+</ul>
+<p>do_send_sig_info会调用send_signal，进而调用__send_signal。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token function">SYSCALL_DEFINE2</span><span class="token punctuation">(</span>kill<span class="token punctuation">,</span> pid_t<span class="token punctuation">,</span> pid<span class="token punctuation">,</span> <span class="token keyword">int</span><span class="token punctuation">,</span> sig<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword">struct</span> <span class="token class-name">siginfo</span> info<span class="token punctuation">;</span>
+
+    info<span class="token punctuation">.</span>si_signo <span class="token operator">=</span> sig<span class="token punctuation">;</span>
+    info<span class="token punctuation">.</span>si_errno <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span>
+    info<span class="token punctuation">.</span>si_code <span class="token operator">=</span> SI_USER<span class="token punctuation">;</span>
+    info<span class="token punctuation">.</span>si_pid <span class="token operator">=</span> <span class="token function">task_tgid_vnr</span><span class="token punctuation">(</span>current<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    info<span class="token punctuation">.</span>si_uid <span class="token operator">=</span> <span class="token function">from_kuid_munged</span><span class="token punctuation">(</span><span class="token function">current_user_ns</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">,</span> <span class="token function">current_uid</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+    <span class="token keyword">return</span> <span class="token function">kill_something_info</span><span class="token punctuation">(</span>sig<span class="token punctuation">,</span> <span class="token operator">&amp;</span>info<span class="token punctuation">,</span> pid<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+
+<span class="token keyword">static</span> <span class="token keyword">int</span> <span class="token function">__send_signal</span><span class="token punctuation">(</span><span class="token keyword">int</span> sig<span class="token punctuation">,</span> <span class="token keyword">struct</span> <span class="token class-name">siginfo</span> <span class="token operator">*</span>info<span class="token punctuation">,</span> <span class="token keyword">struct</span> <span class="token class-name">task_struct</span> <span class="token operator">*</span>t<span class="token punctuation">,</span>
+            <span class="token keyword">int</span> group<span class="token punctuation">,</span> <span class="token keyword">int</span> from_ancestor_ns<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword">struct</span> <span class="token class-name">sigpending</span> <span class="token operator">*</span>pending<span class="token punctuation">;</span>
+    <span class="token keyword">struct</span> <span class="token class-name">sigqueue</span> <span class="token operator">*</span>q<span class="token punctuation">;</span>
+    <span class="token keyword">int</span> override_rlimit<span class="token punctuation">;</span>
+    <span class="token keyword">int</span> ret <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">,</span> result<span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    pending <span class="token operator">=</span> group <span class="token operator">?</span> <span class="token operator">&amp;</span>t<span class="token operator">-&gt;</span>signal<span class="token operator">-&gt;</span>shared_pending <span class="token operator">:</span> <span class="token operator">&amp;</span>t<span class="token operator">-&gt;</span>pending<span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token function">legacy_queue</span><span class="token punctuation">(</span>pending<span class="token punctuation">,</span> sig<span class="token punctuation">)</span><span class="token punctuation">)</span>
+        <span class="token keyword">goto</span> ret<span class="token punctuation">;</span>
+
+    <span class="token keyword">if</span> <span class="token punctuation">(</span>sig <span class="token operator">&lt;</span> SIGRTMIN<span class="token punctuation">)</span>
+        override_rlimit <span class="token operator">=</span> <span class="token punctuation">(</span><span class="token function">is_si_special</span><span class="token punctuation">(</span>info<span class="token punctuation">)</span> <span class="token operator">||</span> info<span class="token operator">-&gt;</span>si_code <span class="token operator">&gt;=</span> <span class="token number">0</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">else</span>
+        override_rlimit <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span>
+
+    q <span class="token operator">=</span> <span class="token function">__sigqueue_alloc</span><span class="token punctuation">(</span>sig<span class="token punctuation">,</span> t<span class="token punctuation">,</span> GFP_ATOMIC <span class="token operator">|</span> __GFP_NOTRACK_FALSE_POSITIVE<span class="token punctuation">,</span>
+        override_rlimit<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">if</span> <span class="token punctuation">(</span>q<span class="token punctuation">)</span> <span class="token punctuation">{</span>
+        <span class="token function">list_add_tail</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>q<span class="token operator">-&gt;</span>list<span class="token punctuation">,</span> <span class="token operator">&amp;</span>pending<span class="token operator">-&gt;</span>list<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token keyword">switch</span> <span class="token punctuation">(</span><span class="token punctuation">(</span><span class="token keyword">unsigned</span> <span class="token keyword">long</span><span class="token punctuation">)</span> info<span class="token punctuation">)</span> <span class="token punctuation">{</span>
+        <span class="token keyword">case</span> <span class="token punctuation">(</span><span class="token keyword">unsigned</span> <span class="token keyword">long</span><span class="token punctuation">)</span> SEND_SIG_NOINFO<span class="token operator">:</span>
+            q<span class="token operator">-&gt;</span>info<span class="token punctuation">.</span>si_signo <span class="token operator">=</span> sig<span class="token punctuation">;</span>
+            q<span class="token operator">-&gt;</span>info<span class="token punctuation">.</span>si_errno <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span>
+            q<span class="token operator">-&gt;</span>info<span class="token punctuation">.</span>si_code <span class="token operator">=</span> SI_USER<span class="token punctuation">;</span>
+            q<span class="token operator">-&gt;</span>info<span class="token punctuation">.</span>si_pid <span class="token operator">=</span> <span class="token function">task_tgid_nr_ns</span><span class="token punctuation">(</span>current<span class="token punctuation">,</span>
+                            <span class="token function">task_active_pid_ns</span><span class="token punctuation">(</span>t<span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+            q<span class="token operator">-&gt;</span>info<span class="token punctuation">.</span>si_uid <span class="token operator">=</span> <span class="token function">from_kuid_munged</span><span class="token punctuation">(</span><span class="token function">current_user_ns</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">,</span> <span class="token function">current_uid</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token keyword">break</span><span class="token punctuation">;</span>
+        <span class="token keyword">case</span> <span class="token punctuation">(</span><span class="token keyword">unsigned</span> <span class="token keyword">long</span><span class="token punctuation">)</span> SEND_SIG_PRIV<span class="token operator">:</span>
+            q<span class="token operator">-&gt;</span>info<span class="token punctuation">.</span>si_signo <span class="token operator">=</span> sig<span class="token punctuation">;</span>
+            q<span class="token operator">-&gt;</span>info<span class="token punctuation">.</span>si_errno <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span>
+            q<span class="token operator">-&gt;</span>info<span class="token punctuation">.</span>si_code <span class="token operator">=</span> SI_KERNEL<span class="token punctuation">;</span>
+            q<span class="token operator">-&gt;</span>info<span class="token punctuation">.</span>si_pid <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span>
+            q<span class="token operator">-&gt;</span>info<span class="token punctuation">.</span>si_uid <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span>
+            <span class="token keyword">break</span><span class="token punctuation">;</span>
+        <span class="token keyword">default</span><span class="token operator">:</span>
+            <span class="token function">copy_siginfo</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>q<span class="token operator">-&gt;</span>info<span class="token punctuation">,</span> info<span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token keyword">if</span> <span class="token punctuation">(</span>from_ancestor_ns<span class="token punctuation">)</span>
+                q<span class="token operator">-&gt;</span>info<span class="token punctuation">.</span>si_pid <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span>
+            <span class="token keyword">break</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+
+        <span class="token function">userns_fixup_signal_uid</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>q<span class="token operator">-&gt;</span>info<span class="token punctuation">,</span> t<span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+    <span class="token punctuation">}</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+out_set<span class="token operator">:</span>
+    <span class="token function">signalfd_notify</span><span class="token punctuation">(</span>t<span class="token punctuation">,</span> sig<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token function">sigaddset</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>pending<span class="token operator">-&gt;</span>signal<span class="token punctuation">,</span> sig<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token function">complete_signal</span><span class="token punctuation">(</span>sig<span class="token punctuation">,</span> t<span class="token punctuation">,</span> group<span class="token punctuation">)</span><span class="token punctuation">;</span>
+ret<span class="token operator">:</span>
+    <span class="token keyword">return</span> ret<span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>在这里，我们看到，在学习进程数据结构中task_struct里面的sigpending。在上面的代码里面，我们先是要决定应该用哪个sigpending。这就要看我们发送的信号，是给进程的还是线程的。如果是kill发送的，也就是发送给整个进程的，就应该发送给t-&gt;signal-&gt;shared_pending。这里面是整个进程所有线程共享的信号；如果是tkill发送的，也就是发给某个线程的，就应该发给t-&gt;pending。这里面是这个线程的task_struct独享的。</p>
+<p>struct sigpending里面有两个成员，一个是一个集合sigset_t，表示都收到了哪些信号，还有一个链表，也表示收到了哪些信号。它的结构如下：</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">struct</span> <span class="token class-name">sigpending</span> <span class="token punctuation">{</span>
+    <span class="token keyword">struct</span> <span class="token class-name">list_head</span> list<span class="token punctuation">;</span>
+    sigset_t signal<span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span></span></code></pre>
+<p>如果都表示收到了信号，这两者有什么区别呢？我们接着往下看__send_signal里面的代码。接下来，我们要调用legacy_queue。如果满足条件，那就直接退出。那legacy_queue里面判断的是什么条件呢？我们来看它的代码。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">static</span> <span class="token keyword">inline</span> <span class="token keyword">int</span> <span class="token function">legacy_queue</span><span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">sigpending</span> <span class="token operator">*</span>signals<span class="token punctuation">,</span> <span class="token keyword">int</span> sig<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword">return</span> <span class="token punctuation">(</span>sig <span class="token operator">&lt;</span> SIGRTMIN<span class="token punctuation">)</span> <span class="token operator">&amp;&amp;</span> <span class="token function">sigismember</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>signals<span class="token operator">-&gt;</span>signal<span class="token punctuation">,</span> sig<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">define</span> <span class="token expression">SIGRTMIN    <span class="token number">32</span></span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">define</span> <span class="token expression">SIGRTMAX    _NSIG</span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">define</span> <span class="token expression">_NSIG       <span class="token number">64</span></span></span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>当信号小于SIGRTMIN，也即32的时候，如果我们发现这个信号已经在集合里面了，就直接退出了。这样会造成什么现象呢？就是信号的丢失。例如，我们发送给进程100个SIGUSR1（对应的信号为10），那最终能够被我们的信号处理函数处理的信号有多少呢？这就不好说了，比如总共5个SIGUSR1，分别是A、B、C、D、E。</p>
+<p>如果这五个信号来得太密。A来了，但是信号处理函数还没来得及处理，B、C、D、E就都来了。根据上面的逻辑，因为A已经将SIGUSR1放在sigset_t集合中了，因而后面四个都要丢失。 如果是另一种情况，A来了已经被信号处理函数处理了，内核在调用信号处理函数之前，我们会将集合中的标志位清除，这个时候B再来，B还是会进入集合，还是会被处理，也就不会丢。</p>
+<p>这样信号能够处理多少，和信号处理函数什么时候被调用，信号多大频率被发送，都有关系，而且从后面的分析，我们可以知道，信号处理函数的调用时间也是不确定的。看小于32的信号如此不靠谱，我们就称它为<strong>不可靠信号</strong>。</p>
+<p>如果大于32的信号是什么情况呢？我们接着看。接下来，__sigqueue_alloc会分配一个struct sigqueue对象，然后通过list_add_tail挂在struct sigpending里面的链表上。这样就靠谱多了是不是？如果发送过来100个信号，变成链表上的100项，都不会丢，哪怕相同的信号发送多遍，也处理多遍。因此，大于32的信号我们称为<strong>可靠信号</strong>。当然，队列的长度也是有限制的，如果我们执行ulimit命令，可以看到，这个限制pending signals (-i) 15408。</p>
+<p>当信号挂到了task_struct结构之后，最后我们需要调用complete_signal。这里面的逻辑也很简单，就是说，既然这个进程有了一个新的信号，赶紧找一个线程处理一下吧。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">static</span> <span class="token keyword">void</span> <span class="token function">complete_signal</span><span class="token punctuation">(</span><span class="token keyword">int</span> sig<span class="token punctuation">,</span> <span class="token keyword">struct</span> <span class="token class-name">task_struct</span> <span class="token operator">*</span>p<span class="token punctuation">,</span> <span class="token keyword">int</span> group<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword">struct</span> <span class="token class-name">signal_struct</span> <span class="token operator">*</span>signal <span class="token operator">=</span> p<span class="token operator">-&gt;</span>signal<span class="token punctuation">;</span>
+    <span class="token keyword">struct</span> <span class="token class-name">task_struct</span> <span class="token operator">*</span>t<span class="token punctuation">;</span>
+
+    <span class="token comment">/*
+     * Now find a thread we can wake up to take the signal off the queue.
+     *
+     * If the main thread wants the signal, it gets first crack.
+     * Probably the least surprising to the average bear.
+     */</span>
+    <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token function">wants_signal</span><span class="token punctuation">(</span>sig<span class="token punctuation">,</span> p<span class="token punctuation">)</span><span class="token punctuation">)</span>
+        t <span class="token operator">=</span> p<span class="token punctuation">;</span>
+    <span class="token keyword">else</span> <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token operator">!</span>group <span class="token operator">||</span> <span class="token function">thread_group_empty</span><span class="token punctuation">(</span>p<span class="token punctuation">)</span><span class="token punctuation">)</span>
+        <span class="token comment">/*
+         * There is just one thread and it does not need to be woken.
+         * It will dequeue unblocked signals before it runs again.
+         */</span>
+        <span class="token keyword">return</span><span class="token punctuation">;</span>
+    <span class="token keyword">else</span> <span class="token punctuation">{</span>
+        <span class="token comment">/*
+         * Otherwise try to find a suitable thread.
+         */</span>
+        t <span class="token operator">=</span> signal<span class="token operator">-&gt;</span>curr_target<span class="token punctuation">;</span>
+        <span class="token keyword">while</span> <span class="token punctuation">(</span><span class="token operator">!</span><span class="token function">wants_signal</span><span class="token punctuation">(</span>sig<span class="token punctuation">,</span> t<span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+            t <span class="token operator">=</span> <span class="token function">next_thread</span><span class="token punctuation">(</span>t<span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token keyword">if</span> <span class="token punctuation">(</span>t <span class="token operator">==</span> signal<span class="token operator">-&gt;</span>curr_target<span class="token punctuation">)</span>
+                <span class="token keyword">return</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+        signal<span class="token operator">-&gt;</span>curr_target <span class="token operator">=</span> t<span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    <span class="token comment">/*
+     * The signal is already in the shared-pending queue.
+     * Tell the chosen thread to wake up and dequeue it.
+     */</span>
+    <span class="token function">signal_wake_up</span><span class="token punctuation">(</span>t<span class="token punctuation">,</span> sig <span class="token operator">==</span> SIGKILL<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">return</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>在找到了一个进程或者线程的task_struct之后，我们要调用signal_wake_up，来企图唤醒它，signal_wake_up会调用signal_wake_up_state。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">void</span> <span class="token function">signal_wake_up_state</span><span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">task_struct</span> <span class="token operator">*</span>t<span class="token punctuation">,</span> <span class="token keyword">unsigned</span> <span class="token keyword">int</span> state<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token function">set_tsk_thread_flag</span><span class="token punctuation">(</span>t<span class="token punctuation">,</span> TIF_SIGPENDING<span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+    <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token operator">!</span><span class="token function">wake_up_state</span><span class="token punctuation">(</span>t<span class="token punctuation">,</span> state <span class="token operator">|</span> TASK_INTERRUPTIBLE<span class="token punctuation">)</span><span class="token punctuation">)</span>
+        <span class="token function">kick_process</span><span class="token punctuation">(</span>t<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>signal_wake_up_state里面主要做了两件事情。第一，就是给这个线程设置TIF_SIGPENDING，这就说明其实信号的处理和进程的调度是采取这样一种类似的机制。还记得咱们调度的时候是怎么操作的吗？</p>
+<p>当发现一个进程应该被调度的时候，我们并不直接把它赶下来，而是设置一个标识位TIF_NEED_RESCHED，表示等待调度，然后等待系统调用结束或者中断处理结束，从内核态返回用户态的时候，调用schedule函数进行调度。信号也是类似的，当信号来的时候，我们并不直接处理这个信号，而是设置一个标识位TIF_SIGPENDING，来表示已经有信号等待处理。同样等待系统调用结束，或者中断处理结束，从内核态返回用户态的时候，再进行信号的处理。</p>
+<p>signal_wake_up_state的第二件事情，就是试图唤醒这个进程或者线程。wake_up_state会调用try_to_wake_up方法。这个函数我们讲进程的时候讲过，就是将这个进程或者线程设置为TASK_RUNNING，然后放在运行队列中，这个时候，当随着时钟不断的滴答，迟早会被调用。如果wake_up_state返回0，说明进程或者线程已经是TASK_RUNNING状态了，如果它在另外一个CPU上运行，则调用kick_process发送一个处理器间中断，强制那个进程或者线程重新调度，重新调度完毕后，会返回用户态运行。这是一个时机会检查TIF_SIGPENDING标识位。</p>
+<h4 id="33-2-信号的处理"><a href="#33-2-信号的处理" class="headerlink" title="33.2 信号的处理"></a>33.2 信号的处理</h4><p>就是在从系统调用或者中断返回的时候，咱们讲调度的时候讲过，无论是从系统调用返回还是从中断返回，都会调用exit_to_usermode_loop，只不过我们上次主要关注了_TIF_NEED_RESCHED这个标识位，这次我们重点关注<strong>_TIF_SIGPENDING</strong>标识位。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">static</span> <span class="token keyword">void</span> <span class="token function">exit_to_usermode_loop</span><span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">pt_regs</span> <span class="token operator">*</span>regs<span class="token punctuation">,</span> u32 cached_flags<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword">while</span> <span class="token punctuation">(</span>true<span class="token punctuation">)</span> <span class="token punctuation">{</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span>cached_flags <span class="token operator">&amp;</span> _TIF_NEED_RESCHED<span class="token punctuation">)</span>
+            <span class="token function">schedule</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+        <span class="token comment">/* deal with pending signal delivery */</span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span>cached_flags <span class="token operator">&amp;</span> _TIF_SIGPENDING<span class="token punctuation">)</span>
+            <span class="token function">do_signal</span><span class="token punctuation">(</span>regs<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token operator">!</span><span class="token punctuation">(</span>cached_flags <span class="token operator">&amp;</span> EXIT_TO_USERMODE_LOOP_FLAGS<span class="token punctuation">)</span><span class="token punctuation">)</span>
+            <span class="token keyword">break</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>如果在前一个环节中，已经设置了_TIF_SIGPENDING，我们就调用do_signal进行处理。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">void</span> <span class="token function">do_signal</span><span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">pt_regs</span> <span class="token operator">*</span>regs<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword">struct</span> <span class="token class-name">ksignal</span> ksig<span class="token punctuation">;</span>
+
+    <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token function">get_signal</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>ksig<span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+        <span class="token comment">/* Whee! Actually deliver the signal.  */</span>
+        <span class="token function">handle_signal</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>ksig<span class="token punctuation">,</span> regs<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token keyword">return</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+
+    <span class="token comment">/* Did we come from a system call? */</span>
+    <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token function">syscall_get_nr</span><span class="token punctuation">(</span>current<span class="token punctuation">,</span> regs<span class="token punctuation">)</span> <span class="token operator">&gt;=</span> <span class="token number">0</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+        <span class="token comment">/* Restart the system call - no handlers present */</span>
+        <span class="token keyword">switch</span> <span class="token punctuation">(</span><span class="token function">syscall_get_error</span><span class="token punctuation">(</span>current<span class="token punctuation">,</span> regs<span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+        <span class="token keyword">case</span> <span class="token operator">-</span>ERESTARTNOHAND<span class="token operator">:</span>
+        <span class="token keyword">case</span> <span class="token operator">-</span>ERESTARTSYS<span class="token operator">:</span>
+        <span class="token keyword">case</span> <span class="token operator">-</span>ERESTARTNOINTR<span class="token operator">:</span>
+            regs<span class="token operator">-&gt;</span>ax <span class="token operator">=</span> regs<span class="token operator">-&gt;</span>orig_ax<span class="token punctuation">;</span>
+            regs<span class="token operator">-&gt;</span>ip <span class="token operator">-=</span> <span class="token number">2</span><span class="token punctuation">;</span>
+            <span class="token keyword">break</span><span class="token punctuation">;</span>
+
+        <span class="token keyword">case</span> <span class="token operator">-</span>ERESTART_RESTARTBLOCK<span class="token operator">:</span>
+            regs<span class="token operator">-&gt;</span>ax <span class="token operator">=</span> <span class="token function">get_nr_restart_syscall</span><span class="token punctuation">(</span>regs<span class="token punctuation">)</span><span class="token punctuation">;</span>
+            regs<span class="token operator">-&gt;</span>ip <span class="token operator">-=</span> <span class="token number">2</span><span class="token punctuation">;</span>
+            <span class="token keyword">break</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+    <span class="token punctuation">}</span>
+    <span class="token function">restore_saved_sigmask</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>do_signal会调用handle_signal。按说，信号处理就是调用用户提供的信号处理函数，但是这事儿没有看起来这么简单，因为信号处理函数是在用户态的。</p>
+<p>咱们又要来回忆系统调用的过程了。这个进程当时在用户态执行到某一行Line A，调用了一个系统调用，在进入内核的那一刻，在内核pt_regs里面保存了用户态执行到了Line A。现在我们从系统调用返回用户态了，按说应该从pt_regs拿出Line A，然后接着Line A执行下去，但是为了响应信号，我们不能回到用户态的时候返回Line A了，而是应该返回信号处理函数的起始地址。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">static</span> <span class="token keyword">void</span>
+<span class="token function">handle_signal</span><span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">ksignal</span> <span class="token operator">*</span>ksig<span class="token punctuation">,</span> <span class="token keyword">struct</span> <span class="token class-name">pt_regs</span> <span class="token operator">*</span>regs<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    bool stepping<span class="token punctuation">,</span> failed<span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    <span class="token comment">/* Are we from a system call? */</span>
+    <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token function">syscall_get_nr</span><span class="token punctuation">(</span>current<span class="token punctuation">,</span> regs<span class="token punctuation">)</span> <span class="token operator">&gt;=</span> <span class="token number">0</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+        <span class="token comment">/* If so, check system call restarting.. */</span>
+        <span class="token keyword">switch</span> <span class="token punctuation">(</span><span class="token function">syscall_get_error</span><span class="token punctuation">(</span>current<span class="token punctuation">,</span> regs<span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+        <span class="token keyword">case</span> <span class="token operator">-</span>ERESTART_RESTARTBLOCK<span class="token operator">:</span>
+        <span class="token keyword">case</span> <span class="token operator">-</span>ERESTARTNOHAND<span class="token operator">:</span>
+            regs<span class="token operator">-&gt;</span>ax <span class="token operator">=</span> <span class="token operator">-</span>EINTR<span class="token punctuation">;</span>
+            <span class="token keyword">break</span><span class="token punctuation">;</span>
+        <span class="token keyword">case</span> <span class="token operator">-</span>ERESTARTSYS<span class="token operator">:</span>
+            <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token operator">!</span><span class="token punctuation">(</span>ksig<span class="token operator">-&gt;</span>ka<span class="token punctuation">.</span>sa<span class="token punctuation">.</span>sa_flags <span class="token operator">&amp;</span> SA_RESTART<span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+                regs<span class="token operator">-&gt;</span>ax <span class="token operator">=</span> <span class="token operator">-</span>EINTR<span class="token punctuation">;</span>
+                <span class="token keyword">break</span><span class="token punctuation">;</span>
+            <span class="token punctuation">}</span>
+        <span class="token comment">/* fallthrough */</span>
+        <span class="token keyword">case</span> <span class="token operator">-</span>ERESTARTNOINTR<span class="token operator">:</span>
+            regs<span class="token operator">-&gt;</span>ax <span class="token operator">=</span> regs<span class="token operator">-&gt;</span>orig_ax<span class="token punctuation">;</span>
+            regs<span class="token operator">-&gt;</span>ip <span class="token operator">-=</span> <span class="token number">2</span><span class="token punctuation">;</span>
+            <span class="token keyword">break</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+    <span class="token punctuation">}</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    failed <span class="token operator">=</span> <span class="token punctuation">(</span><span class="token function">setup_rt_frame</span><span class="token punctuation">(</span>ksig<span class="token punctuation">,</span> regs<span class="token punctuation">)</span> <span class="token operator">&lt;</span> <span class="token number">0</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    <span class="token function">signal_setup_done</span><span class="token punctuation">(</span>failed<span class="token punctuation">,</span> ksig<span class="token punctuation">,</span> stepping<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>这个时候，我们就需要干预和自己来定制pt_regs了。这个时候，我们要看，是否从系统调用中返回。如果是从系统调用返回的话，还要区分我们是从系统调用中正常返回，还是在一个非运行状态的系统调用中，因为会被信号中断而返回。</p>
+<p>我们这里解析一个最复杂的场景。还记得咱们解析进程调度的时候，我们举的一个例子，就是从一个tap网卡中读取数据。当时我们主要关注schedule那一行，也即如果当发现没有数据的时候，就调用schedule，自己进入等待状态，然后将CPU让给其他进程。具体的代码如下：</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">static</span> ssize_t <span class="token function">tap_do_read</span><span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">tap_queue</span> <span class="token operator">*</span>q<span class="token punctuation">,</span>
+               <span class="token keyword">struct</span> <span class="token class-name">iov_iter</span> <span class="token operator">*</span>to<span class="token punctuation">,</span>
+               <span class="token keyword">int</span> noblock<span class="token punctuation">,</span> <span class="token keyword">struct</span> <span class="token class-name">sk_buff</span> <span class="token operator">*</span>skb<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    <span class="token keyword">while</span> <span class="token punctuation">(</span><span class="token number">1</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token operator">!</span>noblock<span class="token punctuation">)</span>
+            <span class="token function">prepare_to_wait</span><span class="token punctuation">(</span><span class="token function">sk_sleep</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>q<span class="token operator">-&gt;</span>sk<span class="token punctuation">)</span><span class="token punctuation">,</span> <span class="token operator">&amp;</span>wait<span class="token punctuation">,</span>
+                    TASK_INTERRUPTIBLE<span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+        <span class="token comment">/* Read frames from the queue */</span>
+        skb <span class="token operator">=</span> <span class="token function">skb_array_consume</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>q<span class="token operator">-&gt;</span>skb_array<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span>skb<span class="token punctuation">)</span>
+            <span class="token keyword">break</span><span class="token punctuation">;</span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span>noblock<span class="token punctuation">)</span> <span class="token punctuation">{</span>
+            ret <span class="token operator">=</span> <span class="token operator">-</span>EAGAIN<span class="token punctuation">;</span>
+            <span class="token keyword">break</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token function">signal_pending</span><span class="token punctuation">(</span>current<span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+            ret <span class="token operator">=</span> <span class="token operator">-</span>ERESTARTSYS<span class="token punctuation">;</span>
+            <span class="token keyword">break</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+        <span class="token comment">/* Nothing to read, let's sleep */</span>
+        <span class="token function">schedule</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>这里我们关注和信号相关的部分。这其实是一个信号中断系统调用的典型逻辑。</p>
+<p>首先，我们把当前进程或者线程的状态设置为TASK_INTERRUPTIBLE，这样才能是使这个系统调用可以被中断。</p>
+<p>其次，可以被中断的系统调用往往是比较慢的调用，并且会因为数据不就绪而通过schedule让出CPU进入等待状态。在发送信号的时候，我们除了设置这个进程和线程的_TIF_SIGPENDING标识位之外，还试图唤醒这个进程或者线程，也就是将它从等待状态中设置为TASK_RUNNING。</p>
+<p>当这个进程或者线程再次运行的时候，我们根据进程调度第一定律，从schedule函数中返回，然后再次进入while循环。由于这个进程或者线程是由信号唤醒的，而不是因为数据来了而唤醒的，因而是读不到数据的，但是在signal_pending函数中，我们检测到了_TIF_SIGPENDING标识位，这说明系统调用没有真的做完，于是返回一个错误ERESTARTSYS，然后带着这个错误从系统调用返回。</p>
+<p>然后，我们到了exit_to_usermode_loop-&gt;do_signal-&gt;handle_signal。在这里面，当发现出现错误ERESTARTSYS的时候，我们就知道这是从一个没有调用完的系统调用返回的，设置系统调用错误码EINTR。</p>
+<p>接下来，我们就开始折腾pt_regs了，主要通过调用setup_rt_frame-&gt;__setup_rt_frame。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">static</span> <span class="token keyword">int</span> <span class="token function">__setup_rt_frame</span><span class="token punctuation">(</span><span class="token keyword">int</span> sig<span class="token punctuation">,</span> <span class="token keyword">struct</span> <span class="token class-name">ksignal</span> <span class="token operator">*</span>ksig<span class="token punctuation">,</span>
+                sigset_t <span class="token operator">*</span>set<span class="token punctuation">,</span> <span class="token keyword">struct</span> <span class="token class-name">pt_regs</span> <span class="token operator">*</span>regs<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword">struct</span> <span class="token class-name">rt_sigframe</span> __user <span class="token operator">*</span>frame<span class="token punctuation">;</span>
+    <span class="token keyword">void</span> __user <span class="token operator">*</span>fp <span class="token operator">=</span> <span class="token constant">NULL</span><span class="token punctuation">;</span>
+    <span class="token keyword">int</span> err <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span>
+
+    frame <span class="token operator">=</span> <span class="token function">get_sigframe</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>ksig<span class="token operator">-&gt;</span>ka<span class="token punctuation">,</span> regs<span class="token punctuation">,</span> <span class="token keyword">sizeof</span><span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">rt_sigframe</span><span class="token punctuation">)</span><span class="token punctuation">,</span> <span class="token operator">&amp;</span>fp<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    put_user_try <span class="token punctuation">{</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+        <span class="token comment">/* Set up to return from userspace.  If provided, use a stub
+           already in userspace.  */</span>
+        <span class="token comment">/* x86-64 should always use SA_RESTORER. */</span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span>ksig<span class="token operator">-&gt;</span>ka<span class="token punctuation">.</span>sa<span class="token punctuation">.</span>sa_flags <span class="token operator">&amp;</span> SA_RESTORER<span class="token punctuation">)</span> <span class="token punctuation">{</span>
+            <span class="token function">put_user_ex</span><span class="token punctuation">(</span>ksig<span class="token operator">-&gt;</span>ka<span class="token punctuation">.</span>sa<span class="token punctuation">.</span>sa_restorer<span class="token punctuation">,</span> <span class="token operator">&amp;</span>frame<span class="token operator">-&gt;</span>pretcode<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+    <span class="token punctuation">}</span> <span class="token function">put_user_catch</span><span class="token punctuation">(</span>err<span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+    err <span class="token operator">|=</span> <span class="token function">setup_sigcontext</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>frame<span class="token operator">-&gt;</span>uc<span class="token punctuation">.</span>uc_mcontext<span class="token punctuation">,</span> fp<span class="token punctuation">,</span> regs<span class="token punctuation">,</span> set<span class="token operator">-&gt;</span>sig<span class="token punctuation">[</span><span class="token number">0</span><span class="token punctuation">]</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    err <span class="token operator">|=</span> <span class="token function">__copy_to_user</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>frame<span class="token operator">-&gt;</span>uc<span class="token punctuation">.</span>uc_sigmask<span class="token punctuation">,</span> set<span class="token punctuation">,</span> <span class="token keyword">sizeof</span><span class="token punctuation">(</span><span class="token operator">*</span>set<span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+    <span class="token comment">/* Set up registers for signal handler */</span>
+    regs<span class="token operator">-&gt;</span>di <span class="token operator">=</span> sig<span class="token punctuation">;</span>
+    <span class="token comment">/* In case the signal handler was declared without prototypes */</span>
+    regs<span class="token operator">-&gt;</span>ax <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span>
+
+    regs<span class="token operator">-&gt;</span>si <span class="token operator">=</span> <span class="token punctuation">(</span><span class="token keyword">unsigned</span> <span class="token keyword">long</span><span class="token punctuation">)</span><span class="token operator">&amp;</span>frame<span class="token operator">-&gt;</span>info<span class="token punctuation">;</span>
+    regs<span class="token operator">-&gt;</span>dx <span class="token operator">=</span> <span class="token punctuation">(</span><span class="token keyword">unsigned</span> <span class="token keyword">long</span><span class="token punctuation">)</span><span class="token operator">&amp;</span>frame<span class="token operator">-&gt;</span>uc<span class="token punctuation">;</span>
+    regs<span class="token operator">-&gt;</span>ip <span class="token operator">=</span> <span class="token punctuation">(</span><span class="token keyword">unsigned</span> <span class="token keyword">long</span><span class="token punctuation">)</span> ksig<span class="token operator">-&gt;</span>ka<span class="token punctuation">.</span>sa<span class="token punctuation">.</span>sa_handler<span class="token punctuation">;</span>
+
+    regs<span class="token operator">-&gt;</span>sp <span class="token operator">=</span> <span class="token punctuation">(</span><span class="token keyword">unsigned</span> <span class="token keyword">long</span><span class="token punctuation">)</span>frame<span class="token punctuation">;</span>
+    regs<span class="token operator">-&gt;</span>cs <span class="token operator">=</span> __USER_CS<span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    <span class="token keyword">return</span> <span class="token number">0</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>frame的类型是rt_sigframe。frame的意思是帧。我们只有在学习栈的时候，提到过栈帧的概念。对的，这个frame就是一个栈帧。</p>
+<p>我们在get_sigframe中会得到pt_regs的sp变量，也就是原来这个程序在用户态的栈顶指针，然后get_sigframe中，我们会将sp减去sizeof(struct rt_sigframe)，也就是把这个栈帧塞到了栈里面，然后我们又在__setup_rt_frame中把regs-&gt;sp设置成等于frame。这就相当于强行在程序原来的用户态的栈里面插入了一个栈帧，并在最后将regs-&gt;ip设置为用户定义的信号处理函数sa_handler。这意味着，本来返回用户态应该接着原来的代码执行的，现在不了，要执行sa_handler了。那执行完了以后呢？按照函数栈的规则，弹出上一个栈帧来，也就是弹出了frame。</p>
+<p>那如果我们假设sa_handler成功返回了，怎么回到程序原来在用户态运行的地方呢？玄机就在frame里面。要想恢复原来运行的地方，首先，原来的pt_regs不能丢，这个没问题，是在setup_sigcontext里面，将原来的pt_regs保存在了frame中的uc_mcontext里面。</p>
+<p>另外，很重要的一点，程序如何跳过去呢？在__setup_rt_frame中，还有一个不引起重视的操作，那就是通过put_user_ex，将sa_restorer放到了frame-&gt;pretcode里面，而且还是按照函数栈的规则。函数栈里面包含了函数执行完跳回去的地址。当sa_handler执行完之后，弹出的函数栈是frame，也就应该跳到sa_restorer的地址。这是什么地址呢？</p>
+<p>咱们在sigaction介绍的时候就没有介绍它，在Glibc的__libc_sigaction函数中也没有注意到，它被赋值成了restore_rt。这其实就是sa_handler执行完毕之后，马上要执行的函数。从名字我们就能感觉到，它将恢复原来程序运行的地方。</p>
+<p>在Glibc中，我们可以找到它的定义，它竟然调用了一个系统调用，系统调用号为__NR_rt_sigreturn。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token function">RESTORE</span> <span class="token punctuation">(</span>restore_rt<span class="token punctuation">,</span> __NR_rt_sigreturn<span class="token punctuation">)</span>
+
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">define</span> <span class="token expression"><span class="token function">RESTORE</span><span class="token punctuation">(</span>name<span class="token punctuation">,</span> syscall<span class="token punctuation">)</span> <span class="token function">RESTORE2</span> <span class="token punctuation">(</span>name<span class="token punctuation">,</span> syscall<span class="token punctuation">)</span></span></span>
+<span class="token macro property"><span class="token directive-hash">#</span> <span class="token directive keyword">define</span> <span class="token expression"><span class="token function">RESTORE2</span><span class="token punctuation">(</span>name<span class="token punctuation">,</span> syscall<span class="token punctuation">)</span> </span><span class="token punctuation">\</span>
+<span class="token expression"><span class="token keyword">asm</span>                                     </span><span class="token punctuation">\</span>
+  <span class="token expression"><span class="token punctuation">(</span>                                     </span><span class="token punctuation">\</span>
+   <span class="token string">".LSTART_"</span> <span class="token expression"><span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">name</span> </span></span><span class="token string">":\n"</span>               <span class="token punctuation">\</span>
+   <span class="token string">"    .type __"</span> <span class="token expression"><span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">name</span> </span></span><span class="token string">",@function\n"</span>  <span class="token punctuation">\</span>
+   <span class="token string">"__"</span> <span class="token expression"><span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">name</span> </span></span><span class="token string">":\n"</span>                     <span class="token punctuation">\</span>
+   <span class="token string">"    movq $"</span> <span class="token expression"><span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">syscall</span> </span></span><span class="token string">", %rax\n"</span>     <span class="token punctuation">\</span>
+   <span class="token string">"    syscall\n"</span>                      <span class="token punctuation">\</span>
+<span class="token expression"><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span></span></span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>我们可以在内核里面找到__NR_rt_sigreturn对应的系统调用。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c">asmlinkage <span class="token keyword">long</span> <span class="token function">sys_rt_sigreturn</span><span class="token punctuation">(</span><span class="token keyword">void</span><span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword">struct</span> <span class="token class-name">pt_regs</span> <span class="token operator">*</span>regs <span class="token operator">=</span> <span class="token function">current_pt_regs</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">struct</span> <span class="token class-name">rt_sigframe</span> __user <span class="token operator">*</span>frame<span class="token punctuation">;</span>
+    sigset_t set<span class="token punctuation">;</span>
+    <span class="token keyword">unsigned</span> <span class="token keyword">long</span> uc_flags<span class="token punctuation">;</span>
+
+    frame <span class="token operator">=</span> <span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">rt_sigframe</span> __user <span class="token operator">*</span><span class="token punctuation">)</span><span class="token punctuation">(</span>regs<span class="token operator">-&gt;</span>sp <span class="token operator">-</span> <span class="token keyword">sizeof</span><span class="token punctuation">(</span><span class="token keyword">long</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token function">__copy_from_user</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>set<span class="token punctuation">,</span> <span class="token operator">&amp;</span>frame<span class="token operator">-&gt;</span>uc<span class="token punctuation">.</span>uc_sigmask<span class="token punctuation">,</span> <span class="token keyword">sizeof</span><span class="token punctuation">(</span>set<span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">)</span>
+        <span class="token keyword">goto</span> badframe<span class="token punctuation">;</span>
+    <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token function">__get_user</span><span class="token punctuation">(</span>uc_flags<span class="token punctuation">,</span> <span class="token operator">&amp;</span>frame<span class="token operator">-&gt;</span>uc<span class="token punctuation">.</span>uc_flags<span class="token punctuation">)</span><span class="token punctuation">)</span>
+        <span class="token keyword">goto</span> badframe<span class="token punctuation">;</span>
+
+    <span class="token function">set_current_blocked</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>set<span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+    <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token function">restore_sigcontext</span><span class="token punctuation">(</span>regs<span class="token punctuation">,</span> <span class="token operator">&amp;</span>frame<span class="token operator">-&gt;</span>uc<span class="token punctuation">.</span>uc_mcontext<span class="token punctuation">,</span> uc_flags<span class="token punctuation">)</span><span class="token punctuation">)</span>
+        <span class="token keyword">goto</span> badframe<span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    <span class="token keyword">return</span> regs<span class="token operator">-&gt;</span>ax<span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>在这里面，我们把上次填充的那个rt_sigframe拿出来，然后restore_sigcontext将pt_regs恢复成为原来用户态的样子。从这个系统调用返回的时候，应用还误以为从上次的系统调用返回的呢。</p>
+<p>至此，整个信号处理过程才全部结束。</p>
+<h4 id="33-3-总结"><a href="#33-3-总结" class="headerlink" title="33.3 总结"></a>33.3 总结</h4><p>信号的发送与处理是一个复杂的过程，这里来总结一下。</p>
+<ol>
+<li>假设我们有一个进程A，main函数里面调用系统调用进入内核。</li>
+<li>按照系统调用的原理，会将用户态栈的信息保存在pt_regs里面，也即记住原来用户态是运行到了line A的地方。</li>
+<li>在内核中执行系统调用读取数据。</li>
+<li>当发现没有什么数据可读取的时候，只好进入睡眠状态，并且调用schedule让出CPU，这是进程调度第一定律。</li>
+<li>将进程状态设置为TASK_INTERRUPTIBLE，可中断的睡眠状态，也即如果有信号来的话，是可以唤醒它的。</li>
+<li>其他的进程或者shell发送一个信号，有四个函数可以调用kill、tkill、tgkill、rt_sigqueueinfo。</li>
+<li>四个发送信号的函数，在内核中最终都是调用do_send_sig_info。</li>
+<li>do_send_sig_info调用send_signal给进程A发送一个信号，其实就是找到进程A的task_struct，或者加入信号集合，为不可靠信号，或者加入信号链表，为可靠信号。</li>
+<li>do_send_sig_info调用signal_wake_up唤醒进程A。</li>
+<li>进程A重新进入运行状态TASK_RUNNING，根据进程调度第一定律，一定会接着schedule运行。</li>
+<li>进程A被唤醒后，检查是否有信号到来，如果没有，重新循环到一开始，尝试再次读取数据，如果还是没有数据，再次进入TASK_INTERRUPTIBLE，即可中断的睡眠状态。</li>
+<li>当发现有信号到来的时候，就返回当前正在执行的系统调用，并返回一个错误表示系统调用被中断了。</li>
+<li>系统调用返回的时候，会调用exit_to_usermode_loop。这是一个处理信号的时机。</li>
+<li>调用do_signal开始处理信号。</li>
+<li>根据信号，得到信号处理函数sa_handler，然后修改pt_regs中的用户态栈的信息，让pt_regs指向sa_handler。同时修改用户态的栈，插入一个栈帧sa_restorer，里面保存了原来的指向line A的pt_regs，并且设置让sa_handler运行完毕后，跳到sa_restorer运行。</li>
+<li>返回用户态，由于pt_regs已经设置为sa_handler，则返回用户态执行sa_handler。</li>
+<li>sa_handler执行完毕后，信号处理函数就执行完了，接着根据第15步对于用户态栈帧的修改，会跳到sa_restorer运行。</li>
+<li>sa_restorer会调用系统调用rt_sigreturn再次进入内核。</li>
+<li>在内核中，rt_sigreturn恢复原来的pt_regs，重新指向line A。</li>
+<li>从rt_sigreturn返回用户态，还是调用exit_to_usermode_loop。</li>
+<li>这次因为pt_regs已经指向line A了，于是就到了进程A中，接着系统调用之后运行，当然这个系统调用返回的是它被中断了，没有执行完的错误。</li>
+</ol>
+<p><img src="/images/《趣谈Linux操作系统》学习笔记/信号的发送与处理过程.png" alt="信号的发送与处理过程"></p>
 <h2 id="七、网络系统"><a href="#七、网络系统" class="headerlink" title="七、网络系统"></a>七、网络系统</h2><h2 id="八、虚拟化"><a href="#八、虚拟化" class="headerlink" title="八、虚拟化"></a>八、虚拟化</h2><h2 id="九、容器化"><a href="#九、容器化" class="headerlink" title="九、容器化"></a>九、容器化</h2>
                 
             </div>
@@ -8065,7 +8617,7 @@ key        shmid    owner perms    bytes nattch status
             <br>
             
             &nbsp;<i class="fas fa-chart-area"></i>&nbsp;站点总字数:&nbsp;<span
-                class="white-color">500.7k</span>&nbsp;字
+                class="white-color">508.4k</span>&nbsp;字
             
             
             
