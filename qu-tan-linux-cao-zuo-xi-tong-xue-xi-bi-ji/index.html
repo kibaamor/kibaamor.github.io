@@ -438,14 +438,14 @@
                 
                 <div class="info-break-policy">
                     <i class="far fa-file-word fa-fw"></i>文章字数:&nbsp;&nbsp;
-                    102.1k
+                    105.3k
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-clock fa-fw"></i>阅读时长:&nbsp;&nbsp;
-                    410 分
+                    424 分
                 </div>
                 
 
@@ -8216,6 +8216,374 @@ ret<span class="token operator">:</span>
 <li>这次因为pt_regs已经指向line A了，于是就到了进程A中，接着系统调用之后运行，当然这个系统调用返回的是它被中断了，没有执行完的错误。</li>
 </ol>
 <p><img src="/images/《趣谈Linux操作系统》学习笔记/信号的发送与处理过程.png" alt="信号的发送与处理过程"></p>
+<h3 id="34-管道"><a href="#34-管道" class="headerlink" title="34. 管道"></a>34. 管道</h3><p>管道的创建，需要通过下面这个系统调用。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">int</span> <span class="token function">pipe</span><span class="token punctuation">(</span><span class="token keyword">int</span> fd<span class="token punctuation">[</span><span class="token number">2</span><span class="token punctuation">]</span><span class="token punctuation">)</span><span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>在这里，我们创建了一个管道pipe，返回了两个文件描述符，这表示管道的两端，一个是管道的读取端描述符fd[0]，另一个是管道的写入端描述符fd[1]。</p>
+<p><img src="/images/《趣谈Linux操作系统》学习笔记/创建管道.png" alt="创建管道"></p>
+<p>我们来看在内核里面是如何实现的。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token function">SYSCALL_DEFINE1</span><span class="token punctuation">(</span>pipe<span class="token punctuation">,</span> <span class="token keyword">int</span> __user <span class="token operator">*</span><span class="token punctuation">,</span> fildes<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword">return</span> <span class="token function">sys_pipe2</span><span class="token punctuation">(</span>fildes<span class="token punctuation">,</span> <span class="token number">0</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+
+<span class="token function">SYSCALL_DEFINE2</span><span class="token punctuation">(</span>pipe2<span class="token punctuation">,</span> <span class="token keyword">int</span> __user <span class="token operator">*</span><span class="token punctuation">,</span> fildes<span class="token punctuation">,</span> <span class="token keyword">int</span><span class="token punctuation">,</span> flags<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword">struct</span> <span class="token class-name">file</span> <span class="token operator">*</span>files<span class="token punctuation">[</span><span class="token number">2</span><span class="token punctuation">]</span><span class="token punctuation">;</span>
+    <span class="token keyword">int</span> fd<span class="token punctuation">[</span><span class="token number">2</span><span class="token punctuation">]</span><span class="token punctuation">;</span>
+    <span class="token keyword">int</span> error<span class="token punctuation">;</span>
+
+    error <span class="token operator">=</span> <span class="token function">__do_pipe_flags</span><span class="token punctuation">(</span>fd<span class="token punctuation">,</span> files<span class="token punctuation">,</span> flags<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token operator">!</span>error<span class="token punctuation">)</span> <span class="token punctuation">{</span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token function">unlikely</span><span class="token punctuation">(</span><span class="token function">copy_to_user</span><span class="token punctuation">(</span>fildes<span class="token punctuation">,</span> fd<span class="token punctuation">,</span> <span class="token keyword">sizeof</span><span class="token punctuation">(</span>fd<span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+            error <span class="token operator">=</span> <span class="token operator">-</span>EFAULT<span class="token punctuation">;</span>
+        <span class="token punctuation">}</span> <span class="token keyword">else</span> <span class="token punctuation">{</span>
+            <span class="token function">fd_install</span><span class="token punctuation">(</span>fd<span class="token punctuation">[</span><span class="token number">0</span><span class="token punctuation">]</span><span class="token punctuation">,</span> files<span class="token punctuation">[</span><span class="token number">0</span><span class="token punctuation">]</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token function">fd_install</span><span class="token punctuation">(</span>fd<span class="token punctuation">[</span><span class="token number">1</span><span class="token punctuation">]</span><span class="token punctuation">,</span> files<span class="token punctuation">[</span><span class="token number">1</span><span class="token punctuation">]</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+    <span class="token punctuation">}</span>
+    <span class="token keyword">return</span> error<span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>在内核中，主要的逻辑在pipe2系统调用中。这里面要创建一个数组files，用来存放管道的两端的打开文件，另一个数组fd存放管道的两端的文件描述符。如果调用__do_pipe_flags没有错误，那就调用fd_install，将两个fd和两个struct file关联起来。这一点和打开一个文件的过程很像了。</p>
+<p>我们来看__do_pipe_flags。这里面调用了create_pipe_files，然后生成了两个fd。从这里可以看出，fd[0]是用于读的，fd[1]是用于写的。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">static</span> <span class="token keyword">int</span> <span class="token function">__do_pipe_flags</span><span class="token punctuation">(</span><span class="token keyword">int</span> <span class="token operator">*</span>fd<span class="token punctuation">,</span> <span class="token keyword">struct</span> <span class="token class-name">file</span> <span class="token operator">*</span><span class="token operator">*</span>files<span class="token punctuation">,</span> <span class="token keyword">int</span> flags<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword">int</span> error<span class="token punctuation">;</span>
+    <span class="token keyword">int</span> fdw<span class="token punctuation">,</span> fdr<span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    error <span class="token operator">=</span> <span class="token function">create_pipe_files</span><span class="token punctuation">(</span>files<span class="token punctuation">,</span> flags<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    error <span class="token operator">=</span> <span class="token function">get_unused_fd_flags</span><span class="token punctuation">(</span>flags<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    fdr <span class="token operator">=</span> error<span class="token punctuation">;</span>
+
+    error <span class="token operator">=</span> <span class="token function">get_unused_fd_flags</span><span class="token punctuation">(</span>flags<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    fdw <span class="token operator">=</span> error<span class="token punctuation">;</span>
+
+    fd<span class="token punctuation">[</span><span class="token number">0</span><span class="token punctuation">]</span> <span class="token operator">=</span> fdr<span class="token punctuation">;</span>
+    fd<span class="token punctuation">[</span><span class="token number">1</span><span class="token punctuation">]</span> <span class="token operator">=</span> fdw<span class="token punctuation">;</span>
+    <span class="token keyword">return</span> <span class="token number">0</span><span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>创建一个管道，大部分的逻辑其实都是在create_pipe_files函数里面实现的。这一章第一节的时候，我们说过，命名管道是创建在文件系统上的。从这里我们可以看出，匿名管道，也是创建在文件系统上的，只不过是一种特殊的文件系统，创建一个特殊的文件，对应一个特殊的inode，就是这里面的get_pipe_inode。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">int</span> <span class="token function">create_pipe_files</span><span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">file</span> <span class="token operator">*</span><span class="token operator">*</span>res<span class="token punctuation">,</span> <span class="token keyword">int</span> flags<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword">int</span> err<span class="token punctuation">;</span>
+    <span class="token keyword">struct</span> <span class="token class-name">inode</span> <span class="token operator">*</span>inode <span class="token operator">=</span> <span class="token function">get_pipe_inode</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">struct</span> <span class="token class-name">file</span> <span class="token operator">*</span>f<span class="token punctuation">;</span>
+    <span class="token keyword">struct</span> <span class="token class-name">path</span> path<span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    path<span class="token punctuation">.</span>dentry <span class="token operator">=</span> <span class="token function">d_alloc_pseudo</span><span class="token punctuation">(</span>pipe_mnt<span class="token operator">-&gt;</span>mnt_sb<span class="token punctuation">,</span> <span class="token operator">&amp;</span>empty_name<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    path<span class="token punctuation">.</span>mnt <span class="token operator">=</span> <span class="token function">mntget</span><span class="token punctuation">(</span>pipe_mnt<span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+    <span class="token function">d_instantiate</span><span class="token punctuation">(</span>path<span class="token punctuation">.</span>dentry<span class="token punctuation">,</span> inode<span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+    f <span class="token operator">=</span> <span class="token function">alloc_file</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>path<span class="token punctuation">,</span> FMODE_WRITE<span class="token punctuation">,</span> <span class="token operator">&amp;</span>pipefifo_fops<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    f<span class="token operator">-&gt;</span>f_flags <span class="token operator">=</span> O_WRONLY <span class="token operator">|</span> <span class="token punctuation">(</span>flags <span class="token operator">&amp;</span> <span class="token punctuation">(</span>O_NONBLOCK <span class="token operator">|</span> O_DIRECT<span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    f<span class="token operator">-&gt;</span>private_data <span class="token operator">=</span> inode<span class="token operator">-&gt;</span>i_pipe<span class="token punctuation">;</span>
+
+    res<span class="token punctuation">[</span><span class="token number">0</span><span class="token punctuation">]</span> <span class="token operator">=</span> <span class="token function">alloc_file</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>path<span class="token punctuation">,</span> FMODE_READ<span class="token punctuation">,</span> <span class="token operator">&amp;</span>pipefifo_fops<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    <span class="token function">path_get</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>path<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    res<span class="token punctuation">[</span><span class="token number">0</span><span class="token punctuation">]</span><span class="token operator">-&gt;</span>private_data <span class="token operator">=</span> inode<span class="token operator">-&gt;</span>i_pipe<span class="token punctuation">;</span>
+    res<span class="token punctuation">[</span><span class="token number">0</span><span class="token punctuation">]</span><span class="token operator">-&gt;</span>f_flags <span class="token operator">=</span> O_RDONLY <span class="token operator">|</span> <span class="token punctuation">(</span>flags <span class="token operator">&amp;</span> O_NONBLOCK<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    res<span class="token punctuation">[</span><span class="token number">1</span><span class="token punctuation">]</span> <span class="token operator">=</span> f<span class="token punctuation">;</span>
+    <span class="token keyword">return</span> <span class="token number">0</span><span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>从get_pipe_inode的实现，我们可以看出，匿名管道来自一个特殊的文件系统pipefs。这个文件系统被挂载后，我们就得到了struct vfsmount *pipe_mnt。然后挂载的文件系统的superblock就变成了：pipe_mnt-&gt;mnt_sb。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">static</span> <span class="token keyword">struct</span> <span class="token class-name">file_system_type</span> pipe_fs_type <span class="token operator">=</span> <span class="token punctuation">{</span>
+    <span class="token punctuation">.</span>name       <span class="token operator">=</span> <span class="token string">"pipefs"</span><span class="token punctuation">,</span>
+    <span class="token punctuation">.</span>mount      <span class="token operator">=</span> pipefs_mount<span class="token punctuation">,</span>
+    <span class="token punctuation">.</span>kill_sb    <span class="token operator">=</span> kill_anon_super<span class="token punctuation">,</span>
+<span class="token punctuation">}</span><span class="token punctuation">;</span>
+
+<span class="token keyword">static</span> <span class="token keyword">int</span> __init <span class="token function">init_pipe_fs</span><span class="token punctuation">(</span><span class="token keyword">void</span><span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword">int</span> err <span class="token operator">=</span> <span class="token function">register_filesystem</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>pipe_fs_type<span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+    <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token operator">!</span>err<span class="token punctuation">)</span> <span class="token punctuation">{</span>
+        pipe_mnt <span class="token operator">=</span> <span class="token function">kern_mount</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>pipe_fs_type<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+<span class="token punctuation">}</span>
+
+<span class="token keyword">static</span> <span class="token keyword">struct</span> <span class="token class-name">inode</span> <span class="token operator">*</span> <span class="token function">get_pipe_inode</span><span class="token punctuation">(</span><span class="token keyword">void</span><span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword">struct</span> <span class="token class-name">inode</span> <span class="token operator">*</span>inode <span class="token operator">=</span> <span class="token function">new_inode_pseudo</span><span class="token punctuation">(</span>pipe_mnt<span class="token operator">-&gt;</span>mnt_sb<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">struct</span> <span class="token class-name">pipe_inode_info</span> <span class="token operator">*</span>pipe<span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    inode<span class="token operator">-&gt;</span>i_ino <span class="token operator">=</span> <span class="token function">get_next_ino</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+    pipe <span class="token operator">=</span> <span class="token function">alloc_pipe_info</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    inode<span class="token operator">-&gt;</span>i_pipe <span class="token operator">=</span> pipe<span class="token punctuation">;</span>
+    pipe<span class="token operator">-&gt;</span>files <span class="token operator">=</span> <span class="token number">2</span><span class="token punctuation">;</span>
+    pipe<span class="token operator">-&gt;</span>readers <span class="token operator">=</span> pipe<span class="token operator">-&gt;</span>writers <span class="token operator">=</span> <span class="token number">1</span><span class="token punctuation">;</span>
+    inode<span class="token operator">-&gt;</span>i_fop <span class="token operator">=</span> <span class="token operator">&amp;</span>pipefifo_fops<span class="token punctuation">;</span>
+    inode<span class="token operator">-&gt;</span>i_state <span class="token operator">=</span> I_DIRTY<span class="token punctuation">;</span>
+    inode<span class="token operator">-&gt;</span>i_mode <span class="token operator">=</span> S_IFIFO <span class="token operator">|</span> S_IRUSR <span class="token operator">|</span> S_IWUSR<span class="token punctuation">;</span>
+    inode<span class="token operator">-&gt;</span>i_uid <span class="token operator">=</span> <span class="token function">current_fsuid</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    inode<span class="token operator">-&gt;</span>i_gid <span class="token operator">=</span> <span class="token function">current_fsgid</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    inode<span class="token operator">-&gt;</span>i_atime <span class="token operator">=</span> inode<span class="token operator">-&gt;</span>i_mtime <span class="token operator">=</span> inode<span class="token operator">-&gt;</span>i_ctime <span class="token operator">=</span> <span class="token function">current_time</span><span class="token punctuation">(</span>inode<span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+    <span class="token keyword">return</span> inode<span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>我们从new_inode_pseudo函数创建一个inode。这里面开始填写Inode的成员，这里和文件系统的很像。这里值得注意的是struct pipe_inode_info，这个结构里面有个成员是struct pipe_buffer <em>bufs。我们可以知道，<em>*所谓的匿名管道，其实就是内核里面的一串缓存</em></em>。</p>
+<p>另外一个需要注意的是pipefifo_fops，将来我们对于文件描述符的操作，在内核里面都是对应这里面的操作。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">const</span> <span class="token keyword">struct</span> <span class="token class-name">file_operations</span> pipefifo_fops <span class="token operator">=</span> <span class="token punctuation">{</span>
+    <span class="token punctuation">.</span>open           <span class="token operator">=</span> fifo_open<span class="token punctuation">,</span>
+    <span class="token punctuation">.</span>llseek         <span class="token operator">=</span> no_llseek<span class="token punctuation">,</span>
+    <span class="token punctuation">.</span>read_iter      <span class="token operator">=</span> pipe_read<span class="token punctuation">,</span>
+    <span class="token punctuation">.</span>write_iter     <span class="token operator">=</span> pipe_write<span class="token punctuation">,</span>
+    <span class="token punctuation">.</span>poll           <span class="token operator">=</span> pipe_poll<span class="token punctuation">,</span>
+    <span class="token punctuation">.</span>unlocked_ioctl <span class="token operator">=</span> pipe_ioctl<span class="token punctuation">,</span>
+    <span class="token punctuation">.</span>release        <span class="token operator">=</span> pipe_release<span class="token punctuation">,</span>
+    <span class="token punctuation">.</span>fasync         <span class="token operator">=</span> pipe_fasync<span class="token punctuation">,</span>
+<span class="token punctuation">}</span><span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>我们回到create_pipe_files函数，创建完了inode，还需创建一个dentry和他对应。dentry和inode对应好了，我们就要开始创建struct file对象了。先创建用于写入的，对应的操作为pipefifo_fops；再创建读取的，对应的操作也为pipefifo_fops。然后把private_data设置为pipe_inode_info。这样从struct file这个层级上，就能直接操作底层的读写操作。</p>
+<p>至此，一个匿名管道就创建成功了。如果对于fd[1]写入，调用的是pipe_write，向pipe_buffer里面写入数据；如果对于fd[0]的读入，调用的是pipe_read，也就是从pipe_buffer里面读取数据。</p>
+<p>但是这个时候，两个文件描述符都是在一个进程里面的，并没有起到进程间通信的作用，怎么样才能使得管道是跨两个进程的呢？还记得创建进程调用的fork吗？在这里面，创建的子进程会复制父进程的struct files_struct，在这里面fd的数组会复制一份，但是fd指向的struct file对于同一个文件还是只有一份，这样就做到了，两个进程各有两个fd指向同一个struct file的模式，两个进程就可以通过各自的fd写入和读取同一个管道文件实现跨进程通信了。</p>
+<p><img src="/images/《趣谈Linux操作系统》学习笔记/管道实现进程间通信.png" alt="管道实现进程间通信"></p>
+<p>由于管道只能一端写入，另一端读出，所以上面的这种模式会造成混乱，因为父进程和子进程都可以写入，也都可以读出，通常的方法是父进程关闭读取的fd，只保留写入的fd，而子进程关闭写入的fd，只保留读取的fd，如果需要双向通行，则应该创建两个管道。</p>
+<p>一个典型的使用管道在父子进程之间的通信代码如下：</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;unistd.h&gt;</span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;fcntl.h&gt;</span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;stdlib.h&gt;</span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;stdio.h&gt;</span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;errno.h&gt;</span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;string.h&gt;</span></span>
+
+<span class="token keyword">int</span> <span class="token function">main</span><span class="token punctuation">(</span><span class="token keyword">int</span> argc<span class="token punctuation">,</span> <span class="token keyword">char</span> <span class="token operator">*</span>argv<span class="token punctuation">[</span><span class="token punctuation">]</span><span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword">int</span> fds<span class="token punctuation">[</span><span class="token number">2</span><span class="token punctuation">]</span><span class="token punctuation">;</span>
+    <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token function">pipe</span><span class="token punctuation">(</span>fds<span class="token punctuation">)</span> <span class="token operator">==</span> <span class="token operator">-</span><span class="token number">1</span><span class="token punctuation">)</span>
+        <span class="token function">perror</span><span class="token punctuation">(</span><span class="token string">"pipe error"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+    pid_t pid<span class="token punctuation">;</span>
+    pid <span class="token operator">=</span> <span class="token function">fork</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">if</span> <span class="token punctuation">(</span>pid <span class="token operator">==</span> <span class="token operator">-</span><span class="token number">1</span><span class="token punctuation">)</span>
+        <span class="token function">perror</span><span class="token punctuation">(</span><span class="token string">"fork error"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+    <span class="token keyword">if</span> <span class="token punctuation">(</span>pid <span class="token operator">==</span> <span class="token number">0</span><span class="token punctuation">)</span><span class="token punctuation">{</span>
+        <span class="token function">close</span><span class="token punctuation">(</span>fds<span class="token punctuation">[</span><span class="token number">0</span><span class="token punctuation">]</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token keyword">char</span> msg<span class="token punctuation">[</span><span class="token punctuation">]</span> <span class="token operator">=</span> <span class="token string">"hello world"</span><span class="token punctuation">;</span>
+        <span class="token function">write</span><span class="token punctuation">(</span>fds<span class="token punctuation">[</span><span class="token number">1</span><span class="token punctuation">]</span><span class="token punctuation">,</span> msg<span class="token punctuation">,</span> <span class="token function">strlen</span><span class="token punctuation">(</span>msg<span class="token punctuation">)</span> <span class="token operator">+</span> <span class="token number">1</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token function">close</span><span class="token punctuation">(</span>fds<span class="token punctuation">[</span><span class="token number">1</span><span class="token punctuation">]</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token function">exit</span><span class="token punctuation">(</span><span class="token number">0</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span> <span class="token keyword">else</span> <span class="token punctuation">{</span>
+        <span class="token function">close</span><span class="token punctuation">(</span>fds<span class="token punctuation">[</span><span class="token number">1</span><span class="token punctuation">]</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token keyword">char</span> msg<span class="token punctuation">[</span><span class="token number">128</span><span class="token punctuation">]</span><span class="token punctuation">;</span>
+        <span class="token function">read</span><span class="token punctuation">(</span>fds<span class="token punctuation">[</span><span class="token number">0</span><span class="token punctuation">]</span><span class="token punctuation">,</span> msg<span class="token punctuation">,</span> <span class="token number">128</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token function">close</span><span class="token punctuation">(</span>fds<span class="token punctuation">[</span><span class="token number">0</span><span class="token punctuation">]</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token function">printf</span><span class="token punctuation">(</span><span class="token string">"message : %s\n"</span><span class="token punctuation">,</span> msg<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token keyword">return</span> <span class="token number">0</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p><img src="/images/《趣谈Linux操作系统》学习笔记/使用管道进行父子进程之间的通信.png" alt="使用管道进行父子进程之间的通信"></p>
+<p>到这里，我们仅仅解析了使用管道进行父子进程之间的通信，但是我们在shell里面的不是这样的。在shell里面运行A|B的时候，A进程和B进程都是shell创建出来的子进程，A和B之间不存在父子关系。</p>
+<p>不过，有了上面父子进程之间的管道这个基础，实现A和B之间的管道就方便多了。</p>
+<p>我们首先从shell创建子进程A，然后在shell和A之间建立一个管道，其中shell保留读取端，A进程保留写入端，然后shell再创建子进程B。这又是一次fork，所以，shell里面保留的读取端的fd也被复制到了子进程B里面。这个时候，相当于shell和B都保留读取端，只要shell主动关闭读取端，就变成了一管道，写入端在A进程，读取端在B进程。</p>
+<p><img src="/images/《趣谈Linux操作系统》学习笔记/使用管道实现shell之间的通信.png" alt="使用管道实现shell之间的通信"></p>
+<p>接下来我们要做的事情就是，将这个管道的两端和输入输出关联起来。这就要用到dup2系统调用了。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">int</span> <span class="token function">dup2</span><span class="token punctuation">(</span><span class="token keyword">int</span> oldfd<span class="token punctuation">,</span> <span class="token keyword">int</span> newfd<span class="token punctuation">)</span><span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>这个系统调用，将老的文件描述符赋值给新的文件描述符，让newfd的值和oldfd一样。</p>
+<p>我们还是回忆一下，在files_struct里面，有这样一个表，下标是fd，内容指向一个打开的文件struct file。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">struct</span> <span class="token class-name">files_struct</span> <span class="token punctuation">{</span>
+  <span class="token keyword">struct</span> <span class="token class-name">file</span> __rcu <span class="token operator">*</span> fd_array<span class="token punctuation">[</span>NR_OPEN_DEFAULT<span class="token punctuation">]</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span></span></code></pre>
+<p>在这个表里面，前三项是定下来的，其中第零项STDIN_FILENO表示标准输入，第一项STDOUT_FILENO表示标准输出，第三项STDERR_FILENO表示错误输出。</p>
+<p>在A进程中，写入端可以做这样的操作：dup2(fd[1],STDOUT_FILENO)，将STDOUT_FILENO（也即第一项）不再指向标准输出，而是指向创建的管道文件，那么以后往标准输出写入的任何东西，都会写入管道文件。</p>
+<p>在B进程中，读取端可以做这样的操作，dup2(fd[0],STDIN_FILENO)，将STDIN_FILENO也即第零项不再指向标准输入，而是指向创建的管道文件，那么以后从标准输入读取的任何东西，都来自于管道文件。</p>
+<p>至此，我们才将A|B的功能完成。</p>
+<p><img src="/images/《趣谈Linux操作系统》学习笔记/使用管道实现shell之间的通信结果.png" alt="使用管道实现shell之间的通信结果"></p>
+<p>为了模拟A|B的情况，我们可以将前面的那一段代码，进一步修改成为下面这样：</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;unistd.h&gt;</span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;fcntl.h&gt;</span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;stdlib.h&gt;</span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;stdio.h&gt;</span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;errno.h&gt;</span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;string.h&gt;</span></span>
+
+<span class="token keyword">int</span> <span class="token function">main</span><span class="token punctuation">(</span><span class="token keyword">int</span> argc<span class="token punctuation">,</span> <span class="token keyword">char</span> <span class="token operator">*</span>argv<span class="token punctuation">[</span><span class="token punctuation">]</span><span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword">int</span> fds<span class="token punctuation">[</span><span class="token number">2</span><span class="token punctuation">]</span><span class="token punctuation">;</span>
+    <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token function">pipe</span><span class="token punctuation">(</span>fds<span class="token punctuation">)</span> <span class="token operator">==</span> <span class="token operator">-</span><span class="token number">1</span><span class="token punctuation">)</span>
+        <span class="token function">perror</span><span class="token punctuation">(</span><span class="token string">"pipe error"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+    pid_t pid<span class="token punctuation">;</span>
+    pid <span class="token operator">=</span> <span class="token function">fork</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">if</span> <span class="token punctuation">(</span>pid <span class="token operator">==</span> <span class="token operator">-</span><span class="token number">1</span><span class="token punctuation">)</span>
+        <span class="token function">perror</span><span class="token punctuation">(</span><span class="token string">"fork error"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+    <span class="token keyword">if</span> <span class="token punctuation">(</span>pid <span class="token operator">==</span> <span class="token number">0</span><span class="token punctuation">)</span><span class="token punctuation">{</span>
+        <span class="token function">dup2</span><span class="token punctuation">(</span>fds<span class="token punctuation">[</span><span class="token number">1</span><span class="token punctuation">]</span><span class="token punctuation">,</span> STDOUT_FILENO<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token function">close</span><span class="token punctuation">(</span>fds<span class="token punctuation">[</span><span class="token number">1</span><span class="token punctuation">]</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token function">close</span><span class="token punctuation">(</span>fds<span class="token punctuation">[</span><span class="token number">0</span><span class="token punctuation">]</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token function">execlp</span><span class="token punctuation">(</span><span class="token string">"ps"</span><span class="token punctuation">,</span> <span class="token string">"ps"</span><span class="token punctuation">,</span> <span class="token string">"-ef"</span><span class="token punctuation">,</span> <span class="token constant">NULL</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span> <span class="token keyword">else</span> <span class="token punctuation">{</span>
+        <span class="token function">dup2</span><span class="token punctuation">(</span>fds<span class="token punctuation">[</span><span class="token number">0</span><span class="token punctuation">]</span><span class="token punctuation">,</span> STDIN_FILENO<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token function">close</span><span class="token punctuation">(</span>fds<span class="token punctuation">[</span><span class="token number">0</span><span class="token punctuation">]</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token function">close</span><span class="token punctuation">(</span>fds<span class="token punctuation">[</span><span class="token number">1</span><span class="token punctuation">]</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token function">execlp</span><span class="token punctuation">(</span><span class="token string">"grep"</span><span class="token punctuation">,</span> <span class="token string">"grep"</span><span class="token punctuation">,</span> <span class="token string">"systemd"</span><span class="token punctuation">,</span> <span class="token constant">NULL</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+
+    <span class="token keyword">return</span> <span class="token number">0</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>接下来，我们来看命名管道。我们在讲命令的时候讲过，命名管道需要事先通过命令mkfifo，进行创建。如果是通过代码创建命名管道，也有一个函数，但是这不是一个系统调用，而是Glibc提供的函数。它的定义如下：</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">int</span>
+<span class="token function">mkfifo</span> <span class="token punctuation">(</span><span class="token keyword">const</span> <span class="token keyword">char</span> <span class="token operator">*</span>path<span class="token punctuation">,</span> mode_t mode<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+  dev_t dev <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span>
+  <span class="token keyword">return</span> <span class="token function">__xmknod</span> <span class="token punctuation">(</span>_MKNOD_VER<span class="token punctuation">,</span> path<span class="token punctuation">,</span> mode <span class="token operator">|</span> S_IFIFO<span class="token punctuation">,</span> <span class="token operator">&amp;</span>dev<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+
+<span class="token keyword">int</span>
+<span class="token function">__xmknod</span> <span class="token punctuation">(</span><span class="token keyword">int</span> vers<span class="token punctuation">,</span> <span class="token keyword">const</span> <span class="token keyword">char</span> <span class="token operator">*</span>path<span class="token punctuation">,</span> mode_t mode<span class="token punctuation">,</span> dev_t <span class="token operator">*</span>dev<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+  <span class="token keyword">unsigned</span> <span class="token keyword">long</span> <span class="token keyword">long</span> <span class="token keyword">int</span> k_dev<span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+  <span class="token comment">/* We must convert the value to dev_t type used by the kernel.  */</span>
+  k_dev <span class="token operator">=</span> <span class="token punctuation">(</span><span class="token operator">*</span>dev<span class="token punctuation">)</span> <span class="token operator">&amp;</span> <span class="token punctuation">(</span><span class="token punctuation">(</span><span class="token number">1ULL</span> <span class="token operator">&lt;&lt;</span> <span class="token number">32</span><span class="token punctuation">)</span> <span class="token operator">-</span> <span class="token number">1</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+  <span class="token keyword">return</span> <span class="token function">INLINE_SYSCALL</span> <span class="token punctuation">(</span>mknodat<span class="token punctuation">,</span> <span class="token number">4</span><span class="token punctuation">,</span> AT_FDCWD<span class="token punctuation">,</span> path<span class="token punctuation">,</span> mode<span class="token punctuation">,</span>
+                         <span class="token punctuation">(</span><span class="token keyword">unsigned</span> <span class="token keyword">int</span><span class="token punctuation">)</span> k_dev<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>Glibc的mkfifo函数会调用mknodat系统调用，还记得咱们学字符设备的时候，创建一个字符设备的时候，也是调用的mknod。这里命名管道也是一个设备，因而我们也用mknod。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token function">SYSCALL_DEFINE4</span><span class="token punctuation">(</span>mknodat<span class="token punctuation">,</span> <span class="token keyword">int</span><span class="token punctuation">,</span> dfd<span class="token punctuation">,</span> <span class="token keyword">const</span> <span class="token keyword">char</span> __user <span class="token operator">*</span><span class="token punctuation">,</span> filename<span class="token punctuation">,</span> umode_t<span class="token punctuation">,</span> mode<span class="token punctuation">,</span> <span class="token keyword">unsigned</span><span class="token punctuation">,</span> dev<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword">struct</span> <span class="token class-name">dentry</span> <span class="token operator">*</span>dentry<span class="token punctuation">;</span>
+    <span class="token keyword">struct</span> <span class="token class-name">path</span> path<span class="token punctuation">;</span>
+    <span class="token keyword">unsigned</span> <span class="token keyword">int</span> lookup_flags <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+retry<span class="token operator">:</span>
+    dentry <span class="token operator">=</span> <span class="token function">user_path_create</span><span class="token punctuation">(</span>dfd<span class="token punctuation">,</span> filename<span class="token punctuation">,</span> <span class="token operator">&amp;</span>path<span class="token punctuation">,</span> lookup_flags<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    <span class="token keyword">switch</span> <span class="token punctuation">(</span>mode <span class="token operator">&amp;</span> S_IFMT<span class="token punctuation">)</span> <span class="token punctuation">{</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+        <span class="token keyword">case</span> S_IFIFO<span class="token operator">:</span> <span class="token keyword">case</span> S_IFSOCK<span class="token operator">:</span>
+            error <span class="token operator">=</span> <span class="token function">vfs_mknod</span><span class="token punctuation">(</span>path<span class="token punctuation">.</span>dentry<span class="token operator">-&gt;</span>d_inode<span class="token punctuation">,</span>dentry<span class="token punctuation">,</span>mode<span class="token punctuation">,</span><span class="token number">0</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token keyword">break</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>对于mknod的解析，我们在字符设备那一节已经解析过了，先是通过user_path_create对于这个管道文件创建一个dentry，然后因为是S_IFIFO，所以调用vfs_mknod。由于这个管道文件是创建在一个普通文件系统上的，假设是在ext4文件上，于是vfs_mknod会调用ext4_dir_inode_operations的mknod，也即会调用ext4_mknod。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">const</span> <span class="token keyword">struct</span> <span class="token class-name">inode_operations</span> ext4_dir_inode_operations <span class="token operator">=</span> <span class="token punctuation">{</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    <span class="token punctuation">.</span>mknod      <span class="token operator">=</span> ext4_mknod<span class="token punctuation">,</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+<span class="token punctuation">}</span><span class="token punctuation">;</span>
+
+<span class="token keyword">static</span> <span class="token keyword">int</span> <span class="token function">ext4_mknod</span><span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">inode</span> <span class="token operator">*</span>dir<span class="token punctuation">,</span> <span class="token keyword">struct</span> <span class="token class-name">dentry</span> <span class="token operator">*</span>dentry<span class="token punctuation">,</span>
+              umode_t mode<span class="token punctuation">,</span> dev_t rdev<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    handle_t <span class="token operator">*</span>handle<span class="token punctuation">;</span>
+    <span class="token keyword">struct</span> <span class="token class-name">inode</span> <span class="token operator">*</span>inode<span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    inode <span class="token operator">=</span> <span class="token function">ext4_new_inode_start_handle</span><span class="token punctuation">(</span>dir<span class="token punctuation">,</span> mode<span class="token punctuation">,</span> <span class="token operator">&amp;</span>dentry<span class="token operator">-&gt;</span>d_name<span class="token punctuation">,</span> <span class="token number">0</span><span class="token punctuation">,</span>
+                        <span class="token constant">NULL</span><span class="token punctuation">,</span> EXT4_HT_DIR<span class="token punctuation">,</span> credits<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    handle <span class="token operator">=</span> <span class="token function">ext4_journal_current_handle</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token operator">!</span><span class="token function">IS_ERR</span><span class="token punctuation">(</span>inode<span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+        <span class="token function">init_special_inode</span><span class="token punctuation">(</span>inode<span class="token punctuation">,</span> inode<span class="token operator">-&gt;</span>i_mode<span class="token punctuation">,</span> rdev<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        inode<span class="token operator">-&gt;</span>i_op <span class="token operator">=</span> <span class="token operator">&amp;</span>ext4_special_inode_operations<span class="token punctuation">;</span>
+        err <span class="token operator">=</span> <span class="token function">ext4_add_nondir</span><span class="token punctuation">(</span>handle<span class="token punctuation">,</span> dentry<span class="token punctuation">,</span> inode<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token operator">!</span>err <span class="token operator">&amp;&amp;</span> <span class="token function">IS_DIRSYNC</span><span class="token punctuation">(</span>dir<span class="token punctuation">)</span><span class="token punctuation">)</span>
+            <span class="token function">ext4_handle_sync</span><span class="token punctuation">(</span>handle<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+    <span class="token keyword">if</span> <span class="token punctuation">(</span>handle<span class="token punctuation">)</span>
+        <span class="token function">ext4_journal_stop</span><span class="token punctuation">(</span>handle<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+<span class="token punctuation">}</span>
+
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">define</span> <span class="token expression"><span class="token function">ext4_new_inode_start_handle</span><span class="token punctuation">(</span>dir<span class="token punctuation">,</span> mode<span class="token punctuation">,</span> qstr<span class="token punctuation">,</span> goal<span class="token punctuation">,</span> owner<span class="token punctuation">,</span>   </span><span class="token punctuation">\</span>
+                    <span class="token expression">type<span class="token punctuation">,</span> nblocks<span class="token punctuation">)</span>                                  </span><span class="token punctuation">\</span>
+    <span class="token expression"><span class="token function">__ext4_new_inode</span><span class="token punctuation">(</span><span class="token constant">NULL</span><span class="token punctuation">,</span> <span class="token punctuation">(</span>dir<span class="token punctuation">)</span><span class="token punctuation">,</span> <span class="token punctuation">(</span>mode<span class="token punctuation">)</span><span class="token punctuation">,</span> <span class="token punctuation">(</span>qstr<span class="token punctuation">)</span><span class="token punctuation">,</span> <span class="token punctuation">(</span>goal<span class="token punctuation">)</span><span class="token punctuation">,</span> <span class="token punctuation">(</span>owner<span class="token punctuation">)</span><span class="token punctuation">,</span>  </span><span class="token punctuation">\</span>
+             <span class="token expression"><span class="token number">0</span><span class="token punctuation">,</span> <span class="token punctuation">(</span>type<span class="token punctuation">)</span><span class="token punctuation">,</span> <span class="token constant">__LINE__</span><span class="token punctuation">,</span> <span class="token punctuation">(</span>nblocks<span class="token punctuation">)</span><span class="token punctuation">)</span></span></span>
+
+<span class="token keyword">void</span> <span class="token function">init_special_inode</span><span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">inode</span> <span class="token operator">*</span>inode<span class="token punctuation">,</span> umode_t mode<span class="token punctuation">,</span> dev_t rdev<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    inode<span class="token operator">-&gt;</span>i_mode <span class="token operator">=</span> mode<span class="token punctuation">;</span>
+    <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token function">S_ISCHR</span><span class="token punctuation">(</span>mode<span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+        inode<span class="token operator">-&gt;</span>i_fop <span class="token operator">=</span> <span class="token operator">&amp;</span>def_chr_fops<span class="token punctuation">;</span>
+        inode<span class="token operator">-&gt;</span>i_rdev <span class="token operator">=</span> rdev<span class="token punctuation">;</span>
+    <span class="token punctuation">}</span> <span class="token keyword">else</span> <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token function">S_ISBLK</span><span class="token punctuation">(</span>mode<span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+        inode<span class="token operator">-&gt;</span>i_fop <span class="token operator">=</span> <span class="token operator">&amp;</span>def_blk_fops<span class="token punctuation">;</span>
+        inode<span class="token operator">-&gt;</span>i_rdev <span class="token operator">=</span> rdev<span class="token punctuation">;</span>
+    <span class="token punctuation">}</span> <span class="token keyword">else</span> <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token function">S_ISFIFO</span><span class="token punctuation">(</span>mode<span class="token punctuation">)</span><span class="token punctuation">)</span>
+        inode<span class="token operator">-&gt;</span>i_fop <span class="token operator">=</span> <span class="token operator">&amp;</span>pipefifo_fops<span class="token punctuation">;</span>
+    <span class="token keyword">else</span> <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token function">S_ISSOCK</span><span class="token punctuation">(</span>mode<span class="token punctuation">)</span><span class="token punctuation">)</span>
+        <span class="token punctuation">;</span>   <span class="token comment">/* leave it no_open_fops */</span>
+    <span class="token keyword">else</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>在ext4_mknod中，ext4_new_inode_start_handle会调用__ext4_new_inode，在ext4文件系统上真的创建一个文件，但是会调用init_special_inode，创建一个内存中特殊的inode，这个函数我们在字符设备文件中也遇到过，只不过当时inode的i_fop指向的是def_chr_fops，这次换成管道文件了，inode的i_fop变成指向pipefifo_fops，这一点和匿名管道是一样的。</p>
+<p>这样，管道文件就创建完毕了。</p>
+<p>接下来，要打开这个管道文件，我们还是会调用文件系统的open函数。还是沿着文件系统的调用方式，一路调用到pipefifo_fops的open函数，也就是fifo_open。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">static</span> <span class="token keyword">int</span> <span class="token function">fifo_open</span><span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">inode</span> <span class="token operator">*</span>inode<span class="token punctuation">,</span> <span class="token keyword">struct</span> <span class="token class-name">file</span> <span class="token operator">*</span>filp<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword">struct</span> <span class="token class-name">pipe_inode_info</span> <span class="token operator">*</span>pipe<span class="token punctuation">;</span>
+    bool is_pipe <span class="token operator">=</span> inode<span class="token operator">-&gt;</span>i_sb<span class="token operator">-&gt;</span>s_magic <span class="token operator">==</span> PIPEFS_MAGIC<span class="token punctuation">;</span>
+    <span class="token keyword">int</span> ret<span class="token punctuation">;</span>
+    filp<span class="token operator">-&gt;</span>f_version <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span>
+
+    <span class="token keyword">if</span> <span class="token punctuation">(</span>inode<span class="token operator">-&gt;</span>i_pipe<span class="token punctuation">)</span> <span class="token punctuation">{</span>
+        pipe <span class="token operator">=</span> inode<span class="token operator">-&gt;</span>i_pipe<span class="token punctuation">;</span>
+        pipe<span class="token operator">-&gt;</span>files<span class="token operator">++</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span> <span class="token keyword">else</span> <span class="token punctuation">{</span>
+        pipe <span class="token operator">=</span> <span class="token function">alloc_pipe_info</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        pipe<span class="token operator">-&gt;</span>files <span class="token operator">=</span> <span class="token number">1</span><span class="token punctuation">;</span>
+        inode<span class="token operator">-&gt;</span>i_pipe <span class="token operator">=</span> pipe<span class="token punctuation">;</span>
+        <span class="token function">spin_unlock</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>inode<span class="token operator">-&gt;</span>i_lock<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+    filp<span class="token operator">-&gt;</span>private_data <span class="token operator">=</span> pipe<span class="token punctuation">;</span>
+    filp<span class="token operator">-&gt;</span>f_mode <span class="token operator">&amp;=</span> <span class="token punctuation">(</span>FMODE_READ <span class="token operator">|</span> FMODE_WRITE<span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+    <span class="token keyword">switch</span> <span class="token punctuation">(</span>filp<span class="token operator">-&gt;</span>f_mode<span class="token punctuation">)</span> <span class="token punctuation">{</span>
+    <span class="token keyword">case</span> FMODE_READ<span class="token operator">:</span>
+        pipe<span class="token operator">-&gt;</span>r_counter<span class="token operator">++</span><span class="token punctuation">;</span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span>pipe<span class="token operator">-&gt;</span>readers<span class="token operator">++</span> <span class="token operator">==</span> <span class="token number">0</span><span class="token punctuation">)</span>
+            <span class="token function">wake_up_partner</span><span class="token punctuation">(</span>pipe<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token operator">!</span>is_pipe <span class="token operator">&amp;&amp;</span> <span class="token operator">!</span>pipe<span class="token operator">-&gt;</span>writers<span class="token punctuation">)</span> <span class="token punctuation">{</span>
+            <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token punctuation">(</span>filp<span class="token operator">-&gt;</span>f_flags <span class="token operator">&amp;</span> O_NONBLOCK<span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+            filp<span class="token operator">-&gt;</span>f_version <span class="token operator">=</span> pipe<span class="token operator">-&gt;</span>w_counter<span class="token punctuation">;</span>
+            <span class="token punctuation">}</span> <span class="token keyword">else</span> <span class="token punctuation">{</span>
+                <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token function">wait_for_partner</span><span class="token punctuation">(</span>pipe<span class="token punctuation">,</span> <span class="token operator">&amp;</span>pipe<span class="token operator">-&gt;</span>w_counter<span class="token punctuation">)</span><span class="token punctuation">)</span>
+                    <span class="token keyword">goto</span> err_rd<span class="token punctuation">;</span>
+            <span class="token punctuation">}</span>
+        <span class="token punctuation">}</span>
+        <span class="token keyword">break</span><span class="token punctuation">;</span>
+    <span class="token keyword">case</span> FMODE_WRITE<span class="token operator">:</span>
+        pipe<span class="token operator">-&gt;</span>w_counter<span class="token operator">++</span><span class="token punctuation">;</span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token operator">!</span>pipe<span class="token operator">-&gt;</span>writers<span class="token operator">++</span><span class="token punctuation">)</span>
+            <span class="token function">wake_up_partner</span><span class="token punctuation">(</span>pipe<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token operator">!</span>is_pipe <span class="token operator">&amp;&amp;</span> <span class="token operator">!</span>pipe<span class="token operator">-&gt;</span>readers<span class="token punctuation">)</span> <span class="token punctuation">{</span>
+            <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token function">wait_for_partner</span><span class="token punctuation">(</span>pipe<span class="token punctuation">,</span> <span class="token operator">&amp;</span>pipe<span class="token operator">-&gt;</span>r_counter<span class="token punctuation">)</span><span class="token punctuation">)</span>
+                <span class="token keyword">goto</span> err_wr<span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+        <span class="token keyword">break</span><span class="token punctuation">;</span>
+    <span class="token keyword">case</span> FMODE_READ <span class="token operator">|</span> FMODE_WRITE<span class="token operator">:</span>
+        pipe<span class="token operator">-&gt;</span>readers<span class="token operator">++</span><span class="token punctuation">;</span>
+        pipe<span class="token operator">-&gt;</span>writers<span class="token operator">++</span><span class="token punctuation">;</span>
+        pipe<span class="token operator">-&gt;</span>r_counter<span class="token operator">++</span><span class="token punctuation">;</span>
+        pipe<span class="token operator">-&gt;</span>w_counter<span class="token operator">++</span><span class="token punctuation">;</span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span>pipe<span class="token operator">-&gt;</span>readers <span class="token operator">==</span> <span class="token number">1</span> <span class="token operator">||</span> pipe<span class="token operator">-&gt;</span>writers <span class="token operator">==</span> <span class="token number">1</span><span class="token punctuation">)</span>
+            <span class="token function">wake_up_partner</span><span class="token punctuation">(</span>pipe<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token keyword">break</span><span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    <span class="token punctuation">}</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>在fifo_open里面，创建pipe_inode_info，这一点和匿名管道也是一样的。这个结构里面有个成员是struct pipe_buffer <em>bufs。我们可以知道，<em>*所谓的命名管道，其实是也是内核里面的一串缓存</em></em>。</p>
+<p>接下来，对于命名管道的写入，我们还是会调用pipefifo_fops的pipe_write函数，向pipe_buffer里面写入数据。对于命名管道的读入，我们还是会调用pipefifo_fops的pipe_read，也就是从pipe_buffer里面读取数据。</p>
+<h4 id="34-1-总结"><a href="#34-1-总结" class="headerlink" title="34.1 总结"></a>34.1 总结</h4><p>无论是匿名管道，还是命名管道，在内核都是一个文件。只要是文件就要有一个inode。这里我们又用到了特殊inode、字符设备、块设备，其实都是这种特殊的inode。</p>
+<p>在这种特殊的inode里面，file_operations指向管道特殊的pipefifo_fops，这个inode对应内存里面的缓存。</p>
+<p>当我们用文件的open函数打开这个管道设备文件的时候，会调用pipefifo_fops里面的方法创建struct file结构，他的inode指向特殊的inode，也对应内存里面的缓存，file_operations也指向管道特殊的pipefifo_fops。</p>
+<p>写入一个pipe就是从struct file结构找到缓存写入，读取一个pipe就是从struct file结构找到缓存读出。</p>
+<p><img src="/images/《趣谈Linux操作系统》学习笔记/命名管道的创建和打开.png" alt="命名管道的创建和打开"></p>
 <h2 id="七、网络系统"><a href="#七、网络系统" class="headerlink" title="七、网络系统"></a>七、网络系统</h2><h2 id="八、虚拟化"><a href="#八、虚拟化" class="headerlink" title="八、虚拟化"></a>八、虚拟化</h2><h2 id="九、容器化"><a href="#九、容器化" class="headerlink" title="九、容器化"></a>九、容器化</h2>
                 
             </div>
@@ -8617,7 +8985,7 @@ ret<span class="token operator">:</span>
             <br>
             
             &nbsp;<i class="fas fa-chart-area"></i>&nbsp;站点总字数:&nbsp;<span
-                class="white-color">508.4k</span>&nbsp;字
+                class="white-color">511.6k</span>&nbsp;字
             
             
             
