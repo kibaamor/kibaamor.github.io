@@ -438,14 +438,14 @@
                 
                 <div class="info-break-policy">
                     <i class="far fa-file-word fa-fw"></i>文章字数:&nbsp;&nbsp;
-                    105.3k
+                    111.6k
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-clock fa-fw"></i>阅读时长:&nbsp;&nbsp;
-                    424 分
+                    451 分
                 </div>
                 
 
@@ -8584,6 +8584,634 @@ retry<span class="token operator">:</span>
 <p>当我们用文件的open函数打开这个管道设备文件的时候，会调用pipefifo_fops里面的方法创建struct file结构，他的inode指向特殊的inode，也对应内存里面的缓存，file_operations也指向管道特殊的pipefifo_fops。</p>
 <p>写入一个pipe就是从struct file结构找到缓存写入，读取一个pipe就是从struct file结构找到缓存读出。</p>
 <p><img src="/images/《趣谈Linux操作系统》学习笔记/命名管道的创建和打开.png" alt="命名管道的创建和打开"></p>
+<h3 id="35-IPC（上）"><a href="#35-IPC（上）" class="headerlink" title="35. IPC（上）"></a>35. IPC（上）</h3><p>有了进程之间共享内存的机制，两个进程可以像访问自己内存中的变量一样，访问共享内存的变量。但是同时问题也来了，当两个进程共享内存了，就会存在同时读写的问题，就需要对于共享的内存进行保护，就需要信号量这样的同步协调机制。这些也都是我们这节需要探讨的问题。下面我们就一一来看。</p>
+<p>共享内存和信号量也是System V系列的进程间通信机制，所以很多地方和我们讲过的消息队列有点儿像。为了将共享内存和信号量结合起来使用，我这里定义了一个share.h头文件，里面放了一些共享内存和信号量在每个进程都需要的函数。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;stdio.h&gt;</span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;stdlib.h&gt;</span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;sys/ipc.h&gt;</span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;sys/shm.h&gt;</span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;sys/types.h&gt;</span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;sys/ipc.h&gt;</span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;sys/sem.h&gt;</span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;string.h&gt;</span></span>
+
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">define</span> <span class="token expression">MAX_NUM <span class="token number">128</span></span></span>
+
+<span class="token keyword">struct</span> <span class="token class-name">shm_data</span> <span class="token punctuation">{</span>
+  <span class="token keyword">int</span> data<span class="token punctuation">[</span>MAX_NUM<span class="token punctuation">]</span><span class="token punctuation">;</span>
+  <span class="token keyword">int</span> datalength<span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span class="token punctuation">;</span>
+
+<span class="token keyword">union</span> semun <span class="token punctuation">{</span>
+  <span class="token keyword">int</span> val<span class="token punctuation">;</span>
+  <span class="token keyword">struct</span> <span class="token class-name">semid_ds</span> <span class="token operator">*</span>buf<span class="token punctuation">;</span>
+  <span class="token keyword">unsigned</span> <span class="token keyword">short</span> <span class="token keyword">int</span> <span class="token operator">*</span>array<span class="token punctuation">;</span>
+  <span class="token keyword">struct</span> <span class="token class-name">seminfo</span> <span class="token operator">*</span>__buf<span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span class="token punctuation">;</span>
+
+<span class="token keyword">int</span> <span class="token function">get_shmid</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">{</span>
+  <span class="token keyword">int</span> shmid<span class="token punctuation">;</span>
+  key_t key<span class="token punctuation">;</span>
+
+  <span class="token keyword">if</span><span class="token punctuation">(</span><span class="token punctuation">(</span>key <span class="token operator">=</span> <span class="token function">ftok</span><span class="token punctuation">(</span><span class="token string">"/root/sharememory/sharememorykey"</span><span class="token punctuation">,</span> <span class="token number">1024</span><span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token operator">&lt;</span> <span class="token number">0</span><span class="token punctuation">)</span><span class="token punctuation">{</span>
+      <span class="token function">perror</span><span class="token punctuation">(</span><span class="token string">"ftok error"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+          <span class="token keyword">return</span> <span class="token operator">-</span><span class="token number">1</span><span class="token punctuation">;</span>
+  <span class="token punctuation">}</span>
+
+  shmid <span class="token operator">=</span> <span class="token function">shmget</span><span class="token punctuation">(</span>key<span class="token punctuation">,</span> <span class="token keyword">sizeof</span><span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">shm_data</span><span class="token punctuation">)</span><span class="token punctuation">,</span> IPC_CREAT<span class="token operator">|</span><span class="token number">0777</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+  <span class="token keyword">return</span> shmid<span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+
+<span class="token keyword">int</span> <span class="token function">get_semaphoreid</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">{</span>
+  <span class="token keyword">int</span> semid<span class="token punctuation">;</span>
+  key_t key<span class="token punctuation">;</span>
+
+  <span class="token keyword">if</span><span class="token punctuation">(</span><span class="token punctuation">(</span>key <span class="token operator">=</span> <span class="token function">ftok</span><span class="token punctuation">(</span><span class="token string">"/root/sharememory/semaphorekey"</span><span class="token punctuation">,</span> <span class="token number">1024</span><span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token operator">&lt;</span> <span class="token number">0</span><span class="token punctuation">)</span><span class="token punctuation">{</span>
+      <span class="token function">perror</span><span class="token punctuation">(</span><span class="token string">"ftok error"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+          <span class="token keyword">return</span> <span class="token operator">-</span><span class="token number">1</span><span class="token punctuation">;</span>
+  <span class="token punctuation">}</span>
+
+  semid <span class="token operator">=</span> <span class="token function">semget</span><span class="token punctuation">(</span>key<span class="token punctuation">,</span> <span class="token number">1</span><span class="token punctuation">,</span> IPC_CREAT<span class="token operator">|</span><span class="token number">0777</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+  <span class="token keyword">return</span> semid<span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+
+<span class="token keyword">int</span> <span class="token function">semaphore_init</span> <span class="token punctuation">(</span><span class="token keyword">int</span> semid<span class="token punctuation">)</span> <span class="token punctuation">{</span>
+  <span class="token keyword">union</span> semun argument<span class="token punctuation">;</span>
+  <span class="token keyword">unsigned</span> <span class="token keyword">short</span> values<span class="token punctuation">[</span><span class="token number">1</span><span class="token punctuation">]</span><span class="token punctuation">;</span>
+  values<span class="token punctuation">[</span><span class="token number">0</span><span class="token punctuation">]</span> <span class="token operator">=</span> <span class="token number">1</span><span class="token punctuation">;</span>
+  argument<span class="token punctuation">.</span>array <span class="token operator">=</span> values<span class="token punctuation">;</span>
+  <span class="token keyword">return</span> <span class="token function">semctl</span> <span class="token punctuation">(</span>semid<span class="token punctuation">,</span> <span class="token number">0</span><span class="token punctuation">,</span> SETALL<span class="token punctuation">,</span> argument<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+
+<span class="token keyword">int</span> <span class="token function">semaphore_p</span> <span class="token punctuation">(</span><span class="token keyword">int</span> semid<span class="token punctuation">)</span> <span class="token punctuation">{</span>
+  <span class="token keyword">struct</span> <span class="token class-name">sembuf</span> operations<span class="token punctuation">[</span><span class="token number">1</span><span class="token punctuation">]</span><span class="token punctuation">;</span>
+  operations<span class="token punctuation">[</span><span class="token number">0</span><span class="token punctuation">]</span><span class="token punctuation">.</span>sem_num <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span>
+  operations<span class="token punctuation">[</span><span class="token number">0</span><span class="token punctuation">]</span><span class="token punctuation">.</span>sem_op <span class="token operator">=</span> <span class="token operator">-</span><span class="token number">1</span><span class="token punctuation">;</span>
+  operations<span class="token punctuation">[</span><span class="token number">0</span><span class="token punctuation">]</span><span class="token punctuation">.</span>sem_flg <span class="token operator">=</span> SEM_UNDO<span class="token punctuation">;</span>
+  <span class="token keyword">return</span> <span class="token function">semop</span> <span class="token punctuation">(</span>semid<span class="token punctuation">,</span> operations<span class="token punctuation">,</span> <span class="token number">1</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+
+<span class="token keyword">int</span> <span class="token function">semaphore_v</span> <span class="token punctuation">(</span><span class="token keyword">int</span> semid<span class="token punctuation">)</span> <span class="token punctuation">{</span>
+  <span class="token keyword">struct</span> <span class="token class-name">sembuf</span> operations<span class="token punctuation">[</span><span class="token number">1</span><span class="token punctuation">]</span><span class="token punctuation">;</span>
+  operations<span class="token punctuation">[</span><span class="token number">0</span><span class="token punctuation">]</span><span class="token punctuation">.</span>sem_num <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span>
+  operations<span class="token punctuation">[</span><span class="token number">0</span><span class="token punctuation">]</span><span class="token punctuation">.</span>sem_op <span class="token operator">=</span> <span class="token number">1</span><span class="token punctuation">;</span>
+  operations<span class="token punctuation">[</span><span class="token number">0</span><span class="token punctuation">]</span><span class="token punctuation">.</span>sem_flg <span class="token operator">=</span> SEM_UNDO<span class="token punctuation">;</span>
+  <span class="token keyword">return</span> <span class="token function">semop</span> <span class="token punctuation">(</span>semid<span class="token punctuation">,</span> operations<span class="token punctuation">,</span> <span class="token number">1</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<h4 id="35-1-共享内存"><a href="#35-1-共享内存" class="headerlink" title="35.1 共享内存"></a>35.1 共享内存</h4><p>首先，创建之前，我们要有一个key来唯一标识这个共享内存。这个key可以根据文件系统上的一个文件的inode随机生成。</p>
+<p>然后，我们需要创建一个共享内存，就像创建一个消息队列差不多，都是使用xxxget来创建。其中，创建共享内存使用的是下面这个函数：</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">int</span> <span class="token function">shmget</span><span class="token punctuation">(</span>key_t key<span class="token punctuation">,</span> size_t size<span class="token punctuation">,</span> <span class="token keyword">int</span> shmflag<span class="token punctuation">)</span><span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>其中，key就是前面生成的那个key，shmflag如果为IPC_CREAT，就表示新创建，还可以指定读写权限0777。</p>
+<p>对于共享内存，需要指定一个大小size，这个一般要申请多大呢？一个最佳实践是，我们将多个进程需要共享的数据放在一个struct里面，然后这里的size就应该是这个struct的大小。这样每一个进程得到这块内存后，只要强制将类型转换为这个struct类型，就能够访问里面的共享数据了。</p>
+<p>在这里，我们定义了一个struct shm_data结构。这里面有两个成员，一个是一个整型的数组，一个是数组中元素的个数。</p>
+<p>生成了共享内存以后，接下来就是将这个共享内存映射到进程的虚拟地址空间中。我们使用下面这个函数来进行操作。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">void</span> <span class="token operator">*</span><span class="token function">shmat</span><span class="token punctuation">(</span><span class="token keyword">int</span>  shm_id<span class="token punctuation">,</span> <span class="token keyword">const</span>  <span class="token keyword">void</span> <span class="token operator">*</span>addr<span class="token punctuation">,</span> <span class="token keyword">int</span> shmflg<span class="token punctuation">)</span><span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>这里面的shm_id，就是上面创建的共享内存的id，addr就是指定映射在某个地方。如果不指定，则内核会自动选择一个地址，作为返回值返回。得到了返回地址以后，我们需要将指针强制类型转换为struct shm_data结构，就可以使用这个指针设置data和datalength了。</p>
+<p>当共享内存使用完毕，我们可以通过shmdt解除它到虚拟内存的映射。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">int</span> <span class="token function">shmdt</span><span class="token punctuation">(</span><span class="token keyword">const</span>  <span class="token keyword">void</span> <span class="token operator">*</span>shmaddr<span class="token punctuation">)</span>；<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<h4 id="35-2-信号量"><a href="#35-2-信号量" class="headerlink" title="35.2 信号量"></a>35.2 信号量</h4><p>信号量以集合的形式存在的。</p>
+<p>首先，创建之前，我们同样需要有一个key，来唯一标识这个信号量集合。这个key同样可以根据文件系统上的一个文件的inode随机生成。</p>
+<p>然后，我们需要创建一个信号量集合，同样也是使用xxxget来创建，其中创建信号量集合使用的是下面这个函数。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">int</span> <span class="token function">semget</span><span class="token punctuation">(</span>key_t key<span class="token punctuation">,</span> <span class="token keyword">int</span> nsems<span class="token punctuation">,</span> <span class="token keyword">int</span> semflg<span class="token punctuation">)</span><span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>这里面的key，就是前面生成的那个key，shmflag如果为IPC_CREAT，就表示新创建，还可以指定读写权限0777。</p>
+<p>这里，nsems表示这个信号量集合里面有几个信号量，最简单的情况下，我们设置为1。</p>
+<p>信号量往往代表某种资源的数量，如果用信号量做互斥，那往往将信号量设置为1。这就是上面代码中semaphore_init函数的作用，这里面调用semctl函数，将这个信号量集合的中的第0个信号量，也即唯一的这个信号量设置为1。</p>
+<p>对于信号量，往往要定义两种操作，P操作和V操作。对应上面代码中semaphore_p函数和semaphore_v函数，semaphore_p会调用semop函数将信号量的值减一，表示申请占用一个资源，当发现当前没有资源的时候，进入等待。semaphore_v会调用semop函数将信号量的值加一，表示释放一个资源，释放之后，就允许等待中的其他进程占用这个资源。</p>
+<p>我们可以用这个信号量，来保护共享内存中的struct shm_data，使得同时只有一个进程可以操作这个结构。</p>
+<p>你是否记得咱们讲线程同步机制的时候，构建了一个老板分配活的场景。这里我们同样构建一个场景，分为producer.c和consumer.c，其中producer也即生产者，负责往struct shm_data塞入数据，而consumer.c负责处理struct shm_data中的数据。</p>
+<p>下面我们来看producer.c的代码。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">"share.h"</span></span>
+
+<span class="token keyword">int</span> <span class="token function">main</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+  <span class="token keyword">void</span> <span class="token operator">*</span>shm <span class="token operator">=</span> <span class="token constant">NULL</span><span class="token punctuation">;</span>
+  <span class="token keyword">struct</span> <span class="token class-name">shm_data</span> <span class="token operator">*</span>shared <span class="token operator">=</span> <span class="token constant">NULL</span><span class="token punctuation">;</span>
+  <span class="token keyword">int</span> shmid <span class="token operator">=</span> <span class="token function">get_shmid</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+  <span class="token keyword">int</span> semid <span class="token operator">=</span> <span class="token function">get_semaphoreid</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+  <span class="token keyword">int</span> i<span class="token punctuation">;</span>
+
+  shm <span class="token operator">=</span> <span class="token function">shmat</span><span class="token punctuation">(</span>shmid<span class="token punctuation">,</span> <span class="token punctuation">(</span><span class="token keyword">void</span><span class="token operator">*</span><span class="token punctuation">)</span><span class="token number">0</span><span class="token punctuation">,</span> <span class="token number">0</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+  <span class="token keyword">if</span><span class="token punctuation">(</span>shm <span class="token operator">==</span> <span class="token punctuation">(</span><span class="token keyword">void</span><span class="token operator">*</span><span class="token punctuation">)</span><span class="token operator">-</span><span class="token number">1</span><span class="token punctuation">)</span><span class="token punctuation">{</span>
+    <span class="token function">exit</span><span class="token punctuation">(</span><span class="token number">0</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+  <span class="token punctuation">}</span>
+  shared <span class="token operator">=</span> <span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">shm_data</span><span class="token operator">*</span><span class="token punctuation">)</span>shm<span class="token punctuation">;</span>
+  <span class="token function">memset</span><span class="token punctuation">(</span>shared<span class="token punctuation">,</span> <span class="token number">0</span><span class="token punctuation">,</span> <span class="token keyword">sizeof</span><span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">shm_data</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+  <span class="token function">semaphore_init</span><span class="token punctuation">(</span>semid<span class="token punctuation">)</span><span class="token punctuation">;</span>
+  <span class="token keyword">while</span><span class="token punctuation">(</span><span class="token number">1</span><span class="token punctuation">)</span><span class="token punctuation">{</span>
+    <span class="token function">semaphore_p</span><span class="token punctuation">(</span>semid<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">if</span><span class="token punctuation">(</span>shared<span class="token operator">-&gt;</span>datalength <span class="token operator">&gt;</span> <span class="token number">0</span><span class="token punctuation">)</span><span class="token punctuation">{</span>
+      <span class="token function">semaphore_v</span><span class="token punctuation">(</span>semid<span class="token punctuation">)</span><span class="token punctuation">;</span>
+      <span class="token function">sleep</span><span class="token punctuation">(</span><span class="token number">1</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span> <span class="token keyword">else</span> <span class="token punctuation">{</span>
+      <span class="token function">printf</span><span class="token punctuation">(</span><span class="token string">"how many integers to caculate : "</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+      <span class="token function">scanf</span><span class="token punctuation">(</span><span class="token string">"%d"</span><span class="token punctuation">,</span><span class="token operator">&amp;</span>shared<span class="token operator">-&gt;</span>datalength<span class="token punctuation">)</span><span class="token punctuation">;</span>
+      <span class="token keyword">if</span><span class="token punctuation">(</span>shared<span class="token operator">-&gt;</span>datalength <span class="token operator">&gt;</span> MAX_NUM<span class="token punctuation">)</span><span class="token punctuation">{</span>
+        <span class="token function">perror</span><span class="token punctuation">(</span><span class="token string">"too many integers."</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        shared<span class="token operator">-&gt;</span>datalength <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span>
+        <span class="token function">semaphore_v</span><span class="token punctuation">(</span>semid<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token function">exit</span><span class="token punctuation">(</span><span class="token number">1</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+      <span class="token punctuation">}</span>
+      <span class="token keyword">for</span><span class="token punctuation">(</span>i<span class="token operator">=</span><span class="token number">0</span><span class="token punctuation">;</span>i<span class="token operator">&lt;</span>shared<span class="token operator">-&gt;</span>datalength<span class="token punctuation">;</span>i<span class="token operator">++</span><span class="token punctuation">)</span><span class="token punctuation">{</span>
+        <span class="token function">printf</span><span class="token punctuation">(</span><span class="token string">"Input the %d integer : "</span><span class="token punctuation">,</span> i<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token function">scanf</span><span class="token punctuation">(</span><span class="token string">"%d"</span><span class="token punctuation">,</span><span class="token operator">&amp;</span>shared<span class="token operator">-&gt;</span>data<span class="token punctuation">[</span>i<span class="token punctuation">]</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+      <span class="token punctuation">}</span>
+      <span class="token function">semaphore_v</span><span class="token punctuation">(</span>semid<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+  <span class="token punctuation">}</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>在这里面，get_shmid创建了共享内存，get_semaphoreid创建了信号量集合，然后shmat将共享内存映射到了虚拟地址空间的shm指针指向的位置，然后通过强制类型转换，shared的指针指向放在共享内存里面的struct shm_data结构，然后初始化为0。semaphore_init将信号量进行了初始化。</p>
+<p>接着，producer进入了一个无限循环。在这个循环里面，我们先通过semaphore_p申请访问共享内存的权利，如果发现datalength大于零，说明共享内存里面的数据没有被处理过，于是semaphore_v释放权利，先睡一会儿，睡醒了再看。如果发现datalength等于0，说明共享内存里面的数据被处理完了，于是开始往里面放数据。让用户输入多少个数，然后每个数是什么，都放在struct shm_data结构中，然后semaphore_v释放权利，等待其他的进程将这些数拿去处理。</p>
+<p>我们再来看consumer的代码。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">"share.h"</span></span>
+
+<span class="token keyword">int</span> <span class="token function">main</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+  <span class="token keyword">void</span> <span class="token operator">*</span>shm <span class="token operator">=</span> <span class="token constant">NULL</span><span class="token punctuation">;</span>
+  <span class="token keyword">struct</span> <span class="token class-name">shm_data</span> <span class="token operator">*</span>shared <span class="token operator">=</span> <span class="token constant">NULL</span><span class="token punctuation">;</span>
+  <span class="token keyword">int</span> shmid <span class="token operator">=</span> <span class="token function">get_shmid</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+  <span class="token keyword">int</span> semid <span class="token operator">=</span> <span class="token function">get_semaphoreid</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+  <span class="token keyword">int</span> i<span class="token punctuation">;</span>
+
+  shm <span class="token operator">=</span> <span class="token function">shmat</span><span class="token punctuation">(</span>shmid<span class="token punctuation">,</span> <span class="token punctuation">(</span><span class="token keyword">void</span><span class="token operator">*</span><span class="token punctuation">)</span><span class="token number">0</span><span class="token punctuation">,</span> <span class="token number">0</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+  <span class="token keyword">if</span><span class="token punctuation">(</span>shm <span class="token operator">==</span> <span class="token punctuation">(</span><span class="token keyword">void</span><span class="token operator">*</span><span class="token punctuation">)</span><span class="token operator">-</span><span class="token number">1</span><span class="token punctuation">)</span><span class="token punctuation">{</span>
+    <span class="token function">exit</span><span class="token punctuation">(</span><span class="token number">0</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+  <span class="token punctuation">}</span>
+  shared <span class="token operator">=</span> <span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">shm_data</span><span class="token operator">*</span><span class="token punctuation">)</span>shm<span class="token punctuation">;</span>
+  <span class="token keyword">while</span><span class="token punctuation">(</span><span class="token number">1</span><span class="token punctuation">)</span><span class="token punctuation">{</span>
+    <span class="token function">semaphore_p</span><span class="token punctuation">(</span>semid<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">if</span><span class="token punctuation">(</span>shared<span class="token operator">-&gt;</span>datalength <span class="token operator">&gt;</span> <span class="token number">0</span><span class="token punctuation">)</span><span class="token punctuation">{</span>
+      <span class="token keyword">int</span> sum <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span>
+      <span class="token keyword">for</span><span class="token punctuation">(</span>i<span class="token operator">=</span><span class="token number">0</span><span class="token punctuation">;</span>i<span class="token operator">&lt;</span>shared<span class="token operator">-&gt;</span>datalength<span class="token operator">-</span><span class="token number">1</span><span class="token punctuation">;</span>i<span class="token operator">++</span><span class="token punctuation">)</span><span class="token punctuation">{</span>
+        <span class="token function">printf</span><span class="token punctuation">(</span><span class="token string">"%d+"</span><span class="token punctuation">,</span>shared<span class="token operator">-&gt;</span>data<span class="token punctuation">[</span>i<span class="token punctuation">]</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        sum <span class="token operator">+=</span> shared<span class="token operator">-&gt;</span>data<span class="token punctuation">[</span>i<span class="token punctuation">]</span><span class="token punctuation">;</span>
+      <span class="token punctuation">}</span>
+      <span class="token function">printf</span><span class="token punctuation">(</span><span class="token string">"%d"</span><span class="token punctuation">,</span>shared<span class="token operator">-&gt;</span>data<span class="token punctuation">[</span>shared<span class="token operator">-&gt;</span>datalength<span class="token operator">-</span><span class="token number">1</span><span class="token punctuation">]</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+      sum <span class="token operator">+=</span> shared<span class="token operator">-&gt;</span>data<span class="token punctuation">[</span>shared<span class="token operator">-&gt;</span>datalength<span class="token operator">-</span><span class="token number">1</span><span class="token punctuation">]</span><span class="token punctuation">;</span>
+      <span class="token function">printf</span><span class="token punctuation">(</span><span class="token string">"=%d\n"</span><span class="token punctuation">,</span>sum<span class="token punctuation">)</span><span class="token punctuation">;</span>
+      <span class="token function">memset</span><span class="token punctuation">(</span>shared<span class="token punctuation">,</span> <span class="token number">0</span><span class="token punctuation">,</span> <span class="token keyword">sizeof</span><span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">shm_data</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+      <span class="token function">semaphore_v</span><span class="token punctuation">(</span>semid<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span> <span class="token keyword">else</span> <span class="token punctuation">{</span>
+      <span class="token function">semaphore_v</span><span class="token punctuation">(</span>semid<span class="token punctuation">)</span><span class="token punctuation">;</span>
+      <span class="token function">printf</span><span class="token punctuation">(</span><span class="token string">"no tasks, waiting.\n"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+      <span class="token function">sleep</span><span class="token punctuation">(</span><span class="token number">1</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+  <span class="token punctuation">}</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>在这里面，get_shmid获得producer创建的共享内存，get_semaphoreid获得producer创建的信号量集合，然后shmat将共享内存映射到了虚拟地址空间的shm指针指向的位置，然后通过强制类型转换，shared的指针指向放在共享内存里面的struct shm_data结构。</p>
+<p>接着，consumer进入了一个无限循环，在这个循环里面，我们先通过semaphore_p申请访问共享内存的权利，如果发现datalength等于0，就说明没什么活干，需要等待。如果发现datalength大于0，就说明有活干，于是将datalength个整型数字从data数组中取出来求和。最后将struct shm_data清空为0，表示任务处理完毕，通过semaphore_v释放权利。</p>
+<p>通过程序创建的共享内存和信号量集合，我们可以通过命令ipcs查看。当然，我们也可以通过ipcrm进行删除。</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ ipcs
+------ Message Queues --------
+key        msqid      owner      perms      used-bytes   messages
+------ Shared Memory Segments --------
+key        shmid      owner      perms      bytes      nattch     status
+0x00016988 <span class="token number">32768</span>      root       <span class="token number">777</span>        <span class="token number">516</span>        <span class="token number">0</span>
+------ Semaphore Arrays --------
+key        semid      owner      perms      nsems
+0x00016989 <span class="token number">32768</span>      root       <span class="token number">777</span>        <span class="token number">1</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>下面我们来运行一下producer和consumer，可以得到下面的结果：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ ./producer
+how many integers to caculate <span class="token builtin class-name">:</span> <span class="token number">2</span>
+Input the <span class="token number">0</span> integer <span class="token builtin class-name">:</span> <span class="token number">3</span>
+Input the <span class="token number">1</span> integer <span class="token builtin class-name">:</span> <span class="token number">4</span>
+how many integers to caculate <span class="token builtin class-name">:</span> <span class="token number">4</span>
+Input the <span class="token number">0</span> integer <span class="token builtin class-name">:</span> <span class="token number">3</span>
+Input the <span class="token number">1</span> integer <span class="token builtin class-name">:</span> <span class="token number">4</span>
+Input the <span class="token number">2</span> integer <span class="token builtin class-name">:</span> <span class="token number">5</span>
+Input the <span class="token number">3</span> integer <span class="token builtin class-name">:</span> <span class="token number">6</span>
+how many integers to caculate <span class="token builtin class-name">:</span> <span class="token number">7</span>
+Input the <span class="token number">0</span> integer <span class="token builtin class-name">:</span> <span class="token number">9</span>
+Input the <span class="token number">1</span> integer <span class="token builtin class-name">:</span> <span class="token number">8</span>
+Input the <span class="token number">2</span> integer <span class="token builtin class-name">:</span> <span class="token number">7</span>
+Input the <span class="token number">3</span> integer <span class="token builtin class-name">:</span> <span class="token number">6</span>
+Input the <span class="token number">4</span> integer <span class="token builtin class-name">:</span> <span class="token number">5</span>
+Input the <span class="token number">5</span> integer <span class="token builtin class-name">:</span> <span class="token number">4</span>
+Input the <span class="token number">6</span> integer <span class="token builtin class-name">:</span> <span class="token number">3</span>
+
+$ ./consumer
+<span class="token number">3</span>+4<span class="token operator">=</span><span class="token number">7</span>
+<span class="token number">3</span>+4+5+6<span class="token operator">=</span><span class="token number">18</span>
+<span class="token number">9</span>+8+7+6+5+4+3<span class="token operator">=</span><span class="token number">42</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<h4 id="35-3-总结"><a href="#35-3-总结" class="headerlink" title="35.3 总结"></a>35.3 总结</h4><p>总结一下。共享内存和信号量的配合机制，如下图所示：</p>
+<ul>
+<li>无论是共享内存还是信号量，创建与初始化都遵循同样流程，通过ftok得到key，通过xxxget创建对象并生成id；</li>
+<li>生产者和消费者都通过shmat将共享内存映射到各自的内存空间，在不同的进程里面映射的位置不同；</li>
+<li>为了访问共享内存，需要信号量进行保护，信号量需要通过semctl初始化为某个值；</li>
+<li>接下来生产者和消费者要通过semop(-1)来竞争信号量，如果生产者抢到信号量则写入，然后通过semop(+1)释放信号量，如果消费者抢到信号量则读出，然后通过semop(+1)释放信号量；</li>
+<li>共享内存使用完毕，可以通过shmdt来解除映射。</li>
+</ul>
+<p><img src="/images/《趣谈Linux操作系统》学习笔记/共享内存和信号量的配合机制.png" alt="共享内存和信号量的配合机制"></p>
+<h3 id="36-IPC（中）"><a href="#36-IPC（中）" class="headerlink" title="36. IPC（中）"></a>36. IPC（中）</h3><p>不知道你有没有注意到，咱们讲消息队列、共享内存、信号量的机制的时候，我们其实能够从中看到一些统一的规律：<strong>它们在使用之前都要生成key，然后通过key得到唯一的id，并且都是通过xxxget函数。</strong></p>
+<p>内核里面，这三种进程间通信机制是使用统一的机制管理起来的，都叫ipcxxx。</p>
+<p>为了维护这三种进程间通信进制，在内核里面，我们声明了一个有三项的数组。</p>
+<p>我们通过这段代码，来具体看一看。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">struct</span> <span class="token class-name">ipc_namespace</span> <span class="token punctuation">{</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    <span class="token keyword">struct</span> <span class="token class-name">ipc_ids</span>      ids<span class="token punctuation">[</span><span class="token number">3</span><span class="token punctuation">]</span><span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+<span class="token punctuation">}</span>
+
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">define</span> <span class="token expression">IPC_SEM_IDS     <span class="token number">0</span></span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">define</span> <span class="token expression">IPC_MSG_IDS     <span class="token number">1</span></span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">define</span> <span class="token expression">IPC_SHM_IDS     <span class="token number">2</span></span></span>
+
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">define</span> <span class="token expression"><span class="token function">sem_ids</span><span class="token punctuation">(</span>ns<span class="token punctuation">)</span>     <span class="token punctuation">(</span><span class="token punctuation">(</span>ns<span class="token punctuation">)</span><span class="token operator">-&gt;</span>ids<span class="token punctuation">[</span>IPC_SEM_IDS<span class="token punctuation">]</span><span class="token punctuation">)</span></span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">define</span> <span class="token expression"><span class="token function">msg_ids</span><span class="token punctuation">(</span>ns<span class="token punctuation">)</span>     <span class="token punctuation">(</span><span class="token punctuation">(</span>ns<span class="token punctuation">)</span><span class="token operator">-&gt;</span>ids<span class="token punctuation">[</span>IPC_MSG_IDS<span class="token punctuation">]</span><span class="token punctuation">)</span></span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">define</span> <span class="token expression"><span class="token function">shm_ids</span><span class="token punctuation">(</span>ns<span class="token punctuation">)</span>     <span class="token punctuation">(</span><span class="token punctuation">(</span>ns<span class="token punctuation">)</span><span class="token operator">-&gt;</span>ids<span class="token punctuation">[</span>IPC_SHM_IDS<span class="token punctuation">]</span><span class="token punctuation">)</span></span></span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>根据代码中的定义，第0项用于信号量，第1项用于消息队列，第2项用于共享内存，分别可以通过sem_ids、msg_ids、shm_ids来访问。</p>
+<p>这段代码里面有ns，全称叫namespace。可能不容易理解，你现在可以将它认为是将一台Linux服务器逻辑的隔离为多台Linux服务器的机制，它背后的原理是一个相当大的话题，我们需要在容器那一章详细讲述。现在，你就可以简单的认为没有namespace，整个Linux在一个namespace下面，那这些ids也是整个Linux只有一份。</p>
+<p>接下来，我们再来看struct ipc_ids里面保存了什么。</p>
+<p>首先，in_use表示当前有多少个ipc；其次，seq和next_id用于一起生成ipc唯一的id，因为信号量，共享内存，消息队列，它们三个的id也不能重复；ipcs_idr是一棵基数树，我们又碰到它了，一旦涉及从一个整数查找一个对象，它都是最好的选择。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">struct</span> <span class="token class-name">ipc_ids</span> <span class="token punctuation">{</span>
+    <span class="token keyword">int</span> in_use<span class="token punctuation">;</span>
+    <span class="token keyword">unsigned</span> <span class="token keyword">short</span> seq<span class="token punctuation">;</span>
+    <span class="token keyword">struct</span> <span class="token class-name">rw_semaphore</span> rwsem<span class="token punctuation">;</span>
+    <span class="token keyword">struct</span> <span class="token class-name">idr</span> ipcs_idr<span class="token punctuation">;</span>
+    <span class="token keyword">int</span> next_id<span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span class="token punctuation">;</span>
+
+<span class="token keyword">struct</span> <span class="token class-name">idr</span> <span class="token punctuation">{</span>
+    <span class="token keyword">struct</span> <span class="token class-name">radix_tree_root</span>  idr_rt<span class="token punctuation">;</span>
+    <span class="token keyword">unsigned</span> <span class="token keyword">int</span>            idr_next<span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>也就是说，对于sem_ids、msg_ids、shm_ids各有一棵基数树。那这棵树里面究竟存放了什么，能够统一管理这三类ipc对象呢？</p>
+<p>通过下面这个函数ipc_obtain_object_idr，我们可以看出端倪。这个函数根据id，在基数树里面找出来的是struct kern_ipc_perm。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">struct</span> <span class="token class-name">kern_ipc_perm</span> <span class="token operator">*</span><span class="token function">ipc_obtain_object_idr</span><span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">ipc_ids</span> <span class="token operator">*</span>ids<span class="token punctuation">,</span> <span class="token keyword">int</span> id<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword">struct</span> <span class="token class-name">kern_ipc_perm</span> <span class="token operator">*</span>out<span class="token punctuation">;</span>
+    <span class="token keyword">int</span> lid <span class="token operator">=</span> <span class="token function">ipcid_to_idx</span><span class="token punctuation">(</span>id<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    out <span class="token operator">=</span> <span class="token function">idr_find</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>ids<span class="token operator">-&gt;</span>ipcs_idr<span class="token punctuation">,</span> lid<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">return</span> out<span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>如果我们看用于表示信号量、消息队列、共享内存的结构，就会发现，这三个结构的第一项都是struct kern_ipc_perm。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">struct</span> <span class="token class-name">sem_array</span> <span class="token punctuation">{</span>
+    <span class="token keyword">struct</span> <span class="token class-name">kern_ipc_perm</span>    sem_perm<span class="token punctuation">;</span>   <span class="token comment">/* permissions .. see ipc.h */</span>
+    time_t              sem_ctime<span class="token punctuation">;</span>      <span class="token comment">/* create/last semctl() time */</span>
+    <span class="token keyword">struct</span> <span class="token class-name">list_head</span>    pending_alter<span class="token punctuation">;</span>  <span class="token comment">/* pending operations */</span>
+                                        <span class="token comment">/* that alter the array */</span>
+    <span class="token keyword">struct</span> <span class="token class-name">list_head</span>    pending_const<span class="token punctuation">;</span>  <span class="token comment">/* pending complex operations */</span>
+                                        <span class="token comment">/* that do not alter semvals */</span>
+    <span class="token keyword">struct</span> <span class="token class-name">list_head</span>    list_id<span class="token punctuation">;</span>        <span class="token comment">/* undo requests on this array */</span>
+    <span class="token keyword">int</span>                 sem_nsems<span class="token punctuation">;</span>      <span class="token comment">/* no. of semaphores in array */</span>
+    <span class="token keyword">int</span>                 complex_count<span class="token punctuation">;</span>  <span class="token comment">/* pending complex operations */</span>
+    <span class="token keyword">unsigned</span> <span class="token keyword">int</span>        use_global_lock<span class="token punctuation">;</span><span class="token comment">/* &gt;0: global lock required */</span>
+
+    <span class="token keyword">struct</span> <span class="token class-name">sem</span>      sems<span class="token punctuation">[</span><span class="token punctuation">]</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span> __randomize_layout<span class="token punctuation">;</span>
+
+<span class="token keyword">struct</span> <span class="token class-name">msg_queue</span> <span class="token punctuation">{</span>
+    <span class="token keyword">struct</span> <span class="token class-name">kern_ipc_perm</span> q_perm<span class="token punctuation">;</span>
+    time_t q_stime<span class="token punctuation">;</span>             <span class="token comment">/* last msgsnd time */</span>
+    time_t q_rtime<span class="token punctuation">;</span>             <span class="token comment">/* last msgrcv time */</span>
+    time_t q_ctime<span class="token punctuation">;</span>             <span class="token comment">/* last change time */</span>
+    <span class="token keyword">unsigned</span> <span class="token keyword">long</span> q_cbytes<span class="token punctuation">;</span>     <span class="token comment">/* current number of bytes on queue */</span>
+    <span class="token keyword">unsigned</span> <span class="token keyword">long</span> q_qnum<span class="token punctuation">;</span>       <span class="token comment">/* number of messages in queue */</span>
+    <span class="token keyword">unsigned</span> <span class="token keyword">long</span> q_qbytes<span class="token punctuation">;</span>     <span class="token comment">/* max number of bytes on queue */</span>
+    pid_t q_lspid<span class="token punctuation">;</span>              <span class="token comment">/* pid of last msgsnd */</span>
+    pid_t q_lrpid<span class="token punctuation">;</span>              <span class="token comment">/* last receive pid */</span>
+
+    <span class="token keyword">struct</span> <span class="token class-name">list_head</span> q_messages<span class="token punctuation">;</span>
+    <span class="token keyword">struct</span> <span class="token class-name">list_head</span> q_receivers<span class="token punctuation">;</span>
+    <span class="token keyword">struct</span> <span class="token class-name">list_head</span> q_senders<span class="token punctuation">;</span>
+<span class="token punctuation">}</span> __randomize_layout<span class="token punctuation">;</span>
+
+<span class="token keyword">struct</span> <span class="token class-name">shmid_kernel</span> <span class="token comment">/* private to the kernel */</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword">struct</span> <span class="token class-name">kern_ipc_perm</span>    shm_perm<span class="token punctuation">;</span>
+    <span class="token keyword">struct</span> <span class="token class-name">file</span>         <span class="token operator">*</span>shm_file<span class="token punctuation">;</span>
+    <span class="token keyword">unsigned</span> <span class="token keyword">long</span>       shm_nattch<span class="token punctuation">;</span>
+    <span class="token keyword">unsigned</span> <span class="token keyword">long</span>       shm_segsz<span class="token punctuation">;</span>
+    time_t              shm_atim<span class="token punctuation">;</span>
+    time_t              shm_dtim<span class="token punctuation">;</span>
+    time_t              shm_ctim<span class="token punctuation">;</span>
+    pid_t               shm_cprid<span class="token punctuation">;</span>
+    pid_t               shm_lprid<span class="token punctuation">;</span>
+    <span class="token keyword">struct</span> <span class="token class-name">user_struct</span>  <span class="token operator">*</span>mlock_user<span class="token punctuation">;</span>
+
+    <span class="token comment">/* The task created the shm object.  NULL if the task is dead. */</span>
+    <span class="token keyword">struct</span> <span class="token class-name">task_struct</span>  <span class="token operator">*</span>shm_creator<span class="token punctuation">;</span>
+    <span class="token keyword">struct</span> <span class="token class-name">list_head</span>    shm_clist<span class="token punctuation">;</span>  <span class="token comment">/* list by creator */</span>
+<span class="token punctuation">}</span> __randomize_layout<span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>也就是说，我们完全可以通过struct kern_ipc_perm的指针，通过进行强制类型转换后，得到整个结构。做这件事情的函数如下：</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">static</span> <span class="token keyword">inline</span> <span class="token keyword">struct</span> <span class="token class-name">sem_array</span> <span class="token operator">*</span><span class="token function">sem_obtain_object</span><span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">ipc_namespace</span> <span class="token operator">*</span>ns<span class="token punctuation">,</span> <span class="token keyword">int</span> id<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword">struct</span> <span class="token class-name">kern_ipc_perm</span> <span class="token operator">*</span>ipcp <span class="token operator">=</span> <span class="token function">ipc_obtain_object_idr</span><span class="token punctuation">(</span><span class="token operator">&amp;</span><span class="token function">sem_ids</span><span class="token punctuation">(</span>ns<span class="token punctuation">)</span><span class="token punctuation">,</span> id<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">return</span> <span class="token function">container_of</span><span class="token punctuation">(</span>ipcp<span class="token punctuation">,</span> <span class="token keyword">struct</span> <span class="token class-name">sem_array</span><span class="token punctuation">,</span> sem_perm<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+
+<span class="token keyword">static</span> <span class="token keyword">inline</span> <span class="token keyword">struct</span> <span class="token class-name">msg_queue</span> <span class="token operator">*</span><span class="token function">msq_obtain_object</span><span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">ipc_namespace</span> <span class="token operator">*</span>ns<span class="token punctuation">,</span> <span class="token keyword">int</span> id<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword">struct</span> <span class="token class-name">kern_ipc_perm</span> <span class="token operator">*</span>ipcp <span class="token operator">=</span> <span class="token function">ipc_obtain_object_idr</span><span class="token punctuation">(</span><span class="token operator">&amp;</span><span class="token function">msg_ids</span><span class="token punctuation">(</span>ns<span class="token punctuation">)</span><span class="token punctuation">,</span> id<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">return</span> <span class="token function">container_of</span><span class="token punctuation">(</span>ipcp<span class="token punctuation">,</span> <span class="token keyword">struct</span> <span class="token class-name">msg_queue</span><span class="token punctuation">,</span> q_perm<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+
+<span class="token keyword">static</span> <span class="token keyword">inline</span> <span class="token keyword">struct</span> <span class="token class-name">shmid_kernel</span> <span class="token operator">*</span><span class="token function">shm_obtain_object</span><span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">ipc_namespace</span> <span class="token operator">*</span>ns<span class="token punctuation">,</span> <span class="token keyword">int</span> id<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword">struct</span> <span class="token class-name">kern_ipc_perm</span> <span class="token operator">*</span>ipcp <span class="token operator">=</span> <span class="token function">ipc_obtain_object_idr</span><span class="token punctuation">(</span><span class="token operator">&amp;</span><span class="token function">shm_ids</span><span class="token punctuation">(</span>ns<span class="token punctuation">)</span><span class="token punctuation">,</span> id<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">return</span> <span class="token function">container_of</span><span class="token punctuation">(</span>ipcp<span class="token punctuation">,</span> <span class="token keyword">struct</span> <span class="token class-name">shmid_kernel</span><span class="token punctuation">,</span> shm_perm<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>通过这种机制，我们就可以将信号量、消息队列、共享内存抽象为ipc类型进行统一处理。你有没有觉得，这有点儿面向对象编程中抽象类和实现类的意思？没错，如果你试图去了解C++中类的实现机制，其实也是这么干的。</p>
+<p><img src="/images/《趣谈Linux操作系统》学习笔记/将信号量、消息队列、共享内存抽象为ipc类型进行统一处理.png" alt="将信号量、消息队列、共享内存抽象为ipc类型进行统一处理"></p>
+<p>有了抽象类，接下来我们来看共享内存和信号量的具体实现。</p>
+<h4 id="36-1-如何创建共享内存？"><a href="#36-1-如何创建共享内存？" class="headerlink" title="36.1 如何创建共享内存？"></a>36.1 如何创建共享内存？</h4><p>首先，我们来看创建共享内存的的系统调用。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token function">SYSCALL_DEFINE3</span><span class="token punctuation">(</span>shmget<span class="token punctuation">,</span> key_t<span class="token punctuation">,</span> key<span class="token punctuation">,</span> size_t<span class="token punctuation">,</span> size<span class="token punctuation">,</span> <span class="token keyword">int</span><span class="token punctuation">,</span> shmflg<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword">struct</span> <span class="token class-name">ipc_namespace</span> <span class="token operator">*</span>ns<span class="token punctuation">;</span>
+    <span class="token keyword">static</span> <span class="token keyword">const</span> <span class="token keyword">struct</span> <span class="token class-name">ipc_ops</span> shm_ops <span class="token operator">=</span> <span class="token punctuation">{</span>
+        <span class="token punctuation">.</span>getnew <span class="token operator">=</span> newseg<span class="token punctuation">,</span>
+        <span class="token punctuation">.</span>associate <span class="token operator">=</span> shm_security<span class="token punctuation">,</span>
+        <span class="token punctuation">.</span>more_checks <span class="token operator">=</span> shm_more_checks<span class="token punctuation">,</span>
+    <span class="token punctuation">}</span><span class="token punctuation">;</span>
+    <span class="token keyword">struct</span> <span class="token class-name">ipc_params</span> shm_params<span class="token punctuation">;</span>
+    ns <span class="token operator">=</span> current<span class="token operator">-&gt;</span>nsproxy<span class="token operator">-&gt;</span>ipc_ns<span class="token punctuation">;</span>
+    shm_params<span class="token punctuation">.</span>key <span class="token operator">=</span> key<span class="token punctuation">;</span>
+    shm_params<span class="token punctuation">.</span>flg <span class="token operator">=</span> shmflg<span class="token punctuation">;</span>
+    shm_params<span class="token punctuation">.</span>u<span class="token punctuation">.</span>size <span class="token operator">=</span> size<span class="token punctuation">;</span>
+    <span class="token keyword">return</span> <span class="token function">ipcget</span><span class="token punctuation">(</span>ns<span class="token punctuation">,</span> <span class="token operator">&amp;</span><span class="token function">shm_ids</span><span class="token punctuation">(</span>ns<span class="token punctuation">)</span><span class="token punctuation">,</span> <span class="token operator">&amp;</span>shm_ops<span class="token punctuation">,</span> <span class="token operator">&amp;</span>shm_params<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>这里面调用了抽象的ipcget、参数分别为共享内存对应的shm_ids、对应的操作shm_ops以及对应的参数shm_params。</p>
+<p>如果key设置为IPC_PRIVATE则永远创建新的，如果不是的话，就会调用ipcget_public。ipcget的具体代码如下：</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">int</span> <span class="token function">ipcget</span><span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">ipc_namespace</span> <span class="token operator">*</span>ns<span class="token punctuation">,</span> <span class="token keyword">struct</span> <span class="token class-name">ipc_ids</span> <span class="token operator">*</span>ids<span class="token punctuation">,</span>
+            <span class="token keyword">const</span> <span class="token keyword">struct</span> <span class="token class-name">ipc_ops</span> <span class="token operator">*</span>ops<span class="token punctuation">,</span> <span class="token keyword">struct</span> <span class="token class-name">ipc_params</span> <span class="token operator">*</span>params<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword">if</span> <span class="token punctuation">(</span>params<span class="token operator">-&gt;</span>key <span class="token operator">==</span> IPC_PRIVATE<span class="token punctuation">)</span>
+        <span class="token keyword">return</span> <span class="token function">ipcget_new</span><span class="token punctuation">(</span>ns<span class="token punctuation">,</span> ids<span class="token punctuation">,</span> ops<span class="token punctuation">,</span> params<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">else</span>
+        <span class="token keyword">return</span> <span class="token function">ipcget_public</span><span class="token punctuation">(</span>ns<span class="token punctuation">,</span> ids<span class="token punctuation">,</span> ops<span class="token punctuation">,</span> params<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+
+<span class="token keyword">static</span> <span class="token keyword">int</span> <span class="token function">ipcget_public</span><span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">ipc_namespace</span> <span class="token operator">*</span>ns<span class="token punctuation">,</span> <span class="token keyword">struct</span> <span class="token class-name">ipc_ids</span> <span class="token operator">*</span>ids<span class="token punctuation">,</span> <span class="token keyword">const</span> <span class="token keyword">struct</span> <span class="token class-name">ipc_ops</span> <span class="token operator">*</span>ops<span class="token punctuation">,</span> <span class="token keyword">struct</span> <span class="token class-name">ipc_params</span> <span class="token operator">*</span>params<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword">struct</span> <span class="token class-name">kern_ipc_perm</span> <span class="token operator">*</span>ipcp<span class="token punctuation">;</span>
+    <span class="token keyword">int</span> flg <span class="token operator">=</span> params<span class="token operator">-&gt;</span>flg<span class="token punctuation">;</span>
+    <span class="token keyword">int</span> err<span class="token punctuation">;</span>
+    ipcp <span class="token operator">=</span> <span class="token function">ipc_findkey</span><span class="token punctuation">(</span>ids<span class="token punctuation">,</span> params<span class="token operator">-&gt;</span>key<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">if</span> <span class="token punctuation">(</span>ipcp <span class="token operator">==</span> <span class="token constant">NULL</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token operator">!</span><span class="token punctuation">(</span>flg <span class="token operator">&amp;</span> IPC_CREAT<span class="token punctuation">)</span><span class="token punctuation">)</span>
+            err <span class="token operator">=</span> <span class="token operator">-</span>ENOENT<span class="token punctuation">;</span>
+        <span class="token keyword">else</span>
+            err <span class="token operator">=</span> ops<span class="token operator">-&gt;</span><span class="token function">getnew</span><span class="token punctuation">(</span>ns<span class="token punctuation">,</span> params<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span> <span class="token keyword">else</span> <span class="token punctuation">{</span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span>flg <span class="token operator">&amp;</span> IPC_CREAT <span class="token operator">&amp;&amp;</span> flg <span class="token operator">&amp;</span> IPC_EXCL<span class="token punctuation">)</span>
+            err <span class="token operator">=</span> <span class="token operator">-</span>EEXIST<span class="token punctuation">;</span>
+        <span class="token keyword">else</span> <span class="token punctuation">{</span>
+            err <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span>
+            <span class="token keyword">if</span> <span class="token punctuation">(</span>ops<span class="token operator">-&gt;</span>more_checks<span class="token punctuation">)</span>
+                err <span class="token operator">=</span> ops<span class="token operator">-&gt;</span><span class="token function">more_checks</span><span class="token punctuation">(</span>ipcp<span class="token punctuation">,</span> params<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+        <span class="token punctuation">}</span>
+    <span class="token punctuation">}</span>
+    <span class="token keyword">return</span> err<span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>在ipcget_public中，我们会按照key，去查找struct kern_ipc_perm。如果没有找到，那就看是否设置了IPC_CREAT；如果设置了，就创建一个新的。如果找到了，就将对应的id返回。</p>
+<p>我们这里重点看，如何按照参数shm_ops，创建新的共享内存，会调用newseg。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">static</span> <span class="token keyword">int</span> <span class="token function">newseg</span><span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">ipc_namespace</span> <span class="token operator">*</span>ns<span class="token punctuation">,</span> <span class="token keyword">struct</span> <span class="token class-name">ipc_params</span> <span class="token operator">*</span>params<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    key_t key <span class="token operator">=</span> params<span class="token operator">-&gt;</span>key<span class="token punctuation">;</span>
+    <span class="token keyword">int</span> shmflg <span class="token operator">=</span> params<span class="token operator">-&gt;</span>flg<span class="token punctuation">;</span>
+    size_t size <span class="token operator">=</span> params<span class="token operator">-&gt;</span>u<span class="token punctuation">.</span>size<span class="token punctuation">;</span>
+    <span class="token keyword">int</span> error<span class="token punctuation">;</span>
+    <span class="token keyword">struct</span> <span class="token class-name">shmid_kernel</span> <span class="token operator">*</span>shp<span class="token punctuation">;</span>
+    size_t numpages <span class="token operator">=</span> <span class="token punctuation">(</span>size <span class="token operator">+</span> PAGE_SIZE <span class="token operator">-</span> <span class="token number">1</span><span class="token punctuation">)</span> <span class="token operator">&gt;&gt;</span> PAGE_SHIFT<span class="token punctuation">;</span>
+    <span class="token keyword">struct</span> <span class="token class-name">file</span> <span class="token operator">*</span>file<span class="token punctuation">;</span>
+    <span class="token keyword">char</span> name<span class="token punctuation">[</span><span class="token number">13</span><span class="token punctuation">]</span><span class="token punctuation">;</span>
+    vm_flags_t acctflag <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    shp <span class="token operator">=</span> <span class="token function">kvmalloc</span><span class="token punctuation">(</span><span class="token keyword">sizeof</span><span class="token punctuation">(</span><span class="token operator">*</span>shp<span class="token punctuation">)</span><span class="token punctuation">,</span> GFP_KERNEL<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    shp<span class="token operator">-&gt;</span>shm_perm<span class="token punctuation">.</span>key <span class="token operator">=</span> key<span class="token punctuation">;</span>
+    shp<span class="token operator">-&gt;</span>shm_perm<span class="token punctuation">.</span>mode <span class="token operator">=</span> <span class="token punctuation">(</span>shmflg <span class="token operator">&amp;</span> S_IRWXUGO<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    shp<span class="token operator">-&gt;</span>mlock_user <span class="token operator">=</span> <span class="token constant">NULL</span><span class="token punctuation">;</span>
+
+    shp<span class="token operator">-&gt;</span>shm_perm<span class="token punctuation">.</span>security <span class="token operator">=</span> <span class="token constant">NULL</span><span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    file <span class="token operator">=</span> <span class="token function">shmem_kernel_file_setup</span><span class="token punctuation">(</span>name<span class="token punctuation">,</span> size<span class="token punctuation">,</span> acctflag<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    shp<span class="token operator">-&gt;</span>shm_cprid <span class="token operator">=</span> <span class="token function">task_tgid_vnr</span><span class="token punctuation">(</span>current<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    shp<span class="token operator">-&gt;</span>shm_lprid <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span>
+    shp<span class="token operator">-&gt;</span>shm_atim <span class="token operator">=</span> shp<span class="token operator">-&gt;</span>shm_dtim <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span>
+    shp<span class="token operator">-&gt;</span>shm_ctim <span class="token operator">=</span> <span class="token function">get_seconds</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    shp<span class="token operator">-&gt;</span>shm_segsz <span class="token operator">=</span> size<span class="token punctuation">;</span>
+    shp<span class="token operator">-&gt;</span>shm_nattch <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span>
+    shp<span class="token operator">-&gt;</span>shm_file <span class="token operator">=</span> file<span class="token punctuation">;</span>
+    shp<span class="token operator">-&gt;</span>shm_creator <span class="token operator">=</span> current<span class="token punctuation">;</span>
+
+    error <span class="token operator">=</span> <span class="token function">ipc_addid</span><span class="token punctuation">(</span><span class="token operator">&amp;</span><span class="token function">shm_ids</span><span class="token punctuation">(</span>ns<span class="token punctuation">)</span><span class="token punctuation">,</span> <span class="token operator">&amp;</span>shp<span class="token operator">-&gt;</span>shm_perm<span class="token punctuation">,</span> ns<span class="token operator">-&gt;</span>shm_ctlmni<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    <span class="token function">list_add</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>shp<span class="token operator">-&gt;</span>shm_clist<span class="token punctuation">,</span> <span class="token operator">&amp;</span>current<span class="token operator">-&gt;</span>sysvshm<span class="token punctuation">.</span>shm_clist<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    <span class="token function">file_inode</span><span class="token punctuation">(</span>file<span class="token punctuation">)</span><span class="token operator">-&gt;</span>i_ino <span class="token operator">=</span> shp<span class="token operator">-&gt;</span>shm_perm<span class="token punctuation">.</span>id<span class="token punctuation">;</span>
+
+    ns<span class="token operator">-&gt;</span>shm_tot <span class="token operator">+=</span> numpages<span class="token punctuation">;</span>
+    error <span class="token operator">=</span> shp<span class="token operator">-&gt;</span>shm_perm<span class="token punctuation">.</span>id<span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    <span class="token keyword">return</span> error<span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p><strong>newseg函数的第一步，通过kvmalloc在直接映射区分配一个struct shmid_kernel结构</strong>。这个结构就是用来描述共享内存的。这个结构最开始就是上面说的struct kern_ipc_perm结构。接下来就是填充这个struct shmid_kernel结构，例如key、权限等。</p>
+<p><strong>newseg函数的第二步，共享内存需要和文件进行关联</strong>。为什么要做这个呢？我们在讲内存映射的时候讲过，虚拟地址空间可以和物理内存关联，但是物理内存是某个进程独享的。虚拟地址空间也可以映射到一个文件，文件是可以跨进程共享的。</p>
+<p>咱们这里的共享内存需要跨进程共享，也应该借鉴文件映射的思路。只不过不应该映射一个硬盘上的文件，而是映射到一个内存文件系统上的文件。mm/shmem.c里面就定义了这样一个基于内存的文件系统。这里你一定要注意区分shmem和shm的区别，前者是一个文件系统，后者是进程通信机制。</p>
+<p>在系统初始化的时候，shmem_init注册了shmem文件系统shmem_fs_type，并且挂在到了shm_mnt下面。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">int</span> __init <span class="token function">shmem_init</span><span class="token punctuation">(</span><span class="token keyword">void</span><span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword">int</span> error<span class="token punctuation">;</span>
+    error <span class="token operator">=</span> <span class="token function">shmem_init_inodecache</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    error <span class="token operator">=</span> <span class="token function">register_filesystem</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>shmem_fs_type<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    shm_mnt <span class="token operator">=</span> <span class="token function">kern_mount</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>shmem_fs_type<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    <span class="token keyword">return</span> <span class="token number">0</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+
+<span class="token keyword">static</span> <span class="token keyword">struct</span> <span class="token class-name">file_system_type</span> shmem_fs_type <span class="token operator">=</span> <span class="token punctuation">{</span>
+    <span class="token punctuation">.</span>owner      <span class="token operator">=</span> THIS_MODULE<span class="token punctuation">,</span>
+    <span class="token punctuation">.</span>name       <span class="token operator">=</span> <span class="token string">"tmpfs"</span><span class="token punctuation">,</span>
+    <span class="token punctuation">.</span>mount      <span class="token operator">=</span> shmem_mount<span class="token punctuation">,</span>
+    <span class="token punctuation">.</span>kill_sb    <span class="token operator">=</span> kill_litter_super<span class="token punctuation">,</span>
+    <span class="token punctuation">.</span>fs_flags   <span class="token operator">=</span> FS_USERNS_MOUNT<span class="token punctuation">,</span>
+<span class="token punctuation">}</span><span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>接下来，newseg函数会调用shmem_kernel_file_setup，其实就是在shmem文件系统里面创建一个文件。</p>
+<p>/**</p>
+<ul>
+<li>shmem_kernel_file_setup - get an unlinked file living in tmpfs which must be kernel internal.</li>
+<li>@name: name for dentry (to be seen in /proc/<pid>/maps</pid></li>
+<li>@size: size to be set for the file</li>
+<li>@flags: VM_NORESERVE suppresses pre-accounting of the entire object size <em>/<br>struct file </em>shmem_kernel_file_setup(const char *name, loff_t size, unsigned long flags)<br>{<br> return __shmem_file_setup(name, size, flags, S_PRIVATE);<br>}</li>
+</ul>
+<p>static struct file <em>__shmem_file_setup(const char </em>name, loff_t size,<br>                       unsigned long flags, unsigned int i_flags)<br>{<br>    struct file <em>res;<br>    struct inode </em>inode;<br>    struct path path;<br>    struct super_block <em>sb;<br>    struct qstr this;<br>……<br>    this.name = name;<br>    this.len = strlen(name);<br>    this.hash = 0; /</em> will go */<br>    sb = shm_mnt-&gt;mnt_sb;<br>    path.mnt = mntget(shm_mnt);<br>    path.dentry = d_alloc_pseudo(sb, &amp;this);<br>    d_set_d_op(path.dentry, &amp;anon_ops);<br>……<br>    inode = shmem_get_inode(sb, NULL, S_IFREG | S_IRWXUGO, 0, flags);<br>    inode-&gt;i_flags |= i_flags;<br>    d_instantiate(path.dentry, inode);<br>    inode-&gt;i_size = size;<br>……<br>    res = alloc_file(&amp;path, FMODE_WRITE | FMODE_READ,<br>          &amp;shmem_file_operations);<br>    return res;<br>}</p>
+<p>__shmem_file_setup会创建新的shmem文件对应的dentry和inode，并将它们两个关联起来，然后分配一个struct file结构，来表示新的shmem文件，并且指向独特的shmem_file_operations。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">static</span> <span class="token keyword">const</span> <span class="token keyword">struct</span> <span class="token class-name">file_operations</span> shmem_file_operations <span class="token operator">=</span> <span class="token punctuation">{</span>
+    <span class="token punctuation">.</span>mmap               <span class="token operator">=</span> shmem_mmap<span class="token punctuation">,</span>
+    <span class="token punctuation">.</span>get_unmapped_area  <span class="token operator">=</span> shmem_get_unmapped_area<span class="token punctuation">,</span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">ifdef</span> <span class="token expression">CONFIG_TMPFS</span></span>
+    <span class="token punctuation">.</span>llseek             <span class="token operator">=</span> shmem_file_llseek<span class="token punctuation">,</span>
+    <span class="token punctuation">.</span>read_iter          <span class="token operator">=</span> shmem_file_read_iter<span class="token punctuation">,</span>
+    <span class="token punctuation">.</span>write_iter         <span class="token operator">=</span> generic_file_write_iter<span class="token punctuation">,</span>
+    <span class="token punctuation">.</span>fsync              <span class="token operator">=</span> noop_fsync<span class="token punctuation">,</span>
+    <span class="token punctuation">.</span>splice_read        <span class="token operator">=</span> generic_file_splice_read<span class="token punctuation">,</span>
+    <span class="token punctuation">.</span>splice_write       <span class="token operator">=</span> iter_file_splice_write<span class="token punctuation">,</span>
+    <span class="token punctuation">.</span>fallocate          <span class="token operator">=</span> shmem_fallocate<span class="token punctuation">,</span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">endif</span></span>
+<span class="token punctuation">}</span><span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p><strong>newseg函数的第三步，通过ipc_addid将新创建的struct shmid_kernel结构挂到shm_ids里面的基数树上，并返回相应的id，并且将struct shmid_kernel挂到当前进程的sysvshm队列中。</strong></p>
+<p>至此，共享内存的创建就完成了。</p>
+<h4 id="36-2-如何将共享内存映射到虚拟地址空间？"><a href="#36-2-如何将共享内存映射到虚拟地址空间？" class="headerlink" title="36.2 如何将共享内存映射到虚拟地址空间？"></a>36.2 如何将共享内存映射到虚拟地址空间？</h4><p>从上面的代码解析中，我们知道，共享内存的数据结构struct shmid_kernel，是通过它的成员struct file *shm_file，来管理内存文件系统shmem上的内存文件的。无论这个共享内存是否被映射，shm_file都是存在的。</p>
+<p>接下来，我们要将共享内存映射到虚拟地址空间中。调用的是shmat，对应的系统调用如下：</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token function">SYSCALL_DEFINE3</span><span class="token punctuation">(</span>shmat<span class="token punctuation">,</span> <span class="token keyword">int</span><span class="token punctuation">,</span> shmid<span class="token punctuation">,</span> <span class="token keyword">char</span> __user <span class="token operator">*</span><span class="token punctuation">,</span> shmaddr<span class="token punctuation">,</span> <span class="token keyword">int</span><span class="token punctuation">,</span> shmflg<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword">unsigned</span> <span class="token keyword">long</span> ret<span class="token punctuation">;</span>
+    <span class="token keyword">long</span> err<span class="token punctuation">;</span>
+    err <span class="token operator">=</span> <span class="token function">do_shmat</span><span class="token punctuation">(</span>shmid<span class="token punctuation">,</span> shmaddr<span class="token punctuation">,</span> shmflg<span class="token punctuation">,</span> <span class="token operator">&amp;</span>ret<span class="token punctuation">,</span> SHMLBA<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token function">force_successful_syscall_return</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">return</span> <span class="token punctuation">(</span><span class="token keyword">long</span><span class="token punctuation">)</span>ret<span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+
+<span class="token keyword">long</span> <span class="token function">do_shmat</span><span class="token punctuation">(</span><span class="token keyword">int</span> shmid<span class="token punctuation">,</span> <span class="token keyword">char</span> __user <span class="token operator">*</span>shmaddr<span class="token punctuation">,</span> <span class="token keyword">int</span> shmflg<span class="token punctuation">,</span>
+          ulong <span class="token operator">*</span>raddr<span class="token punctuation">,</span> <span class="token keyword">unsigned</span> <span class="token keyword">long</span> shmlba<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword">struct</span> <span class="token class-name">shmid_kernel</span> <span class="token operator">*</span>shp<span class="token punctuation">;</span>
+    <span class="token keyword">unsigned</span> <span class="token keyword">long</span> addr <span class="token operator">=</span> <span class="token punctuation">(</span><span class="token keyword">unsigned</span> <span class="token keyword">long</span><span class="token punctuation">)</span>shmaddr<span class="token punctuation">;</span>
+    <span class="token keyword">unsigned</span> <span class="token keyword">long</span> size<span class="token punctuation">;</span>
+    <span class="token keyword">struct</span> <span class="token class-name">file</span> <span class="token operator">*</span>file<span class="token punctuation">;</span>
+    <span class="token keyword">int</span>    err<span class="token punctuation">;</span>
+    <span class="token keyword">unsigned</span> <span class="token keyword">long</span> flags <span class="token operator">=</span> MAP_SHARED<span class="token punctuation">;</span>
+    <span class="token keyword">unsigned</span> <span class="token keyword">long</span> prot<span class="token punctuation">;</span>
+    <span class="token keyword">int</span> acc_mode<span class="token punctuation">;</span>
+    <span class="token keyword">struct</span> <span class="token class-name">ipc_namespace</span> <span class="token operator">*</span>ns<span class="token punctuation">;</span>
+    <span class="token keyword">struct</span> <span class="token class-name">shm_file_data</span> <span class="token operator">*</span>sfd<span class="token punctuation">;</span>
+    <span class="token keyword">struct</span> <span class="token class-name">path</span> path<span class="token punctuation">;</span>
+    fmode_t f_mode<span class="token punctuation">;</span>
+    <span class="token keyword">unsigned</span> <span class="token keyword">long</span> populate <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    prot <span class="token operator">=</span> PROT_READ <span class="token operator">|</span> PROT_WRITE<span class="token punctuation">;</span>
+    acc_mode <span class="token operator">=</span> S_IRUGO <span class="token operator">|</span> S_IWUGO<span class="token punctuation">;</span>
+    f_mode <span class="token operator">=</span> FMODE_READ <span class="token operator">|</span> FMODE_WRITE<span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    ns <span class="token operator">=</span> current<span class="token operator">-&gt;</span>nsproxy<span class="token operator">-&gt;</span>ipc_ns<span class="token punctuation">;</span>
+    shp <span class="token operator">=</span> <span class="token function">shm_obtain_object_check</span><span class="token punctuation">(</span>ns<span class="token punctuation">,</span> shmid<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    path <span class="token operator">=</span> shp<span class="token operator">-&gt;</span>shm_file<span class="token operator">-&gt;</span>f_path<span class="token punctuation">;</span>
+    <span class="token function">path_get</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>path<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    shp<span class="token operator">-&gt;</span>shm_nattch<span class="token operator">++</span><span class="token punctuation">;</span>
+    size <span class="token operator">=</span> <span class="token function">i_size_read</span><span class="token punctuation">(</span><span class="token function">d_inode</span><span class="token punctuation">(</span>path<span class="token punctuation">.</span>dentry<span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    sfd <span class="token operator">=</span> <span class="token function">kzalloc</span><span class="token punctuation">(</span><span class="token keyword">sizeof</span><span class="token punctuation">(</span><span class="token operator">*</span>sfd<span class="token punctuation">)</span><span class="token punctuation">,</span> GFP_KERNEL<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    file <span class="token operator">=</span> <span class="token function">alloc_file</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>path<span class="token punctuation">,</span> f_mode<span class="token punctuation">,</span>
+              <span class="token function">is_file_hugepages</span><span class="token punctuation">(</span>shp<span class="token operator">-&gt;</span>shm_file<span class="token punctuation">)</span> <span class="token operator">?</span>
+                <span class="token operator">&amp;</span>shm_file_operations_huge <span class="token operator">:</span>
+                <span class="token operator">&amp;</span>shm_file_operations<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    file<span class="token operator">-&gt;</span>private_data <span class="token operator">=</span> sfd<span class="token punctuation">;</span>
+    file<span class="token operator">-&gt;</span>f_mapping <span class="token operator">=</span> shp<span class="token operator">-&gt;</span>shm_file<span class="token operator">-&gt;</span>f_mapping<span class="token punctuation">;</span>
+    sfd<span class="token operator">-&gt;</span>id <span class="token operator">=</span> shp<span class="token operator">-&gt;</span>shm_perm<span class="token punctuation">.</span>id<span class="token punctuation">;</span>
+    sfd<span class="token operator">-&gt;</span>ns <span class="token operator">=</span> <span class="token function">get_ipc_ns</span><span class="token punctuation">(</span>ns<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    sfd<span class="token operator">-&gt;</span>file <span class="token operator">=</span> shp<span class="token operator">-&gt;</span>shm_file<span class="token punctuation">;</span>
+    sfd<span class="token operator">-&gt;</span>vm_ops <span class="token operator">=</span> <span class="token constant">NULL</span><span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    addr <span class="token operator">=</span> <span class="token function">do_mmap_pgoff</span><span class="token punctuation">(</span>file<span class="token punctuation">,</span> addr<span class="token punctuation">,</span> size<span class="token punctuation">,</span> prot<span class="token punctuation">,</span> flags<span class="token punctuation">,</span> <span class="token number">0</span><span class="token punctuation">,</span> <span class="token operator">&amp;</span>populate<span class="token punctuation">,</span> <span class="token constant">NULL</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token operator">*</span>raddr <span class="token operator">=</span> addr<span class="token punctuation">;</span>
+    err <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    <span class="token keyword">return</span> err<span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>在这个函数里面，shm_obtain_object_check会通过共享内存的id，在基数树中找到对应的struct shmid_kernel结构，通过它找到shmem上的内存文件。</p>
+<p>接下来，我们要分配一个struct shm_file_data，来表示这个内存文件。将shmem中指向内存文件的shm_file赋值给struct shm_file_data中的file成员。</p>
+<p>然后，我们创建了一个struct file，指向的也是shmem中的内存文件。</p>
+<p>为什么要再创建一个呢？这两个的功能不同，shmem中shm_file用于管理内存文件，是一个中立的，独立于任何一个进程的角色。而新创建的struct file是专门用于做内存映射的，就像咱们在讲内存映射那一节讲过的，一个硬盘上的文件要映射到虚拟地址空间中的时候，需要在vm_area_struct里面有一个struct file *vm_file指向硬盘上的文件，现在变成内存文件了，但是这个结构还是不能少。</p>
+<p>新创建的struct file的private_data，指向struct shm_file_data，这样内存映射那部分的数据结构，就能够通过它来访问内存文件了。</p>
+<p>新创建的struct file的file_operations也发生了变化，变成了shm_file_operations。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">static</span> <span class="token keyword">const</span> <span class="token keyword">struct</span> <span class="token class-name">file_operations</span> shm_file_operations <span class="token operator">=</span> <span class="token punctuation">{</span>
+    <span class="token punctuation">.</span>mmap       <span class="token operator">=</span> shm_mmap<span class="token punctuation">,</span>
+    <span class="token punctuation">.</span>fsync      <span class="token operator">=</span> shm_fsync<span class="token punctuation">,</span>
+    <span class="token punctuation">.</span>release    <span class="token operator">=</span> shm_release<span class="token punctuation">,</span>
+    <span class="token punctuation">.</span>get_unmapped_area  <span class="token operator">=</span> shm_get_unmapped_area<span class="token punctuation">,</span>
+    <span class="token punctuation">.</span>llseek     <span class="token operator">=</span> noop_llseek<span class="token punctuation">,</span>
+    <span class="token punctuation">.</span>fallocate  <span class="token operator">=</span> shm_fallocate<span class="token punctuation">,</span>
+<span class="token punctuation">}</span><span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>接下来，do_mmap_pgoff函数我们遇到过，原来映射硬盘上的文件的时候，也是调用它。这里我们不再详细解析了。它会分配一个vm_area_struct指向虚拟地址空间中没有分配的区域，它的vm_file指向这个内存文件，然后它会调用shm_file_operations的mmap函数，也即shm_mmap进行映射。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">static</span> <span class="token keyword">int</span> <span class="token function">shm_mmap</span><span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">file</span> <span class="token operator">*</span>file<span class="token punctuation">,</span> <span class="token keyword">struct</span> <span class="token class-name">vm_area_struct</span> <span class="token operator">*</span>vma<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword">struct</span> <span class="token class-name">shm_file_data</span> <span class="token operator">*</span>sfd <span class="token operator">=</span> <span class="token function">shm_file_data</span><span class="token punctuation">(</span>file<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">int</span> ret<span class="token punctuation">;</span>
+    ret <span class="token operator">=</span> <span class="token function">__shm_open</span><span class="token punctuation">(</span>vma<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    ret <span class="token operator">=</span> <span class="token function">call_mmap</span><span class="token punctuation">(</span>sfd<span class="token operator">-&gt;</span>file<span class="token punctuation">,</span> vma<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    sfd<span class="token operator">-&gt;</span>vm_ops <span class="token operator">=</span> vma<span class="token operator">-&gt;</span>vm_ops<span class="token punctuation">;</span>
+    vma<span class="token operator">-&gt;</span>vm_ops <span class="token operator">=</span> <span class="token operator">&amp;</span>shm_vm_ops<span class="token punctuation">;</span>
+    <span class="token keyword">return</span> <span class="token number">0</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>shm_mmap中调用了shm_file_data中的file的mmap函数，这次调用的是shmem_file_operations的mmap，也即shmem_mmap。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">static</span> <span class="token keyword">int</span> <span class="token function">shmem_mmap</span><span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">file</span> <span class="token operator">*</span>file<span class="token punctuation">,</span> <span class="token keyword">struct</span> <span class="token class-name">vm_area_struct</span> <span class="token operator">*</span>vma<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token function">file_accessed</span><span class="token punctuation">(</span>file<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    vma<span class="token operator">-&gt;</span>vm_ops <span class="token operator">=</span> <span class="token operator">&amp;</span>shmem_vm_ops<span class="token punctuation">;</span>
+    <span class="token keyword">return</span> <span class="token number">0</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>这里面，vm_area_struct的vm_ops指向shmem_vm_ops。等从call_mmap中返回之后，shm_file_data的vm_ops指向了shmem_vm_ops，而vm_area_struct的vm_ops改为指向shm_vm_ops。</p>
+<p>我们来看一下，shm_vm_ops和shmem_vm_ops的定义。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">static</span> <span class="token keyword">const</span> <span class="token keyword">struct</span> <span class="token class-name">vm_operations_struct</span> shm_vm_ops <span class="token operator">=</span> <span class="token punctuation">{</span>
+    <span class="token punctuation">.</span>open   <span class="token operator">=</span> shm_open<span class="token punctuation">,</span> <span class="token comment">/* callback for a new vm-area open */</span>
+    <span class="token punctuation">.</span>close  <span class="token operator">=</span> shm_close<span class="token punctuation">,</span>    <span class="token comment">/* callback for when the vm-area is released */</span>
+    <span class="token punctuation">.</span>fault  <span class="token operator">=</span> shm_fault<span class="token punctuation">,</span>
+<span class="token punctuation">}</span><span class="token punctuation">;</span>
+
+<span class="token keyword">static</span> <span class="token keyword">const</span> <span class="token keyword">struct</span> <span class="token class-name">vm_operations_struct</span> shmem_vm_ops <span class="token operator">=</span> <span class="token punctuation">{</span>
+    <span class="token punctuation">.</span>fault      <span class="token operator">=</span> shmem_fault<span class="token punctuation">,</span>
+    <span class="token punctuation">.</span>map_pages  <span class="token operator">=</span> filemap_map_pages<span class="token punctuation">,</span>
+<span class="token punctuation">}</span><span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>它们里面最关键的就是fault函数，也即访问虚拟内存的时候，访问不到应该怎么办。</p>
+<p>当访问不到的时候，先调用vm_area_struct的vm_ops，也即shm_vm_ops的fault函数shm_fault。然后它会转而调用shm_file_data的vm_ops，也即shmem_vm_ops的fault函数shmem_fault。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">static</span> <span class="token keyword">int</span> <span class="token function">shm_fault</span><span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">vm_fault</span> <span class="token operator">*</span>vmf<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword">struct</span> <span class="token class-name">file</span> <span class="token operator">*</span>file <span class="token operator">=</span> vmf<span class="token operator">-&gt;</span>vma<span class="token operator">-&gt;</span>vm_file<span class="token punctuation">;</span>
+    <span class="token keyword">struct</span> <span class="token class-name">shm_file_data</span> <span class="token operator">*</span>sfd <span class="token operator">=</span> <span class="token function">shm_file_data</span><span class="token punctuation">(</span>file<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">return</span> sfd<span class="token operator">-&gt;</span>vm_ops<span class="token operator">-&gt;</span><span class="token function">fault</span><span class="token punctuation">(</span>vmf<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>虽然基于内存的文件系统，已经为这个内存文件分配了inode，但是内存也却是一点儿都没分配，只有在发生缺页异常的时候才进行分配。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">static</span> <span class="token keyword">int</span> <span class="token function">shmem_fault</span><span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">vm_fault</span> <span class="token operator">*</span>vmf<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword">struct</span> <span class="token class-name">vm_area_struct</span> <span class="token operator">*</span>vma <span class="token operator">=</span> vmf<span class="token operator">-&gt;</span>vma<span class="token punctuation">;</span>
+    <span class="token keyword">struct</span> <span class="token class-name">inode</span> <span class="token operator">*</span>inode <span class="token operator">=</span> <span class="token function">file_inode</span><span class="token punctuation">(</span>vma<span class="token operator">-&gt;</span>vm_file<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    gfp_t gfp <span class="token operator">=</span> <span class="token function">mapping_gfp_mask</span><span class="token punctuation">(</span>inode<span class="token operator">-&gt;</span>i_mapping<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    error <span class="token operator">=</span> <span class="token function">shmem_getpage_gfp</span><span class="token punctuation">(</span>inode<span class="token punctuation">,</span> vmf<span class="token operator">-&gt;</span>pgoff<span class="token punctuation">,</span> <span class="token operator">&amp;</span>vmf<span class="token operator">-&gt;</span>page<span class="token punctuation">,</span> sgp<span class="token punctuation">,</span>
+                  gfp<span class="token punctuation">,</span> vma<span class="token punctuation">,</span> vmf<span class="token punctuation">,</span> <span class="token operator">&amp;</span>ret<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+<span class="token punctuation">}</span>
+
+<span class="token comment">/*
+ * shmem_getpage_gfp - find page in cache, or get from swap, or allocate
+ *
+ * If we allocate a new one we do not mark it dirty. That's up to the
+ * vm. If we swap it in we mark it dirty since we also free the swap
+ * entry since a page cannot live in both the swap and page cache.
+ *
+ * fault_mm and fault_type are only supplied by shmem_fault:
+ * otherwise they are NULL.
+ */</span>
+<span class="token keyword">static</span> <span class="token keyword">int</span> <span class="token function">shmem_getpage_gfp</span><span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">inode</span> <span class="token operator">*</span>inode<span class="token punctuation">,</span> pgoff_t index<span class="token punctuation">,</span>
+    <span class="token keyword">struct</span> <span class="token class-name">page</span> <span class="token operator">*</span><span class="token operator">*</span>pagep<span class="token punctuation">,</span> <span class="token keyword">enum</span> <span class="token class-name">sgp_type</span> sgp<span class="token punctuation">,</span> gfp_t gfp<span class="token punctuation">,</span>
+    <span class="token keyword">struct</span> <span class="token class-name">vm_area_struct</span> <span class="token operator">*</span>vma<span class="token punctuation">,</span> <span class="token keyword">struct</span> <span class="token class-name">vm_fault</span> <span class="token operator">*</span>vmf<span class="token punctuation">,</span> <span class="token keyword">int</span> <span class="token operator">*</span>fault_type<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    page <span class="token operator">=</span> <span class="token function">shmem_alloc_and_acct_page</span><span class="token punctuation">(</span>gfp<span class="token punctuation">,</span> info<span class="token punctuation">,</span> sbinfo<span class="token punctuation">,</span>
+                    index<span class="token punctuation">,</span> false<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>shmem_fault会调用shmem_getpage_gfp在page cache和swap中找一个空闲页，如果找不到就通过shmem_alloc_and_acct_page分配一个新的页，他最终会调用内存管理系统的alloc_page_vma在物理内存中分配一个页。</p>
+<p>至此，共享内存才真的映射到了虚拟地址空间中，进程可以像访问本地内存一样访问共享内存。</p>
+<h4 id="36-3-总结"><a href="#36-3-总结" class="headerlink" title="36.3 总结"></a>36.3 总结</h4><p>我们来总结一下共享内存的创建和映射过程。</p>
+<ol>
+<li>调用shmget创建共享内存。</li>
+<li>先通过ipc_findkey在基数树中查找key对应的共享内存对象shmid_kernel是否已经被创建过，如果已经被创建，就会被查询出来，例如producer创建过，在consumer中就会查询出来。</li>
+<li>如果共享内存没有被创建过，则调用shm_ops的newseg方法，创建一个共享内存对象shmid_kernel。例如，在producer中就会新建。</li>
+<li>在shmem文件系统里面创建一个文件，共享内存对象shmid_kernel指向这个文件，这个文件用struct file表示，我们姑且称它为file1。</li>
+<li>调用shmat，将共享内存映射到虚拟地址空间。</li>
+<li>shm_obtain_object_check先从基数树里面找到shmid_kernel对象。</li>
+<li>创建用于内存映射到文件的file和shm_file_data，这里的struct file我们姑且称为file2。</li>
+<li>关联内存区域vm_area_struct和用于内存映射到文件的file，也即file2，调用file2的mmap函数。</li>
+<li>file2的mmap函数shm_mmap，会调用file1的mmap函数shmem_mmap，设置shm_file_data和vm_area_struct的vm_ops。</li>
+<li>内存映射完毕之后，其实并没有真的分配物理内存，当访问内存的时候，会触发缺页异常do_page_fault。</li>
+<li>vm_area_struct的vm_ops的shm_fault会调用shm_file_data的vm_ops的shmem_fault。</li>
+<li>在page cache中找一个空闲页，或者创建一个空闲页。</li>
+</ol>
+<p><img src="/images/《趣谈Linux操作系统》学习笔记/共享内存的创建和映射过程.png" alt="共享内存的创建和映射过程"></p>
 <h2 id="七、网络系统"><a href="#七、网络系统" class="headerlink" title="七、网络系统"></a>七、网络系统</h2><h2 id="八、虚拟化"><a href="#八、虚拟化" class="headerlink" title="八、虚拟化"></a>八、虚拟化</h2><h2 id="九、容器化"><a href="#九、容器化" class="headerlink" title="九、容器化"></a>九、容器化</h2>
                 
             </div>
@@ -8985,7 +9613,7 @@ retry<span class="token operator">:</span>
             <br>
             
             &nbsp;<i class="fas fa-chart-area"></i>&nbsp;站点总字数:&nbsp;<span
-                class="white-color">511.6k</span>&nbsp;字
+                class="white-color">517.9k</span>&nbsp;字
             
             
             
