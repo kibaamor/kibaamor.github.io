@@ -438,14 +438,14 @@
                 
                 <div class="info-break-policy">
                     <i class="far fa-file-word fa-fw"></i>文章字数:&nbsp;&nbsp;
-                    90.2k
+                    94.4k
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-clock fa-fw"></i>阅读时长:&nbsp;&nbsp;
-                    363 分
+                    379 分
                 </div>
                 
 
@@ -7431,7 +7431,240 @@ out_unlock<span class="token operator">:</span>
 <p>对于请求队列来讲，还有两个函数，一个函数叫make_request_fn函数，用于将请求放入队列。submit_bio会调用generic_make_request，然后调用这个函数。</p>
 <p>另一个函数往往在设备驱动程序里实现，我们叫request_fn函数，它用于从队列里面取出请求来，写入外部设备。</p>
 <p><img src="/images/《趣谈Linux操作系统》学习笔记/块设备写入时的request.png" alt="块设备写入时的request"></p>
+<h2 id="六、进程间通信"><a href="#六、进程间通信" class="headerlink" title="六、进程间通信"></a>六、进程间通信</h2><h3 id="31-进程间通信"><a href="#31-进程间通信" class="headerlink" title="31. 进程间通信"></a>31. 进程间通信</h3><h4 id="31-1-管道模型"><a href="#31-1-管道模型" class="headerlink" title="31.1 管道模型"></a>31.1 管道模型</h4><p>最最传统的模型就是软件开发的瀑布模型（Waterfall Model）。所谓的瀑布模型，其实就是将整个软件开发过程分成多个阶段，往往是上一个阶段完全做完，才将输出结果交给下一个阶段。</p>
+<p><img src="/images/《趣谈Linux操作系统》学习笔记/瀑布模型.png" alt="瀑布模型"></p>
+<p>这种模型类似进程间通信的<strong>管道模型</strong>。还记得咱们最初学Linux命令的时候，有下面这样一行命令：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token function">ps</span> -ef <span class="token operator">|</span> <span class="token function">grep</span> 关键字 <span class="token operator">|</span> <span class="token function">awk</span> <span class="token string">'{print <span class="token variable">$2</span>}'</span> <span class="token operator">|</span> <span class="token function">xargs</span> <span class="token function">kill</span> -9<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>这里面的竖线“|”就是一个管道。它会将前一个命令的输出，作为后一个命令的输入。从管道的这个名称可以看出来，管道是一种单向传输数据的机制，它其实是一段缓存，里面的数据只能从一端写入，从另一端读出。如果想互相通信，我们需要创建两个管道才行。</p>
+<p>管道分为两种类型，“|” 表示的管道称为<strong>匿名管道</strong>，意思就是这个类型的管道没有名字，用完了就销毁了。就像上面那个命令里面的一样，竖线代表的管道随着命令的执行自动创建、自动销毁。用户甚至都不知道自己在用管道这种技术，就已经解决了问题。所以这也是面试题里面经常会问的，到时候千万别说这是竖线，而要回答背后的机制，管道。</p>
+<p>另外一种类型是<strong>命名管道</strong>。这个类型的管道需要通过mkfifo命令显式地创建。</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token function">mkfifo</span> hello<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>hello就是这个管道的名称。管道以文件的形式存在，这也符合Linux里面一切皆文件的原则。这个时候，我们ls一下，可以看到，这个文件的类型是p，就是pipe的意思。</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ <span class="token function">ls</span> -l
+prw-r--r--  <span class="token number">1</span> root root         <span class="token number">0</span> May <span class="token number">21</span> <span class="token number">23</span>:29 hello<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre>
+<p>接下来，我们可以往管道里面写入东西。例如，写入一个字符串。</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ <span class="token builtin class-name">echo</span> <span class="token string">"hello world"</span> <span class="token operator">&gt;</span> hello<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>这个时候，管道里面的内容没有被读出，这个命令就是停在这里的，这说明当一个项目组要把它的输出交接给另一个项目组做输入，当没有交接完毕的时候，前一个项目组是不能撒手不管的。</p>
+<p>这个时候，我们就需要重新连接一个终端。在终端中，用下面的命令读取管道里面的内容：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ <span class="token function">cat</span> <span class="token operator">&lt;</span> hello
+hello world<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre>
+<p>一方面，我们能够看到，管道里面的内容被读取出来，打印到了终端上；另一方面，echo那个命令正常退出了，也即交接完毕，前一个项目组就完成了使命，可以解散了。</p>
+<p>我们可以看出，瀑布模型的开发流程效率比较低下，因为团队之间无法频繁地沟通。而且，管道的使用模式，也不适合进程间频繁的交换数据。</p>
+<p>于是，我们还得想其他的办法，例如我们是不是可以借鉴传统外企的沟通方式——邮件。邮件有一定的格式，例如抬头，正文，附件等，发送邮件可以建立收件人列表，所有在这个列表中的人，都可以反复的在此邮件基础上回复，达到频繁沟通的目的。</p>
+<h4 id="31-2-消息队列模型"><a href="#31-2-消息队列模型" class="headerlink" title="31.2 消息队列模型"></a>31.2 消息队列模型</h4><p><img src="/images/《趣谈Linux操作系统》学习笔记/消息队列模型.png" alt="消息队列模型"></p>
+<p>这种模型类似进程间通信的消息队列模型。和管道将信息一股脑儿地从一个进程，倒给另一个进程不同，消息队列有点儿像邮件，发送数据时，会分成一个一个独立的数据单元，也就是消息体，每个消息体都是固定大小的存储块，在字节流上不连续。</p>
+<p>这个消息结构的定义我写在下面了。这里面的类型type和正文text没有强制规定，只要消息的发送方和接收方约定好即可。</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">struct msg_buffer <span class="token punctuation">{</span>
+    long mtype<span class="token punctuation">;</span>
+    char mtext<span class="token punctuation">[</span><span class="token number">1024</span><span class="token punctuation">]</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span></span></code></pre>
+<p>接下来，我们需要创建一个消息队列，使用<strong>msgget函数</strong>。这个函数需要有一个参数key，这是消息队列的唯一标识，应该是唯一的。如何保持唯一性呢？这个还是和文件关联。</p>
+<p>我们可以指定一个文件，ftok会根据这个文件的inode，生成一个近乎唯一的key。只要在这个消息队列的生命周期内，这个文件不要被删除就可以了。只要不删除，无论什么时刻，再调用ftok，也会得到同样的key。这种key的使用方式在这一章会经常遇到，这是因为它们都属于System V IPC进程间通信机制体系中。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;stdio.h&gt;</span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;stdlib.h&gt;</span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;sys/msg.h&gt;</span></span>
 
+<span class="token keyword">int</span> <span class="token function">main</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+<span class="token keyword">int</span> messagequeueid<span class="token punctuation">;</span>
+key_t key<span class="token punctuation">;</span>
+
+<span class="token keyword">if</span><span class="token punctuation">(</span><span class="token punctuation">(</span>key <span class="token operator">=</span> <span class="token function">ftok</span><span class="token punctuation">(</span><span class="token string">"/root/messagequeue/messagequeuekey"</span><span class="token punctuation">,</span> <span class="token number">1024</span><span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token operator">&lt;</span> <span class="token number">0</span><span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token function">perror</span><span class="token punctuation">(</span><span class="token string">"ftok error"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token function">exit</span><span class="token punctuation">(</span><span class="token number">1</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+
+<span class="token function">printf</span><span class="token punctuation">(</span><span class="token string">"Message Queue key: %d.\n"</span><span class="token punctuation">,</span> key<span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+<span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token punctuation">(</span>messagequeueid <span class="token operator">=</span> <span class="token function">msgget</span><span class="token punctuation">(</span>key<span class="token punctuation">,</span> IPC_CREAT<span class="token operator">|</span><span class="token number">0777</span><span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token operator">==</span> <span class="token operator">-</span><span class="token number">1</span><span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token function">perror</span><span class="token punctuation">(</span><span class="token string">"msgget error"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token function">exit</span><span class="token punctuation">(</span><span class="token number">1</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+
+<span class="token function">printf</span><span class="token punctuation">(</span><span class="token string">"Message queue id: %d.\n"</span><span class="token punctuation">,</span> messagequeueid<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>在运行上面这个程序之前，我们先使用命令touch messagequeuekey，创建一个文件，然后多次执行的结果就会像下面这样：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ ./a.out
+Message Queue key: <span class="token number">92536</span>.
+Message queue id: <span class="token number">32768</span>.<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span></span></code></pre>
+<p>System V IPC体系有一个统一的命令行工具：ipcmk，ipcs和ipcrm用于创建、查看和删除IPC对象。</p>
+<p>例如，ipcs -q就能看到上面我们创建的消息队列对象。</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ ipcs -q
+------ Message Queues --------
+key        msqid      owner      perms      used-bytes   messages
+0x00016978 <span class="token number">32768</span>      root       <span class="token number">777</span>        <span class="token number">0</span>            <span class="token number">0</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span></span></code></pre>
+<p>接下来，我们来看如何发送信息。发送消息主要调用<strong>msgsnd函数</strong>。第一个参数是message queue的id，第二个参数是消息的结构体，第三个参数是消息的长度，最后一个参数是flag。这里IPC_NOWAIT表示发送的时候不阻塞，直接返回。</p>
+<p>下面的这段程序，getopt_long、do-while循环以及switch，是用来解析命令行参数的。命令行参数的格式定义在long_options里面。每一项的第一个成员“id”“type““message”是参数选项的全称，第二个成员都为1，表示参数选项后面要跟参数，最后一个成员’i’‘t’’m’是参数选项的简称。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;stdio.h&gt;</span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;stdlib.h&gt;</span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;sys/msg.h&gt;</span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;getopt.h&gt;</span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;string.h&gt;</span></span>
+
+<span class="token keyword">struct</span> <span class="token class-name">msg_buffer</span> <span class="token punctuation">{</span>
+    <span class="token keyword">long</span> mtype<span class="token punctuation">;</span>
+    <span class="token keyword">char</span> mtext<span class="token punctuation">[</span><span class="token number">1024</span><span class="token punctuation">]</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span class="token punctuation">;</span>
+
+<span class="token keyword">int</span> <span class="token function">main</span><span class="token punctuation">(</span><span class="token keyword">int</span> argc<span class="token punctuation">,</span> <span class="token keyword">char</span> <span class="token operator">*</span>argv<span class="token punctuation">[</span><span class="token punctuation">]</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+    <span class="token keyword">int</span> next_option<span class="token punctuation">;</span>
+    <span class="token keyword">const</span> <span class="token keyword">char</span><span class="token operator">*</span> <span class="token keyword">const</span> short_options <span class="token operator">=</span> <span class="token string">"i:t:m:"</span><span class="token punctuation">;</span>
+    <span class="token keyword">const</span> <span class="token keyword">struct</span> <span class="token class-name">option</span> long_options<span class="token punctuation">[</span><span class="token punctuation">]</span> <span class="token operator">=</span> <span class="token punctuation">{</span>
+        <span class="token punctuation">{</span> <span class="token string">"id"</span><span class="token punctuation">,</span> <span class="token number">1</span><span class="token punctuation">,</span> <span class="token constant">NULL</span><span class="token punctuation">,</span> <span class="token string">'i'</span><span class="token punctuation">}</span><span class="token punctuation">,</span>
+        <span class="token punctuation">{</span> <span class="token string">"type"</span><span class="token punctuation">,</span> <span class="token number">1</span><span class="token punctuation">,</span> <span class="token constant">NULL</span><span class="token punctuation">,</span> <span class="token string">'t'</span><span class="token punctuation">}</span><span class="token punctuation">,</span>
+        <span class="token punctuation">{</span> <span class="token string">"message"</span><span class="token punctuation">,</span> <span class="token number">1</span><span class="token punctuation">,</span> <span class="token constant">NULL</span><span class="token punctuation">,</span> <span class="token string">'m'</span><span class="token punctuation">}</span><span class="token punctuation">,</span>
+        <span class="token punctuation">{</span> <span class="token constant">NULL</span><span class="token punctuation">,</span> <span class="token number">0</span><span class="token punctuation">,</span> <span class="token constant">NULL</span><span class="token punctuation">,</span> <span class="token number">0</span> <span class="token punctuation">}</span>
+    <span class="token punctuation">}</span><span class="token punctuation">;</span>
+
+    <span class="token keyword">int</span> messagequeueid <span class="token operator">=</span> <span class="token operator">-</span><span class="token number">1</span><span class="token punctuation">;</span>
+    <span class="token keyword">struct</span> <span class="token class-name">msg_buffer</span> buffer<span class="token punctuation">;</span>
+    buffer<span class="token punctuation">.</span>mtype <span class="token operator">=</span> <span class="token operator">-</span><span class="token number">1</span><span class="token punctuation">;</span>
+    <span class="token keyword">int</span> len <span class="token operator">=</span> <span class="token operator">-</span><span class="token number">1</span><span class="token punctuation">;</span>
+    <span class="token keyword">char</span> <span class="token operator">*</span> message <span class="token operator">=</span> <span class="token constant">NULL</span><span class="token punctuation">;</span>
+    <span class="token keyword">do</span> <span class="token punctuation">{</span>
+        next_option <span class="token operator">=</span> <span class="token function">getopt_long</span> <span class="token punctuation">(</span>argc<span class="token punctuation">,</span> argv<span class="token punctuation">,</span> short_options<span class="token punctuation">,</span> long_options<span class="token punctuation">,</span> <span class="token constant">NULL</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token keyword">switch</span> <span class="token punctuation">(</span>next_option<span class="token punctuation">)</span>
+        <span class="token punctuation">{</span>
+        <span class="token keyword">case</span> <span class="token string">'i'</span><span class="token operator">:</span>
+            messagequeueid <span class="token operator">=</span> <span class="token function">atoi</span><span class="token punctuation">(</span>optarg<span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token keyword">break</span><span class="token punctuation">;</span>
+        <span class="token keyword">case</span> <span class="token string">'t'</span><span class="token operator">:</span>
+            buffer<span class="token punctuation">.</span>mtype <span class="token operator">=</span> <span class="token function">atol</span><span class="token punctuation">(</span>optarg<span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token keyword">break</span><span class="token punctuation">;</span>
+        <span class="token keyword">case</span> <span class="token string">'m'</span><span class="token operator">:</span>
+            message <span class="token operator">=</span> optarg<span class="token punctuation">;</span>
+            len <span class="token operator">=</span> <span class="token function">strlen</span><span class="token punctuation">(</span>message<span class="token punctuation">)</span> <span class="token operator">+</span> <span class="token number">1</span><span class="token punctuation">;</span>
+            <span class="token keyword">if</span> <span class="token punctuation">(</span>len <span class="token operator">&gt;</span> <span class="token number">1024</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+            <span class="token function">perror</span><span class="token punctuation">(</span><span class="token string">"message too long."</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token function">exit</span><span class="token punctuation">(</span><span class="token number">1</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token punctuation">}</span>
+            <span class="token function">memcpy</span><span class="token punctuation">(</span>buffer<span class="token punctuation">.</span>mtext<span class="token punctuation">,</span> message<span class="token punctuation">,</span> len<span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token keyword">break</span><span class="token punctuation">;</span>
+        <span class="token keyword">default</span><span class="token operator">:</span>
+            <span class="token keyword">break</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+    <span class="token punctuation">}</span><span class="token keyword">while</span><span class="token punctuation">(</span>next_option <span class="token operator">!=</span> <span class="token operator">-</span><span class="token number">1</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+    <span class="token keyword">if</span><span class="token punctuation">(</span>messagequeueid <span class="token operator">!=</span> <span class="token operator">-</span><span class="token number">1</span> <span class="token operator">&amp;&amp;</span> buffer<span class="token punctuation">.</span>mtype <span class="token operator">!=</span> <span class="token operator">-</span><span class="token number">1</span> <span class="token operator">&amp;&amp;</span> len <span class="token operator">!=</span> <span class="token operator">-</span><span class="token number">1</span> <span class="token operator">&amp;&amp;</span> message <span class="token operator">!=</span> <span class="token constant">NULL</span><span class="token punctuation">)</span><span class="token punctuation">{</span>
+        <span class="token keyword">if</span><span class="token punctuation">(</span><span class="token function">msgsnd</span><span class="token punctuation">(</span>messagequeueid<span class="token punctuation">,</span> <span class="token operator">&amp;</span>buffer<span class="token punctuation">,</span> len<span class="token punctuation">,</span> IPC_NOWAIT<span class="token punctuation">)</span> <span class="token operator">==</span> <span class="token operator">-</span><span class="token number">1</span><span class="token punctuation">)</span><span class="token punctuation">{</span>
+        <span class="token function">perror</span><span class="token punctuation">(</span><span class="token string">"fail to send message."</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token function">exit</span><span class="token punctuation">(</span><span class="token number">1</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+    <span class="token punctuation">}</span> <span class="token keyword">else</span> <span class="token punctuation">{</span>
+        <span class="token function">perror</span><span class="token punctuation">(</span><span class="token string">"arguments error"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+
+    <span class="token keyword">return</span> <span class="token number">0</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>接下来，我们可以编译并运行这个发送程序。</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">gcc -o send sendmessage.c
+./send -i <span class="token number">32768</span> -t <span class="token number">123</span> -m <span class="token string">"hello world"</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre>
+<p>接下来，我们再来看如何收消息。收消息主要调用<strong>msgrcv函数</strong>，第一个参数是message queue的id，第二个参数是消息的结构体，第三个参数是可接受的最大长度，第四个参数是消息类型,最后一个参数是flag，这里IPC_NOWAIT表示接收的时候不阻塞，直接返回。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;stdio.h&gt;</span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;stdlib.h&gt;</span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;sys/msg.h&gt;</span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;getopt.h&gt;</span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;string.h&gt;</span></span>
+
+<span class="token keyword">struct</span> <span class="token class-name">msg_buffer</span> <span class="token punctuation">{</span>
+    <span class="token keyword">long</span> mtype<span class="token punctuation">;</span>
+    <span class="token keyword">char</span> mtext<span class="token punctuation">[</span><span class="token number">1024</span><span class="token punctuation">]</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span class="token punctuation">;</span>
+
+<span class="token keyword">int</span> <span class="token function">main</span><span class="token punctuation">(</span><span class="token keyword">int</span> argc<span class="token punctuation">,</span> <span class="token keyword">char</span> <span class="token operator">*</span>argv<span class="token punctuation">[</span><span class="token punctuation">]</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+    <span class="token keyword">int</span> next_option<span class="token punctuation">;</span>
+    <span class="token keyword">const</span> <span class="token keyword">char</span><span class="token operator">*</span> <span class="token keyword">const</span> short_options <span class="token operator">=</span> <span class="token string">"i:t:"</span><span class="token punctuation">;</span>
+    <span class="token keyword">const</span> <span class="token keyword">struct</span> <span class="token class-name">option</span> long_options<span class="token punctuation">[</span><span class="token punctuation">]</span> <span class="token operator">=</span> <span class="token punctuation">{</span>
+        <span class="token punctuation">{</span> <span class="token string">"id"</span><span class="token punctuation">,</span> <span class="token number">1</span><span class="token punctuation">,</span> <span class="token constant">NULL</span><span class="token punctuation">,</span> <span class="token string">'i'</span><span class="token punctuation">}</span><span class="token punctuation">,</span>
+        <span class="token punctuation">{</span> <span class="token string">"type"</span><span class="token punctuation">,</span> <span class="token number">1</span><span class="token punctuation">,</span> <span class="token constant">NULL</span><span class="token punctuation">,</span> <span class="token string">'t'</span><span class="token punctuation">}</span><span class="token punctuation">,</span>
+        <span class="token punctuation">{</span> <span class="token constant">NULL</span><span class="token punctuation">,</span> <span class="token number">0</span><span class="token punctuation">,</span> <span class="token constant">NULL</span><span class="token punctuation">,</span> <span class="token number">0</span> <span class="token punctuation">}</span>
+    <span class="token punctuation">}</span><span class="token punctuation">;</span>
+
+    <span class="token keyword">int</span> messagequeueid <span class="token operator">=</span> <span class="token operator">-</span><span class="token number">1</span><span class="token punctuation">;</span>
+    <span class="token keyword">struct</span> <span class="token class-name">msg_buffer</span> buffer<span class="token punctuation">;</span>
+    <span class="token keyword">long</span> type <span class="token operator">=</span> <span class="token operator">-</span><span class="token number">1</span><span class="token punctuation">;</span>
+    <span class="token keyword">do</span> <span class="token punctuation">{</span>
+        next_option <span class="token operator">=</span> <span class="token function">getopt_long</span> <span class="token punctuation">(</span>argc<span class="token punctuation">,</span> argv<span class="token punctuation">,</span> short_options<span class="token punctuation">,</span> long_options<span class="token punctuation">,</span> <span class="token constant">NULL</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token keyword">switch</span> <span class="token punctuation">(</span>next_option<span class="token punctuation">)</span>
+        <span class="token punctuation">{</span>
+        <span class="token keyword">case</span> <span class="token string">'i'</span><span class="token operator">:</span>
+            messagequeueid <span class="token operator">=</span> <span class="token function">atoi</span><span class="token punctuation">(</span>optarg<span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token keyword">break</span><span class="token punctuation">;</span>
+        <span class="token keyword">case</span> <span class="token string">'t'</span><span class="token operator">:</span>
+            type <span class="token operator">=</span> <span class="token function">atol</span><span class="token punctuation">(</span>optarg<span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token keyword">break</span><span class="token punctuation">;</span>
+        <span class="token keyword">default</span><span class="token operator">:</span>
+            <span class="token keyword">break</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+    <span class="token punctuation">}</span><span class="token keyword">while</span><span class="token punctuation">(</span>next_option <span class="token operator">!=</span> <span class="token operator">-</span><span class="token number">1</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+    <span class="token keyword">if</span><span class="token punctuation">(</span>messagequeueid <span class="token operator">!=</span> <span class="token operator">-</span><span class="token number">1</span> <span class="token operator">&amp;&amp;</span> type <span class="token operator">!=</span> <span class="token operator">-</span><span class="token number">1</span><span class="token punctuation">)</span><span class="token punctuation">{</span>
+        <span class="token keyword">if</span><span class="token punctuation">(</span><span class="token function">msgrcv</span><span class="token punctuation">(</span>messagequeueid<span class="token punctuation">,</span> <span class="token operator">&amp;</span>buffer<span class="token punctuation">,</span> <span class="token number">1024</span><span class="token punctuation">,</span> type<span class="token punctuation">,</span> IPC_NOWAIT<span class="token punctuation">)</span> <span class="token operator">==</span> <span class="token operator">-</span><span class="token number">1</span><span class="token punctuation">)</span><span class="token punctuation">{</span>
+        <span class="token function">perror</span><span class="token punctuation">(</span><span class="token string">"fail to recv message."</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token function">exit</span><span class="token punctuation">(</span><span class="token number">1</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+        <span class="token function">printf</span><span class="token punctuation">(</span><span class="token string">"received message type : %d, text: %s."</span><span class="token punctuation">,</span> buffer<span class="token punctuation">.</span>mtype<span class="token punctuation">,</span> buffer<span class="token punctuation">.</span>mtext<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span> <span class="token keyword">else</span> <span class="token punctuation">{</span>
+        <span class="token function">perror</span><span class="token punctuation">(</span><span class="token string">"arguments error"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+
+    <span class="token keyword">return</span> <span class="token number">0</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>接下来，我们可以编译并运行这个发送程序。可以看到，如果有消息，可以正确地读到消息；如果没有，则返回没有消息。</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ ./recv -i <span class="token number">32768</span> -t <span class="token number">123</span>
+received message <span class="token builtin class-name">type</span> <span class="token builtin class-name">:</span> <span class="token number">123</span>, text: hello world.
+$ ./recv -i <span class="token number">32768</span> -t <span class="token number">123</span>
+fail to recv message.: No message of desired <span class="token builtin class-name">type</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span></span></code></pre>
+<p>有了消息这种模型，两个进程之间的通信就像咱们平时发邮件一样，你来一封，我回一封，可以频繁沟通了。</p>
+<h4 id="31-3-共享内存模型"><a href="#31-3-共享内存模型" class="headerlink" title="31.3 共享内存模型"></a>31.3 共享内存模型</h4><p>但是有时候，项目组之间的沟通需要特别紧密，而且要分享一些比较大的数据。如果使用邮件，就发现，一方面邮件的来去不及时；另外一方面，附件大小也有限制，所以，这个时候，我们经常采取的方式就是，把两个项目组在需要合作的期间，拉到一个会议室进行合作开发，这样大家可以直接交流文档呀，架构图呀，直接在白板上画或者直接扔给对方，就可以直接看到。</p>
+<p>可以看出来，共享会议室这种模型，类似进程间通信的<strong>共享内存模型</strong>。前面咱们讲内存管理的时候，知道每个进程都有自己独立的虚拟内存空间，不同的进程的虚拟内存空间映射到不同的物理内存中去。这个进程访问A地址和另一个进程访问A地址，其实访问的是不同的物理内存地址，对于数据的增删查改互不影响。</p>
+<p>但是，咱们是不是可以变通一下，拿出一块虚拟地址空间来，映射到相同的物理内存中。这样这个进程写入的东西，另外一个进程马上就能看到了，都不需要拷贝来拷贝去，传来传去。</p>
+<p>共享内存也是System V IPC进程间通信机制体系中的，所以从它使用流程可以看到熟悉的面孔。</p>
+<p>我们可以创建一个共享内存，调用shmget。在这个体系中，创建一个IPC对象都是xxxget，这里面第一个参数是key，和msgget里面的key一样，都是唯一定位一个共享内存对象，也可以通过关联文件的方式实现唯一性。第二个参数是共享内存的大小。第三个参数如果是IPC_CREAT，同样表示创建一个新的。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">int</span> <span class="token function">shmget</span><span class="token punctuation">(</span>key_t key<span class="token punctuation">,</span> size_t size<span class="token punctuation">,</span> <span class="token keyword">int</span> flag<span class="token punctuation">)</span><span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>创建完毕之后，我们可以通过ipcs命令查看这个共享内存。</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ ipcs ­­--shmems
+------ Shared Memory Segments ------ ­­­­­­­­
+key        shmid    owner perms    bytes nattch status
+0x00000000 <span class="token number">19398656</span> marc  <span class="token number">600</span>    <span class="token number">1048576</span> <span class="token number">2</span>      dest<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span></span></code></pre>
+<p>接下来，如果一个进程想要访问这一段共享内存，需要将这个内存加载到自己的虚拟地址空间的某个位置，通过shmat函数，就是attach的意思。其中addr就是要指定attach到这个地方。但是这个地址的设定难度比较大，除非对于内存布局非常熟悉，否则可能会attach到一个非法地址。所以，通常的做法是将addr设为NULL，让内核选一个合适的地址。返回值就是真正被attach的地方。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">void</span> <span class="token operator">*</span><span class="token function">shmat</span><span class="token punctuation">(</span><span class="token keyword">int</span> shm_id<span class="token punctuation">,</span> <span class="token keyword">const</span> <span class="token keyword">void</span> <span class="token operator">*</span>addr<span class="token punctuation">,</span> <span class="token keyword">int</span> flag<span class="token punctuation">)</span><span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>如果共享内存使用完毕，可以通过shmdt解除绑定，然后通过shmctl，将cmd设置为IPC_RMID，从而删除这个共享内存对象。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">int</span> <span class="token function">shmdt</span><span class="token punctuation">(</span><span class="token keyword">void</span> <span class="token operator">*</span>addr<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token keyword">int</span> <span class="token function">shmctl</span><span class="token punctuation">(</span><span class="token keyword">int</span> shm_id<span class="token punctuation">,</span> <span class="token keyword">int</span> cmd<span class="token punctuation">,</span> <span class="token keyword">struct</span> <span class="token class-name">shmid_ds</span> <span class="token operator">*</span>buf<span class="token punctuation">)</span><span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre>
+<h4 id="31-4-信号量"><a href="#31-4-信号量" class="headerlink" title="31.4 信号量"></a>31.4 信号量</h4><p>需要一种保护机制，使得同一个共享的资源，同时只能被一个进程访问。在System V IPC进程间通信机制体系中，早就想好了应对办法，就是信号量（Semaphore）。因此，信号量和共享内存往往要配合使用。</p>
+<p>信号量其实是一个计数器，主要用于实现进程间的互斥与同步，而不是用于存储进程间通信数据。</p>
+<p>我们可以将信号量初始化为一个数值，来代表某种资源的总体数量。对于信号量来讲，会定义两种原子操作，一个是<strong>P操作</strong>，我们称为<strong>申请资源操作</strong>。这个操作会申请将信号量的数值减去N，表示这些数量被他申请使用了，其他人不能用了。另一个是<strong>V操作</strong>，我们称为<strong>归还资源操作</strong>，这个操作会申请将信号量加上M，表示这些数量已经还给信号量了，其他人可以使用了。</p>
+<p>如果想创建一个信号量，我们可以通过semget函数。看，又是xxxget，第一个参数key也是类似的，第二个参数num_sems不是指资源的数量，而是表示可以创建多少个信号量，形成一组信号量，也就是说，如果你有多种资源需要管理，可以创建一个信号量组。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">int</span> <span class="token function">semget</span><span class="token punctuation">(</span>key_t key<span class="token punctuation">,</span> <span class="token keyword">int</span> num_sems<span class="token punctuation">,</span> <span class="token keyword">int</span> sem_flags<span class="token punctuation">)</span><span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>接下来，我们需要初始化信号量的总的资源数量。通过semctl函数，第一个参数semid是这个信号量组的id，第二个参数semnum才是在这个信号量组中某个信号量的id，第三个参数是命令，如果是初始化，则用SETVAL，第四个参数是一个union。如果初始化，应该用里面的val设置资源总量。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">int</span> <span class="token function">semctl</span><span class="token punctuation">(</span><span class="token keyword">int</span> semid<span class="token punctuation">,</span> <span class="token keyword">int</span> semnum<span class="token punctuation">,</span> <span class="token keyword">int</span> cmd<span class="token punctuation">,</span> <span class="token keyword">union</span> semun args<span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+<span class="token keyword">union</span> semun
+<span class="token punctuation">{</span>
+    <span class="token keyword">int</span> val<span class="token punctuation">;</span>
+    <span class="token keyword">struct</span> <span class="token class-name">semid_ds</span> <span class="token operator">*</span>buf<span class="token punctuation">;</span>
+    <span class="token keyword">unsigned</span> <span class="token keyword">short</span> <span class="token keyword">int</span> <span class="token operator">*</span>array<span class="token punctuation">;</span>
+    <span class="token keyword">struct</span> <span class="token class-name">seminfo</span> <span class="token operator">*</span>__buf<span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>无论是P操作还是V操作，我们统一用semop函数。第一个参数还是信号量组的id，一次可以操作多个信号量。第三个参数numops就是有多少个操作，第二个参数将这些操作放在一个数组中。</p>
+<p>数组的每一项是一个struct sembuf，里面的第一个成员是这个操作的对象是哪个信号量。</p>
+<p>第二个成员就是要对这个信号量做多少改变。如果sem_op &lt; 0，就请求sem_op的绝对值的资源。如果相应的资源数可以满足请求，则将该信号量的值减去sem_op的绝对值，函数成功返回。</p>
+<p>当相应的资源数不能满足请求时，就要看sem_flg了。如果把sem_flg设置为IPC_NOWAIT，也就是没有资源也不等待，则semop函数出错返回EAGAIN。如果sem_flg 没有指定IPC_NOWAIT，则进程挂起，直到当相应的资源数可以满足请求。若sem_op &gt; 0，表示进程归还相应的资源数，将 sem_op 的值加到信号量的值上。如果有进程正在休眠等待此信号量，则唤醒它们。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">int</span> <span class="token function">semop</span><span class="token punctuation">(</span><span class="token keyword">int</span> semid<span class="token punctuation">,</span> <span class="token keyword">struct</span> <span class="token class-name">sembuf</span> semoparray<span class="token punctuation">[</span><span class="token punctuation">]</span><span class="token punctuation">,</span> size_t numops<span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+<span class="token keyword">struct</span> <span class="token class-name">sembuf</span>
+<span class="token punctuation">{</span>
+  <span class="token keyword">short</span> sem_num<span class="token punctuation">;</span> <span class="token comment">// 信号量组中对应的序号，0～sem_nums-1</span>
+  <span class="token keyword">short</span> sem_op<span class="token punctuation">;</span>  <span class="token comment">// 信号量值在一次操作中的改变量</span>
+  <span class="token keyword">short</span> sem_flg<span class="token punctuation">;</span> <span class="token comment">// IPC_NOWAIT, SEM_UNDO</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<h4 id="31-5-信号"><a href="#31-5-信号" class="headerlink" title="31.5 信号"></a>31.5 信号</h4><p>上面讲的进程间通信的方式，都是常规状态下的工作模式，对应到咱们平时的工作交接，收发邮件、联合开发等，其实还有一种异常情况下的工作模式。</p>
+<p>例如出现线上系统故障，这个时候，什么流程都来不及了，不可能发邮件，也来不及开会，所有的架构师、开发、运维都要被通知紧急出动。所以，7乘24小时不间断执行的系统都需要有告警系统，一旦出事情，就要通知到人，哪怕是半夜，也要电话叫起来，处理故障。</p>
+<p>对应到操作系统中，就是信号。信号没有特别复杂的数据结构，就是用一个代号一样的数字。Linux提供了几十种信号，分别代表不同的意义。信号之间依靠它们的值来区分。这就像咱们看警匪片，对于紧急的行动，都是说，“1号作战任务”开始执行，警察就开始行动了。情况紧急，不能啰里啰嗦了。</p>
+<p>信号可以在任何时候发送给某一进程，进程需要为这个信号配置信号处理函数。当某个信号发生的时候，就默认执行这个函数就可以了。这就相当于咱们运维一个系统应急手册，当遇到什么情况，做什么事情，都事先准备好，出了事情照着做就可以了。</p>
+<h2 id="七、网络系统"><a href="#七、网络系统" class="headerlink" title="七、网络系统"></a>七、网络系统</h2><h2 id="八、虚拟化"><a href="#八、虚拟化" class="headerlink" title="八、虚拟化"></a>八、虚拟化</h2><h2 id="九、容器化"><a href="#九、容器化" class="headerlink" title="九、容器化"></a>九、容器化</h2>
                 
             </div>
             <hr/>
@@ -7832,7 +8065,7 @@ out_unlock<span class="token operator">:</span>
             <br>
             
             &nbsp;<i class="fas fa-chart-area"></i>&nbsp;站点总字数:&nbsp;<span
-                class="white-color">496.6k</span>&nbsp;字
+                class="white-color">500.7k</span>&nbsp;字
             
             
             
