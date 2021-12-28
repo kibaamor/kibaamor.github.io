@@ -431,21 +431,21 @@
                 
                 <div class="post-date info-break-policy">
                     <i class="far fa-calendar-check fa-fw"></i>更新日期:&nbsp;&nbsp;
-                    2021-12-27
+                    2021-12-28
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-file-word fa-fw"></i>文章字数:&nbsp;&nbsp;
-                    111.6k
+                    115.6k
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-clock fa-fw"></i>阅读时长:&nbsp;&nbsp;
-                    451 分
+                    469 分
                 </div>
                 
 
@@ -9212,6 +9212,440 @@ $ ./consumer
 <li>在page cache中找一个空闲页，或者创建一个空闲页。</li>
 </ol>
 <p><img src="/images/《趣谈Linux操作系统》学习笔记/共享内存的创建和映射过程.png" alt="共享内存的创建和映射过程"></p>
+<h3 id="37-IPC（下）"><a href="#37-IPC（下）" class="headerlink" title="37. IPC（下）"></a>37. IPC（下）</h3><p>今天我们来看最后一部分，信号量的内核机制。</p>
+<p>首先，我们需要创建一个信号量，调用的是系统调用semget。代码如下：</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token function">SYSCALL_DEFINE3</span><span class="token punctuation">(</span>semget<span class="token punctuation">,</span> key_t<span class="token punctuation">,</span> key<span class="token punctuation">,</span> <span class="token keyword">int</span><span class="token punctuation">,</span> nsems<span class="token punctuation">,</span> <span class="token keyword">int</span><span class="token punctuation">,</span> semflg<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword">struct</span> <span class="token class-name">ipc_namespace</span> <span class="token operator">*</span>ns<span class="token punctuation">;</span>
+    <span class="token keyword">static</span> <span class="token keyword">const</span> <span class="token keyword">struct</span> <span class="token class-name">ipc_ops</span> sem_ops <span class="token operator">=</span> <span class="token punctuation">{</span>
+        <span class="token punctuation">.</span>getnew <span class="token operator">=</span> newary<span class="token punctuation">,</span>
+        <span class="token punctuation">.</span>associate <span class="token operator">=</span> sem_security<span class="token punctuation">,</span>
+        <span class="token punctuation">.</span>more_checks <span class="token operator">=</span> sem_more_checks<span class="token punctuation">,</span>
+    <span class="token punctuation">}</span><span class="token punctuation">;</span>
+    <span class="token keyword">struct</span> <span class="token class-name">ipc_params</span> sem_params<span class="token punctuation">;</span>
+    ns <span class="token operator">=</span> current<span class="token operator">-&gt;</span>nsproxy<span class="token operator">-&gt;</span>ipc_ns<span class="token punctuation">;</span>
+    sem_params<span class="token punctuation">.</span>key <span class="token operator">=</span> key<span class="token punctuation">;</span>
+    sem_params<span class="token punctuation">.</span>flg <span class="token operator">=</span> semflg<span class="token punctuation">;</span>
+    sem_params<span class="token punctuation">.</span>u<span class="token punctuation">.</span>nsems <span class="token operator">=</span> nsems<span class="token punctuation">;</span>
+    <span class="token keyword">return</span> <span class="token function">ipcget</span><span class="token punctuation">(</span>ns<span class="token punctuation">,</span> <span class="token operator">&amp;</span><span class="token function">sem_ids</span><span class="token punctuation">(</span>ns<span class="token punctuation">)</span><span class="token punctuation">,</span> <span class="token operator">&amp;</span>sem_ops<span class="token punctuation">,</span> <span class="token operator">&amp;</span>sem_params<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>我们解析过了共享内存，再看信号量，就顺畅很多了。这里同样调用了抽象的ipcget，参数分别为信号量对应的sem_ids、对应的操作sem_ops以及对应的参数sem_params。</p>
+<p>ipcget的代码我们已经解析过了。如果key设置为IPC_PRIVATE则永远创建新的；如果不是的话，就会调用ipcget_public。</p>
+<p>在ipcget_public中，我们能会按照key，去查找struct kern_ipc_perm。如果没有找到，那就看看是否设置了IPC_CREAT。如果设置了，就创建一个新的。如果找到了，就将对应的id返回。</p>
+<p>我们这里重点看，如何按照参数sem_ops，创建新的信号量会调用newary。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">static</span> <span class="token keyword">int</span> <span class="token function">newary</span><span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">ipc_namespace</span> <span class="token operator">*</span>ns<span class="token punctuation">,</span> <span class="token keyword">struct</span> <span class="token class-name">ipc_params</span> <span class="token operator">*</span>params<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword">int</span> retval<span class="token punctuation">;</span>
+    <span class="token keyword">struct</span> <span class="token class-name">sem_array</span> <span class="token operator">*</span>sma<span class="token punctuation">;</span>
+    key_t key <span class="token operator">=</span> params<span class="token operator">-&gt;</span>key<span class="token punctuation">;</span>
+    <span class="token keyword">int</span> nsems <span class="token operator">=</span> params<span class="token operator">-&gt;</span>u<span class="token punctuation">.</span>nsems<span class="token punctuation">;</span>
+    <span class="token keyword">int</span> semflg <span class="token operator">=</span> params<span class="token operator">-&gt;</span>flg<span class="token punctuation">;</span>
+    <span class="token keyword">int</span> i<span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    sma <span class="token operator">=</span> <span class="token function">sem_alloc</span><span class="token punctuation">(</span>nsems<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    sma<span class="token operator">-&gt;</span>sem_perm<span class="token punctuation">.</span>mode <span class="token operator">=</span> <span class="token punctuation">(</span>semflg <span class="token operator">&amp;</span> S_IRWXUGO<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    sma<span class="token operator">-&gt;</span>sem_perm<span class="token punctuation">.</span>key <span class="token operator">=</span> key<span class="token punctuation">;</span>
+    sma<span class="token operator">-&gt;</span>sem_perm<span class="token punctuation">.</span>security <span class="token operator">=</span> <span class="token constant">NULL</span><span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    <span class="token keyword">for</span> <span class="token punctuation">(</span>i <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span> i <span class="token operator">&lt;</span> nsems<span class="token punctuation">;</span> i<span class="token operator">++</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+        <span class="token function">INIT_LIST_HEAD</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>sma<span class="token operator">-&gt;</span>sems<span class="token punctuation">[</span>i<span class="token punctuation">]</span><span class="token punctuation">.</span>pending_alter<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token function">INIT_LIST_HEAD</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>sma<span class="token operator">-&gt;</span>sems<span class="token punctuation">[</span>i<span class="token punctuation">]</span><span class="token punctuation">.</span>pending_const<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token function">spin_lock_init</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>sma<span class="token operator">-&gt;</span>sems<span class="token punctuation">[</span>i<span class="token punctuation">]</span><span class="token punctuation">.</span>lock<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+    sma<span class="token operator">-&gt;</span>complex_count <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span>
+    sma<span class="token operator">-&gt;</span>use_global_lock <span class="token operator">=</span> USE_GLOBAL_LOCK_HYSTERESIS<span class="token punctuation">;</span>
+    <span class="token function">INIT_LIST_HEAD</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>sma<span class="token operator">-&gt;</span>pending_alter<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token function">INIT_LIST_HEAD</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>sma<span class="token operator">-&gt;</span>pending_const<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token function">INIT_LIST_HEAD</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>sma<span class="token operator">-&gt;</span>list_id<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    sma<span class="token operator">-&gt;</span>sem_nsems <span class="token operator">=</span> nsems<span class="token punctuation">;</span>
+    sma<span class="token operator">-&gt;</span>sem_ctime <span class="token operator">=</span> <span class="token function">get_seconds</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    retval <span class="token operator">=</span> <span class="token function">ipc_addid</span><span class="token punctuation">(</span><span class="token operator">&amp;</span><span class="token function">sem_ids</span><span class="token punctuation">(</span>ns<span class="token punctuation">)</span><span class="token punctuation">,</span> <span class="token operator">&amp;</span>sma<span class="token operator">-&gt;</span>sem_perm<span class="token punctuation">,</span> ns<span class="token operator">-&gt;</span>sc_semmni<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    ns<span class="token operator">-&gt;</span>used_sems <span class="token operator">+=</span> nsems<span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    <span class="token keyword">return</span> sma<span class="token operator">-&gt;</span>sem_perm<span class="token punctuation">.</span>id<span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>newary函数的第一步，通过kvmalloc在直接映射区分配一个struct sem_array结构。这个结构是用来描述信号量的，这个结构最开始就是上面说的struct kern_ipc_perm结构。接下来就是填充这个struct sem_array结构，例如key、权限等。</p>
+<p>struct sem_array里有多个信号量，放在struct sem sems[]数组里面，在struct sem里面有当前的信号量的数值semval。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">struct</span> <span class="token class-name">sem</span> <span class="token punctuation">{</span>
+    <span class="token keyword">int</span> semval<span class="token punctuation">;</span>                     <span class="token comment">/* current value */</span>
+    <span class="token comment">/*
+     * PID of the process that last modified the semaphore. For
+     * Linux, specifically these are:
+     *  - semop
+     *  - semctl, via SETVAL and SETALL.
+     *  - at task exit when performing undo adjustments (see exit_sem).
+     */</span>
+    <span class="token keyword">int</span> sempid<span class="token punctuation">;</span>
+    spinlock_t  lock<span class="token punctuation">;</span>               <span class="token comment">/* spinlock for fine-grained semtimedop */</span>
+    <span class="token keyword">struct</span> <span class="token class-name">list_head</span> pending_alter<span class="token punctuation">;</span> <span class="token comment">/* pending single-sop operations that alter the semaphore */</span>
+    <span class="token keyword">struct</span> <span class="token class-name">list_head</span> pending_const<span class="token punctuation">;</span> <span class="token comment">/* pending single-sop operations that do not alter the semaphore*/</span>
+    time_t  sem_otime<span class="token punctuation">;</span>              <span class="token comment">/* candidate for sem_otime */</span>
+<span class="token punctuation">}</span> ____cacheline_aligned_in_smp<span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>struct sem_array和struct sem各有一个链表struct list_head pending_alter，分别表示对于整个信号量数组的修改和对于某个信号量的修改。</p>
+<p>newary函数的第二步，就是初始化这些链表。</p>
+<p>newary函数的第三步，通过ipc_addid将新创建的struct sem_array结构，挂到sem_ids里面的基数树上，并返回相应的id。</p>
+<p>信号量创建的过程到此结束，接下来我们来看，如何通过semctl对信号量数组进行初始化。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token function">SYSCALL_DEFINE4</span><span class="token punctuation">(</span>semctl<span class="token punctuation">,</span> <span class="token keyword">int</span><span class="token punctuation">,</span> semid<span class="token punctuation">,</span> <span class="token keyword">int</span><span class="token punctuation">,</span> semnum<span class="token punctuation">,</span> <span class="token keyword">int</span><span class="token punctuation">,</span> cmd<span class="token punctuation">,</span> <span class="token keyword">unsigned</span> <span class="token keyword">long</span><span class="token punctuation">,</span> arg<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword">int</span> version<span class="token punctuation">;</span>
+    <span class="token keyword">struct</span> <span class="token class-name">ipc_namespace</span> <span class="token operator">*</span>ns<span class="token punctuation">;</span>
+    <span class="token keyword">void</span> __user <span class="token operator">*</span>p <span class="token operator">=</span> <span class="token punctuation">(</span><span class="token keyword">void</span> __user <span class="token operator">*</span><span class="token punctuation">)</span>arg<span class="token punctuation">;</span>
+    ns <span class="token operator">=</span> current<span class="token operator">-&gt;</span>nsproxy<span class="token operator">-&gt;</span>ipc_ns<span class="token punctuation">;</span>
+    <span class="token keyword">switch</span> <span class="token punctuation">(</span>cmd<span class="token punctuation">)</span> <span class="token punctuation">{</span>
+    <span class="token keyword">case</span> IPC_INFO<span class="token operator">:</span>
+    <span class="token keyword">case</span> SEM_INFO<span class="token operator">:</span>
+    <span class="token keyword">case</span> IPC_STAT<span class="token operator">:</span>
+    <span class="token keyword">case</span> SEM_STAT<span class="token operator">:</span>
+        <span class="token keyword">return</span> <span class="token function">semctl_nolock</span><span class="token punctuation">(</span>ns<span class="token punctuation">,</span> semid<span class="token punctuation">,</span> cmd<span class="token punctuation">,</span> version<span class="token punctuation">,</span> p<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">case</span> GETALL<span class="token operator">:</span>
+    <span class="token keyword">case</span> GETVAL<span class="token operator">:</span>
+    <span class="token keyword">case</span> GETPID<span class="token operator">:</span>
+    <span class="token keyword">case</span> GETNCNT<span class="token operator">:</span>
+    <span class="token keyword">case</span> GETZCNT<span class="token operator">:</span>
+    <span class="token keyword">case</span> SETALL<span class="token operator">:</span>
+        <span class="token keyword">return</span> <span class="token function">semctl_main</span><span class="token punctuation">(</span>ns<span class="token punctuation">,</span> semid<span class="token punctuation">,</span> semnum<span class="token punctuation">,</span> cmd<span class="token punctuation">,</span> p<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">case</span> SETVAL<span class="token operator">:</span>
+        <span class="token keyword">return</span> <span class="token function">semctl_setval</span><span class="token punctuation">(</span>ns<span class="token punctuation">,</span> semid<span class="token punctuation">,</span> semnum<span class="token punctuation">,</span> arg<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">case</span> IPC_RMID<span class="token operator">:</span>
+    <span class="token keyword">case</span> IPC_SET<span class="token operator">:</span>
+        <span class="token keyword">return</span> <span class="token function">semctl_down</span><span class="token punctuation">(</span>ns<span class="token punctuation">,</span> semid<span class="token punctuation">,</span> cmd<span class="token punctuation">,</span> version<span class="token punctuation">,</span> p<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">default</span><span class="token operator">:</span>
+        <span class="token keyword">return</span> <span class="token operator">-</span>EINVAL<span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>这里我们重点看，SETALL操作调用的semctl_main函数，以及SETVAL操作调用的semctl_setval函数。</p>
+<p>对于SETALL操作来讲，传进来的参数为union semun里面的unsigned short *array，会设置整个信号量集合。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">static</span> <span class="token keyword">int</span> <span class="token function">semctl_main</span><span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">ipc_namespace</span> <span class="token operator">*</span>ns<span class="token punctuation">,</span> <span class="token keyword">int</span> semid<span class="token punctuation">,</span> <span class="token keyword">int</span> semnum<span class="token punctuation">,</span>
+        <span class="token keyword">int</span> cmd<span class="token punctuation">,</span> <span class="token keyword">void</span> __user <span class="token operator">*</span>p<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword">struct</span> <span class="token class-name">sem_array</span> <span class="token operator">*</span>sma<span class="token punctuation">;</span>
+    <span class="token keyword">struct</span> <span class="token class-name">sem</span> <span class="token operator">*</span>curr<span class="token punctuation">;</span>
+    <span class="token keyword">int</span> err<span class="token punctuation">,</span> nsems<span class="token punctuation">;</span>
+    ushort fast_sem_io<span class="token punctuation">[</span>SEMMSL_FAST<span class="token punctuation">]</span><span class="token punctuation">;</span>
+    ushort <span class="token operator">*</span>sem_io <span class="token operator">=</span> fast_sem_io<span class="token punctuation">;</span>
+    <span class="token function">DEFINE_WAKE_Q</span><span class="token punctuation">(</span>wake_q<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    sma <span class="token operator">=</span> <span class="token function">sem_obtain_object_check</span><span class="token punctuation">(</span>ns<span class="token punctuation">,</span> semid<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    nsems <span class="token operator">=</span> sma<span class="token operator">-&gt;</span>sem_nsems<span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    <span class="token keyword">switch</span> <span class="token punctuation">(</span>cmd<span class="token punctuation">)</span> <span class="token punctuation">{</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    <span class="token keyword">case</span> SETALL<span class="token operator">:</span>
+    <span class="token punctuation">{</span>
+        <span class="token keyword">int</span> i<span class="token punctuation">;</span>
+        <span class="token keyword">struct</span> <span class="token class-name">sem_undo</span> <span class="token operator">*</span>un<span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token function">copy_from_user</span><span class="token punctuation">(</span>sem_io<span class="token punctuation">,</span> p<span class="token punctuation">,</span> nsems<span class="token operator">*</span><span class="token keyword">sizeof</span><span class="token punctuation">(</span>ushort<span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+        <span class="token punctuation">}</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+        <span class="token keyword">for</span> <span class="token punctuation">(</span>i <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span> i <span class="token operator">&lt;</span> nsems<span class="token punctuation">;</span> i<span class="token operator">++</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+            sma<span class="token operator">-&gt;</span>sems<span class="token punctuation">[</span>i<span class="token punctuation">]</span><span class="token punctuation">.</span>semval <span class="token operator">=</span> sem_io<span class="token punctuation">[</span>i<span class="token punctuation">]</span><span class="token punctuation">;</span>
+            sma<span class="token operator">-&gt;</span>sems<span class="token punctuation">[</span>i<span class="token punctuation">]</span><span class="token punctuation">.</span>sempid <span class="token operator">=</span> <span class="token function">task_tgid_vnr</span><span class="token punctuation">(</span>current<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+        sma<span class="token operator">-&gt;</span>sem_ctime <span class="token operator">=</span> <span class="token function">get_seconds</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token comment">/* maybe some queued-up processes were waiting for this */</span>
+        <span class="token function">do_smart_update</span><span class="token punctuation">(</span>sma<span class="token punctuation">,</span> <span class="token constant">NULL</span><span class="token punctuation">,</span> <span class="token number">0</span><span class="token punctuation">,</span> <span class="token number">0</span><span class="token punctuation">,</span> <span class="token operator">&amp;</span>wake_q<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        err <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span>
+        <span class="token keyword">goto</span> out_unlock<span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+    <span class="token punctuation">}</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    <span class="token function">wake_up_q</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>wake_q<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>在semctl_main函数中，先是通过sem_obtain_object_check，根据信号量集合的id在基数树里面找到struct sem_array对象，发现如果是SETALL操作，就将用户的参数中的unsigned short *array通过copy_from_user拷贝到内核里面的sem_io数组，然后是一个循环，对于信号量集合里面的每一个信号量，设置semval，以及修改这个信号量值的pid。</p>
+<p>对于SETVAL操作来讲，传进来的参数union semun里面的int val，仅仅会设置某个信号量。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">static</span> <span class="token keyword">int</span> <span class="token function">semctl_setval</span><span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">ipc_namespace</span> <span class="token operator">*</span>ns<span class="token punctuation">,</span> <span class="token keyword">int</span> semid<span class="token punctuation">,</span> <span class="token keyword">int</span> semnum<span class="token punctuation">,</span>
+        <span class="token keyword">unsigned</span> <span class="token keyword">long</span> arg<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword">struct</span> <span class="token class-name">sem_undo</span> <span class="token operator">*</span>un<span class="token punctuation">;</span>
+    <span class="token keyword">struct</span> <span class="token class-name">sem_array</span> <span class="token operator">*</span>sma<span class="token punctuation">;</span>
+    <span class="token keyword">struct</span> <span class="token class-name">sem</span> <span class="token operator">*</span>curr<span class="token punctuation">;</span>
+    <span class="token keyword">int</span> err<span class="token punctuation">,</span> val<span class="token punctuation">;</span>
+    <span class="token function">DEFINE_WAKE_Q</span><span class="token punctuation">(</span>wake_q<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    sma <span class="token operator">=</span> <span class="token function">sem_obtain_object_check</span><span class="token punctuation">(</span>ns<span class="token punctuation">,</span> semid<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    curr <span class="token operator">=</span> <span class="token operator">&amp;</span>sma<span class="token operator">-&gt;</span>sems<span class="token punctuation">[</span>semnum<span class="token punctuation">]</span><span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    curr<span class="token operator">-&gt;</span>semval <span class="token operator">=</span> val<span class="token punctuation">;</span>
+    curr<span class="token operator">-&gt;</span>sempid <span class="token operator">=</span> <span class="token function">task_tgid_vnr</span><span class="token punctuation">(</span>current<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    sma<span class="token operator">-&gt;</span>sem_ctime <span class="token operator">=</span> <span class="token function">get_seconds</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token comment">/* maybe some queued-up processes were waiting for this */</span>
+    <span class="token function">do_smart_update</span><span class="token punctuation">(</span>sma<span class="token punctuation">,</span> <span class="token constant">NULL</span><span class="token punctuation">,</span> <span class="token number">0</span><span class="token punctuation">,</span> <span class="token number">0</span><span class="token punctuation">,</span> <span class="token operator">&amp;</span>wake_q<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    <span class="token function">wake_up_q</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>wake_q<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">return</span> <span class="token number">0</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>在semctl_setval函数中，我们先是通过sem_obtain_object_check，根据信号量集合的id在基数树里面找到struct sem_array对象，对于SETVAL操作，直接根据参数中的val设置semval，以及修改这个信号量值的pid。</p>
+<p>至此，信号量数组初始化完毕。接下来我们来看P操作和V操作。无论是P操作，还是V操作都是调用semop系统调用。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token function">SYSCALL_DEFINE3</span><span class="token punctuation">(</span>semop<span class="token punctuation">,</span> <span class="token keyword">int</span><span class="token punctuation">,</span> semid<span class="token punctuation">,</span> <span class="token keyword">struct</span> <span class="token class-name">sembuf</span> __user <span class="token operator">*</span><span class="token punctuation">,</span> tsops<span class="token punctuation">,</span>
+        <span class="token keyword">unsigned</span><span class="token punctuation">,</span> nsops<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword">return</span> <span class="token function">sys_semtimedop</span><span class="token punctuation">(</span>semid<span class="token punctuation">,</span> tsops<span class="token punctuation">,</span> nsops<span class="token punctuation">,</span> <span class="token constant">NULL</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+
+<span class="token function">SYSCALL_DEFINE4</span><span class="token punctuation">(</span>semtimedop<span class="token punctuation">,</span> <span class="token keyword">int</span><span class="token punctuation">,</span> semid<span class="token punctuation">,</span> <span class="token keyword">struct</span> <span class="token class-name">sembuf</span> __user <span class="token operator">*</span><span class="token punctuation">,</span> tsops<span class="token punctuation">,</span>
+        <span class="token keyword">unsigned</span><span class="token punctuation">,</span> nsops<span class="token punctuation">,</span> <span class="token keyword">const</span> <span class="token keyword">struct</span> <span class="token class-name">timespec</span> __user <span class="token operator">*</span><span class="token punctuation">,</span> timeout<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword">int</span> error <span class="token operator">=</span> <span class="token operator">-</span>EINVAL<span class="token punctuation">;</span>
+    <span class="token keyword">struct</span> <span class="token class-name">sem_array</span> <span class="token operator">*</span>sma<span class="token punctuation">;</span>
+    <span class="token keyword">struct</span> <span class="token class-name">sembuf</span> fast_sops<span class="token punctuation">[</span>SEMOPM_FAST<span class="token punctuation">]</span><span class="token punctuation">;</span>
+    <span class="token keyword">struct</span> <span class="token class-name">sembuf</span> <span class="token operator">*</span>sops <span class="token operator">=</span> fast_sops<span class="token punctuation">,</span> <span class="token operator">*</span>sop<span class="token punctuation">;</span>
+    <span class="token keyword">struct</span> <span class="token class-name">sem_undo</span> <span class="token operator">*</span>un<span class="token punctuation">;</span>
+    <span class="token keyword">int</span> max<span class="token punctuation">,</span> locknum<span class="token punctuation">;</span>
+    bool undos <span class="token operator">=</span> false<span class="token punctuation">,</span> alter <span class="token operator">=</span> false<span class="token punctuation">,</span> dupsop <span class="token operator">=</span> false<span class="token punctuation">;</span>
+    <span class="token keyword">struct</span> <span class="token class-name">sem_queue</span> queue<span class="token punctuation">;</span>
+    <span class="token keyword">unsigned</span> <span class="token keyword">long</span> dup <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">,</span> jiffies_left <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span>
+    <span class="token keyword">struct</span> <span class="token class-name">ipc_namespace</span> <span class="token operator">*</span>ns<span class="token punctuation">;</span>
+
+    ns <span class="token operator">=</span> current<span class="token operator">-&gt;</span>nsproxy<span class="token operator">-&gt;</span>ipc_ns<span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token function">copy_from_user</span><span class="token punctuation">(</span>sops<span class="token punctuation">,</span> tsops<span class="token punctuation">,</span> nsops <span class="token operator">*</span> <span class="token keyword">sizeof</span><span class="token punctuation">(</span><span class="token operator">*</span>tsops<span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+        error <span class="token operator">=</span>  <span class="token operator">-</span>EFAULT<span class="token punctuation">;</span>
+        <span class="token keyword">goto</span> out_free<span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+
+    <span class="token keyword">if</span> <span class="token punctuation">(</span>timeout<span class="token punctuation">)</span> <span class="token punctuation">{</span>
+        <span class="token keyword">struct</span> <span class="token class-name">timespec</span> _timeout<span class="token punctuation">;</span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token function">copy_from_user</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>_timeout<span class="token punctuation">,</span> timeout<span class="token punctuation">,</span> <span class="token keyword">sizeof</span><span class="token punctuation">(</span><span class="token operator">*</span>timeout<span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+        <span class="token punctuation">}</span>
+        jiffies_left <span class="token operator">=</span> <span class="token function">timespec_to_jiffies</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>_timeout<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    <span class="token comment">/* On success, find_alloc_undo takes the rcu_read_lock */</span>
+    un <span class="token operator">=</span> <span class="token function">find_alloc_undo</span><span class="token punctuation">(</span>ns<span class="token punctuation">,</span> semid<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    sma <span class="token operator">=</span> <span class="token function">sem_obtain_object_check</span><span class="token punctuation">(</span>ns<span class="token punctuation">,</span> semid<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    queue<span class="token punctuation">.</span>sops <span class="token operator">=</span> sops<span class="token punctuation">;</span>
+    queue<span class="token punctuation">.</span>nsops <span class="token operator">=</span> nsops<span class="token punctuation">;</span>
+    queue<span class="token punctuation">.</span>undo <span class="token operator">=</span> un<span class="token punctuation">;</span>
+    queue<span class="token punctuation">.</span>pid <span class="token operator">=</span> <span class="token function">task_tgid_vnr</span><span class="token punctuation">(</span>current<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    queue<span class="token punctuation">.</span>alter <span class="token operator">=</span> alter<span class="token punctuation">;</span>
+    queue<span class="token punctuation">.</span>dupsop <span class="token operator">=</span> dupsop<span class="token punctuation">;</span>
+
+    error <span class="token operator">=</span> <span class="token function">perform_atomic_semop</span><span class="token punctuation">(</span>sma<span class="token punctuation">,</span> <span class="token operator">&amp;</span>queue<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">if</span> <span class="token punctuation">(</span>error <span class="token operator">==</span> <span class="token number">0</span><span class="token punctuation">)</span> <span class="token punctuation">{</span> <span class="token comment">/* non-blocking succesfull path */</span>
+        <span class="token function">DEFINE_WAKE_Q</span><span class="token punctuation">(</span>wake_q<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+        <span class="token function">do_smart_update</span><span class="token punctuation">(</span>sma<span class="token punctuation">,</span> sops<span class="token punctuation">,</span> nsops<span class="token punctuation">,</span> <span class="token number">1</span><span class="token punctuation">,</span> <span class="token operator">&amp;</span>wake_q<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+        <span class="token function">wake_up_q</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>wake_q<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token keyword">goto</span> out_free<span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+    <span class="token comment">/*
+     * We need to sleep on this operation, so we put the current
+     * task into the pending queue and go to sleep.
+     */</span>
+    <span class="token keyword">if</span> <span class="token punctuation">(</span>nsops <span class="token operator">==</span> <span class="token number">1</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+        <span class="token keyword">struct</span> <span class="token class-name">sem</span> <span class="token operator">*</span>curr<span class="token punctuation">;</span>
+        curr <span class="token operator">=</span> <span class="token operator">&amp;</span>sma<span class="token operator">-&gt;</span>sems<span class="token punctuation">[</span>sops<span class="token operator">-&gt;</span>sem_num<span class="token punctuation">]</span><span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+        <span class="token function">list_add_tail</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>queue<span class="token punctuation">.</span>list<span class="token punctuation">,</span>
+                        <span class="token operator">&amp;</span>curr<span class="token operator">-&gt;</span>pending_alter<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    <span class="token punctuation">}</span> <span class="token keyword">else</span> <span class="token punctuation">{</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+        <span class="token function">list_add_tail</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>queue<span class="token punctuation">.</span>list<span class="token punctuation">,</span> <span class="token operator">&amp;</span>sma<span class="token operator">-&gt;</span>pending_alter<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    <span class="token punctuation">}</span>
+
+    <span class="token keyword">do</span> <span class="token punctuation">{</span>
+        queue<span class="token punctuation">.</span>status <span class="token operator">=</span> <span class="token operator">-</span>EINTR<span class="token punctuation">;</span>
+        queue<span class="token punctuation">.</span>sleeper <span class="token operator">=</span> current<span class="token punctuation">;</span>
+
+        <span class="token function">__set_current_state</span><span class="token punctuation">(</span>TASK_INTERRUPTIBLE<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span>timeout<span class="token punctuation">)</span>
+            jiffies_left <span class="token operator">=</span> <span class="token function">schedule_timeout</span><span class="token punctuation">(</span>jiffies_left<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token keyword">else</span>
+            <span class="token function">schedule</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+        <span class="token comment">/*
+         * If an interrupt occurred we have to clean up the queue.
+         */</span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span>timeout <span class="token operator">&amp;&amp;</span> jiffies_left <span class="token operator">==</span> <span class="token number">0</span><span class="token punctuation">)</span>
+            error <span class="token operator">=</span> <span class="token operator">-</span>EAGAIN<span class="token punctuation">;</span>
+    <span class="token punctuation">}</span> <span class="token keyword">while</span> <span class="token punctuation">(</span>error <span class="token operator">==</span> <span class="token operator">-</span>EINTR <span class="token operator">&amp;&amp;</span> <span class="token operator">!</span><span class="token function">signal_pending</span><span class="token punctuation">(</span>current<span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span> <span class="token comment">/* spurious */</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>semop会调用semtimedop，这是一个非常复杂的函数。</p>
+<p>semtimedop做的第一件事情，就是将用户的参数，例如，对于信号量的操作struct sembuf，拷贝到内核里面来。另外，如果是P操作，很可能让进程进入等待状态，是否要为这个等待状态设置一个超时，timeout也是一个参数，会把它变成时钟的滴答数目。</p>
+<p>semtimedop做的第二件事情，是通过sem_obtain_object_check，根据信号量集合的id，获得struct sem_array，然后，创建一个struct sem_queue表示当前的信号量操作。为什么叫queue呢？因为这个操作可能马上就能完成，也可能因为无法获取信号量不能完成，不能完成的话就只好排列到队列上，等待信号量满足条件的时候。semtimedop会调用perform_atomic_semop在实施信号量操作。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">static</span> <span class="token keyword">int</span> <span class="token function">perform_atomic_semop</span><span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">sem_array</span> <span class="token operator">*</span>sma<span class="token punctuation">,</span> <span class="token keyword">struct</span> <span class="token class-name">sem_queue</span> <span class="token operator">*</span>q<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword">int</span> result<span class="token punctuation">,</span> sem_op<span class="token punctuation">,</span> nsops<span class="token punctuation">;</span>
+    <span class="token keyword">struct</span> <span class="token class-name">sembuf</span> <span class="token operator">*</span>sop<span class="token punctuation">;</span>
+    <span class="token keyword">struct</span> <span class="token class-name">sem</span> <span class="token operator">*</span>curr<span class="token punctuation">;</span>
+    <span class="token keyword">struct</span> <span class="token class-name">sembuf</span> <span class="token operator">*</span>sops<span class="token punctuation">;</span>
+    <span class="token keyword">struct</span> <span class="token class-name">sem_undo</span> <span class="token operator">*</span>un<span class="token punctuation">;</span>
+
+    sops <span class="token operator">=</span> q<span class="token operator">-&gt;</span>sops<span class="token punctuation">;</span>
+    nsops <span class="token operator">=</span> q<span class="token operator">-&gt;</span>nsops<span class="token punctuation">;</span>
+    un <span class="token operator">=</span> q<span class="token operator">-&gt;</span>undo<span class="token punctuation">;</span>
+
+    <span class="token keyword">for</span> <span class="token punctuation">(</span>sop <span class="token operator">=</span> sops<span class="token punctuation">;</span> sop <span class="token operator">&lt;</span> sops <span class="token operator">+</span> nsops<span class="token punctuation">;</span> sop<span class="token operator">++</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+        curr <span class="token operator">=</span> <span class="token operator">&amp;</span>sma<span class="token operator">-&gt;</span>sems<span class="token punctuation">[</span>sop<span class="token operator">-&gt;</span>sem_num<span class="token punctuation">]</span><span class="token punctuation">;</span>
+        sem_op <span class="token operator">=</span> sop<span class="token operator">-&gt;</span>sem_op<span class="token punctuation">;</span>
+        result <span class="token operator">=</span> curr<span class="token operator">-&gt;</span>semval<span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+        result <span class="token operator">+=</span> sem_op<span class="token punctuation">;</span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span>result <span class="token operator">&lt;</span> <span class="token number">0</span><span class="token punctuation">)</span>
+            <span class="token keyword">goto</span> would_block<span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span>sop<span class="token operator">-&gt;</span>sem_flg <span class="token operator">&amp;</span> SEM_UNDO<span class="token punctuation">)</span> <span class="token punctuation">{</span>
+            <span class="token keyword">int</span> undo <span class="token operator">=</span> un<span class="token operator">-&gt;</span>semadj<span class="token punctuation">[</span>sop<span class="token operator">-&gt;</span>sem_num<span class="token punctuation">]</span> <span class="token operator">-</span> sem_op<span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+        <span class="token punctuation">}</span>
+    <span class="token punctuation">}</span>
+
+    <span class="token keyword">for</span> <span class="token punctuation">(</span>sop <span class="token operator">=</span> sops<span class="token punctuation">;</span> sop <span class="token operator">&lt;</span> sops <span class="token operator">+</span> nsops<span class="token punctuation">;</span> sop<span class="token operator">++</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+        curr <span class="token operator">=</span> <span class="token operator">&amp;</span>sma<span class="token operator">-&gt;</span>sems<span class="token punctuation">[</span>sop<span class="token operator">-&gt;</span>sem_num<span class="token punctuation">]</span><span class="token punctuation">;</span>
+        sem_op <span class="token operator">=</span> sop<span class="token operator">-&gt;</span>sem_op<span class="token punctuation">;</span>
+        result <span class="token operator">=</span> curr<span class="token operator">-&gt;</span>semval<span class="token punctuation">;</span>
+
+        <span class="token keyword">if</span> <span class="token punctuation">(</span>sop<span class="token operator">-&gt;</span>sem_flg <span class="token operator">&amp;</span> SEM_UNDO<span class="token punctuation">)</span> <span class="token punctuation">{</span>
+            <span class="token keyword">int</span> undo <span class="token operator">=</span> un<span class="token operator">-&gt;</span>semadj<span class="token punctuation">[</span>sop<span class="token operator">-&gt;</span>sem_num<span class="token punctuation">]</span> <span class="token operator">-</span> sem_op<span class="token punctuation">;</span>
+            un<span class="token operator">-&gt;</span>semadj<span class="token punctuation">[</span>sop<span class="token operator">-&gt;</span>sem_num<span class="token punctuation">]</span> <span class="token operator">=</span> undo<span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+        curr<span class="token operator">-&gt;</span>semval <span class="token operator">+=</span> sem_op<span class="token punctuation">;</span>
+        curr<span class="token operator">-&gt;</span>sempid <span class="token operator">=</span> q<span class="token operator">-&gt;</span>pid<span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+    <span class="token keyword">return</span> <span class="token number">0</span><span class="token punctuation">;</span>
+would_block<span class="token operator">:</span>
+    q<span class="token operator">-&gt;</span>blocking <span class="token operator">=</span> sop<span class="token punctuation">;</span>
+    <span class="token keyword">return</span> sop<span class="token operator">-&gt;</span>sem_flg <span class="token operator">&amp;</span> IPC_NOWAIT <span class="token operator">?</span> <span class="token operator">-</span>EAGAIN <span class="token operator">:</span> <span class="token number">1</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>在perform_atomic_semop函数中，对于所有信号量操作都进行两次循环。在第一次循环中，如果发现计算出的result小于0，则说明必须等待，于是跳到would_block中，设置q-&gt;blocking = sop表示这个queue是block在这个操作上，然后如果需要等待，则返回1。如果第一次循环中发现无需等待，则第二个循环实施所有的信号量操作，将信号量的值设置为新的值，并且返回0。</p>
+<p>接下来，我们回到semtimedop，来看它干的第三件事情，就是如果需要等待，应该怎么办？</p>
+<p>如果需要等待，则要区分刚才的对于信号量的操作，是对一个信号量的，还是对于整个信号量集合的。如果是对于一个信号量的，那我们就将queue挂到这个信号量的pending_alter中；如果是对于整个信号量集合的，那我们就将queue挂到整个信号量集合的pending_alter中。</p>
+<p>接下来的do-while循环，就是要开始等待了。如果等待没有时间限制，则调用schedule让出CPU；如果等待有时间限制，则调用schedule_timeout让出CPU，过一段时间还回来。当回来的时候，判断是否等待超时，如果没有等待超时则进入下一轮循环，再次等待，如果超时则退出循环，返回错误。在让出CPU的时候，设置进程的状态为TASK_INTERRUPTIBLE，并且循环的结束会通过signal_pending查看是否收到过信号，这说明这个等待信号量的进程是可以被信号中断的，也即一个等待信号量的进程是可以通过kill杀掉的。</p>
+<p>我们再来看，semtimedop要做的第四件事情，如果不需要等待，应该怎么办？</p>
+<p>如果不需要等待，就说明对于信号量的操作完成了，也改变了信号量的值。接下来，就是一个标准流程。我们通过DEFINE_WAKE_Q(wake_q)声明一个wake_q，调用do_smart_update，看这次对于信号量的值的改变，可以影响并可以激活等待队列中的哪些struct sem_queue，然后把它们都放在wake_q里面，调用wake_up_q唤醒这些进程。其实，所有的对于信号量的值的修改都会涉及这三个操作，如果你回过头去仔细看SETALL和SETVAL操作，在设置完毕信号量之后，也是这三个操作。</p>
+<p>我们来看do_smart_update是如何实现的。do_smart_update会调用update_queue。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">static</span> <span class="token keyword">int</span> <span class="token function">update_queue</span><span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">sem_array</span> <span class="token operator">*</span>sma<span class="token punctuation">,</span> <span class="token keyword">int</span> semnum<span class="token punctuation">,</span> <span class="token keyword">struct</span> <span class="token class-name">wake_q_head</span> <span class="token operator">*</span>wake_q<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword">struct</span> <span class="token class-name">sem_queue</span> <span class="token operator">*</span>q<span class="token punctuation">,</span> <span class="token operator">*</span>tmp<span class="token punctuation">;</span>
+    <span class="token keyword">struct</span> <span class="token class-name">list_head</span> <span class="token operator">*</span>pending_list<span class="token punctuation">;</span>
+    <span class="token keyword">int</span> semop_completed <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span>
+
+    <span class="token keyword">if</span> <span class="token punctuation">(</span>semnum <span class="token operator">==</span> <span class="token operator">-</span><span class="token number">1</span><span class="token punctuation">)</span>
+        pending_list <span class="token operator">=</span> <span class="token operator">&amp;</span>sma<span class="token operator">-&gt;</span>pending_alter<span class="token punctuation">;</span>
+    <span class="token keyword">else</span>
+        pending_list <span class="token operator">=</span> <span class="token operator">&amp;</span>sma<span class="token operator">-&gt;</span>sems<span class="token punctuation">[</span>semnum<span class="token punctuation">]</span><span class="token punctuation">.</span>pending_alter<span class="token punctuation">;</span>
+
+again<span class="token operator">:</span>
+    <span class="token function">list_for_each_entry_safe</span><span class="token punctuation">(</span>q<span class="token punctuation">,</span> tmp<span class="token punctuation">,</span> pending_list<span class="token punctuation">,</span> list<span class="token punctuation">)</span> <span class="token punctuation">{</span>
+        <span class="token keyword">int</span> error<span class="token punctuation">,</span> restart<span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+        error <span class="token operator">=</span> <span class="token function">perform_atomic_semop</span><span class="token punctuation">(</span>sma<span class="token punctuation">,</span> q<span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+        <span class="token comment">/* Does q-&gt;sleeper still need to sleep? */</span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span>error <span class="token operator">&gt;</span> <span class="token number">0</span><span class="token punctuation">)</span>
+            <span class="token keyword">continue</span><span class="token punctuation">;</span>
+
+        <span class="token function">unlink_queue</span><span class="token punctuation">(</span>sma<span class="token punctuation">,</span> q<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+        <span class="token function">wake_up_sem_queue_prepare</span><span class="token punctuation">(</span>q<span class="token punctuation">,</span> error<span class="token punctuation">,</span> wake_q<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    <span class="token punctuation">}</span>
+    <span class="token keyword">return</span> semop_completed<span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+
+<span class="token keyword">static</span> <span class="token keyword">inline</span> <span class="token keyword">void</span> <span class="token function">wake_up_sem_queue_prepare</span><span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">sem_queue</span> <span class="token operator">*</span>q<span class="token punctuation">,</span> <span class="token keyword">int</span> error<span class="token punctuation">,</span>
+                         <span class="token keyword">struct</span> <span class="token class-name">wake_q_head</span> <span class="token operator">*</span>wake_q<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token function">wake_q_add</span><span class="token punctuation">(</span>wake_q<span class="token punctuation">,</span> q<span class="token operator">-&gt;</span>sleeper<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>update_queue会依次循环整个信号量集合的等待队列pending_alter，或者某个信号量的等待队列。试图在信号量的值变了的情况下，再次尝试perform_atomic_semop进行信号量操作。如果不成功，则尝试队列中的下一个；如果尝试成功，则调用unlink_queue从队列上取下来，然后调用wake_up_sem_queue_prepare，将q-&gt;sleeper加到wake_q上去。q-&gt;sleeper是一个task_struct，是等待在这个信号量操作上的进程。</p>
+<p>接下来，wake_up_q就依次唤醒wake_q上的所有task_struct，调用的是我们在进程调度那一节学过的wake_up_process方法。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">void</span> <span class="token function">wake_up_q</span><span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">wake_q_head</span> <span class="token operator">*</span>head<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword">struct</span> <span class="token class-name">wake_q_node</span> <span class="token operator">*</span>node <span class="token operator">=</span> head<span class="token operator">-&gt;</span>first<span class="token punctuation">;</span>
+
+    <span class="token keyword">while</span> <span class="token punctuation">(</span>node <span class="token operator">!=</span> WAKE_Q_TAIL<span class="token punctuation">)</span> <span class="token punctuation">{</span>
+        <span class="token keyword">struct</span> <span class="token class-name">task_struct</span> <span class="token operator">*</span>task<span class="token punctuation">;</span>
+
+        task <span class="token operator">=</span> <span class="token function">container_of</span><span class="token punctuation">(</span>node<span class="token punctuation">,</span> <span class="token keyword">struct</span> <span class="token class-name">task_struct</span><span class="token punctuation">,</span> wake_q<span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+        node <span class="token operator">=</span> node<span class="token operator">-&gt;</span>next<span class="token punctuation">;</span>
+        task<span class="token operator">-&gt;</span>wake_q<span class="token punctuation">.</span>next <span class="token operator">=</span> <span class="token constant">NULL</span><span class="token punctuation">;</span>
+
+        <span class="token function">wake_up_process</span><span class="token punctuation">(</span>task<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token function">put_task_struct</span><span class="token punctuation">(</span>task<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>至此，对于信号量的主流操作都解析完毕了。</p>
+<p>其实还有一点需要强调一下，信号量是一个整个Linux可见的全局资源，而不像咱们在线程同步那一节讲过的都是某个进程独占的资源，好处是可以跨进程通信，坏处就是如果一个进程通过P操作拿到了一个信号量，但是不幸异常退出了，如果没有来得及归还这个信号量，可能所有其他的进程都阻塞了。</p>
+<p>那怎么办呢？Linux有一种机制叫SEM_UNDO，也即每一个semop操作都会保存一个反向struct sem_undo操作，当因为某个进程异常退出的时候，这个进程做的所有的操作都会回退，从而保证其他进程可以正常工作。</p>
+<p>如果你回头看，我们写的程序里面的semaphore_p函数和semaphore_v函数，都把sem_flg设置为SEM_UNDO，就是这个作用。</p>
+<p>等待队列上的每一个struct sem_queue，都有一个struct sem_undo，以此来表示这次操作的反向操作。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">struct</span> <span class="token class-name">sem_queue</span> <span class="token punctuation">{</span>
+    <span class="token keyword">struct</span> <span class="token class-name">list_head</span>    list<span class="token punctuation">;</span>       <span class="token comment">/* queue of pending operations */</span>
+    <span class="token keyword">struct</span> <span class="token class-name">task_struct</span>  <span class="token operator">*</span>sleeper<span class="token punctuation">;</span>   <span class="token comment">/* this process */</span>
+    <span class="token keyword">struct</span> <span class="token class-name">sem_undo</span>     <span class="token operator">*</span>undo<span class="token punctuation">;</span>      <span class="token comment">/* undo structure */</span>
+    <span class="token keyword">int</span>                 pid<span class="token punctuation">;</span>        <span class="token comment">/* process id of requesting process */</span>
+    <span class="token keyword">int</span>                 status<span class="token punctuation">;</span>     <span class="token comment">/* completion status of operation */</span>
+    <span class="token keyword">struct</span> <span class="token class-name">sembuf</span>       <span class="token operator">*</span>sops<span class="token punctuation">;</span>      <span class="token comment">/* array of pending operations */</span>
+    <span class="token keyword">struct</span> <span class="token class-name">sembuf</span>       <span class="token operator">*</span>blocking<span class="token punctuation">;</span>  <span class="token comment">/* the operation that blocked */</span>
+    <span class="token keyword">int</span>                 nsops<span class="token punctuation">;</span>      <span class="token comment">/* number of operations */</span>
+    bool                alter<span class="token punctuation">;</span>      <span class="token comment">/* does *sops alter the array? */</span>
+    bool                dupsop<span class="token punctuation">;</span>     <span class="token comment">/* sops on more than one sem_num */</span>
+<span class="token punctuation">}</span><span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>在进程的task_struct里面对于信号量有一个成员struct sysv_sem，里面是一个struct sem_undo_list，将这个进程所有的semop所带来的undo操作都串起来。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">struct</span> <span class="token class-name">task_struct</span> <span class="token punctuation">{</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+<span class="token keyword">struct</span> <span class="token class-name">sysv_sem</span>         sysvsem<span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+<span class="token punctuation">}</span>
+
+<span class="token keyword">struct</span> <span class="token class-name">sysv_sem</span> <span class="token punctuation">{</span>
+    <span class="token keyword">struct</span> <span class="token class-name">sem_undo_list</span> <span class="token operator">*</span>undo_list<span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span class="token punctuation">;</span>
+
+<span class="token keyword">struct</span> <span class="token class-name">sem_undo</span> <span class="token punctuation">{</span>
+    <span class="token keyword">struct</span> <span class="token class-name">list_head</span>        list_proc<span class="token punctuation">;</span>  <span class="token comment">/* per-process list: *
+                                         * all undos from one process
+                                         * rcu protected */</span>
+    <span class="token keyword">struct</span> <span class="token class-name">rcu_head</span>         rcu<span class="token punctuation">;</span>        <span class="token comment">/* rcu struct for sem_undo */</span>
+    <span class="token keyword">struct</span> <span class="token class-name">sem_undo_list</span>    <span class="token operator">*</span>ulp<span class="token punctuation">;</span>       <span class="token comment">/* back ptr to sem_undo_list */</span>
+    <span class="token keyword">struct</span> <span class="token class-name">list_head</span>        list_id<span class="token punctuation">;</span>    <span class="token comment">/* per semaphore array list:
+                                         * all undos for one array */</span>
+    <span class="token keyword">int</span>                     semid<span class="token punctuation">;</span>      <span class="token comment">/* semaphore set identifier */</span>
+    <span class="token keyword">short</span>                   <span class="token operator">*</span>semadj<span class="token punctuation">;</span>    <span class="token comment">/* array of adjustments */</span>
+                                        <span class="token comment">/* one per semaphore */</span>
+<span class="token punctuation">}</span><span class="token punctuation">;</span>
+
+<span class="token keyword">struct</span> <span class="token class-name">sem_undo_list</span> <span class="token punctuation">{</span>
+    atomic_t            refcnt<span class="token punctuation">;</span>
+    spinlock_t          lock<span class="token punctuation">;</span>
+    <span class="token keyword">struct</span> <span class="token class-name">list_head</span>    list_proc<span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>为了让你更清楚地理解struct sem_undo的原理，我们这里举一个例子。</p>
+<p>假设我们创建了两个信号量集合。一个叫semaphore1，它包含三个信号量，初始化值为3，另一个叫semaphore2，它包含4个信号量，初始化值都为4。初始化时候的信号量以及undo结构里面的值如图中(1)标号所示。</p>
+<p><img src="/images/《趣谈Linux操作系统》学习笔记/sem_undo原理举例.png" alt="sem_undo原理举例"></p>
+<p>首先，我们来看进程1。我们调用semop，将semaphore1的三个信号量的值，分别加1、加2和减3，从而信号量的值变为4,5,0。于是在semaphore1和进程1链表交汇的undo结构里面，填写-1,-2,+3，是semop操作的反向操作，如图中(2)标号所示。</p>
+<p>然后，我们来看进程2。我们调用semop，将semaphore1的三个信号量的值，分别减3、加2和加1，从而信号量的值变为1、7、1。于是在semaphore1和进程2链表交汇的undo结构里面，填写+3、-2、-1，是semop操作的反向操作，如图中(3)标号所示。</p>
+<p>然后，我们接着看进程2。我们调用semop，将semaphore2的四个信号量的值，分别减3、加1、加4和减1，从而信号量的值变为1、5、8、3。于是，在semaphore2和进程2链表交汇的undo结构里面，填写+3、-1、-4、+1，是semop操作的反向操作，如图中(4)标号所示。</p>
+<p>然后，我们再来看进程1。我们调用semop，将semaphore2的四个信号量的值，分别减1、减4、减5和加2，从而信号量的值变为0、1、3、5。于是在semaphore2和进程1链表交汇的undo结构里面，填写+1、+4、+5、-2，是semop操作的反向操作，如图中(5)标号所示。</p>
+<p>从这个例子可以看出，无论哪个进程异常退出，只要将undo结构里面的值加回当前信号量的值，就能够得到正确的信号量的值，不会因为一个进程退出，导致信号量的值处于不一致的状态。</p>
+<h4 id="37-1-总结"><a href="#37-1-总结" class="headerlink" title="37.1 总结"></a>37.1 总结</h4><p>信号量的机制也很复杂，我们对着下面这个图总结一下。</p>
+<p><img src="/images/《趣谈Linux操作系统》学习笔记/信号量机制总结.png" alt="信号量机制总结"></p>
+<ol>
+<li>调用semget创建信号量集合。</li>
+<li>ipc_findkey会在基数树中，根据key查找信号量集合sem_array对象。如果已经被创建，就会被查询出来。例如producer被创建过，在consumer中就会查询出来。</li>
+<li>如果信号量集合没有被创建过，则调用sem_ops的newary方法，创建一个信号量集合对象sem_array。例如，在producer中就会新建。</li>
+<li>调用semctl(SETALL)初始化信号量。</li>
+<li>sem_obtain_object_check先从基数树里面找到sem_array对象。</li>
+<li>根据用户指定的信号量数组，初始化信号量集合，也即初始化sem_array对象的struct sem sems[]成员。</li>
+<li>调用semop操作信号量。</li>
+<li>创建信号量操作结构sem_queue，放入队列。</li>
+<li>创建undo结构，放入链表。</li>
+</ol>
 <h2 id="七、网络系统"><a href="#七、网络系统" class="headerlink" title="七、网络系统"></a>七、网络系统</h2><h2 id="八、虚拟化"><a href="#八、虚拟化" class="headerlink" title="八、虚拟化"></a>八、虚拟化</h2><h2 id="九、容器化"><a href="#九、容器化" class="headerlink" title="九、容器化"></a>九、容器化</h2>
                 
             </div>
@@ -9607,7 +10041,7 @@ $ ./consumer
             <br>
             
             &nbsp;<i class="fas fa-chart-area"></i>&nbsp;站点总字数:&nbsp;<span
-                class="white-color">518.1k</span>&nbsp;字
+                class="white-color">522.2k</span>&nbsp;字
             
             
             
