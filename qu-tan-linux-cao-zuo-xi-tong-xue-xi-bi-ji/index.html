@@ -438,14 +438,14 @@
                 
                 <div class="info-break-policy">
                     <i class="far fa-file-word fa-fw"></i>文章字数:&nbsp;&nbsp;
-                    121k
+                    126.2k
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-clock fa-fw"></i>阅读时长:&nbsp;&nbsp;
-                    488 分
+                    512 分
                 </div>
                 
 
@@ -9771,6 +9771,700 @@ ssize_t <span class="token function">recvfrom</span><span class="token punctuati
 <li>服务端调用read读取数据。</li>
 </ol>
 <p><img src="/images/《趣谈Linux操作系统》学习笔记/socket系统调用.png" alt="socket系统调用"></p>
+<h3 id="40-Socket内核数据结构"><a href="#40-Socket内核数据结构" class="headerlink" title="40. Socket内核数据结构"></a>40. Socket内核数据结构</h3><h4 id="40-1-解析socket函数"><a href="#40-1-解析socket函数" class="headerlink" title="40.1 解析socket函数"></a>40.1 解析socket函数</h4><pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token function">SYSCALL_DEFINE3</span><span class="token punctuation">(</span>socket<span class="token punctuation">,</span> <span class="token keyword">int</span><span class="token punctuation">,</span> family<span class="token punctuation">,</span> <span class="token keyword">int</span><span class="token punctuation">,</span> type<span class="token punctuation">,</span> <span class="token keyword">int</span><span class="token punctuation">,</span> protocol<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword">int</span> retval<span class="token punctuation">;</span>
+    <span class="token keyword">struct</span> <span class="token class-name">socket</span> <span class="token operator">*</span>sock<span class="token punctuation">;</span>
+    <span class="token keyword">int</span> flags<span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    <span class="token keyword">if</span> <span class="token punctuation">(</span>SOCK_NONBLOCK <span class="token operator">!=</span> O_NONBLOCK <span class="token operator">&amp;&amp;</span> <span class="token punctuation">(</span>flags <span class="token operator">&amp;</span> SOCK_NONBLOCK<span class="token punctuation">)</span><span class="token punctuation">)</span>
+        flags <span class="token operator">=</span> <span class="token punctuation">(</span>flags <span class="token operator">&amp;</span> <span class="token operator">~</span>SOCK_NONBLOCK<span class="token punctuation">)</span> <span class="token operator">|</span> O_NONBLOCK<span class="token punctuation">;</span>
+
+    retval <span class="token operator">=</span> <span class="token function">sock_create</span><span class="token punctuation">(</span>family<span class="token punctuation">,</span> type<span class="token punctuation">,</span> protocol<span class="token punctuation">,</span> <span class="token operator">&amp;</span>sock<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    retval <span class="token operator">=</span> <span class="token function">sock_map_fd</span><span class="token punctuation">(</span>sock<span class="token punctuation">,</span> flags <span class="token operator">&amp;</span> <span class="token punctuation">(</span>O_CLOEXEC <span class="token operator">|</span> O_NONBLOCK<span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    <span class="token keyword">return</span> retval<span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>这里面的代码比较容易看懂，Socket系统调用会调用sock_create创建一个struct socket结构，然后通过sock_map_fd和文件描述符对应起来。</p>
+<p>在创建Socket的时候，有三个参数。</p>
+<p>一个是<strong>family</strong>，表示地址族。不是所有的Socket都要通过IP进行通信，还有其他的通信方式。例如，下面的定义中，domain sockets就是通过本地文件进行通信的，不需要IP地址。只不过，通过IP地址只是最常用的模式，所以我们这里着重分析这种模式。</p>
+<p>第二个参数是<strong>type</strong>，也即Socket的类型。类型是比较少的。</p>
+<p>第三个参数是<strong>protocol</strong>，是协议。协议数目是比较多的，也就是说，多个协议会属于同一种类型。</p>
+<p>常用的Socket类型有三种，分别是SOCK_STREAM、SOCK_DGRAM和SOCK_RAW。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">enum</span> <span class="token class-name">sock_type</span> <span class="token punctuation">{</span>
+SOCK_STREAM <span class="token operator">=</span> <span class="token number">1</span><span class="token punctuation">,</span>
+SOCK_DGRAM <span class="token operator">=</span> <span class="token number">2</span><span class="token punctuation">,</span>
+SOCK_RAW <span class="token operator">=</span> <span class="token number">3</span><span class="token punctuation">,</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>SOCK_STREAM是面向数据流的，协议IPPROTO_TCP属于这种类型。SOCK_DGRAM是面向数据报的，协议IPPROTO_UDP属于这种类型。如果在内核里面看的话，IPPROTO_ICMP也属于这种类型。SOCK_RAW是原始的IP包，IPPROTO_IP属于这种类型。</p>
+<p><strong>这一节，我们重点看SOCK_STREAM类型和IPPROTO_TCP协议。</strong></p>
+<p>为了管理family、type、protocol这三个分类层次，内核会创建对应的数据结构。</p>
+<p>接下来，我们打开sock_create函数看一下。它会调用__sock_create。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">int</span> <span class="token function">__sock_create</span><span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">net</span> <span class="token operator">*</span>net<span class="token punctuation">,</span> <span class="token keyword">int</span> family<span class="token punctuation">,</span> <span class="token keyword">int</span> type<span class="token punctuation">,</span> <span class="token keyword">int</span> protocol<span class="token punctuation">,</span>
+             <span class="token keyword">struct</span> <span class="token class-name">socket</span> <span class="token operator">*</span><span class="token operator">*</span>res<span class="token punctuation">,</span> <span class="token keyword">int</span> kern<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword">int</span> err<span class="token punctuation">;</span>
+    <span class="token keyword">struct</span> <span class="token class-name">socket</span> <span class="token operator">*</span>sock<span class="token punctuation">;</span>
+    <span class="token keyword">const</span> <span class="token keyword">struct</span> <span class="token class-name">net_proto_family</span> <span class="token operator">*</span>pf<span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    sock <span class="token operator">=</span> <span class="token function">sock_alloc</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    sock<span class="token operator">-&gt;</span>type <span class="token operator">=</span> type<span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    pf <span class="token operator">=</span> <span class="token function">rcu_dereference</span><span class="token punctuation">(</span>net_families<span class="token punctuation">[</span>family<span class="token punctuation">]</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    err <span class="token operator">=</span> pf<span class="token operator">-&gt;</span><span class="token function">create</span><span class="token punctuation">(</span>net<span class="token punctuation">,</span> sock<span class="token punctuation">,</span> protocol<span class="token punctuation">,</span> kern<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    <span class="token operator">*</span>res <span class="token operator">=</span> sock<span class="token punctuation">;</span>
+
+    <span class="token keyword">return</span> <span class="token number">0</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>这里先是分配了一个struct socket结构。接下来我们要用到family参数。这里有一个net_families数组，我们可以以family参数为下标，找到对应的struct net_proto_family。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token comment">/* Supported address families. */</span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">define</span> <span class="token expression">AF_UNSPEC   <span class="token number">0</span></span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">define</span> <span class="token expression">AF_UNIX     <span class="token number">1</span>       </span><span class="token comment">/* Unix domain sockets      */</span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">define</span> <span class="token expression">AF_LOCAL    <span class="token number">1</span>       </span><span class="token comment">/* POSIX name for AF_UNIX   */</span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">define</span> <span class="token expression">AF_INET     <span class="token number">2</span>       </span><span class="token comment">/* Internet IP Protocol     */</span></span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">define</span> <span class="token expression">AF_INET6    <span class="token number">10</span>      </span><span class="token comment">/* IP version 6         */</span></span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">define</span> <span class="token expression">AF_MPLS     <span class="token number">28</span>      </span><span class="token comment">/* MPLS */</span></span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">define</span> <span class="token expression">AF_MAX      <span class="token number">44</span>      </span><span class="token comment">/* For now.. */</span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">define</span> <span class="token expression">NPROTO      AF_MAX</span></span>
+
+<span class="token keyword">struct</span> <span class="token class-name">net_proto_family</span> __rcu <span class="token operator">*</span>net_families<span class="token punctuation">[</span>NPROTO<span class="token punctuation">]</span> __read_mostly<span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>我们可以找到net_families的定义。每一个地址族在这个数组里面都有一项，里面的内容是net_proto_family。每一种地址族都有自己的net_proto_family，IP地址族的net_proto_family定义如下，里面最重要的就是，create函数指向inet_create。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token comment">//net/ipv4/af_inet.c</span>
+<span class="token keyword">static</span> <span class="token keyword">const</span> <span class="token keyword">struct</span> <span class="token class-name">net_proto_family</span> inet_family_ops <span class="token operator">=</span> <span class="token punctuation">{</span>
+    <span class="token punctuation">.</span>family <span class="token operator">=</span> PF_INET<span class="token punctuation">,</span>
+    <span class="token punctuation">.</span>create <span class="token operator">=</span> inet_create<span class="token punctuation">,</span><span class="token comment">//这个用于socket系统调用创建</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>我们回到函数__sock_create。接下来，在这里面，这个inet_create会被调用。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">static</span> <span class="token keyword">int</span> <span class="token function">inet_create</span><span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">net</span> <span class="token operator">*</span>net<span class="token punctuation">,</span> <span class="token keyword">struct</span> <span class="token class-name">socket</span> <span class="token operator">*</span>sock<span class="token punctuation">,</span> <span class="token keyword">int</span> protocol<span class="token punctuation">,</span> <span class="token keyword">int</span> kern<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword">struct</span> <span class="token class-name">sock</span> <span class="token operator">*</span>sk<span class="token punctuation">;</span>
+    <span class="token keyword">struct</span> <span class="token class-name">inet_protosw</span> <span class="token operator">*</span>answer<span class="token punctuation">;</span>
+    <span class="token keyword">struct</span> <span class="token class-name">inet_sock</span> <span class="token operator">*</span>inet<span class="token punctuation">;</span>
+    <span class="token keyword">struct</span> <span class="token class-name">proto</span> <span class="token operator">*</span>answer_prot<span class="token punctuation">;</span>
+    <span class="token keyword">unsigned</span> <span class="token keyword">char</span> answer_flags<span class="token punctuation">;</span>
+    <span class="token keyword">int</span> try_loading_module <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span>
+    <span class="token keyword">int</span> err<span class="token punctuation">;</span>
+
+    <span class="token comment">/* Look for the requested type/protocol pair. */</span>
+lookup_protocol<span class="token operator">:</span>
+    <span class="token function">list_for_each_entry_rcu</span><span class="token punctuation">(</span>answer<span class="token punctuation">,</span> <span class="token operator">&amp;</span>inetsw<span class="token punctuation">[</span>sock<span class="token operator">-&gt;</span>type<span class="token punctuation">]</span><span class="token punctuation">,</span> list<span class="token punctuation">)</span> <span class="token punctuation">{</span>
+        err <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span>
+        <span class="token comment">/* Check the non-wild match. */</span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span>protocol <span class="token operator">==</span> answer<span class="token operator">-&gt;</span>protocol<span class="token punctuation">)</span> <span class="token punctuation">{</span>
+            <span class="token keyword">if</span> <span class="token punctuation">(</span>protocol <span class="token operator">!=</span> IPPROTO_IP<span class="token punctuation">)</span>
+                <span class="token keyword">break</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span> <span class="token keyword">else</span> <span class="token punctuation">{</span>
+            <span class="token comment">/* Check for the two wild cases. */</span>
+            <span class="token keyword">if</span> <span class="token punctuation">(</span>IPPROTO_IP <span class="token operator">==</span> protocol<span class="token punctuation">)</span> <span class="token punctuation">{</span>
+                protocol <span class="token operator">=</span> answer<span class="token operator">-&gt;</span>protocol<span class="token punctuation">;</span>
+                <span class="token keyword">break</span><span class="token punctuation">;</span>
+            <span class="token punctuation">}</span>
+            <span class="token keyword">if</span> <span class="token punctuation">(</span>IPPROTO_IP <span class="token operator">==</span> answer<span class="token operator">-&gt;</span>protocol<span class="token punctuation">)</span>
+                <span class="token keyword">break</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+        err <span class="token operator">=</span> <span class="token operator">-</span>EPROTONOSUPPORT<span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    sock<span class="token operator">-&gt;</span>ops <span class="token operator">=</span> answer<span class="token operator">-&gt;</span>ops<span class="token punctuation">;</span>
+    answer_prot <span class="token operator">=</span> answer<span class="token operator">-&gt;</span>prot<span class="token punctuation">;</span>
+    answer_flags <span class="token operator">=</span> answer<span class="token operator">-&gt;</span>flags<span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    sk <span class="token operator">=</span> <span class="token function">sk_alloc</span><span class="token punctuation">(</span>net<span class="token punctuation">,</span> PF_INET<span class="token punctuation">,</span> GFP_KERNEL<span class="token punctuation">,</span> answer_prot<span class="token punctuation">,</span> kern<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    inet <span class="token operator">=</span> <span class="token function">inet_sk</span><span class="token punctuation">(</span>sk<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    inet<span class="token operator">-&gt;</span>nodefrag <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span>
+    <span class="token keyword">if</span> <span class="token punctuation">(</span>SOCK_RAW <span class="token operator">==</span> sock<span class="token operator">-&gt;</span>type<span class="token punctuation">)</span> <span class="token punctuation">{</span>
+        inet<span class="token operator">-&gt;</span>inet_num <span class="token operator">=</span> protocol<span class="token punctuation">;</span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span>IPPROTO_RAW <span class="token operator">==</span> protocol<span class="token punctuation">)</span>
+            inet<span class="token operator">-&gt;</span>hdrincl <span class="token operator">=</span> <span class="token number">1</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+    inet<span class="token operator">-&gt;</span>inet_id <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span>
+    <span class="token function">sock_init_data</span><span class="token punctuation">(</span>sock<span class="token punctuation">,</span> sk<span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+    sk<span class="token operator">-&gt;</span>sk_destruct    <span class="token operator">=</span> inet_sock_destruct<span class="token punctuation">;</span>
+    sk<span class="token operator">-&gt;</span>sk_protocol    <span class="token operator">=</span> protocol<span class="token punctuation">;</span>
+    sk<span class="token operator">-&gt;</span>sk_backlog_rcv <span class="token operator">=</span> sk<span class="token operator">-&gt;</span>sk_prot<span class="token operator">-&gt;</span>backlog_rcv<span class="token punctuation">;</span>
+
+    inet<span class="token operator">-&gt;</span>uc_ttl    <span class="token operator">=</span> <span class="token operator">-</span><span class="token number">1</span><span class="token punctuation">;</span>
+    inet<span class="token operator">-&gt;</span>mc_loop   <span class="token operator">=</span> <span class="token number">1</span><span class="token punctuation">;</span>
+    inet<span class="token operator">-&gt;</span>mc_ttl    <span class="token operator">=</span> <span class="token number">1</span><span class="token punctuation">;</span>
+    inet<span class="token operator">-&gt;</span>mc_all    <span class="token operator">=</span> <span class="token number">1</span><span class="token punctuation">;</span>
+    inet<span class="token operator">-&gt;</span>mc_index  <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span>
+    inet<span class="token operator">-&gt;</span>mc_list   <span class="token operator">=</span> <span class="token constant">NULL</span><span class="token punctuation">;</span>
+    inet<span class="token operator">-&gt;</span>rcv_tos   <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span>
+
+    <span class="token keyword">if</span> <span class="token punctuation">(</span>inet<span class="token operator">-&gt;</span>inet_num<span class="token punctuation">)</span> <span class="token punctuation">{</span>
+        inet<span class="token operator">-&gt;</span>inet_sport <span class="token operator">=</span> <span class="token function">htons</span><span class="token punctuation">(</span>inet<span class="token operator">-&gt;</span>inet_num<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token comment">/* Add to protocol hash chains. */</span>
+        err <span class="token operator">=</span> sk<span class="token operator">-&gt;</span>sk_prot<span class="token operator">-&gt;</span><span class="token function">hash</span><span class="token punctuation">(</span>sk<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+
+    <span class="token keyword">if</span> <span class="token punctuation">(</span>sk<span class="token operator">-&gt;</span>sk_prot<span class="token operator">-&gt;</span>init<span class="token punctuation">)</span> <span class="token punctuation">{</span>
+        err <span class="token operator">=</span> sk<span class="token operator">-&gt;</span>sk_prot<span class="token operator">-&gt;</span><span class="token function">init</span><span class="token punctuation">(</span>sk<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>在inet_create中，我们先会看到一个循环list_for_each_entry_rcu。在这里，第二个参数type开始起作用。因为循环查看的是inetsw[sock-&gt;type]。</p>
+<p>这里的inetsw也是一个数组，type作为下标，里面的内容是struct inet_protosw，是协议，也即inetsw数组对于每个类型有一项，这一项里面是属于这个类型的协议。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">static</span> <span class="token keyword">struct</span> <span class="token class-name">list_head</span> inetsw<span class="token punctuation">[</span>SOCK_MAX<span class="token punctuation">]</span><span class="token punctuation">;</span>
+
+<span class="token keyword">static</span> <span class="token keyword">int</span> __init <span class="token function">inet_init</span><span class="token punctuation">(</span><span class="token keyword">void</span><span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    <span class="token comment">/* Register the socket-side information for inet_create. */</span>
+    <span class="token keyword">for</span> <span class="token punctuation">(</span>r <span class="token operator">=</span> <span class="token operator">&amp;</span>inetsw<span class="token punctuation">[</span><span class="token number">0</span><span class="token punctuation">]</span><span class="token punctuation">;</span> r <span class="token operator">&lt;</span> <span class="token operator">&amp;</span>inetsw<span class="token punctuation">[</span>SOCK_MAX<span class="token punctuation">]</span><span class="token punctuation">;</span> <span class="token operator">++</span>r<span class="token punctuation">)</span>
+        <span class="token function">INIT_LIST_HEAD</span><span class="token punctuation">(</span>r<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">for</span> <span class="token punctuation">(</span>q <span class="token operator">=</span> inetsw_array<span class="token punctuation">;</span> q <span class="token operator">&lt;</span> <span class="token operator">&amp;</span>inetsw_array<span class="token punctuation">[</span>INETSW_ARRAY_LEN<span class="token punctuation">]</span><span class="token punctuation">;</span> <span class="token operator">++</span>q<span class="token punctuation">)</span>
+        <span class="token function">inet_register_protosw</span><span class="token punctuation">(</span>q<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>inetsw数组是在系统初始化的时候初始化的，就像下面代码里面实现的一样。</p>
+<p>首先，一个循环会将inetsw数组的每一项，都初始化为一个链表。咱们前面说了，一个type类型会包含多个protocol，因而我们需要一个链表。接下来一个循环，是将inetsw_array注册到inetsw数组里面去。inetsw_array的定义如下，这个数组里面的内容很重要，后面会用到它们。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">static</span> <span class="token keyword">struct</span> <span class="token class-name">inet_protosw</span> inetsw_array<span class="token punctuation">[</span><span class="token punctuation">]</span> <span class="token operator">=</span>
+<span class="token punctuation">{</span>
+    <span class="token punctuation">{</span>
+        <span class="token punctuation">.</span>type <span class="token operator">=</span>       SOCK_STREAM<span class="token punctuation">,</span>
+        <span class="token punctuation">.</span>protocol <span class="token operator">=</span>   IPPROTO_TCP<span class="token punctuation">,</span>
+        <span class="token punctuation">.</span>prot <span class="token operator">=</span>       <span class="token operator">&amp;</span>tcp_prot<span class="token punctuation">,</span>
+        <span class="token punctuation">.</span>ops <span class="token operator">=</span>        <span class="token operator">&amp;</span>inet_stream_ops<span class="token punctuation">,</span>
+        <span class="token punctuation">.</span>flags <span class="token operator">=</span>      INET_PROTOSW_PERMANENT <span class="token operator">|</span>
+                  INET_PROTOSW_ICSK<span class="token punctuation">,</span>
+    <span class="token punctuation">}</span><span class="token punctuation">,</span>
+    <span class="token punctuation">{</span>
+        <span class="token punctuation">.</span>type <span class="token operator">=</span>       SOCK_DGRAM<span class="token punctuation">,</span>
+        <span class="token punctuation">.</span>protocol <span class="token operator">=</span>   IPPROTO_UDP<span class="token punctuation">,</span>
+        <span class="token punctuation">.</span>prot <span class="token operator">=</span>       <span class="token operator">&amp;</span>udp_prot<span class="token punctuation">,</span>
+        <span class="token punctuation">.</span>ops <span class="token operator">=</span>        <span class="token operator">&amp;</span>inet_dgram_ops<span class="token punctuation">,</span>
+        <span class="token punctuation">.</span>flags <span class="token operator">=</span>      INET_PROTOSW_PERMANENT<span class="token punctuation">,</span>
+     <span class="token punctuation">}</span><span class="token punctuation">,</span>
+     <span class="token punctuation">{</span>
+        <span class="token punctuation">.</span>type <span class="token operator">=</span>       SOCK_DGRAM<span class="token punctuation">,</span>
+        <span class="token punctuation">.</span>protocol <span class="token operator">=</span>   IPPROTO_ICMP<span class="token punctuation">,</span>
+        <span class="token punctuation">.</span>prot <span class="token operator">=</span>       <span class="token operator">&amp;</span>ping_prot<span class="token punctuation">,</span>
+        <span class="token punctuation">.</span>ops <span class="token operator">=</span>        <span class="token operator">&amp;</span>inet_sockraw_ops<span class="token punctuation">,</span>
+        <span class="token punctuation">.</span>flags <span class="token operator">=</span>      INET_PROTOSW_REUSE<span class="token punctuation">,</span>
+     <span class="token punctuation">}</span><span class="token punctuation">,</span>
+     <span class="token punctuation">{</span>
+        <span class="token punctuation">.</span>type <span class="token operator">=</span>       SOCK_RAW<span class="token punctuation">,</span>
+        <span class="token punctuation">.</span>protocol <span class="token operator">=</span>   IPPROTO_IP<span class="token punctuation">,</span>   <span class="token comment">/* wild card */</span>
+        <span class="token punctuation">.</span>prot <span class="token operator">=</span>       <span class="token operator">&amp;</span>raw_prot<span class="token punctuation">,</span>
+        <span class="token punctuation">.</span>ops <span class="token operator">=</span>        <span class="token operator">&amp;</span>inet_sockraw_ops<span class="token punctuation">,</span>
+        <span class="token punctuation">.</span>flags <span class="token operator">=</span>      INET_PROTOSW_REUSE<span class="token punctuation">,</span>
+     <span class="token punctuation">}</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>我们回到inet_create的list_for_each_entry_rcu循环中。到这里就好理解了，这是在inetsw数组中，根据type找到属于这个类型的列表，然后依次比较列表中的struct inet_protosw的protocol是不是用户指定的protocol；如果是，就得到了符合用户指定的family-&gt;type-&gt;protocol的struct inet_protosw *answer对象。</p>
+<p>接下来，struct socket *sock的ops成员变量，被赋值为answer的ops。对于TCP来讲，就是inet_stream_ops。后面任何用户对于这个socket的操作，都是通过inet_stream_ops进行的。</p>
+<p>接下来，我们创建一个struct sock *sk对象。这里比较让人困惑。socket和sock看起来几乎一样，容易让人混淆，这里需要说明一下，socket是用于负责对上给用户提供接口，并且和文件系统关联。而sock，负责向下对接内核网络协议栈。</p>
+<p>在sk_alloc函数中，struct inet_protosw <em>answer结构的tcp_prot赋值给了struct sock </em>sk的sk_prot成员。tcp_prot的定义如下，里面定义了很多的函数，都是sock之下内核协议栈的动作。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">struct</span> <span class="token class-name">proto</span> tcp_prot <span class="token operator">=</span> <span class="token punctuation">{</span>
+    <span class="token punctuation">.</span>name           <span class="token operator">=</span> <span class="token string">"TCP"</span><span class="token punctuation">,</span>
+    <span class="token punctuation">.</span>owner          <span class="token operator">=</span> THIS_MODULE<span class="token punctuation">,</span>
+    <span class="token punctuation">.</span>close          <span class="token operator">=</span> tcp_close<span class="token punctuation">,</span>
+    <span class="token punctuation">.</span>connect        <span class="token operator">=</span> tcp_v4_connect<span class="token punctuation">,</span>
+    <span class="token punctuation">.</span>disconnect     <span class="token operator">=</span> tcp_disconnect<span class="token punctuation">,</span>
+    <span class="token punctuation">.</span>accept         <span class="token operator">=</span> inet_csk_accept<span class="token punctuation">,</span>
+    <span class="token punctuation">.</span>ioctl          <span class="token operator">=</span> tcp_ioctl<span class="token punctuation">,</span>
+    <span class="token punctuation">.</span>init           <span class="token operator">=</span> tcp_v4_init_sock<span class="token punctuation">,</span>
+    <span class="token punctuation">.</span>destroy        <span class="token operator">=</span> tcp_v4_destroy_sock<span class="token punctuation">,</span>
+    <span class="token punctuation">.</span>shutdown       <span class="token operator">=</span> tcp_shutdown<span class="token punctuation">,</span>
+    <span class="token punctuation">.</span>setsockopt     <span class="token operator">=</span> tcp_setsockopt<span class="token punctuation">,</span>
+    <span class="token punctuation">.</span>getsockopt     <span class="token operator">=</span> tcp_getsockopt<span class="token punctuation">,</span>
+    <span class="token punctuation">.</span>keepalive      <span class="token operator">=</span> tcp_set_keepalive<span class="token punctuation">,</span>
+    <span class="token punctuation">.</span>recvmsg        <span class="token operator">=</span> tcp_recvmsg<span class="token punctuation">,</span>
+    <span class="token punctuation">.</span>sendmsg        <span class="token operator">=</span> tcp_sendmsg<span class="token punctuation">,</span>
+    <span class="token punctuation">.</span>sendpage       <span class="token operator">=</span> tcp_sendpage<span class="token punctuation">,</span>
+    <span class="token punctuation">.</span>backlog_rcv    <span class="token operator">=</span> tcp_v4_do_rcv<span class="token punctuation">,</span>
+    <span class="token punctuation">.</span>release_cb     <span class="token operator">=</span> tcp_release_cb<span class="token punctuation">,</span>
+    <span class="token punctuation">.</span>hash           <span class="token operator">=</span> inet_hash<span class="token punctuation">,</span>
+    <span class="token punctuation">.</span>get_port       <span class="token operator">=</span> inet_csk_get_port<span class="token punctuation">,</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>在inet_create函数中，接下来创建一个struct inet_sock结构，这个结构一开始就是struct sock，然后扩展了一些其他的信息，剩下的代码就填充这些信息。这一幕我们会经常看到，将一个结构放在另一个结构的开始位置，然后扩展一些成员，通过对于指针的强制类型转换，来访问这些成员。</p>
+<p>socket的创建至此结束。</p>
+<h4 id="40-2-解析bind函数"><a href="#40-2-解析bind函数" class="headerlink" title="40.2 解析bind函数"></a>40.2 解析bind函数</h4><pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token function">SYSCALL_DEFINE3</span><span class="token punctuation">(</span>bind<span class="token punctuation">,</span> <span class="token keyword">int</span><span class="token punctuation">,</span> fd<span class="token punctuation">,</span> <span class="token keyword">struct</span> <span class="token class-name">sockaddr</span> __user <span class="token operator">*</span><span class="token punctuation">,</span> umyaddr<span class="token punctuation">,</span> <span class="token keyword">int</span><span class="token punctuation">,</span> addrlen<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword">struct</span> <span class="token class-name">socket</span> <span class="token operator">*</span>sock<span class="token punctuation">;</span>
+    <span class="token keyword">struct</span> <span class="token class-name">sockaddr_storage</span> address<span class="token punctuation">;</span>
+    <span class="token keyword">int</span> err<span class="token punctuation">,</span> fput_needed<span class="token punctuation">;</span>
+
+    sock <span class="token operator">=</span> <span class="token function">sockfd_lookup_light</span><span class="token punctuation">(</span>fd<span class="token punctuation">,</span> <span class="token operator">&amp;</span>err<span class="token punctuation">,</span> <span class="token operator">&amp;</span>fput_needed<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">if</span> <span class="token punctuation">(</span>sock<span class="token punctuation">)</span> <span class="token punctuation">{</span>
+        err <span class="token operator">=</span> <span class="token function">move_addr_to_kernel</span><span class="token punctuation">(</span>umyaddr<span class="token punctuation">,</span> addrlen<span class="token punctuation">,</span> <span class="token operator">&amp;</span>address<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span>err <span class="token operator">&gt;=</span> <span class="token number">0</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+            err <span class="token operator">=</span> sock<span class="token operator">-&gt;</span>ops<span class="token operator">-&gt;</span><span class="token function">bind</span><span class="token punctuation">(</span>sock<span class="token punctuation">,</span>
+                              <span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">sockaddr</span> <span class="token operator">*</span><span class="token punctuation">)</span>
+                              <span class="token operator">&amp;</span>address<span class="token punctuation">,</span> addrlen<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+        <span class="token function">fput_light</span><span class="token punctuation">(</span>sock<span class="token operator">-&gt;</span>file<span class="token punctuation">,</span> fput_needed<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+    <span class="token keyword">return</span> err<span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>在bind中，sockfd_lookup_light会根据fd文件描述符，找到struct socket结构。然后将sockaddr从用户态拷贝到内核态，然后调用struct socket结构里面ops的bind函数。根据前面创建socket的时候的设定，调用的是inet_stream_ops的bind函数，也即调用inet_bind。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">int</span> <span class="token function">inet_bind</span><span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">socket</span> <span class="token operator">*</span>sock<span class="token punctuation">,</span> <span class="token keyword">struct</span> <span class="token class-name">sockaddr</span> <span class="token operator">*</span>uaddr<span class="token punctuation">,</span> <span class="token keyword">int</span> addr_len<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword">struct</span> <span class="token class-name">sockaddr_in</span> <span class="token operator">*</span>addr <span class="token operator">=</span> <span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">sockaddr_in</span> <span class="token operator">*</span><span class="token punctuation">)</span>uaddr<span class="token punctuation">;</span>
+    <span class="token keyword">struct</span> <span class="token class-name">sock</span> <span class="token operator">*</span>sk <span class="token operator">=</span> sock<span class="token operator">-&gt;</span>sk<span class="token punctuation">;</span>
+    <span class="token keyword">struct</span> <span class="token class-name">inet_sock</span> <span class="token operator">*</span>inet <span class="token operator">=</span> <span class="token function">inet_sk</span><span class="token punctuation">(</span>sk<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">struct</span> <span class="token class-name">net</span> <span class="token operator">*</span>net <span class="token operator">=</span> <span class="token function">sock_net</span><span class="token punctuation">(</span>sk<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">unsigned</span> <span class="token keyword">short</span> snum<span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    snum <span class="token operator">=</span> <span class="token function">ntohs</span><span class="token punctuation">(</span>addr<span class="token operator">-&gt;</span>sin_port<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    inet<span class="token operator">-&gt;</span>inet_rcv_saddr <span class="token operator">=</span> inet<span class="token operator">-&gt;</span>inet_saddr <span class="token operator">=</span> addr<span class="token operator">-&gt;</span>sin_addr<span class="token punctuation">.</span>s_addr<span class="token punctuation">;</span>
+    <span class="token comment">/* Make sure we are allowed to bind here. */</span>
+    <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token punctuation">(</span>snum <span class="token operator">||</span> <span class="token operator">!</span>inet<span class="token operator">-&gt;</span>bind_address_no_port<span class="token punctuation">)</span> <span class="token operator">&amp;&amp;</span>
+        sk<span class="token operator">-&gt;</span>sk_prot<span class="token operator">-&gt;</span><span class="token function">get_port</span><span class="token punctuation">(</span>sk<span class="token punctuation">,</span> snum<span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    <span class="token punctuation">}</span>
+    inet<span class="token operator">-&gt;</span>inet_sport <span class="token operator">=</span> <span class="token function">htons</span><span class="token punctuation">(</span>inet<span class="token operator">-&gt;</span>inet_num<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    inet<span class="token operator">-&gt;</span>inet_daddr <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span>
+    inet<span class="token operator">-&gt;</span>inet_dport <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span>
+    <span class="token function">sk_dst_reset</span><span class="token punctuation">(</span>sk<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>bind里面会调用sk_prot的get_port函数，也即inet_csk_get_port来检查端口是否冲突，是否可以绑定。如果允许，则会设置struct inet_sock的本方的地址inet_saddr和本方的端口inet_sport，对方的地址inet_daddr和对方的端口inet_dport都初始化为0。</p>
+<p>bind的逻辑相对比较简单，就到这里了。</p>
+<h4 id="40-3-解析listen函数"><a href="#40-3-解析listen函数" class="headerlink" title="40.3 解析listen函数"></a>40.3 解析listen函数</h4><pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token function">SYSCALL_DEFINE2</span><span class="token punctuation">(</span>listen<span class="token punctuation">,</span> <span class="token keyword">int</span><span class="token punctuation">,</span> fd<span class="token punctuation">,</span> <span class="token keyword">int</span><span class="token punctuation">,</span> backlog<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword">struct</span> <span class="token class-name">socket</span> <span class="token operator">*</span>sock<span class="token punctuation">;</span>
+    <span class="token keyword">int</span> err<span class="token punctuation">,</span> fput_needed<span class="token punctuation">;</span>
+    <span class="token keyword">int</span> somaxconn<span class="token punctuation">;</span>
+
+    sock <span class="token operator">=</span> <span class="token function">sockfd_lookup_light</span><span class="token punctuation">(</span>fd<span class="token punctuation">,</span> <span class="token operator">&amp;</span>err<span class="token punctuation">,</span> <span class="token operator">&amp;</span>fput_needed<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">if</span> <span class="token punctuation">(</span>sock<span class="token punctuation">)</span> <span class="token punctuation">{</span>
+        somaxconn <span class="token operator">=</span> <span class="token function">sock_net</span><span class="token punctuation">(</span>sock<span class="token operator">-&gt;</span>sk<span class="token punctuation">)</span><span class="token operator">-&gt;</span>core<span class="token punctuation">.</span>sysctl_somaxconn<span class="token punctuation">;</span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token punctuation">(</span><span class="token keyword">unsigned</span> <span class="token keyword">int</span><span class="token punctuation">)</span>backlog <span class="token operator">&gt;</span> somaxconn<span class="token punctuation">)</span>
+            backlog <span class="token operator">=</span> somaxconn<span class="token punctuation">;</span>
+        err <span class="token operator">=</span> sock<span class="token operator">-&gt;</span>ops<span class="token operator">-&gt;</span><span class="token function">listen</span><span class="token punctuation">(</span>sock<span class="token punctuation">,</span> backlog<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token function">fput_light</span><span class="token punctuation">(</span>sock<span class="token operator">-&gt;</span>file<span class="token punctuation">,</span> fput_needed<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+    <span class="token keyword">return</span> err<span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>在listen中，我们还是通过sockfd_lookup_light，根据fd文件描述符，找到struct socket结构。接着，我们调用struct socket结构里面ops的listen函数。根据前面创建socket的时候的设定，调用的是inet_stream_ops的listen函数，也即调用inet_listen。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">int</span> <span class="token function">inet_listen</span><span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">socket</span> <span class="token operator">*</span>sock<span class="token punctuation">,</span> <span class="token keyword">int</span> backlog<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword">struct</span> <span class="token class-name">sock</span> <span class="token operator">*</span>sk <span class="token operator">=</span> sock<span class="token operator">-&gt;</span>sk<span class="token punctuation">;</span>
+    <span class="token keyword">unsigned</span> <span class="token keyword">char</span> old_state<span class="token punctuation">;</span>
+    <span class="token keyword">int</span> err<span class="token punctuation">;</span>
+    old_state <span class="token operator">=</span> sk<span class="token operator">-&gt;</span>sk_state<span class="token punctuation">;</span>
+    <span class="token comment">/* Really, if the socket is already in listen state
+     * we can only allow the backlog to be adjusted.
+     */</span>
+    <span class="token keyword">if</span> <span class="token punctuation">(</span>old_state <span class="token operator">!=</span> TCP_LISTEN<span class="token punctuation">)</span> <span class="token punctuation">{</span>
+        err <span class="token operator">=</span> <span class="token function">inet_csk_listen_start</span><span class="token punctuation">(</span>sk<span class="token punctuation">,</span> backlog<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+    sk<span class="token operator">-&gt;</span>sk_max_ack_backlog <span class="token operator">=</span> backlog<span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>如果这个socket还不在TCP_LISTEN状态，会调用inet_csk_listen_start进入监听状态。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">int</span> <span class="token function">inet_csk_listen_start</span><span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">sock</span> <span class="token operator">*</span>sk<span class="token punctuation">,</span> <span class="token keyword">int</span> backlog<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword">struct</span> <span class="token class-name">inet_connection_sock</span> <span class="token operator">*</span>icsk <span class="token operator">=</span> <span class="token function">inet_csk</span><span class="token punctuation">(</span>sk<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">struct</span> <span class="token class-name">inet_sock</span> <span class="token operator">*</span>inet <span class="token operator">=</span> <span class="token function">inet_sk</span><span class="token punctuation">(</span>sk<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">int</span> err <span class="token operator">=</span> <span class="token operator">-</span>EADDRINUSE<span class="token punctuation">;</span>
+
+    <span class="token function">reqsk_queue_alloc</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>icsk<span class="token operator">-&gt;</span>icsk_accept_queue<span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+    sk<span class="token operator">-&gt;</span>sk_max_ack_backlog <span class="token operator">=</span> backlog<span class="token punctuation">;</span>
+    sk<span class="token operator">-&gt;</span>sk_ack_backlog <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span>
+    <span class="token function">inet_csk_delack_init</span><span class="token punctuation">(</span>sk<span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+    <span class="token function">sk_state_store</span><span class="token punctuation">(</span>sk<span class="token punctuation">,</span> TCP_LISTEN<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token operator">!</span>sk<span class="token operator">-&gt;</span>sk_prot<span class="token operator">-&gt;</span><span class="token function">get_port</span><span class="token punctuation">(</span>sk<span class="token punctuation">,</span> inet<span class="token operator">-&gt;</span>inet_num<span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    <span class="token punctuation">}</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>这里面建立了一个新的结构inet_connection_sock，这个结构一开始是struct inet_sock，inet_csk其实做了一次强制类型转换，扩大了结构，看到了吧，又是这个套路。</p>
+<p>struct inet_connection_sock结构比较复杂。如果打开它，你能看到处于各种状态的队列，各种超时时间、拥塞控制等字眼。我们说TCP是面向连接的，就是客户端和服务端都是有一个结构维护连接的状态，就是指这个结构。我们这里先不详细分析里面的变量，因为太多了，后面我们遇到一个分析一个。</p>
+<p>首先，我们遇到的是icsk_accept_queue。它是干什么的呢？</p>
+<p>在TCP的状态里面，有一个listen状态，当调用listen函数之后，就会进入这个状态，虽然我们写程序的时候，一般要等待服务端调用accept后，等待在哪里的时候，让客户端就发起连接。其实服务端一旦处于listen状态，不用accept，客户端也能发起连接。其实TCP的状态中，没有一个是否被accept的状态，那accept函数的作用是什么呢？</p>
+<p>在内核中，为每个Socket维护两个队列。一个是已经建立了连接的队列，这时候连接三次握手已经完毕，处于established状态；一个是还没有完全建立连接的队列，这个时候三次握手还没完成，处于syn_rcvd的状态。</p>
+<p>服务端调用accept函数，其实是在第一个队列中拿出一个已经完成的连接进行处理。如果还没有完成就阻塞等待。这里的icsk_accept_queue就是第一个队列。</p>
+<p>初始化完之后，将TCP的状态设置为TCP_LISTEN，再次调用get_port判断端口是否冲突。</p>
+<p>至此，listen的逻辑就结束了。</p>
+<h4 id="40-4-解析accept函数"><a href="#40-4-解析accept函数" class="headerlink" title="40.4 解析accept函数"></a>40.4 解析accept函数</h4><pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token function">SYSCALL_DEFINE3</span><span class="token punctuation">(</span>accept<span class="token punctuation">,</span> <span class="token keyword">int</span><span class="token punctuation">,</span> fd<span class="token punctuation">,</span> <span class="token keyword">struct</span> <span class="token class-name">sockaddr</span> __user <span class="token operator">*</span><span class="token punctuation">,</span> upeer_sockaddr<span class="token punctuation">,</span>
+        <span class="token keyword">int</span> __user <span class="token operator">*</span><span class="token punctuation">,</span> upeer_addrlen<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword">return</span> <span class="token function">sys_accept4</span><span class="token punctuation">(</span>fd<span class="token punctuation">,</span> upeer_sockaddr<span class="token punctuation">,</span> upeer_addrlen<span class="token punctuation">,</span> <span class="token number">0</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+
+<span class="token function">SYSCALL_DEFINE4</span><span class="token punctuation">(</span>accept4<span class="token punctuation">,</span> <span class="token keyword">int</span><span class="token punctuation">,</span> fd<span class="token punctuation">,</span> <span class="token keyword">struct</span> <span class="token class-name">sockaddr</span> __user <span class="token operator">*</span><span class="token punctuation">,</span> upeer_sockaddr<span class="token punctuation">,</span>
+        <span class="token keyword">int</span> __user <span class="token operator">*</span><span class="token punctuation">,</span> upeer_addrlen<span class="token punctuation">,</span> <span class="token keyword">int</span><span class="token punctuation">,</span> flags<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword">struct</span> <span class="token class-name">socket</span> <span class="token operator">*</span>sock<span class="token punctuation">,</span> <span class="token operator">*</span>newsock<span class="token punctuation">;</span>
+    <span class="token keyword">struct</span> <span class="token class-name">file</span> <span class="token operator">*</span>newfile<span class="token punctuation">;</span>
+    <span class="token keyword">int</span> err<span class="token punctuation">,</span> len<span class="token punctuation">,</span> newfd<span class="token punctuation">,</span> fput_needed<span class="token punctuation">;</span>
+    <span class="token keyword">struct</span> <span class="token class-name">sockaddr_storage</span> address<span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    sock <span class="token operator">=</span> <span class="token function">sockfd_lookup_light</span><span class="token punctuation">(</span>fd<span class="token punctuation">,</span> <span class="token operator">&amp;</span>err<span class="token punctuation">,</span> <span class="token operator">&amp;</span>fput_needed<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    newsock <span class="token operator">=</span> <span class="token function">sock_alloc</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    newsock<span class="token operator">-&gt;</span>type <span class="token operator">=</span> sock<span class="token operator">-&gt;</span>type<span class="token punctuation">;</span>
+    newsock<span class="token operator">-&gt;</span>ops <span class="token operator">=</span> sock<span class="token operator">-&gt;</span>ops<span class="token punctuation">;</span>
+    newfd <span class="token operator">=</span> <span class="token function">get_unused_fd_flags</span><span class="token punctuation">(</span>flags<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    newfile <span class="token operator">=</span> <span class="token function">sock_alloc_file</span><span class="token punctuation">(</span>newsock<span class="token punctuation">,</span> flags<span class="token punctuation">,</span> sock<span class="token operator">-&gt;</span>sk<span class="token operator">-&gt;</span>sk_prot_creator<span class="token operator">-&gt;</span>name<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    err <span class="token operator">=</span> sock<span class="token operator">-&gt;</span>ops<span class="token operator">-&gt;</span><span class="token function">accept</span><span class="token punctuation">(</span>sock<span class="token punctuation">,</span> newsock<span class="token punctuation">,</span> sock<span class="token operator">-&gt;</span>file<span class="token operator">-&gt;</span>f_flags<span class="token punctuation">,</span> false<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">if</span> <span class="token punctuation">(</span>upeer_sockaddr<span class="token punctuation">)</span> <span class="token punctuation">{</span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span>newsock<span class="token operator">-&gt;</span>ops<span class="token operator">-&gt;</span><span class="token function">getname</span><span class="token punctuation">(</span>newsock<span class="token punctuation">,</span> <span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">sockaddr</span> <span class="token operator">*</span><span class="token punctuation">)</span><span class="token operator">&amp;</span>address<span class="token punctuation">,</span> <span class="token operator">&amp;</span>len<span class="token punctuation">,</span> <span class="token number">2</span><span class="token punctuation">)</span> <span class="token operator">&lt;</span> <span class="token number">0</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+        <span class="token punctuation">}</span>
+        err <span class="token operator">=</span> <span class="token function">move_addr_to_user</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>address<span class="token punctuation">,</span>
+                    len<span class="token punctuation">,</span> upeer_sockaddr<span class="token punctuation">,</span> upeer_addrlen<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+    <span class="token function">fd_install</span><span class="token punctuation">(</span>newfd<span class="token punctuation">,</span> newfile<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>accept函数的实现，印证了socket的原理中说的那样，原来的socket是监听socket，这里我们会找到原来的struct socket，并基于它去创建一个新的newsock。这才是连接socket。除此之外，我们还会创建一个新的struct file和fd，并关联到socket。</p>
+<p>这里面还会调用struct socket的sock-&gt;ops-&gt;accept，也即会调用inet_stream_ops的accept函数，也即inet_accept。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">int</span> <span class="token function">inet_accept</span><span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">socket</span> <span class="token operator">*</span>sock<span class="token punctuation">,</span> <span class="token keyword">struct</span> <span class="token class-name">socket</span> <span class="token operator">*</span>newsock<span class="token punctuation">,</span> <span class="token keyword">int</span> flags<span class="token punctuation">,</span> bool kern<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword">struct</span> <span class="token class-name">sock</span> <span class="token operator">*</span>sk1 <span class="token operator">=</span> sock<span class="token operator">-&gt;</span>sk<span class="token punctuation">;</span>
+    <span class="token keyword">int</span> err <span class="token operator">=</span> <span class="token operator">-</span>EINVAL<span class="token punctuation">;</span>
+    <span class="token keyword">struct</span> <span class="token class-name">sock</span> <span class="token operator">*</span>sk2 <span class="token operator">=</span> sk1<span class="token operator">-&gt;</span>sk_prot<span class="token operator">-&gt;</span><span class="token function">accept</span><span class="token punctuation">(</span>sk1<span class="token punctuation">,</span> flags<span class="token punctuation">,</span> <span class="token operator">&amp;</span>err<span class="token punctuation">,</span> kern<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token function">sock_rps_record_flow</span><span class="token punctuation">(</span>sk2<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token function">sock_graft</span><span class="token punctuation">(</span>sk2<span class="token punctuation">,</span> newsock<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    newsock<span class="token operator">-&gt;</span>state <span class="token operator">=</span> SS_CONNECTED<span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>inet_accept会调用struct sock的sk1-&gt;sk_prot-&gt;accept，也即tcp_prot的accept函数，inet_csk_accept函数。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token comment">/*
+ * This will accept the next outstanding connection.
+ */</span>
+<span class="token keyword">struct</span> <span class="token class-name">sock</span> <span class="token operator">*</span><span class="token function">inet_csk_accept</span><span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">sock</span> <span class="token operator">*</span>sk<span class="token punctuation">,</span> <span class="token keyword">int</span> flags<span class="token punctuation">,</span> <span class="token keyword">int</span> <span class="token operator">*</span>err<span class="token punctuation">,</span> bool kern<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword">struct</span> <span class="token class-name">inet_connection_sock</span> <span class="token operator">*</span>icsk <span class="token operator">=</span> <span class="token function">inet_csk</span><span class="token punctuation">(</span>sk<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">struct</span> <span class="token class-name">request_sock_queue</span> <span class="token operator">*</span>queue <span class="token operator">=</span> <span class="token operator">&amp;</span>icsk<span class="token operator">-&gt;</span>icsk_accept_queue<span class="token punctuation">;</span>
+    <span class="token keyword">struct</span> <span class="token class-name">request_sock</span> <span class="token operator">*</span>req<span class="token punctuation">;</span>
+    <span class="token keyword">struct</span> <span class="token class-name">sock</span> <span class="token operator">*</span>newsk<span class="token punctuation">;</span>
+    <span class="token keyword">int</span> error<span class="token punctuation">;</span>
+
+    <span class="token keyword">if</span> <span class="token punctuation">(</span>sk<span class="token operator">-&gt;</span>sk_state <span class="token operator">!=</span> TCP_LISTEN<span class="token punctuation">)</span>
+        <span class="token keyword">goto</span> out_err<span class="token punctuation">;</span>
+
+    <span class="token comment">/* Find already established connection */</span>
+    <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token function">reqsk_queue_empty</span><span class="token punctuation">(</span>queue<span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+        <span class="token keyword">long</span> timeo <span class="token operator">=</span> <span class="token function">sock_rcvtimeo</span><span class="token punctuation">(</span>sk<span class="token punctuation">,</span> flags <span class="token operator">&amp;</span> O_NONBLOCK<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        error <span class="token operator">=</span> <span class="token function">inet_csk_wait_for_connect</span><span class="token punctuation">(</span>sk<span class="token punctuation">,</span> timeo<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+    req <span class="token operator">=</span> <span class="token function">reqsk_queue_remove</span><span class="token punctuation">(</span>queue<span class="token punctuation">,</span> sk<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    newsk <span class="token operator">=</span> req<span class="token operator">-&gt;</span>sk<span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+<span class="token punctuation">}</span>
+
+<span class="token comment">/*
+ * Wait for an incoming connection, avoid race conditions. This must be called
+ * with the socket locked.
+ */</span>
+<span class="token keyword">static</span> <span class="token keyword">int</span> <span class="token function">inet_csk_wait_for_connect</span><span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">sock</span> <span class="token operator">*</span>sk<span class="token punctuation">,</span> <span class="token keyword">long</span> timeo<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword">struct</span> <span class="token class-name">inet_connection_sock</span> <span class="token operator">*</span>icsk <span class="token operator">=</span> <span class="token function">inet_csk</span><span class="token punctuation">(</span>sk<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token function">DEFINE_WAIT</span><span class="token punctuation">(</span>wait<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">int</span> err<span class="token punctuation">;</span>
+    <span class="token keyword">for</span> <span class="token punctuation">(</span><span class="token punctuation">;</span><span class="token punctuation">;</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+        <span class="token function">prepare_to_wait_exclusive</span><span class="token punctuation">(</span><span class="token function">sk_sleep</span><span class="token punctuation">(</span>sk<span class="token punctuation">)</span><span class="token punctuation">,</span> <span class="token operator">&amp;</span>wait<span class="token punctuation">,</span>
+                      TASK_INTERRUPTIBLE<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token function">release_sock</span><span class="token punctuation">(</span>sk<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token function">reqsk_queue_empty</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>icsk<span class="token operator">-&gt;</span>icsk_accept_queue<span class="token punctuation">)</span><span class="token punctuation">)</span>
+            timeo <span class="token operator">=</span> <span class="token function">schedule_timeout</span><span class="token punctuation">(</span>timeo<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token function">sched_annotate_sleep</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token function">lock_sock</span><span class="token punctuation">(</span>sk<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        err <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token operator">!</span><span class="token function">reqsk_queue_empty</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>icsk<span class="token operator">-&gt;</span>icsk_accept_queue<span class="token punctuation">)</span><span class="token punctuation">)</span>
+            <span class="token keyword">break</span><span class="token punctuation">;</span>
+        err <span class="token operator">=</span> <span class="token operator">-</span>EINVAL<span class="token punctuation">;</span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span>sk<span class="token operator">-&gt;</span>sk_state <span class="token operator">!=</span> TCP_LISTEN<span class="token punctuation">)</span>
+            <span class="token keyword">break</span><span class="token punctuation">;</span>
+        err <span class="token operator">=</span> <span class="token function">sock_intr_errno</span><span class="token punctuation">(</span>timeo<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token function">signal_pending</span><span class="token punctuation">(</span>current<span class="token punctuation">)</span><span class="token punctuation">)</span>
+            <span class="token keyword">break</span><span class="token punctuation">;</span>
+        err <span class="token operator">=</span> <span class="token operator">-</span>EAGAIN<span class="token punctuation">;</span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token operator">!</span>timeo<span class="token punctuation">)</span>
+            <span class="token keyword">break</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+    <span class="token function">finish_wait</span><span class="token punctuation">(</span><span class="token function">sk_sleep</span><span class="token punctuation">(</span>sk<span class="token punctuation">)</span><span class="token punctuation">,</span> <span class="token operator">&amp;</span>wait<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">return</span> err<span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>inet_csk_accept的实现，印证了上面我们讲的两个队列的逻辑。如果icsk_accept_queue为空，则调用inet_csk_wait_for_connect进行等待；等待的时候，调用schedule_timeout，让出CPU，并且将进程状态设置为TASK_INTERRUPTIBLE。</p>
+<p>如果再次CPU醒来，我们会接着判断icsk_accept_queue是否为空，同时也会调用signal_pending看有没有信号可以处理。一旦icsk_accept_queue不为空，就从inet_csk_wait_for_connect中返回，在队列中取出一个struct sock对象赋值给newsk。</p>
+<h4 id="40-5-解析connect函数"><a href="#40-5-解析connect函数" class="headerlink" title="40.5 解析connect函数"></a>40.5 解析connect函数</h4><p>什么情况下，icsk_accept_queue才不为空呢？当然是三次握手结束才可以。接下来我们来分析三次握手的过程。</p>
+<p><img src="/images/《趣谈Linux操作系统》学习笔记/TCP三次握手内核流程.png" alt="TCP三次握手内核流程"></p>
+<p>三次握手一般是由客户端调用connect发起。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token function">SYSCALL_DEFINE3</span><span class="token punctuation">(</span>connect<span class="token punctuation">,</span> <span class="token keyword">int</span><span class="token punctuation">,</span> fd<span class="token punctuation">,</span> <span class="token keyword">struct</span> <span class="token class-name">sockaddr</span> __user <span class="token operator">*</span><span class="token punctuation">,</span> uservaddr<span class="token punctuation">,</span>
+        <span class="token keyword">int</span><span class="token punctuation">,</span> addrlen<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword">struct</span> <span class="token class-name">socket</span> <span class="token operator">*</span>sock<span class="token punctuation">;</span>
+    <span class="token keyword">struct</span> <span class="token class-name">sockaddr_storage</span> address<span class="token punctuation">;</span>
+    <span class="token keyword">int</span> err<span class="token punctuation">,</span> fput_needed<span class="token punctuation">;</span>
+    sock <span class="token operator">=</span> <span class="token function">sockfd_lookup_light</span><span class="token punctuation">(</span>fd<span class="token punctuation">,</span> <span class="token operator">&amp;</span>err<span class="token punctuation">,</span> <span class="token operator">&amp;</span>fput_needed<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    err <span class="token operator">=</span> <span class="token function">move_addr_to_kernel</span><span class="token punctuation">(</span>uservaddr<span class="token punctuation">,</span> addrlen<span class="token punctuation">,</span> <span class="token operator">&amp;</span>address<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    err <span class="token operator">=</span> sock<span class="token operator">-&gt;</span>ops<span class="token operator">-&gt;</span><span class="token function">connect</span><span class="token punctuation">(</span>sock<span class="token punctuation">,</span> <span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">sockaddr</span> <span class="token operator">*</span><span class="token punctuation">)</span><span class="token operator">&amp;</span>address<span class="token punctuation">,</span> addrlen<span class="token punctuation">,</span> sock<span class="token operator">-&gt;</span>file<span class="token operator">-&gt;</span>f_flags<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>connect函数的实现一开始你应该很眼熟，还是通过sockfd_lookup_light，根据fd文件描述符，找到struct socket结构。接着，我们会调用struct socket结构里面ops的connect函数，根据前面创建socket的时候的设定，调用inet_stream_ops的connect函数，也即调用inet_stream_connect。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token comment">/*
+ *  Connect to a remote host. There is regrettably still a little
+ *  TCP 'magic' in here.
+ */</span>
+<span class="token keyword">int</span> <span class="token function">__inet_stream_connect</span><span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">socket</span> <span class="token operator">*</span>sock<span class="token punctuation">,</span> <span class="token keyword">struct</span> <span class="token class-name">sockaddr</span> <span class="token operator">*</span>uaddr<span class="token punctuation">,</span>
+              <span class="token keyword">int</span> addr_len<span class="token punctuation">,</span> <span class="token keyword">int</span> flags<span class="token punctuation">,</span> <span class="token keyword">int</span> is_sendmsg<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword">struct</span> <span class="token class-name">sock</span> <span class="token operator">*</span>sk <span class="token operator">=</span> sock<span class="token operator">-&gt;</span>sk<span class="token punctuation">;</span>
+    <span class="token keyword">int</span> err<span class="token punctuation">;</span>
+    <span class="token keyword">long</span> timeo<span class="token punctuation">;</span>
+
+    <span class="token keyword">switch</span> <span class="token punctuation">(</span>sock<span class="token operator">-&gt;</span>state<span class="token punctuation">)</span> <span class="token punctuation">{</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    <span class="token keyword">case</span> SS_UNCONNECTED<span class="token operator">:</span>
+        err <span class="token operator">=</span> <span class="token operator">-</span>EISCONN<span class="token punctuation">;</span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span>sk<span class="token operator">-&gt;</span>sk_state <span class="token operator">!=</span> TCP_CLOSE<span class="token punctuation">)</span>
+            <span class="token keyword">goto</span> out<span class="token punctuation">;</span>
+
+        err <span class="token operator">=</span> sk<span class="token operator">-&gt;</span>sk_prot<span class="token operator">-&gt;</span><span class="token function">connect</span><span class="token punctuation">(</span>sk<span class="token punctuation">,</span> uaddr<span class="token punctuation">,</span> addr_len<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        sock<span class="token operator">-&gt;</span>state <span class="token operator">=</span> SS_CONNECTING<span class="token punctuation">;</span>
+        <span class="token keyword">break</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+
+    timeo <span class="token operator">=</span> <span class="token function">sock_sndtimeo</span><span class="token punctuation">(</span>sk<span class="token punctuation">,</span> flags <span class="token operator">&amp;</span> O_NONBLOCK<span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+    <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token punctuation">(</span><span class="token number">1</span> <span class="token operator">&lt;&lt;</span> sk<span class="token operator">-&gt;</span>sk_state<span class="token punctuation">)</span> <span class="token operator">&amp;</span> <span class="token punctuation">(</span>TCPF_SYN_SENT <span class="token operator">|</span> TCPF_SYN_RECV<span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token operator">!</span>timeo <span class="token operator">||</span> <span class="token operator">!</span><span class="token function">inet_wait_for_connect</span><span class="token punctuation">(</span>sk<span class="token punctuation">,</span> timeo<span class="token punctuation">,</span> writebias<span class="token punctuation">)</span><span class="token punctuation">)</span>
+            <span class="token keyword">goto</span> out<span class="token punctuation">;</span>
+
+        err <span class="token operator">=</span> <span class="token function">sock_intr_errno</span><span class="token punctuation">(</span>timeo<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token function">signal_pending</span><span class="token punctuation">(</span>current<span class="token punctuation">)</span><span class="token punctuation">)</span>
+            <span class="token keyword">goto</span> out<span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+    sock<span class="token operator">-&gt;</span>state <span class="token operator">=</span> SS_CONNECTED<span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>在__inet_stream_connect里面，我们发现，如果socket处于SS_UNCONNECTED状态，那就调用struct sock的sk-&gt;sk_prot-&gt;connect，也即tcp_prot的connect函数——tcp_v4_connect函数。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">int</span> <span class="token function">tcp_v4_connect</span><span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">sock</span> <span class="token operator">*</span>sk<span class="token punctuation">,</span> <span class="token keyword">struct</span> <span class="token class-name">sockaddr</span> <span class="token operator">*</span>uaddr<span class="token punctuation">,</span> <span class="token keyword">int</span> addr_len<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword">struct</span> <span class="token class-name">sockaddr_in</span> <span class="token operator">*</span>usin <span class="token operator">=</span> <span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">sockaddr_in</span> <span class="token operator">*</span><span class="token punctuation">)</span>uaddr<span class="token punctuation">;</span>
+    <span class="token keyword">struct</span> <span class="token class-name">inet_sock</span> <span class="token operator">*</span>inet <span class="token operator">=</span> <span class="token function">inet_sk</span><span class="token punctuation">(</span>sk<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">struct</span> <span class="token class-name">tcp_sock</span> <span class="token operator">*</span>tp <span class="token operator">=</span> <span class="token function">tcp_sk</span><span class="token punctuation">(</span>sk<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    __be16 orig_sport<span class="token punctuation">,</span> orig_dport<span class="token punctuation">;</span>
+    __be32 daddr<span class="token punctuation">,</span> nexthop<span class="token punctuation">;</span>
+    <span class="token keyword">struct</span> <span class="token class-name">flowi4</span> <span class="token operator">*</span>fl4<span class="token punctuation">;</span>
+    <span class="token keyword">struct</span> <span class="token class-name">rtable</span> <span class="token operator">*</span>rt<span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    orig_sport <span class="token operator">=</span> inet<span class="token operator">-&gt;</span>inet_sport<span class="token punctuation">;</span>
+    orig_dport <span class="token operator">=</span> usin<span class="token operator">-&gt;</span>sin_port<span class="token punctuation">;</span>
+    rt <span class="token operator">=</span> <span class="token function">ip_route_connect</span><span class="token punctuation">(</span>fl4<span class="token punctuation">,</span> nexthop<span class="token punctuation">,</span> inet<span class="token operator">-&gt;</span>inet_saddr<span class="token punctuation">,</span>
+                  <span class="token function">RT_CONN_FLAGS</span><span class="token punctuation">(</span>sk<span class="token punctuation">)</span><span class="token punctuation">,</span> sk<span class="token operator">-&gt;</span>sk_bound_dev_if<span class="token punctuation">,</span>
+                  IPPROTO_TCP<span class="token punctuation">,</span>
+                  orig_sport<span class="token punctuation">,</span> orig_dport<span class="token punctuation">,</span> sk<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    <span class="token function">tcp_set_state</span><span class="token punctuation">(</span>sk<span class="token punctuation">,</span> TCP_SYN_SENT<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    err <span class="token operator">=</span> <span class="token function">inet_hash_connect</span><span class="token punctuation">(</span>tcp_death_row<span class="token punctuation">,</span> sk<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token function">sk_set_txhash</span><span class="token punctuation">(</span>sk<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    rt <span class="token operator">=</span> <span class="token function">ip_route_newports</span><span class="token punctuation">(</span>fl4<span class="token punctuation">,</span> rt<span class="token punctuation">,</span> orig_sport<span class="token punctuation">,</span> orig_dport<span class="token punctuation">,</span>
+                   inet<span class="token operator">-&gt;</span>inet_sport<span class="token punctuation">,</span> inet<span class="token operator">-&gt;</span>inet_dport<span class="token punctuation">,</span> sk<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token comment">/* OK, now commit destination to socket.  */</span>
+    sk<span class="token operator">-&gt;</span>sk_gso_type <span class="token operator">=</span> SKB_GSO_TCPV4<span class="token punctuation">;</span>
+    <span class="token function">sk_setup_caps</span><span class="token punctuation">(</span>sk<span class="token punctuation">,</span> <span class="token operator">&amp;</span>rt<span class="token operator">-&gt;</span>dst<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token function">likely</span><span class="token punctuation">(</span><span class="token operator">!</span>tp<span class="token operator">-&gt;</span>repair<span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token operator">!</span>tp<span class="token operator">-&gt;</span>write_seq<span class="token punctuation">)</span>
+            tp<span class="token operator">-&gt;</span>write_seq <span class="token operator">=</span> <span class="token function">secure_tcp_seq</span><span class="token punctuation">(</span>inet<span class="token operator">-&gt;</span>inet_saddr<span class="token punctuation">,</span>
+                               inet<span class="token operator">-&gt;</span>inet_daddr<span class="token punctuation">,</span>
+                               inet<span class="token operator">-&gt;</span>inet_sport<span class="token punctuation">,</span>
+                               usin<span class="token operator">-&gt;</span>sin_port<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        tp<span class="token operator">-&gt;</span>tsoffset <span class="token operator">=</span> <span class="token function">secure_tcp_ts_off</span><span class="token punctuation">(</span><span class="token function">sock_net</span><span class="token punctuation">(</span>sk<span class="token punctuation">)</span><span class="token punctuation">,</span>
+                         inet<span class="token operator">-&gt;</span>inet_saddr<span class="token punctuation">,</span>
+                         inet<span class="token operator">-&gt;</span>inet_daddr<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+    rt <span class="token operator">=</span> <span class="token constant">NULL</span><span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    err <span class="token operator">=</span> <span class="token function">tcp_connect</span><span class="token punctuation">(</span>sk<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>在tcp_v4_connect函数中，ip_route_connect其实是做一个路由的选择。为什么呢？因为三次握手马上就要发送一个SYN包了，这就要凑齐源地址、源端口、目标地址、目标端口。目标地址和目标端口是服务端的，已经知道源端口是客户端随机分配的，源地址应该用哪一个呢？这时候要选择一条路由，看从哪个网卡出去，就应该填写哪个网卡的IP地址。</p>
+<p>接下来，在发送SYN之前，我们先将客户端socket的状态设置为TCP_SYN_SENT。然后初始化TCP的seq num，也即write_seq，然后调用tcp_connect进行发送。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token comment">/* Build a SYN and send it off. */</span>
+<span class="token keyword">int</span> <span class="token function">tcp_connect</span><span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">sock</span> <span class="token operator">*</span>sk<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword">struct</span> <span class="token class-name">tcp_sock</span> <span class="token operator">*</span>tp <span class="token operator">=</span> <span class="token function">tcp_sk</span><span class="token punctuation">(</span>sk<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">struct</span> <span class="token class-name">sk_buff</span> <span class="token operator">*</span>buff<span class="token punctuation">;</span>
+    <span class="token keyword">int</span> err<span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    <span class="token function">tcp_connect_init</span><span class="token punctuation">(</span>sk<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    buff <span class="token operator">=</span> <span class="token function">sk_stream_alloc_skb</span><span class="token punctuation">(</span>sk<span class="token punctuation">,</span> <span class="token number">0</span><span class="token punctuation">,</span> sk<span class="token operator">-&gt;</span>sk_allocation<span class="token punctuation">,</span> true<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    <span class="token function">tcp_init_nondata_skb</span><span class="token punctuation">(</span>buff<span class="token punctuation">,</span> tp<span class="token operator">-&gt;</span>write_seq<span class="token operator">++</span><span class="token punctuation">,</span> TCPHDR_SYN<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token function">tcp_mstamp_refresh</span><span class="token punctuation">(</span>tp<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    tp<span class="token operator">-&gt;</span>retrans_stamp <span class="token operator">=</span> <span class="token function">tcp_time_stamp</span><span class="token punctuation">(</span>tp<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token function">tcp_connect_queue_skb</span><span class="token punctuation">(</span>sk<span class="token punctuation">,</span> buff<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token function">tcp_ecn_send_syn</span><span class="token punctuation">(</span>sk<span class="token punctuation">,</span> buff<span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+    <span class="token comment">/* Send off SYN; include data in Fast Open. */</span>
+    err <span class="token operator">=</span> tp<span class="token operator">-&gt;</span>fastopen_req <span class="token operator">?</span> <span class="token function">tcp_send_syn_data</span><span class="token punctuation">(</span>sk<span class="token punctuation">,</span> buff<span class="token punctuation">)</span> <span class="token operator">:</span>
+          <span class="token function">tcp_transmit_skb</span><span class="token punctuation">(</span>sk<span class="token punctuation">,</span> buff<span class="token punctuation">,</span> <span class="token number">1</span><span class="token punctuation">,</span> sk<span class="token operator">-&gt;</span>sk_allocation<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    tp<span class="token operator">-&gt;</span>snd_nxt <span class="token operator">=</span> tp<span class="token operator">-&gt;</span>write_seq<span class="token punctuation">;</span>
+    tp<span class="token operator">-&gt;</span>pushed_seq <span class="token operator">=</span> tp<span class="token operator">-&gt;</span>write_seq<span class="token punctuation">;</span>
+    buff <span class="token operator">=</span> <span class="token function">tcp_send_head</span><span class="token punctuation">(</span>sk<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token function">unlikely</span><span class="token punctuation">(</span>buff<span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+        tp<span class="token operator">-&gt;</span>snd_nxt <span class="token operator">=</span> <span class="token function">TCP_SKB_CB</span><span class="token punctuation">(</span>buff<span class="token punctuation">)</span><span class="token operator">-&gt;</span>seq<span class="token punctuation">;</span>
+        tp<span class="token operator">-&gt;</span>pushed_seq  <span class="token operator">=</span> <span class="token function">TCP_SKB_CB</span><span class="token punctuation">(</span>buff<span class="token punctuation">)</span><span class="token operator">-&gt;</span>seq<span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    <span class="token comment">/* Timer for repeating the SYN until an answer. */</span>
+    <span class="token function">inet_csk_reset_xmit_timer</span><span class="token punctuation">(</span>sk<span class="token punctuation">,</span> ICSK_TIME_RETRANS<span class="token punctuation">,</span>
+                  <span class="token function">inet_csk</span><span class="token punctuation">(</span>sk<span class="token punctuation">)</span><span class="token operator">-&gt;</span>icsk_rto<span class="token punctuation">,</span> TCP_RTO_MAX<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">return</span> <span class="token number">0</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>在tcp_connect中，有一个新的结构struct tcp_sock，如果打开他，你会发现他是struct inet_connection_sock的一个扩展，struct inet_connection_sock在struct tcp_sock开头的位置，通过强制类型转换访问，故伎重演又一次。</p>
+<p>struct tcp_sock里面维护了更多的TCP的状态，咱们同样是遇到了再分析。</p>
+<p>接下来tcp_init_nondata_skb初始化一个SYN包，tcp_transmit_skb将SYN包发送出去，inet_csk_reset_xmit_timer设置了一个timer，如果SYN发送不成功，则再次发送。</p>
+<p>发送网络包的过程，我们放到下一节讲解。这里我们姑且认为SYN已经发送出去了。</p>
+<p>我们回到__inet_stream_connect函数，在调用sk-&gt;sk_prot-&gt;connect之后，inet_wait_for_connect会一直等待客户端收到服务端的ACK。而我们知道，服务端在accept之后，也是在等待中。</p>
+<p>网络包是如何接收的呢？对于解析的详细过程，我们会在下下节讲解，这里为了解析三次握手，我们简单的看网络包接收到TCP层做的部分事情。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">static</span> <span class="token keyword">struct</span> <span class="token class-name">net_protocol</span> tcp_protocol <span class="token operator">=</span> <span class="token punctuation">{</span>
+    <span class="token punctuation">.</span>early_demux         <span class="token operator">=</span>   tcp_v4_early_demux<span class="token punctuation">,</span>
+    <span class="token punctuation">.</span>early_demux_handler <span class="token operator">=</span>  tcp_v4_early_demux<span class="token punctuation">,</span>
+    <span class="token punctuation">.</span>handler             <span class="token operator">=</span>   tcp_v4_rcv<span class="token punctuation">,</span>
+    <span class="token punctuation">.</span>err_handler         <span class="token operator">=</span>   tcp_v4_err<span class="token punctuation">,</span>
+    <span class="token punctuation">.</span>no_policy           <span class="token operator">=</span>   <span class="token number">1</span><span class="token punctuation">,</span>
+    <span class="token punctuation">.</span>netns_ok            <span class="token operator">=</span>   <span class="token number">1</span><span class="token punctuation">,</span>
+    <span class="token punctuation">.</span>icmp_strict_tag_validation <span class="token operator">=</span> <span class="token number">1</span><span class="token punctuation">,</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>我们通过struct net_protocol结构中的handler进行接收，调用的函数是tcp_v4_rcv。接下来的调用链为tcp_v4_rcv-&gt;tcp_v4_do_rcv-&gt;tcp_rcv_state_process。tcp_rcv_state_process，顾名思义，是用来处理接收一个网络包后引起状态变化的。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">int</span> <span class="token function">tcp_rcv_state_process</span><span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">sock</span> <span class="token operator">*</span>sk<span class="token punctuation">,</span> <span class="token keyword">struct</span> <span class="token class-name">sk_buff</span> <span class="token operator">*</span>skb<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword">struct</span> <span class="token class-name">tcp_sock</span> <span class="token operator">*</span>tp <span class="token operator">=</span> <span class="token function">tcp_sk</span><span class="token punctuation">(</span>sk<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">struct</span> <span class="token class-name">inet_connection_sock</span> <span class="token operator">*</span>icsk <span class="token operator">=</span> <span class="token function">inet_csk</span><span class="token punctuation">(</span>sk<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">const</span> <span class="token keyword">struct</span> <span class="token class-name">tcphdr</span> <span class="token operator">*</span>th <span class="token operator">=</span> <span class="token function">tcp_hdr</span><span class="token punctuation">(</span>skb<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">struct</span> <span class="token class-name">request_sock</span> <span class="token operator">*</span>req<span class="token punctuation">;</span>
+    <span class="token keyword">int</span> queued <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span>
+    bool acceptable<span class="token punctuation">;</span>
+
+    <span class="token keyword">switch</span> <span class="token punctuation">(</span>sk<span class="token operator">-&gt;</span>sk_state<span class="token punctuation">)</span> <span class="token punctuation">{</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    <span class="token keyword">case</span> TCP_LISTEN<span class="token operator">:</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span>th<span class="token operator">-&gt;</span>syn<span class="token punctuation">)</span> <span class="token punctuation">{</span>
+            acceptable <span class="token operator">=</span> icsk<span class="token operator">-&gt;</span>icsk_af_ops<span class="token operator">-&gt;</span><span class="token function">conn_request</span><span class="token punctuation">(</span>sk<span class="token punctuation">,</span> skb<span class="token punctuation">)</span> <span class="token operator">&gt;=</span> <span class="token number">0</span><span class="token punctuation">;</span>
+            <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token operator">!</span>acceptable<span class="token punctuation">)</span>
+                <span class="token keyword">return</span> <span class="token number">1</span><span class="token punctuation">;</span>
+            <span class="token function">consume_skb</span><span class="token punctuation">(</span>skb<span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token keyword">return</span> <span class="token number">0</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>目前服务端是处于TCP_LISTEN状态的，而且发过来的包是SYN，因而就有了上面的代码，调用icsk-&gt;icsk_af_ops-&gt;conn_request函数。struct inet_connection_sock对应的操作是inet_connection_sock_af_ops，按照下面的定义，其实调用的是tcp_v4_conn_request。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">const</span> <span class="token keyword">struct</span> <span class="token class-name">inet_connection_sock_af_ops</span> ipv4_specific <span class="token operator">=</span> <span class="token punctuation">{</span>
+    <span class="token punctuation">.</span>queue_xmit        <span class="token operator">=</span> ip_queue_xmit<span class="token punctuation">,</span>
+    <span class="token punctuation">.</span>send_check        <span class="token operator">=</span> tcp_v4_send_check<span class="token punctuation">,</span>
+    <span class="token punctuation">.</span>rebuild_header    <span class="token operator">=</span> inet_sk_rebuild_header<span class="token punctuation">,</span>
+    <span class="token punctuation">.</span>sk_rx_dst_set     <span class="token operator">=</span> inet_sk_rx_dst_set<span class="token punctuation">,</span>
+    <span class="token punctuation">.</span>conn_request      <span class="token operator">=</span> tcp_v4_conn_request<span class="token punctuation">,</span>
+    <span class="token punctuation">.</span>syn_recv_sock     <span class="token operator">=</span> tcp_v4_syn_recv_sock<span class="token punctuation">,</span>
+    <span class="token punctuation">.</span>net_header_len    <span class="token operator">=</span> <span class="token keyword">sizeof</span><span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">iphdr</span><span class="token punctuation">)</span><span class="token punctuation">,</span>
+    <span class="token punctuation">.</span>setsockopt        <span class="token operator">=</span> ip_setsockopt<span class="token punctuation">,</span>
+    <span class="token punctuation">.</span>getsockopt        <span class="token operator">=</span> ip_getsockopt<span class="token punctuation">,</span>
+    <span class="token punctuation">.</span>addr2sockaddr     <span class="token operator">=</span> inet_csk_addr2sockaddr<span class="token punctuation">,</span>
+    <span class="token punctuation">.</span>sockaddr_len      <span class="token operator">=</span> <span class="token keyword">sizeof</span><span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">sockaddr_in</span><span class="token punctuation">)</span><span class="token punctuation">,</span>
+    <span class="token punctuation">.</span>mtu_reduced       <span class="token operator">=</span> tcp_v4_mtu_reduced<span class="token punctuation">,</span>
+<span class="token punctuation">}</span><span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>tcp_v4_conn_request会调用tcp_conn_request，这个函数也比较长，里面调用了send_synack，但实际调用的是tcp_v4_send_synack。具体发送的过程我们不去管它，看注释我们能知道，这是收到了SYN后，回复一个SYN-ACK，回复完毕后，服务端处于TCP_SYN_RECV。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">int</span> <span class="token function">tcp_conn_request</span><span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">request_sock_ops</span> <span class="token operator">*</span>rsk_ops<span class="token punctuation">,</span>
+             <span class="token keyword">const</span> <span class="token keyword">struct</span> <span class="token class-name">tcp_request_sock_ops</span> <span class="token operator">*</span>af_ops<span class="token punctuation">,</span>
+             <span class="token keyword">struct</span> <span class="token class-name">sock</span> <span class="token operator">*</span>sk<span class="token punctuation">,</span> <span class="token keyword">struct</span> <span class="token class-name">sk_buff</span> <span class="token operator">*</span>skb<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+af_ops<span class="token operator">-&gt;</span><span class="token function">send_synack</span><span class="token punctuation">(</span>sk<span class="token punctuation">,</span> dst<span class="token punctuation">,</span> <span class="token operator">&amp;</span>fl<span class="token punctuation">,</span> req<span class="token punctuation">,</span> <span class="token operator">&amp;</span>foc<span class="token punctuation">,</span>
+                    <span class="token operator">!</span>want_cookie <span class="token operator">?</span> TCP_SYNACK_NORMAL <span class="token operator">:</span>
+                           TCP_SYNACK_COOKIE<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+<span class="token punctuation">}</span>
+
+<span class="token comment">/*
+ *  Send a SYN-ACK after having received a SYN.
+ */</span>
+<span class="token keyword">static</span> <span class="token keyword">int</span> <span class="token function">tcp_v4_send_synack</span><span class="token punctuation">(</span><span class="token keyword">const</span> <span class="token keyword">struct</span> <span class="token class-name">sock</span> <span class="token operator">*</span>sk<span class="token punctuation">,</span> <span class="token keyword">struct</span> <span class="token class-name">dst_entry</span> <span class="token operator">*</span>dst<span class="token punctuation">,</span>
+                  <span class="token keyword">struct</span> <span class="token class-name">flowi</span> <span class="token operator">*</span>fl<span class="token punctuation">,</span>
+                  <span class="token keyword">struct</span> <span class="token class-name">request_sock</span> <span class="token operator">*</span>req<span class="token punctuation">,</span>
+                  <span class="token keyword">struct</span> <span class="token class-name">tcp_fastopen_cookie</span> <span class="token operator">*</span>foc<span class="token punctuation">,</span>
+                  <span class="token keyword">enum</span> <span class="token class-name">tcp_synack_type</span> synack_type<span class="token punctuation">)</span>
+<span class="token punctuation">{</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>这个时候，轮到客户端接收网络包了。都是TCP协议栈，所以过程和服务端没有太多区别，还是会走到tcp_rcv_state_process函数的，只不过由于客户端目前处于TCP_SYN_SENT状态，就进入了下面的代码分支。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">int</span> <span class="token function">tcp_rcv_state_process</span><span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">sock</span> <span class="token operator">*</span>sk<span class="token punctuation">,</span> <span class="token keyword">struct</span> <span class="token class-name">sk_buff</span> <span class="token operator">*</span>skb<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword">struct</span> <span class="token class-name">tcp_sock</span> <span class="token operator">*</span>tp <span class="token operator">=</span> <span class="token function">tcp_sk</span><span class="token punctuation">(</span>sk<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">struct</span> <span class="token class-name">inet_connection_sock</span> <span class="token operator">*</span>icsk <span class="token operator">=</span> <span class="token function">inet_csk</span><span class="token punctuation">(</span>sk<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">const</span> <span class="token keyword">struct</span> <span class="token class-name">tcphdr</span> <span class="token operator">*</span>th <span class="token operator">=</span> <span class="token function">tcp_hdr</span><span class="token punctuation">(</span>skb<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">struct</span> <span class="token class-name">request_sock</span> <span class="token operator">*</span>req<span class="token punctuation">;</span>
+    <span class="token keyword">int</span> queued <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span>
+    bool acceptable<span class="token punctuation">;</span>
+
+    <span class="token keyword">switch</span> <span class="token punctuation">(</span>sk<span class="token operator">-&gt;</span>sk_state<span class="token punctuation">)</span> <span class="token punctuation">{</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    <span class="token keyword">case</span> TCP_SYN_SENT<span class="token operator">:</span>
+        tp<span class="token operator">-&gt;</span>rx_opt<span class="token punctuation">.</span>saw_tstamp <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span>
+        <span class="token function">tcp_mstamp_refresh</span><span class="token punctuation">(</span>tp<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        queued <span class="token operator">=</span> <span class="token function">tcp_rcv_synsent_state_process</span><span class="token punctuation">(</span>sk<span class="token punctuation">,</span> skb<span class="token punctuation">,</span> th<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span>queued <span class="token operator">&gt;=</span> <span class="token number">0</span><span class="token punctuation">)</span>
+            <span class="token keyword">return</span> queued<span class="token punctuation">;</span>
+        <span class="token comment">/* Do step6 onward by hand. */</span>
+        <span class="token function">tcp_urg</span><span class="token punctuation">(</span>sk<span class="token punctuation">,</span> skb<span class="token punctuation">,</span> th<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token function">__kfree_skb</span><span class="token punctuation">(</span>skb<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token function">tcp_data_snd_check</span><span class="token punctuation">(</span>sk<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token keyword">return</span> <span class="token number">0</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>tcp_rcv_synsent_state_process会调用tcp_send_ack，发送一个ACK-ACK，发送后客户端处于TCP_ESTABLISHED状态。</p>
+<p>又轮到服务端接收网络包了，我们还是归tcp_rcv_state_process函数处理。由于服务端目前处于状态TCP_SYN_RECV状态，因而又走了另外的分支。当收到这个网络包的时候，服务端也处于TCP_ESTABLISHED状态，三次握手结束。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">int</span> <span class="token function">tcp_rcv_state_process</span><span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">sock</span> <span class="token operator">*</span>sk<span class="token punctuation">,</span> <span class="token keyword">struct</span> <span class="token class-name">sk_buff</span> <span class="token operator">*</span>skb<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword">struct</span> <span class="token class-name">tcp_sock</span> <span class="token operator">*</span>tp <span class="token operator">=</span> <span class="token function">tcp_sk</span><span class="token punctuation">(</span>sk<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">struct</span> <span class="token class-name">inet_connection_sock</span> <span class="token operator">*</span>icsk <span class="token operator">=</span> <span class="token function">inet_csk</span><span class="token punctuation">(</span>sk<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">const</span> <span class="token keyword">struct</span> <span class="token class-name">tcphdr</span> <span class="token operator">*</span>th <span class="token operator">=</span> <span class="token function">tcp_hdr</span><span class="token punctuation">(</span>skb<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">struct</span> <span class="token class-name">request_sock</span> <span class="token operator">*</span>req<span class="token punctuation">;</span>
+    <span class="token keyword">int</span> queued <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span>
+    bool acceptable<span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    <span class="token keyword">switch</span> <span class="token punctuation">(</span>sk<span class="token operator">-&gt;</span>sk_state<span class="token punctuation">)</span> <span class="token punctuation">{</span>
+    <span class="token keyword">case</span> TCP_SYN_RECV<span class="token operator">:</span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span>req<span class="token punctuation">)</span> <span class="token punctuation">{</span>
+            <span class="token function">inet_csk</span><span class="token punctuation">(</span>sk<span class="token punctuation">)</span><span class="token operator">-&gt;</span>icsk_retransmits <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span>
+            <span class="token function">reqsk_fastopen_remove</span><span class="token punctuation">(</span>sk<span class="token punctuation">,</span> req<span class="token punctuation">,</span> false<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span> <span class="token keyword">else</span> <span class="token punctuation">{</span>
+            <span class="token comment">/* Make sure socket is routed, for correct metrics. */</span>
+            icsk<span class="token operator">-&gt;</span>icsk_af_ops<span class="token operator">-&gt;</span><span class="token function">rebuild_header</span><span class="token punctuation">(</span>sk<span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token function">tcp_call_bpf</span><span class="token punctuation">(</span>sk<span class="token punctuation">,</span> BPF_SOCK_OPS_PASSIVE_ESTABLISHED_CB<span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token function">tcp_init_congestion_control</span><span class="token punctuation">(</span>sk<span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+            <span class="token function">tcp_mtup_init</span><span class="token punctuation">(</span>sk<span class="token punctuation">)</span><span class="token punctuation">;</span>
+            tp<span class="token operator">-&gt;</span>copied_seq <span class="token operator">=</span> tp<span class="token operator">-&gt;</span>rcv_nxt<span class="token punctuation">;</span>
+            <span class="token function">tcp_init_buffer_space</span><span class="token punctuation">(</span>sk<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+        <span class="token function">smp_mb</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token function">tcp_set_state</span><span class="token punctuation">(</span>sk<span class="token punctuation">,</span> TCP_ESTABLISHED<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        sk<span class="token operator">-&gt;</span><span class="token function">sk_state_change</span><span class="token punctuation">(</span>sk<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span>sk<span class="token operator">-&gt;</span>sk_socket<span class="token punctuation">)</span>
+            <span class="token function">sk_wake_async</span><span class="token punctuation">(</span>sk<span class="token punctuation">,</span> SOCK_WAKE_IO<span class="token punctuation">,</span> POLL_OUT<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        tp<span class="token operator">-&gt;</span>snd_una <span class="token operator">=</span> <span class="token function">TCP_SKB_CB</span><span class="token punctuation">(</span>skb<span class="token punctuation">)</span><span class="token operator">-&gt;</span>ack_seq<span class="token punctuation">;</span>
+        tp<span class="token operator">-&gt;</span>snd_wnd <span class="token operator">=</span> <span class="token function">ntohs</span><span class="token punctuation">(</span>th<span class="token operator">-&gt;</span>window<span class="token punctuation">)</span> <span class="token operator">&lt;&lt;</span> tp<span class="token operator">-&gt;</span>rx_opt<span class="token punctuation">.</span>snd_wscale<span class="token punctuation">;</span>
+        <span class="token function">tcp_init_wl</span><span class="token punctuation">(</span>tp<span class="token punctuation">,</span> <span class="token function">TCP_SKB_CB</span><span class="token punctuation">(</span>skb<span class="token punctuation">)</span><span class="token operator">-&gt;</span>seq<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token keyword">break</span><span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<h4 id="40-6-总结"><a href="#40-6-总结" class="headerlink" title="40.6 总结"></a>40.6 总结</h4><p>这一节除了网络包的接收和发送，其他的系统调用我们都分析到了。可以看出来，它们有一个统一的数据结构和流程。具体如下图所示：</p>
+<p><img src="/images/《趣谈Linux操作系统》学习笔记/Socket内核数据结构总结.png" alt="Socket内核数据结构总结.png"></p>
+<p>首先，Socket系统调用会有三级参数family、type、protocal，通过这三级参数，分别在net_proto_family表中找到type链表，在type链表中找到protocal对应的操作。这个操作分为两层，对于TCP协议来讲，第一层是inet_stream_ops层，第二层是tcp_prot层。</p>
+<p>于是，接下来的系统调用规律就都一样了：</p>
+<ul>
+<li>bind第一层调用inet_stream_ops的inet_bind函数，第二层调用tcp_prot的inet_csk_get_port函数；</li>
+<li>listen第一层调用inet_stream_ops的inet_listen函数，第二层调用tcp_prot的inet_csk_get_port函数；</li>
+<li>accept第一层调用inet_stream_ops的inet_accept函数，第二层调用tcp_prot的inet_csk_accept函数；</li>
+<li>connect第一层调用inet_stream_ops的inet_stream_connect函数，第二层调用tcp_prot的tcp_v4_connect函数。</li>
+</ul>
 <h2 id="八、虚拟化"><a href="#八、虚拟化" class="headerlink" title="八、虚拟化"></a>八、虚拟化</h2><h2 id="九、容器化"><a href="#九、容器化" class="headerlink" title="九、容器化"></a>九、容器化</h2>
                 
             </div>
@@ -10166,7 +10860,7 @@ ssize_t <span class="token function">recvfrom</span><span class="token punctuati
             <br>
             
             &nbsp;<i class="fas fa-chart-area"></i>&nbsp;站点总字数:&nbsp;<span
-                class="white-color">527.6k</span>&nbsp;字
+                class="white-color">532.7k</span>&nbsp;字
             
             
             
