@@ -431,21 +431,21 @@
                 
                 <div class="post-date info-break-policy">
                     <i class="far fa-calendar-check fa-fw"></i>更新日期:&nbsp;&nbsp;
-                    2021-12-28
+                    2021-12-29
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-file-word fa-fw"></i>文章字数:&nbsp;&nbsp;
-                    3k
+                    3.2k
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-clock fa-fw"></i>阅读时长:&nbsp;&nbsp;
-                    11 分
+                    12 分
                 </div>
                 
 
@@ -528,7 +528,26 @@
 </blockquote>
 <p>握手的过程中除了建立连接本身外，还在不停的向对方更新自己仓库空闲空间的大小等信息，这些信息对于后续的数据运输是很重要的。</p>
 <p>经过 3 次握手后，一对一的物流公司就建立起来了。现在双方可以开始发送数据给对方了。</p>
-<h2 id="三、发送窗口：接收方仓库的空闲空间大小"><a href="#三、发送窗口：接收方仓库的空闲空间大小" class="headerlink" title="三、发送窗口：接收方仓库的空闲空间大小"></a>三、发送窗口：接收方仓库的空闲空间大小</h2><p>但是发送货物之前，发送方需要先考虑两个问题：</p>
+<h2 id="三、拥塞窗口：各物流公司之间如何协调上路"><a href="#三、拥塞窗口：各物流公司之间如何协调上路" class="headerlink" title="三、拥塞窗口：各物流公司之间如何协调上路"></a>三、拥塞窗口：各物流公司之间如何协调上路</h2><p>物流公司都是一对一的，一个连接就是一个物流公司。各个物流公司之间没有沟通，也就没有协调。大家想发货时就发车，那么路上肯定会堵起来，而货物是有有效期的，不能无限制的堵下去。同样的，对于网络也是，网速也是有限的，数据包也是有超时（TTL），不能无休止发送数据。</p>
+<p>但是，与现实世界中有一个全局统一交通系统来控制各个路口的红绿灯不同，网络世界中没有这样一个系统。所以就需要各个物流公司根据货物发送出去并且对方确认收到的时间差来估算网络是否拥堵等情况。</p>
+<p>各个物流公司可以应用不同的算法来估算网络是否拥堵等情况，并根据估算的结果来控制货车发车的频率，这就是 <strong>拥塞处理（Congestion Handling）</strong>。</p>
+<p>拥塞处理算法计算的结果是当前情况下最多能发送多少数据，也是一个窗口，叫 <strong>拥塞控制窗口（cwnd，congestion window）</strong> 。拥塞窗口为了避免拼命发包，把网络塞满了，定义一个窗口的概念，在这个窗口之内的才能发送，超过这个窗口的就不能发送，来控制发送的频率。</p>
+<p><img src="/images/理解TCP中的数据传输/1450px-TCP_Slow-Start_and_Congestion_Avoidance.svg.png" alt="1450px-TCP_Slow-Start_and_Congestion_Avoidance.svg.png"></p>
+<blockquote>
+<p>图片来源：<a target="_blank" rel="noopener" href="https://commons.wikimedia.org/wiki/File:TCP_Slow-Start_and_Congestion_Avoidance.svg">File:TCP Slow-Start and Congestion Avoidance.svg</a></p>
+</blockquote>
+<p><img src="/images/理解TCP中的数据传输/Tahoe和Reno算法.png" alt="Tahoe和Reno算法.png"></p>
+<blockquote>
+<p>图片来源：<a target="_blank" rel="noopener" href="https://stackoverflow.com/questions/30818925/tcp-congestion-control-fast-recovery-in-graph">TCP congestion control - Fast Recovery in graph</a></p>
+</blockquote>
+<p>在 Linux 中可以使用下面的命令来查看系统支持的拥塞处理算法和当前使用的拥塞处理算法：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ sysctl net.ipv4.tcp_available_congestion_control
+net.ipv4.tcp_available_congestion_control <span class="token operator">=</span> reno cubic
+
+$ sysctl net.ipv4.tcp_congestion_control
+net.ipv4.tcp_congestion_control <span class="token operator">=</span> cubic<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p><a target="_blank" rel="noopener" href="https://zhuanlan.zhihu.com/p/144273871">万字详文：TCP 拥塞控制详解</a></p>
+<h2 id="四、发送窗口：接收方仓库的空闲空间大小"><a href="#四、发送窗口：接收方仓库的空闲空间大小" class="headerlink" title="四、发送窗口：接收方仓库的空闲空间大小"></a>四、发送窗口：接收方仓库的空闲空间大小</h2><p>但是发送货物之前，发送方需要先考虑两个问题：</p>
 <ol>
 <li>发送方需要时刻知道接收方还有多少空闲的空间能存放货物。因为如果发送的货物总量超出了接收方空闲空间的大小，多余的货物会被丢弃掉。</li>
 <li>TCP 协议是 <strong>可靠的</strong> 的协议，所以发送方还需要记录发出的货物，接收方是否确认收到了等状态信息。</li>
@@ -537,18 +556,7 @@
 <blockquote>
 <p>有时发送窗口（相对于发送者来说）也叫接收窗口（相对于接收者来说）。</p>
 </blockquote>
-<h2 id="四、拥塞控制窗口：各物流公司之间如何协调上路"><a href="#四、拥塞控制窗口：各物流公司之间如何协调上路" class="headerlink" title="四、拥塞控制窗口：各物流公司之间如何协调上路"></a>四、拥塞控制窗口：各物流公司之间如何协调上路</h2><p>物流公司都是一对一的，一个连接就是一个物流公司。各个物流公司之间没有沟通，也就没有协调。大家想发货时就发车，那么路上肯定会堵起来，而货物是有有效期的，不能无限制的堵下去。同样的，对于网络也是，网速也是有限的，数据包也是有超时（TTL），不能无休止发送数据。</p>
-<p>但是，与现实世界中有一个全局统一交通系统来控制各个路口的红绿灯不同，网络世界中没有这样一个系统。所以就需要各个物流公司根据货物发送出去并且对方确认收到的时间差来估算网络是否拥堵等情况。</p>
-<p>各个物流公司可以应用不同的算法来估算网络是否拥堵等情况，并根据估算的结果来控制货车发车的频率，这就是 <strong>拥塞处理（Congestion Handling）</strong>。</p>
-<p>拥塞处理算法计算的结果是当前情况下最多能发送多少数据，也是一个窗口，叫 <strong>拥塞控制窗口</strong> 。</p>
-<p>在 Linux 中可以使用下面的命令来查看系统支持的拥塞处理算法和当前使用的拥塞处理算法：</p>
-<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ sysctl net.ipv4.tcp_available_congestion_control
-net.ipv4.tcp_available_congestion_control <span class="token operator">=</span> reno cubic
-
-$ sysctl net.ipv4.tcp_congestion_control
-net.ipv4.tcp_congestion_control <span class="token operator">=</span> cubic<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span></span></code></pre>
-<p><a target="_blank" rel="noopener" href="https://zhuanlan.zhihu.com/p/144273871">万字详文：TCP 拥塞控制详解</a></p>
-<h2 id="五、滑动窗口：综合考虑路况和对方仓库空闲空间大小"><a href="#五、滑动窗口：综合考虑路况和对方仓库空闲空间大小" class="headerlink" title="五、滑动窗口：综合考虑路况和对方仓库空闲空间大小"></a>五、滑动窗口：综合考虑路况和对方仓库空闲空间大小</h2><p><strong>滑动窗口（Sliding Window）</strong> 就是 <strong>发送窗口</strong> 和 <strong>拥塞控制窗口</strong> 的结合。</p>
+<p><strong>发送窗口（Send Window）</strong> 也叫 <strong>滑动窗口（Sliding Window）</strong>。滑动窗口的存在是为了怕把接收方塞满，而控制发送速度。</p>
 <p>滑动窗口的内部状态如下：</p>
 <p><img src="/images/理解TCP中的数据传输/滑动窗口的内部状态.png" alt="滑动窗口的内部状态"></p>
 <ol>
@@ -586,6 +594,37 @@ net.ipv4.tcp_congestion_control <span class="token operator">=</span> cubic<span
 <blockquote>
 <p>图片来源：<a target="_blank" rel="noopener" href="http://www.tcpipguide.com/free/t_TCPWindowSizeAdjustmentandFlowControl-2.htm">TCP Window Size Adjustment and Flow Control 2</a></p>
 </blockquote>
+<h2 id="五、拥塞窗口和发送窗口结合"><a href="#五、拥塞窗口和发送窗口结合" class="headerlink" title="五、拥塞窗口和发送窗口结合"></a>五、拥塞窗口和发送窗口结合</h2><p>在 Linux 内核中，实现发送 TCP 包的函数是 <code>net/ipv4/tcp_output.c</code> 文件中的 <code>tcp_write_xmit</code> 函数：</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">static</span> bool <span class="token function">tcp_write_xmit</span><span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">sock</span> <span class="token operator">*</span>sk<span class="token punctuation">,</span> <span class="token keyword">unsigned</span> <span class="token keyword">int</span> mss_now<span class="token punctuation">,</span> <span class="token keyword">int</span> nonagle<span class="token punctuation">,</span> <span class="token keyword">int</span> push_one<span class="token punctuation">,</span> gfp_t gfp<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    <span class="token keyword">int</span> cwnd_quota<span class="token punctuation">;</span>
+    bool is_cwnd_limited <span class="token operator">=</span> false<span class="token punctuation">,</span> is_rwnd_limited <span class="token operator">=</span> false<span class="token punctuation">;</span>
+    u32 max_segs<span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    max_segs <span class="token operator">=</span> <span class="token function">tcp_tso_segs</span><span class="token punctuation">(</span>sk<span class="token punctuation">,</span> mss_now<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">while</span> <span class="token punctuation">(</span><span class="token punctuation">(</span>skb <span class="token operator">=</span> <span class="token function">tcp_send_head</span><span class="token punctuation">(</span>sk<span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+        <span class="token keyword">unsigned</span> <span class="token keyword">int</span> limit<span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+        cwnd_quota <span class="token operator">=</span> <span class="token function">tcp_cwnd_test</span><span class="token punctuation">(</span>tp<span class="token punctuation">,</span> skb<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token function">unlikely</span><span class="token punctuation">(</span><span class="token operator">!</span><span class="token function">tcp_snd_wnd_test</span><span class="token punctuation">(</span>tp<span class="token punctuation">,</span> skb<span class="token punctuation">,</span> mss_now<span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+            is_rwnd_limited <span class="token operator">=</span> true<span class="token punctuation">;</span>
+            <span class="token keyword">break</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>拥塞窗口的相关判断函数是 <code>tcp_cwnd_test</code> ：</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token comment">/* Can at least one segment of SKB be sent right now, according to the
+ * congestion window rules?  If so, return how many segments are allowed.
+ */</span>
+<span class="token keyword">static</span> <span class="token keyword">inline</span> <span class="token keyword">unsigned</span> <span class="token keyword">int</span> <span class="token function">tcp_cwnd_test</span><span class="token punctuation">(</span><span class="token keyword">const</span> <span class="token keyword">struct</span> <span class="token class-name">tcp_sock</span> <span class="token operator">*</span>tp<span class="token punctuation">,</span>
+                     <span class="token keyword">const</span> <span class="token keyword">struct</span> <span class="token class-name">sk_buff</span> <span class="token operator">*</span>skb<span class="token punctuation">)</span><span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>发送窗口的判断函数是 <code>tcp_snd_wnd_test</code> ：</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token comment">/* Does at least the first segment of SKB fit into the send window? */</span>
+<span class="token keyword">static</span> bool <span class="token function">tcp_snd_wnd_test</span><span class="token punctuation">(</span><span class="token keyword">const</span> <span class="token keyword">struct</span> <span class="token class-name">tcp_sock</span> <span class="token operator">*</span>tp<span class="token punctuation">,</span>
+                 <span class="token keyword">const</span> <span class="token keyword">struct</span> <span class="token class-name">sk_buff</span> <span class="token operator">*</span>skb<span class="token punctuation">,</span>
+                 <span class="token keyword">unsigned</span> <span class="token keyword">int</span> cur_mss<span class="token punctuation">)</span><span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span></span></code></pre>
 <h2 id="六、糊涂窗口综合症：运输效率太低了怎么办"><a href="#六、糊涂窗口综合症：运输效率太低了怎么办" class="headerlink" title="六、糊涂窗口综合症：运输效率太低了怎么办"></a>六、糊涂窗口综合症：运输效率太低了怎么办</h2><p>每辆货车的最大载货量是 <strong>MSS（Maximum Segment Size，最大分段大小）</strong>，但是如果在运输时货车里面实际的载货量常常很小，造成这种情况的原因可能是：</p>
 <ul>
 <li>发送方的发送仓库中每次只有一点货物要发送；</li>
@@ -1136,7 +1175,7 @@ net.ipv4.tcp_congestion_control <span class="token operator">=</span> cubic<span
             <br>
             
             &nbsp;<i class="fas fa-chart-area"></i>&nbsp;站点总字数:&nbsp;<span
-                class="white-color">532.7k</span>&nbsp;字
+                class="white-color">542.7k</span>&nbsp;字
             
             
             
