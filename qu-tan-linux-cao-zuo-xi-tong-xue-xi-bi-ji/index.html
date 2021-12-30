@@ -744,7 +744,7 @@ open        -      open            Ci:siv  __libc_open __open open<span aria-hid
 <p>syscall指令还使用了一种特殊的寄存器，我们叫 <strong>特殊模块寄存器（Model Specific Registers，简称MSR）</strong> 。这种寄存器是CPU为了完成某些特殊控制功能为目的的寄存器，其中就有系统调用。</p>
 <p>在系统初始化的时候，trap_init除了初始化上面的中断模式，这里面还会调用cpu_init-&gt;syscall_init。这里面有这样的代码：</p>
 <pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token function">wrmsrl</span><span class="token punctuation">(</span>MSR_LSTAR<span class="token punctuation">,</span> <span class="token punctuation">(</span><span class="token keyword">unsigned</span> <span class="token keyword">long</span><span class="token punctuation">)</span>entry_SYSCALL_64<span class="token punctuation">)</span><span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
-<p>rdmsr和wrmsr是用来读写特殊模块寄存器的。MSR_LSTAR就是这样一个特殊的寄存器，当syscall指令调用的时候，会从这个寄存器里面拿出函数地址来调用，也就是调用entry_SYSCALL_64。</p>
+<p>rdmsr 和 wrmsr 是用来读写特殊模块寄存器的。MSR_LSTAR就是这样一个特殊的寄存器，当syscall指令调用的时候，会从这个寄存器里面拿出函数地址来调用，也就是调用entry_SYSCALL_64。</p>
 <p>在arch/x86/entry/entry_64.S中定义了entry_SYSCALL_64。</p>
 <pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token function">ENTRY</span><span class="token punctuation">(</span>entry_SYSCALL_64<span class="token punctuation">)</span>
     <span class="token comment">/* Construct struct pt_regs on stack */</span>
@@ -7443,7 +7443,7 @@ out_unlock<span class="token operator">:</span>
 <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ <span class="token function">ls</span> -l
 prw-r--r--  <span class="token number">1</span> root root         <span class="token number">0</span> May <span class="token number">21</span> <span class="token number">23</span>:29 hello<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre>
 <p>接下来，我们可以往管道里面写入东西。例如，写入一个字符串。</p>
-<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ <span class="token builtin class-name">echo</span> <span class="token string">"hello world"</span> <span class="token operator">&gt;</span> hello<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token builtin class-name">echo</span> <span class="token string">"hello world"</span> <span class="token operator">&gt;</span> hello<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
 <p>这个时候，管道里面的内容没有被读出，这个命令就是停在这里的，这说明当一个项目组要把它的输出交接给另一个项目组做输入，当没有交接完毕的时候，前一个项目组是不能撒手不管的。</p>
 <p>这个时候，我们就需要重新连接一个终端。在终端中，用下面的命令读取管道里面的内容：</p>
 <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ <span class="token function">cat</span> <span class="token operator">&lt;</span> hello
@@ -9027,14 +9027,42 @@ $ ./consumer
     <span class="token punctuation">.</span>fs_flags   <span class="token operator">=</span> FS_USERNS_MOUNT<span class="token punctuation">,</span>
 <span class="token punctuation">}</span><span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
 <p>接下来，newseg函数会调用shmem_kernel_file_setup，其实就是在shmem文件系统里面创建一个文件。</p>
-<p>/**</p>
-<ul>
-<li>shmem_kernel_file_setup - get an unlinked file living in tmpfs which must be kernel internal.</li>
-<li>@name: name for dentry (to be seen in /proc/<pid>/maps</pid></li>
-<li>@size: size to be set for the file</li>
-<li>@flags: VM_NORESERVE suppresses pre-accounting of the entire object size <em>/<br>struct file </em>shmem_kernel_file_setup(const char *name, loff_t size, unsigned long flags)<br>{<br> return __shmem_file_setup(name, size, flags, S_PRIVATE);<br>}</li>
-</ul>
-<p>static struct file <em>__shmem_file_setup(const char </em>name, loff_t size,<br>                       unsigned long flags, unsigned int i_flags)<br>{<br>    struct file <em>res;<br>    struct inode </em>inode;<br>    struct path path;<br>    struct super_block <em>sb;<br>    struct qstr this;<br>……<br>    this.name = name;<br>    this.len = strlen(name);<br>    this.hash = 0; /</em> will go */<br>    sb = shm_mnt-&gt;mnt_sb;<br>    path.mnt = mntget(shm_mnt);<br>    path.dentry = d_alloc_pseudo(sb, &amp;this);<br>    d_set_d_op(path.dentry, &amp;anon_ops);<br>……<br>    inode = shmem_get_inode(sb, NULL, S_IFREG | S_IRWXUGO, 0, flags);<br>    inode-&gt;i_flags |= i_flags;<br>    d_instantiate(path.dentry, inode);<br>    inode-&gt;i_size = size;<br>……<br>    res = alloc_file(&amp;path, FMODE_WRITE | FMODE_READ,<br>          &amp;shmem_file_operations);<br>    return res;<br>}</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token comment">/**
+ * shmem_kernel_file_setup - get an unlinked file living in tmpfs which must be kernel internal.
+ * @name: name for dentry (to be seen in /proc/&lt;pid&gt;/maps
+ * @size: size to be set for the file
+ * @flags: VM_NORESERVE suppresses pre-accounting of the entire object size */</span>
+<span class="token keyword">struct</span> <span class="token class-name">file</span> <span class="token operator">*</span><span class="token function">shmem_kernel_file_setup</span><span class="token punctuation">(</span><span class="token keyword">const</span> <span class="token keyword">char</span> <span class="token operator">*</span>name<span class="token punctuation">,</span> loff_t size<span class="token punctuation">,</span> <span class="token keyword">unsigned</span> <span class="token keyword">long</span> flags<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword">return</span> <span class="token function">__shmem_file_setup</span><span class="token punctuation">(</span>name<span class="token punctuation">,</span> size<span class="token punctuation">,</span> flags<span class="token punctuation">,</span> S_PRIVATE<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+
+<span class="token keyword">static</span> <span class="token keyword">struct</span> <span class="token class-name">file</span> <span class="token operator">*</span><span class="token function">__shmem_file_setup</span><span class="token punctuation">(</span><span class="token keyword">const</span> <span class="token keyword">char</span> <span class="token operator">*</span>name<span class="token punctuation">,</span> loff_t size<span class="token punctuation">,</span>
+                       <span class="token keyword">unsigned</span> <span class="token keyword">long</span> flags<span class="token punctuation">,</span> <span class="token keyword">unsigned</span> <span class="token keyword">int</span> i_flags<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword">struct</span> <span class="token class-name">file</span> <span class="token operator">*</span>res<span class="token punctuation">;</span>
+    <span class="token keyword">struct</span> <span class="token class-name">inode</span> <span class="token operator">*</span>inode<span class="token punctuation">;</span>
+    <span class="token keyword">struct</span> <span class="token class-name">path</span> path<span class="token punctuation">;</span>
+    <span class="token keyword">struct</span> <span class="token class-name">super_block</span> <span class="token operator">*</span>sb<span class="token punctuation">;</span>
+    <span class="token keyword">struct</span> <span class="token class-name">qstr</span> this<span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    this<span class="token punctuation">.</span>name <span class="token operator">=</span> name<span class="token punctuation">;</span>
+    this<span class="token punctuation">.</span>len <span class="token operator">=</span> <span class="token function">strlen</span><span class="token punctuation">(</span>name<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    this<span class="token punctuation">.</span>hash <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span> <span class="token comment">/* will go */</span>
+    sb <span class="token operator">=</span> shm_mnt<span class="token operator">-&gt;</span>mnt_sb<span class="token punctuation">;</span>
+    path<span class="token punctuation">.</span>mnt <span class="token operator">=</span> <span class="token function">mntget</span><span class="token punctuation">(</span>shm_mnt<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    path<span class="token punctuation">.</span>dentry <span class="token operator">=</span> <span class="token function">d_alloc_pseudo</span><span class="token punctuation">(</span>sb<span class="token punctuation">,</span> <span class="token operator">&amp;</span>this<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token function">d_set_d_op</span><span class="token punctuation">(</span>path<span class="token punctuation">.</span>dentry<span class="token punctuation">,</span> <span class="token operator">&amp;</span>anon_ops<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    inode <span class="token operator">=</span> <span class="token function">shmem_get_inode</span><span class="token punctuation">(</span>sb<span class="token punctuation">,</span> <span class="token constant">NULL</span><span class="token punctuation">,</span> S_IFREG <span class="token operator">|</span> S_IRWXUGO<span class="token punctuation">,</span> <span class="token number">0</span><span class="token punctuation">,</span> flags<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    inode<span class="token operator">-&gt;</span>i_flags <span class="token operator">|=</span> i_flags<span class="token punctuation">;</span>
+    <span class="token function">d_instantiate</span><span class="token punctuation">(</span>path<span class="token punctuation">.</span>dentry<span class="token punctuation">,</span> inode<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    inode<span class="token operator">-&gt;</span>i_size <span class="token operator">=</span> size<span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    res <span class="token operator">=</span> <span class="token function">alloc_file</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>path<span class="token punctuation">,</span> FMODE_WRITE <span class="token operator">|</span> FMODE_READ<span class="token punctuation">,</span>
+          <span class="token operator">&amp;</span>shmem_file_operations<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">return</span> res<span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
 <p>__shmem_file_setup会创建新的shmem文件对应的dentry和inode，并将它们两个关联起来，然后分配一个struct file结构，来表示新的shmem文件，并且指向独特的shmem_file_operations。</p>
 <pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">static</span> <span class="token keyword">const</span> <span class="token keyword">struct</span> <span class="token class-name">file_operations</span> shmem_file_operations <span class="token operator">=</span> <span class="token punctuation">{</span>
     <span class="token punctuation">.</span>mmap               <span class="token operator">=</span> shmem_mmap<span class="token punctuation">,</span>
