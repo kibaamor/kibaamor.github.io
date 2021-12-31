@@ -438,14 +438,14 @@
                 
                 <div class="info-break-policy">
                     <i class="far fa-file-word fa-fw"></i>文章字数:&nbsp;&nbsp;
-                    189k
+                    195k
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-clock fa-fw"></i>阅读时长:&nbsp;&nbsp;
-                    783 分
+                    810 分
                 </div>
                 
 
@@ -17228,6 +17228,426 @@ memory_cgrp_subsys
 <p>如果想深入了解Kubernetes这个数据中心的操作系统，你可以订阅极客时间的专栏“<a target="_blank" rel="noopener" href="https://time.geekbang.org/column/article/114197">深入剖析Kubernetes</a>”。</p>
 <h4 id="53-1-总结"><a href="#53-1-总结" class="headerlink" title="53.1 总结"></a>53.1 总结</h4><p>下面，你可以对照着这个图，来总结一下这个数据中心操作系统的功能。</p>
 <p><img src="/images/《趣谈Linux操作系统》学习笔记/数据中心操作系统的功能总结.jpg" alt="数据中心操作系统的功能总结"></p>
+<h2 id="十、实战串讲篇"><a href="#十、实战串讲篇" class="headerlink" title="十、实战串讲篇"></a>十、实战串讲篇</h2><h3 id="54-搭建操作系统实验环境（上）"><a href="#54-搭建操作系统实验环境（上）" class="headerlink" title="54. 搭建操作系统实验环境（上）"></a>54. 搭建操作系统实验环境（上）</h3><p>操作系统的理论部分我们就讲完了，但是计算机这门学科是实验性的。为了更加深入地了解操作系统的本质，我们必须能够做一些上手实验。操作系统的实验，相比其他计算机课程的实验要更加复杂一些。</p>
+<p>我们做任何实验，都需要一个实验环境。这个实验环境要搭建在操作系统之上，但是，我们这个课程本身就是操作系统实验，难不成要自己debug自己？到底该咋整呢？</p>
+<p>我们有一个利器，那就是qemu啊，不知道你还记得吗？它可以在操作系统之上模拟一个操作系统，就像一个普通的进程。那我们是否可以像debug普通进程那样，通过qemu来debug虚拟机里面的操作系统呢？</p>
+<p>这一节和下一节，我们就按照这个思路，来试试看，搭建一个操作系统的实验环境。</p>
+<p>运行一个qemu虚拟机，首先我们要有一个虚拟机的镜像。咱们在<a target="_blank" rel="noopener" href="https://time.geekbang.org/column/article/108964">虚拟机</a>那一节，已经制作了一个虚拟机的镜像。假设我们要基于 ubuntu-18.04.2-live-server-amd64.iso，它对应的内核版本是linux-source-4.15.0。</p>
+<p>当时我们启动虚拟机的过程很复杂，设置参数的时候也很复杂，以至于解析这些参数就花了我们一章的时间。所以，这里我介绍一个简单的创建和管理虚拟机的方法。</p>
+<p>在<a target="_blank" rel="noopener" href="https://time.geekbang.org/column/article/109335">CPU虚拟化</a>那一节，我留过一个思考题，OpenStack是如何创建和管理虚拟机的？当时我给了你一个提示，就是用libvirt。没错，这一节，我们就用libvirt来创建和管理虚拟机。</p>
+<h4 id="54-1-创建虚拟机"><a href="#54-1-创建虚拟机" class="headerlink" title="54.1 创建虚拟机"></a>54.1 创建虚拟机</h4><p>首先，在宿主机上，我们需要一个网桥。我们用下面的命令创建一个网桥，并且设置一个IP地址。</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">brctl addbr br0
+<span class="token function">ip</span> <span class="token function">link</span> <span class="token builtin class-name">set</span> br0 up
+<span class="token function">ifconfig</span> br0 <span class="token number">192.168</span>.57.1/24<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span></span></code></pre>
+<p>为了访问外网，这里还需要设置/etc/sysctl.conf文件中net.ipv4.ip_forward=1参数，并且执行以下的命令，设置NAT。</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>接下来，就要创建虚拟机了。这次我们就不再一个个指定虚拟机启动的参数，而是用libvirt。首先，使用下面的命令，安装libvirt。</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token function">apt-get</span> <span class="token function">install</span> libvirt-bin
+<span class="token function">apt-get</span> <span class="token function">install</span> virtinst<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre>
+<p>libvirt管理qemu虚拟机，是基于XML文件，这样容易维护。</p>
+<pre class="line-numbers language-xml" data-language="xml"><code class="language-xml"><span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>domain</span> <span class="token attr-name">type</span><span class="token attr-value"><span class="token punctuation attr-equals">=</span><span class="token punctuation">'</span>qemu<span class="token punctuation">'</span></span><span class="token punctuation">&gt;</span></span>
+  <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>name</span><span class="token punctuation">&gt;</span></span>ubuntutest<span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>name</span><span class="token punctuation">&gt;</span></span>
+  <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>uuid</span><span class="token punctuation">&gt;</span></span>0f0806ab-531d-6134-5def-c5b4955292aa<span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>uuid</span><span class="token punctuation">&gt;</span></span>
+  <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>memory</span> <span class="token attr-name">unit</span><span class="token attr-value"><span class="token punctuation attr-equals">=</span><span class="token punctuation">'</span>GiB<span class="token punctuation">'</span></span><span class="token punctuation">&gt;</span></span>4<span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>memory</span><span class="token punctuation">&gt;</span></span>
+  <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>currentMemory</span> <span class="token attr-name">unit</span><span class="token attr-value"><span class="token punctuation attr-equals">=</span><span class="token punctuation">'</span>GiB<span class="token punctuation">'</span></span><span class="token punctuation">&gt;</span></span>4<span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>currentMemory</span><span class="token punctuation">&gt;</span></span>
+  <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>vcpu</span> <span class="token attr-name">placement</span><span class="token attr-value"><span class="token punctuation attr-equals">=</span><span class="token punctuation">'</span>static<span class="token punctuation">'</span></span><span class="token punctuation">&gt;</span></span>2<span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>vcpu</span><span class="token punctuation">&gt;</span></span>
+  <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>os</span><span class="token punctuation">&gt;</span></span>
+    <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>type</span> <span class="token attr-name">arch</span><span class="token attr-value"><span class="token punctuation attr-equals">=</span><span class="token punctuation">'</span>x86_64<span class="token punctuation">'</span></span> <span class="token attr-name">machine</span><span class="token attr-value"><span class="token punctuation attr-equals">=</span><span class="token punctuation">'</span>pc-i440fx-trusty<span class="token punctuation">'</span></span><span class="token punctuation">&gt;</span></span>hvm<span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>type</span><span class="token punctuation">&gt;</span></span>
+    <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>boot</span> <span class="token attr-name">dev</span><span class="token attr-value"><span class="token punctuation attr-equals">=</span><span class="token punctuation">'</span>hd<span class="token punctuation">'</span></span><span class="token punctuation">/&gt;</span></span>
+  <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>os</span><span class="token punctuation">&gt;</span></span>
+  <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>features</span><span class="token punctuation">&gt;</span></span>
+    <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>acpi</span><span class="token punctuation">/&gt;</span></span>
+    <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>apic</span><span class="token punctuation">/&gt;</span></span>
+    <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>pae</span><span class="token punctuation">/&gt;</span></span>
+  <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>features</span><span class="token punctuation">&gt;</span></span>
+  <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>clock</span> <span class="token attr-name">offset</span><span class="token attr-value"><span class="token punctuation attr-equals">=</span><span class="token punctuation">'</span>utc<span class="token punctuation">'</span></span><span class="token punctuation">/&gt;</span></span>
+  <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>on_poweroff</span><span class="token punctuation">&gt;</span></span>destroy<span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>on_poweroff</span><span class="token punctuation">&gt;</span></span>
+  <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>on_reboot</span><span class="token punctuation">&gt;</span></span>restart<span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>on_reboot</span><span class="token punctuation">&gt;</span></span>
+  <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>on_crash</span><span class="token punctuation">&gt;</span></span>restart<span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>on_crash</span><span class="token punctuation">&gt;</span></span>
+ <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>devices</span><span class="token punctuation">&gt;</span></span>
+    <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>emulator</span><span class="token punctuation">&gt;</span></span>/usr/bin/qemu-system-x86_64<span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>emulator</span><span class="token punctuation">&gt;</span></span>
+    <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>disk</span> <span class="token attr-name">type</span><span class="token attr-value"><span class="token punctuation attr-equals">=</span><span class="token punctuation">'</span>file<span class="token punctuation">'</span></span> <span class="token attr-name">device</span><span class="token attr-value"><span class="token punctuation attr-equals">=</span><span class="token punctuation">'</span>disk<span class="token punctuation">'</span></span><span class="token punctuation">&gt;</span></span>
+      <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>driver</span> <span class="token attr-name">name</span><span class="token attr-value"><span class="token punctuation attr-equals">=</span><span class="token punctuation">'</span>qemu<span class="token punctuation">'</span></span> <span class="token attr-name">type</span><span class="token attr-value"><span class="token punctuation attr-equals">=</span><span class="token punctuation">'</span>qcow2<span class="token punctuation">'</span></span><span class="token punctuation">/&gt;</span></span>
+      <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>source</span> <span class="token attr-name">file</span><span class="token attr-value"><span class="token punctuation attr-equals">=</span><span class="token punctuation">'</span>/mnt/vdc/ubuntutest.img<span class="token punctuation">'</span></span><span class="token punctuation">/&gt;</span></span>
+      <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>target</span> <span class="token attr-name">dev</span><span class="token attr-value"><span class="token punctuation attr-equals">=</span><span class="token punctuation">'</span>vda<span class="token punctuation">'</span></span> <span class="token attr-name">bus</span><span class="token attr-value"><span class="token punctuation attr-equals">=</span><span class="token punctuation">'</span>virtio<span class="token punctuation">'</span></span><span class="token punctuation">/&gt;</span></span>
+    <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>disk</span><span class="token punctuation">&gt;</span></span>
+    <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>controller</span> <span class="token attr-name">type</span><span class="token attr-value"><span class="token punctuation attr-equals">=</span><span class="token punctuation">'</span>pci<span class="token punctuation">'</span></span> <span class="token attr-name">index</span><span class="token attr-value"><span class="token punctuation attr-equals">=</span><span class="token punctuation">'</span>0<span class="token punctuation">'</span></span> <span class="token attr-name">model</span><span class="token attr-value"><span class="token punctuation attr-equals">=</span><span class="token punctuation">'</span>pci-root<span class="token punctuation">'</span></span><span class="token punctuation">/&gt;</span></span>
+    <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>interface</span> <span class="token attr-name">type</span><span class="token attr-value"><span class="token punctuation attr-equals">=</span><span class="token punctuation">'</span>bridge<span class="token punctuation">'</span></span><span class="token punctuation">&gt;</span></span>
+      <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>mac</span> <span class="token attr-name">address</span><span class="token attr-value"><span class="token punctuation attr-equals">=</span><span class="token punctuation">'</span>fa:16:3e:6e:89:ce<span class="token punctuation">'</span></span><span class="token punctuation">/&gt;</span></span>
+      <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>source</span> <span class="token attr-name">bridge</span><span class="token attr-value"><span class="token punctuation attr-equals">=</span><span class="token punctuation">'</span>br0<span class="token punctuation">'</span></span><span class="token punctuation">/&gt;</span></span>
+      <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>target</span> <span class="token attr-name">dev</span><span class="token attr-value"><span class="token punctuation attr-equals">=</span><span class="token punctuation">'</span>tap1<span class="token punctuation">'</span></span><span class="token punctuation">/&gt;</span></span>
+      <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>model</span> <span class="token attr-name">type</span><span class="token attr-value"><span class="token punctuation attr-equals">=</span><span class="token punctuation">'</span>virtio<span class="token punctuation">'</span></span><span class="token punctuation">/&gt;</span></span>
+    <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>interface</span><span class="token punctuation">&gt;</span></span>
+    <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>serial</span> <span class="token attr-name">type</span><span class="token attr-value"><span class="token punctuation attr-equals">=</span><span class="token punctuation">'</span>pty<span class="token punctuation">'</span></span><span class="token punctuation">&gt;</span></span>
+      <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>target</span> <span class="token attr-name">port</span><span class="token attr-value"><span class="token punctuation attr-equals">=</span><span class="token punctuation">'</span>0<span class="token punctuation">'</span></span><span class="token punctuation">/&gt;</span></span>
+    <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>serial</span><span class="token punctuation">&gt;</span></span>
+    <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>console</span> <span class="token attr-name">type</span><span class="token attr-value"><span class="token punctuation attr-equals">=</span><span class="token punctuation">'</span>pty<span class="token punctuation">'</span></span><span class="token punctuation">&gt;</span></span>
+      <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>target</span> <span class="token attr-name">type</span><span class="token attr-value"><span class="token punctuation attr-equals">=</span><span class="token punctuation">'</span>serial<span class="token punctuation">'</span></span> <span class="token attr-name">port</span><span class="token attr-value"><span class="token punctuation attr-equals">=</span><span class="token punctuation">'</span>0<span class="token punctuation">'</span></span><span class="token punctuation">/&gt;</span></span>
+    <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>console</span><span class="token punctuation">&gt;</span></span>
+    <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>graphics</span> <span class="token attr-name">type</span><span class="token attr-value"><span class="token punctuation attr-equals">=</span><span class="token punctuation">'</span>vnc<span class="token punctuation">'</span></span> <span class="token attr-name">port</span><span class="token attr-value"><span class="token punctuation attr-equals">=</span><span class="token punctuation">'</span>-1<span class="token punctuation">'</span></span> <span class="token attr-name">autoport</span><span class="token attr-value"><span class="token punctuation attr-equals">=</span><span class="token punctuation">'</span>yes<span class="token punctuation">'</span></span> <span class="token attr-name">listen</span><span class="token attr-value"><span class="token punctuation attr-equals">=</span><span class="token punctuation">'</span>0.0.0.0<span class="token punctuation">'</span></span><span class="token punctuation">&gt;</span></span>
+      <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>listen</span> <span class="token attr-name">type</span><span class="token attr-value"><span class="token punctuation attr-equals">=</span><span class="token punctuation">'</span>address<span class="token punctuation">'</span></span> <span class="token attr-name">address</span><span class="token attr-value"><span class="token punctuation attr-equals">=</span><span class="token punctuation">'</span>0.0.0.0<span class="token punctuation">'</span></span><span class="token punctuation">/&gt;</span></span>
+    <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>graphics</span><span class="token punctuation">&gt;</span></span>
+    <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>video</span><span class="token punctuation">&gt;</span></span>
+      <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>model</span> <span class="token attr-name">type</span><span class="token attr-value"><span class="token punctuation attr-equals">=</span><span class="token punctuation">'</span>cirrus<span class="token punctuation">'</span></span><span class="token punctuation">/&gt;</span></span>
+    <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>video</span><span class="token punctuation">&gt;</span></span>
+  <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>devices</span><span class="token punctuation">&gt;</span></span>
+<span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>domain</span><span class="token punctuation">&gt;</span></span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>在这个XML文件中，/mnt/vdc/ubuntutest.img就是虚拟机的镜像，br0就是我们创建的网桥，连接到网桥上的网卡libvirt会自动帮我们创建。</p>
+<p>接下来，需要将这个XML保存为domain.xml，然后调用下面的命令，交给libvirt进行管理。</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token function">virsh</span> define domain.xml<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>接下来，运行virsh list —all，我们就可以看到这个定义好的虚拟机了，然后我们调用virsh start ubuntutest，启动这个虚拟机。</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ <span class="token function">virsh</span> list
+ Id    Name                           State
+----------------------------------------------------
+ <span class="token number">1</span>     ubuntutest                     running<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span></span></code></pre>
+<p>我们可以通过ps查看libvirt启动的qemu进程。这个命令行是不是很眼熟？我们之前花了一章来讲解。如果不记得了，你可以回去看看前面的内容。</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ <span class="token function">ps</span> aux <span class="token operator">|</span> <span class="token function">grep</span> qemu
+libvirt+  <span class="token number">9343</span> <span class="token number">85.1</span> <span class="token number">34.7</span> <span class="token number">10367352</span> <span class="token number">5699400</span> ?    Sl   Jul27 <span class="token number">1239</span>:18 /usr/bin/qemu-system-x86_64 -name ubuntutest -S -machine pc-i440fx-trusty,accel<span class="token operator">=</span>tcg,usb<span class="token operator">=</span>off -m <span class="token number">4096</span> -realtime <span class="token assign-left variable">mlock</span><span class="token operator">=</span>off -smp <span class="token number">2</span>,sockets<span class="token operator">=</span><span class="token number">2</span>,cores<span class="token operator">=</span><span class="token number">1</span>,threads<span class="token operator">=</span><span class="token number">1</span> -uuid 0f0806ab-531d-6134-5def-c5b4955292aa -no-user-config -nodefaults -chardev socket,id<span class="token operator">=</span>charmonitor,path<span class="token operator">=</span>/var/lib/libvirt/qemu/domain-ubuntutest/monitor.sock,server,nowait -mon <span class="token assign-left variable">chardev</span><span class="token operator">=</span>charmonitor,id<span class="token operator">=</span>monitor,mode<span class="token operator">=</span>control -rtc <span class="token assign-left variable">base</span><span class="token operator">=</span>utc -no-shutdown -boot <span class="token assign-left variable">strict</span><span class="token operator">=</span>on -device piix3-usb-uhci,id<span class="token operator">=</span>usb,bus<span class="token operator">=</span>pci.0,addr<span class="token operator">=</span>0x1.0x2 -drive <span class="token assign-left variable">file</span><span class="token operator">=</span>/mnt/vdc/ubuntutest.img,format<span class="token operator">=</span>qcow2,if<span class="token operator">=</span>none,id<span class="token operator">=</span>drive-virtio-disk0 -device virtio-blk-pci,scsi<span class="token operator">=</span>off,bus<span class="token operator">=</span>pci.0,addr<span class="token operator">=</span>0x4,drive<span class="token operator">=</span>drive-virtio-disk0,id<span class="token operator">=</span>virtio-disk0,bootindex<span class="token operator">=</span><span class="token number">1</span> -netdev tap,fd<span class="token operator">=</span><span class="token number">26</span>,id<span class="token operator">=</span>hostnet0 -device virtio-net-pci,netdev<span class="token operator">=</span>hostnet0,id<span class="token operator">=</span>net0,mac<span class="token operator">=</span>fa:16:3e:6e:89:ce,bus<span class="token operator">=</span>pci.0,addr<span class="token operator">=</span>0x3 -chardev pty,id<span class="token operator">=</span>charserial0 -device isa-serial,chardev<span class="token operator">=</span>charserial0,id<span class="token operator">=</span>serial0 -vnc <span class="token number">0.0</span>.0.0:0 -device cirrus-vga,id<span class="token operator">=</span>video0,bus<span class="token operator">=</span>pci.0,addr<span class="token operator">=</span>0x2 -device virtio-balloon-pci,id<span class="token operator">=</span>balloon0,bus<span class="token operator">=</span>pci.0,addr<span class="token operator">=</span>0x5 -msg <span class="token assign-left variable">timestamp</span><span class="token operator">=</span>on<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre>
+<p>从这里，我们可以看到，VNC的设置为0.0.0.0:0。我们可以用VNCViewer工具登录到这个虚拟机的界面，但是这样实在是太麻烦了，其实virsh有一个特别好的工具，但是需要在虚拟机里面配置一些东西。</p>
+<p>在虚拟机里面，我们修改/boot/grub/里面的两个文件，一个是grub.cfg，另一个是menu.lst，这里面就是咱们在<a target="_blank" rel="noopener" href="https://time.geekbang.org/column/article/89739">系统初始化</a>的时候，讲过的那个启动列表。</p>
+<p>在grub.cfg中，在submenu ‘Advanced options for Ubuntu’ 这一项，在这一行的linux /boot/vmlinuz-4.15.0-55-generic root=UUID=470f3a42-7a97-4b9d-aaa0-26deb3d234f9 ro console=ttyS0 maybe-ubiquity中，加上了console=ttyS0。</p>
+<p>在grub.cfg中，在submenu ‘Advanced options for Ubuntu’ 这一项，在这一行的linux /boot/vmlinuz-4.15.0-55-generic root=UUID=470f3a42-7a97-4b9d-aaa0-26deb3d234f9 ro console=ttyS0 maybe-ubiquity中，加上了console=ttyS0。</p>
+<pre class="line-numbers language-text" data-language="text"><code class="language-text">submenu 'Advanced options for Ubuntu' $menuentry_id_option 'gnulinux-advanced-470f3a42-7a97-4b9d-aaa0-26deb3d234f9' {
+    menuentry 'Ubuntu, with Linux 4.15.0-55-generic' --class ubuntu --class gnu-linux --class gnu --class os $menuentry_id_option 'gnulinux-4.15.0-55-generic-advanced-470f3a42-7a97-4b9d-aaa0-26deb3d234f9' {
+        recordfail
+        load_video
+        gfxmode $linux_gfx_mode
+        insmod gzio
+        if [ x$grub_platform = xxen ]; then insmod xzio; insmod lzopio; fi
+        insmod part_gpt
+        insmod ext2
+        set root='hd0,gpt2'
+        if [ x$feature_platform_search_hint = xy ]; then
+            search --no-floppy --fs-uuid --set=root --hint-bios=hd0,gpt2 --hint-efi=hd0,gpt2 --hint-baremetal=ahci0,gpt2  470f3a42-7a97-4b9d-aaa0-26deb3d234f9
+        else
+            search --no-floppy --fs-uuid --set=root 470f3a42-7a97-4b9d-aaa0-26deb3d234f9
+        fi
+        echo    'Loading Linux 4.15.0-55-generic ...'
+        linux   /boot/vmlinuz-4.15.0-55-generic root=UUID=470f3a42-7a97-4b9d-aaa0-26deb3d234f9 ro console=ttyS0 maybe-ubiquity
+        echo    'Loading initial ramdisk ...'
+        initrd  /boot/initrd.img-4.15.0-55-generic
+    }<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>在menu.lst文件中，在Ubuntu 18.04.2 LTS, kernel 4.15.0-55-generic这一项，在kernel /boot/vmlinuz-4.15.0-55-generic root=/dev/hda1 ro console=hvc0 console=ttyS0这一行加入console=ttyS0。</p>
+<pre class="line-numbers language-text" data-language="text"><code class="language-text">title           Ubuntu 18.04.2 LTS, kernel 4.15.0-55-generic
+root            (hd0)
+kernel          /boot/vmlinuz-4.15.0-55-generic root=/dev/hda1 ro console=hvc0 console=ttyS0
+initrd          /boot/initrd.img-4.15.0-55-generic<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span></span></code></pre>
+<p>接下来，我们重启虚拟机，重启后上面的配置就起作用了。这时候，我们可以通过下面的命令，进入机器的控制台，可以不依赖于SSH和IP地址进行登录。</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ <span class="token function">virsh</span> console ubuntutest
+Connected to domain ubuntutest
+Escape character is ^<span class="token punctuation">]</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span></span></code></pre>
+<p>下面，我们可以配置这台机器的IP地址了。对于ubuntu-18.04来讲，IP地址的配置方式为修改/etc/netplan/50-cloud-init.yaml文件。</p>
+<pre class="line-numbers language-yaml" data-language="yaml"><code class="language-yaml"><span class="token key atrule">network</span><span class="token punctuation">:</span>
+    <span class="token key atrule">ethernets</span><span class="token punctuation">:</span>
+        <span class="token key atrule">ens3</span><span class="token punctuation">:</span>
+                <span class="token key atrule">addresses</span><span class="token punctuation">:</span> <span class="token punctuation">[</span>192.168.57.100/24<span class="token punctuation">]</span>
+                <span class="token key atrule">gateway4</span><span class="token punctuation">:</span> 192.168.57.1
+                <span class="token key atrule">dhcp4</span><span class="token punctuation">:</span> no
+                <span class="token key atrule">nameservers</span><span class="token punctuation">:</span>
+                        <span class="token key atrule">addresses</span><span class="token punctuation">:</span> <span class="token punctuation">[</span>8.8.8.8<span class="token punctuation">,</span>114.114.114.114<span class="token punctuation">]</span>
+                <span class="token key atrule">optional</span><span class="token punctuation">:</span> <span class="token boolean important">true</span>
+    <span class="token key atrule">version</span><span class="token punctuation">:</span> <span class="token number">2</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>然后，我们可以通过netplan apply，让配置生效，这样，虚拟机里面的IP地址就配置好了。现在，我们应该能ping得通公网的一个网站了。</p>
+<p>虚拟机就此创建好了，接下来我们需要下载源代码重新编译。</p>
+<h4 id="54-2-下载源代码"><a href="#54-2-下载源代码" class="headerlink" title="54.2 下载源代码"></a>54.2 下载源代码</h4><p>首先，我们先下载源代码。</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token function">apt-get</span> <span class="token function">install</span> linux-source-4.15.0<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>这行命令会将代码下载到/usr/src/目录下，我们可以通过下面的命令解压缩。</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token function">tar</span> vjxkf linux-source-4.15.0.tar.bz2<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>至此，路径/usr/src/linux-source-4.15.0下，就是解压好的内核代码。</p>
+<p>准备工作都做好了。这一节，我们先来做第一个实验，也就是，在原有内核代码的基础上加一个我们自己的系统调用。</p>
+<p>在哪里加代码呢？如果你忘了，请出门左转，回顾一下<a target="_blank" rel="noopener" href="https://time.geekbang.org/column/article/90394">系统调用</a>那一节。</p>
+<p>第一个要加的地方是arch/x86/entry/syscalls/syscall_64.tbl。这里面登记了所有的系统调用号以及相应的处理函数。</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token number">332</span>     common  statx                   sys_statx
+<span class="token number">333</span>     <span class="token number">64</span>      sayhelloworld           sys_sayhelloworld<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre>
+<p>在这里，我们找到332号系统调用sys_statx，然后照猫画虎，添加一个sys_sayhelloworld，这里我们只添加64位操作系统的。</p>
+<p>第二个要加的地方是include/linux/syscalls.h，也就是系统调用的头文件，然后添加一个系统调用的声明。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c">asmlinkage <span class="token keyword">long</span> <span class="token function">sys_statx</span><span class="token punctuation">(</span><span class="token keyword">int</span> dfd<span class="token punctuation">,</span> <span class="token keyword">const</span> <span class="token keyword">char</span> __user <span class="token operator">*</span>path<span class="token punctuation">,</span> <span class="token keyword">unsigned</span> flags<span class="token punctuation">,</span>
+                          <span class="token keyword">unsigned</span> mask<span class="token punctuation">,</span> <span class="token keyword">struct</span> <span class="token class-name">statx</span> __user <span class="token operator">*</span>buffer<span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+asmlinkage <span class="token keyword">int</span> <span class="token function">sys_sayhelloworld</span><span class="token punctuation">(</span><span class="token keyword">char</span> <span class="token operator">*</span> words<span class="token punctuation">,</span> <span class="token keyword">int</span> count<span class="token punctuation">)</span><span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span></span></code></pre>
+<p>同样，我们找到sys_statx的声明，照猫画虎，声明一个sys_sayhelloworld。其中，words参数是用户态传递给内核态的文本的指针，count是数目。</p>
+<p>第三个就是对于这个系统调用的实现，方便起见，我们不再用SYSCALL_DEFINEx系列的宏来定义了，直接在kernel/sys.c中实现。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c">asmlinkage <span class="token keyword">int</span> <span class="token function">sys_sayhelloworld</span><span class="token punctuation">(</span><span class="token keyword">char</span> <span class="token operator">*</span> words<span class="token punctuation">,</span> <span class="token keyword">int</span> count<span class="token punctuation">)</span><span class="token punctuation">{</span>
+    <span class="token keyword">int</span> ret<span class="token punctuation">;</span>
+    <span class="token keyword">char</span> buffer<span class="token punctuation">[</span><span class="token number">512</span><span class="token punctuation">]</span><span class="token punctuation">;</span>
+    <span class="token keyword">if</span><span class="token punctuation">(</span>count <span class="token operator">&gt;=</span> <span class="token number">512</span><span class="token punctuation">)</span><span class="token punctuation">{</span>
+        <span class="token keyword">return</span> <span class="token operator">-</span><span class="token number">1</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+    <span class="token function">copy_from_user</span><span class="token punctuation">(</span>buffer<span class="token punctuation">,</span> words<span class="token punctuation">,</span> count<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    ret<span class="token operator">=</span><span class="token function">printk</span><span class="token punctuation">(</span><span class="token string">"User Mode says %s to the Kernel Mode!"</span><span class="token punctuation">,</span> buffer<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">return</span> ret<span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>接下来就要开始编译内核了。</p>
+<h4 id="54-3-编译内核"><a href="#54-3-编译内核" class="headerlink" title="54.3 编译内核"></a>54.3 编译内核</h4><p>编译之前，我们需要安装一些编译要依赖的包。</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token function">apt-get</span> <span class="token function">install</span> libncurses5-dev libssl-dev bison flex libelf-dev gcc <span class="token function">make</span> openssl libc6-dev<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>首先，我们要定义编译选项。</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token function">make</span> menuconfig<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>然后，我们能通过选中下面的选项，激活CONFIG_DEBUG_INFO和CONFIG_FRAME_POINTER选项。</p>
+<pre class="line-numbers language-text" data-language="text"><code class="language-text">Kernel hacking  ---&gt;
+Compile-time checks and compiler options  ---&gt;
+[*] Compile the kernel with debug info
+[*] Compile the kernel with frame pointers<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span></span></code></pre>
+<p>选择完毕之后，配置会保存在.config文件中。如果我们打开看，能看到这样的配置：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token assign-left variable">CONFIG_FRAME_POINTER</span><span class="token operator">=</span>y
+<span class="token assign-left variable">CONFIG_DEBUG_INFO</span><span class="token operator">=</span>y<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre>
+<p>接下来，我们编译内核。</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token function">nohup</span> <span class="token function">make</span> -j8 <span class="token operator">&gt;</span> make1.log <span class="token operator"><span class="token file-descriptor important">2</span>&gt;</span><span class="token file-descriptor important">&amp;1</span> <span class="token operator">&amp;</span>
+<span class="token function">nohup</span> <span class="token function">make</span> modules_install <span class="token operator">&gt;</span> make2.log <span class="token operator"><span class="token file-descriptor important">2</span>&gt;</span><span class="token file-descriptor important">&amp;1</span> <span class="token operator">&amp;</span>
+<span class="token function">nohup</span> <span class="token function">make</span> <span class="token function">install</span> <span class="token operator">&gt;</span> make3.log <span class="token operator"><span class="token file-descriptor important">2</span>&gt;</span><span class="token file-descriptor important">&amp;1</span> <span class="token operator">&amp;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span></span></code></pre>
+<p>这是一个非常长的过程，请耐心等待，可能需要数个小时，因而这里用了nohup，你可以去干别的事情。</p>
+<p>当编译完毕之后，grub和menu.lst都会发生改变。例如，grub.conf里面会多一个新内核的项。</p>
+<pre class="line-numbers language-text" data-language="text"><code class="language-text">submenu 'Advanced options for Ubuntu' $menuentry_id_option 'gnulinux-advanced-470f3a42-7a97-4b9d-aaa0-26deb3d234f9' {
+        menuentry 'Ubuntu, with Linux 4.15.18' --class ubuntu --class gnu-linux --class gnu --class os $menuentry_id_option 'gnulinux-4.15.18-advanced-470f3a42-7a97-4b9d-aaa0-26deb3d234f9' {
+                recordfail
+                load_video
+                gfxmode $linux_gfx_mode
+                insmod gzio
+                if [ x$grub_platform = xxen ]; then insmod xzio; insmod lzopio; fi
+                insmod part_gpt
+                insmod ext2
+                if [ x$feature_platform_search_hint = xy ]; then
+                  search --no-floppy --fs-uuid --set=root  470f3a42-7a97-4b9d-aaa0-26deb3d234f9
+                else
+                  search --no-floppy --fs-uuid --set=root 470f3a42-7a97-4b9d-aaa0-26deb3d234f9
+                fi
+                echo    'Loading Linux 4.15.18 ...'
+                linux   /boot/vmlinuz-4.15.18 root=UUID=470f3a42-7a97-4b9d-aaa0-26deb3d234f9 ro console=ttyS0 maybe-ubiquity
+                echo    'Loading initial ramdisk ...'
+                initrd  /boot/initrd.img-4.15.18
+        }<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>例如，menu.lst也多了新的内核的项。</p>
+<pre class="line-numbers language-text" data-language="text"><code class="language-text">title           Ubuntu 18.04.2 LTS, kernel 4.15.18
+root            (hd0)
+kernel          /boot/vmlinuz-4.15.18 root=/dev/hda1 ro console=hvc0 console=ttyS0
+initrd          /boot/initrd.img-4.15.18<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span></span></code></pre>
+<p>别忘了，这里面都要加上console=ttyS0。</p>
+<p>下面，我们要做的就是重启虚拟机。进入的时候，会出现GRUB界面。我们选择Ubuntu高级选项，然后选择第一项进去，通过uname命令，我们就进入了新的内核。</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ <span class="token function">uname</span> -a
+Linux popsuper <span class="token number">4.15</span>.18 <span class="token comment">#1 SMP Sat Jul 27 13:43:42 UTC 2019 x86_64 x86_64 x86_64 GNU/Linux</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre>
+<p>进入新的系统后，我们写一个测试程序。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;stdio.h&gt;</span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;stdlib.h&gt;</span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;unistd.h&gt;</span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;linux/kernel.h&gt;</span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;sys/syscall.h&gt;</span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;string.h&gt;</span></span>
+
+<span class="token keyword">int</span> <span class="token function">main</span> <span class="token punctuation">(</span><span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+  <span class="token keyword">char</span> <span class="token operator">*</span> words <span class="token operator">=</span> <span class="token string">"I am liuchao from user mode."</span><span class="token punctuation">;</span>
+  <span class="token keyword">int</span> ret<span class="token punctuation">;</span>
+  ret <span class="token operator">=</span> <span class="token function">syscall</span><span class="token punctuation">(</span><span class="token number">333</span><span class="token punctuation">,</span> words<span class="token punctuation">,</span> <span class="token function">strlen</span><span class="token punctuation">(</span>words<span class="token punctuation">)</span><span class="token operator">+</span><span class="token number">1</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+  <span class="token function">printf</span><span class="token punctuation">(</span><span class="token string">"return %d from kernel mode.\n"</span><span class="token punctuation">,</span> ret<span class="token punctuation">)</span><span class="token punctuation">;</span>
+  <span class="token keyword">return</span> <span class="token number">0</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>然后，我们能利用gcc编译器编译后运行。如果我们查看日志/var/log/syslog，就能够看到里面打印出来下面的日志，这说明我们的系统调用已经添加成功了。</p>
+<pre class="line-numbers language-text" data-language="text"><code class="language-text">Aug  1 06:33:12 popsuper kernel: [ 2048.873393] User Mode says I am liuchao from user mode. to the Kernel Mode!<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<h4 id="54-4-总结"><a href="#54-4-总结" class="headerlink" title="54.4 总结"></a>54.4 总结</h4><p>这一节是一节实战课，我们创建了一台虚拟机，在里面下载源代码，尝试修改了Linux内核，添加了一个自己的系统调用，并且进行了编译并安装了新内核。如果你按照这个过程做下来，你会惊喜地发现，原来令我们敬畏的内核，也是能够加以干预，为我而用的呢。没错，这就是你开始逐渐掌握内核的重要一步。</p>
+<h3 id="55-搭建操作系统实验环境（下）"><a href="#55-搭建操作系统实验环境（下）" class="headerlink" title="55. 搭建操作系统实验环境（下）"></a>55. 搭建操作系统实验环境（下）</h3><p>上一节我们做了一个实验，添加了一个系统调用，并且编译了内核。这一节，我们来尝试调试内核。这样，我们就可以一步一步来看，内核的代码逻辑执行到哪一步了，对应的变量值是什么。</p>
+<h4 id="55-1-了解gdb"><a href="#55-1-了解gdb" class="headerlink" title="55.1 了解gdb"></a>55.1 了解gdb</h4><p>在Linux下面，调试程序使用一个叫作gdb的工具。通过这个工具，我们可以逐行运行程序。</p>
+<p>例如，上一节我们写的syscall.c这个程序，我们就可以通过下面的命令编译。</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">gcc -g syscall.c<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>其中，参数-g的意思就是在编译好的二进制程序中，加入debug所需的信息。</p>
+<p>接下来，我们安装一下gdb。</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token function">apt-get</span> <span class="token function">install</span> gdb<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>然后，我们就可以来调试这个程序了。</p>
+<pre class="line-numbers language-text" data-language="text"><code class="language-text">~/syscall# gdb ./a.out
+GNU gdb (Ubuntu 8.1-0ubuntu3.1) 8.1.0.20180409-git
+......
+Reading symbols from ./a.out...done.
+(gdb) l
+1       #include &lt;stdio.h&gt;
+2       #include &lt;stdlib.h&gt;
+3       #include &lt;unistd.h&gt;
+4       #include &lt;linux/kernel.h&gt;
+5       #include &lt;sys/syscall.h&gt;
+6       #include &lt;string.h&gt;
+7
+8       int main ()
+9       {
+10        char * words = "I am liuchao from user mode.";
+(gdb) b 10
+Breakpoint 1 at 0x6e2: file syscall.c, line 10.
+(gdb) r
+Starting program: /root/syscall/a.out
+
+Breakpoint 1, main () at syscall.c:10
+10        char * words = "I am liuchao from user mode.";
+(gdb) n
+12        ret = syscall(333, words, strlen(words)+1);
+(gdb) p words
+$1 = 0x5555555547c4 "I am liuchao from user mode."
+(gdb) s
+__strlen_sse2 () at ../sysdeps/x86_64/multiarch/../strlen.S:79
+(gdb) bt
+#0  __strlen_sse2 () at ../sysdeps/x86_64/multiarch/../strlen.S:79
+#1  0x00005555555546f9 in main () at syscall.c:12
+(gdb) c
+Continuing.
+return 63 from kernel mode.
+[Inferior 1 (process 1774) exited normally]
+(gdb) q<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>在上面的例子中，我们只要掌握简单的几个gdb的命令就可以了。</p>
+<ul>
+<li>l，即list，用于显示多行源代码。</li>
+<li>b，即break，用于设置断点。</li>
+<li>r，即run，用于开始运行程序。</li>
+<li>n，即next，用于执行下一条语句。如果该语句为函数调用，则不会进入函数内部执行。</li>
+<li>p，即print，用于打印内部变量值。</li>
+<li>s，即step，用于执行下一条语句。如果该语句为函数调用，则进入函数，执行其中的第一条语句。</li>
+<li>c，即continue，用于继续程序的运行，直到遇到下一个断点。</li>
+<li>bt，即backtrace，用于产看函数调用信息。</li>
+<li>q，即quit，用于退出gdb环境。</li>
+</ul>
+<h4 id="55-2-Debug-kernel"><a href="#55-2-Debug-kernel" class="headerlink" title="55.2 Debug kernel"></a>55.2 Debug kernel</h4><p>看了debug一个进程还是简单的，接下来，我们来试着debug整个kernel。</p>
+<p>第一步，要想kernel能够被debug，需要向上面编译程序一样，将debug所需信息也放入二进制文件里面去。这个我们在编译内核的时候已经设置过了，也就是把“CONFIG_DEBUG_INFO”和“CONFIG_FRAME_POINTER“两个变量设置为yes。</p>
+<p>第二步，就是安装gdb。kernel运行在qemu虚拟机里面，gdb运行在宿主机上，所以我们应该在宿主机上进行安装。</p>
+<p>第三步，找到gdb要运行的那个内核的二进制文件。这个文件在哪里呢？根据grub里面的配置，它应该在/boot/vmlinuz-4.15.18这里。</p>
+<p>另外，为了方便在debug的过程中查看源代码，我们可以将/usr/src/linux-source-4.15.0整个目录，都拷贝到宿主机上来。因为内核一旦进入debug模式，就不能运行了。</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token function">scp</span> -r popsuper@192.168.57.100:/usr/src/linux-source-4.15.0 ./<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>在/usr/src/linux-source-4.15.0这个目录下面，vmlinux文件也是内核的二进制文件。</p>
+<p>第四步，修改qemu的启动参数和qemu里面虚拟机的启动参数，从而使得gdb可以远程attach到qemu里面的内核上。</p>
+<p>我们知道，gdb debug一个进程的时候，gdb会监控进程的运行，使得进程一行一行地执行二进制文件。如果像syscall.c的二进制文件a.out一样，就在本地，gdb可以通过attach到这个进程上，作为这个进程的父进程，来监控它的运行。</p>
+<p>但是，gdb debug一个内核的时候，因为内核在qemu虚拟机里面，所以我们无法监控本地进程，而要通过qemu来监控qemu里面的内核，这就要借助qemu的机制。</p>
+<p>qemu有个参数-s，它代表参数-gdb tcp::1234，意思是qemu监听1234端口，gdb可以attach到这个端口上来，debug qemu里面的内核。</p>
+<p>为了完成这一点，我们需要修改ubuntutest这个虚拟机的定义文件。</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token function">virsh</span> edit ubuntutest<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>在这里，我们能将虚拟机的定义文件修改成下面的样子，其中主要改了两项：</p>
+<ul>
+<li><p>在domain的最后加上了qemu:commandline，里面指定了参数-s；</p>
+</li>
+<li><p>在domain中添加xmlns:qemu。没有这个XML的namespace，qemu:commandline这个参数libvirt不认。</p>
+  <pre class="line-numbers language-xml" data-language="xml"><code class="language-xml"><span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>domain</span> <span class="token attr-name">type</span><span class="token attr-value"><span class="token punctuation attr-equals">=</span><span class="token punctuation">'</span>qemu<span class="token punctuation">'</span></span> <span class="token attr-name"><span class="token namespace">xmlns:</span>qemu</span><span class="token attr-value"><span class="token punctuation attr-equals">=</span><span class="token punctuation">'</span>http://libvirt.org/schemas/domain/qemu/1.0<span class="token punctuation">'</span></span><span class="token punctuation">&gt;</span></span>
+<span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>name</span><span class="token punctuation">&gt;</span></span>ubuntutest<span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>name</span><span class="token punctuation">&gt;</span></span>
+<span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>uuid</span><span class="token punctuation">&gt;</span></span>0f0806ab-531d-6134-5def-c5b4955292aa<span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>uuid</span><span class="token punctuation">&gt;</span></span>
+<span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>memory</span> <span class="token attr-name">unit</span><span class="token attr-value"><span class="token punctuation attr-equals">=</span><span class="token punctuation">'</span>KiB<span class="token punctuation">'</span></span><span class="token punctuation">&gt;</span></span>8388608<span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>memory</span><span class="token punctuation">&gt;</span></span>
+<span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>currentMemory</span> <span class="token attr-name">unit</span><span class="token attr-value"><span class="token punctuation attr-equals">=</span><span class="token punctuation">'</span>KiB<span class="token punctuation">'</span></span><span class="token punctuation">&gt;</span></span>8388608<span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>currentMemory</span><span class="token punctuation">&gt;</span></span>
+<span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>vcpu</span> <span class="token attr-name">placement</span><span class="token attr-value"><span class="token punctuation attr-equals">=</span><span class="token punctuation">'</span>static<span class="token punctuation">'</span></span><span class="token punctuation">&gt;</span></span>8<span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>vcpu</span><span class="token punctuation">&gt;</span></span>
+<span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>os</span><span class="token punctuation">&gt;</span></span>
+    <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>type</span> <span class="token attr-name">arch</span><span class="token attr-value"><span class="token punctuation attr-equals">=</span><span class="token punctuation">'</span>x86_64<span class="token punctuation">'</span></span> <span class="token attr-name">machine</span><span class="token attr-value"><span class="token punctuation attr-equals">=</span><span class="token punctuation">'</span>pc-i440fx-trusty<span class="token punctuation">'</span></span><span class="token punctuation">&gt;</span></span>hvm<span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>type</span><span class="token punctuation">&gt;</span></span>
+    <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>boot</span> <span class="token attr-name">dev</span><span class="token attr-value"><span class="token punctuation attr-equals">=</span><span class="token punctuation">'</span>hd<span class="token punctuation">'</span></span><span class="token punctuation">/&gt;</span></span>
+<span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>os</span><span class="token punctuation">&gt;</span></span>
+<span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>clock</span> <span class="token attr-name">offset</span><span class="token attr-value"><span class="token punctuation attr-equals">=</span><span class="token punctuation">'</span>utc<span class="token punctuation">'</span></span><span class="token punctuation">/&gt;</span></span>
+<span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>on_poweroff</span><span class="token punctuation">&gt;</span></span>destroy<span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>on_poweroff</span><span class="token punctuation">&gt;</span></span>
+<span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>on_reboot</span><span class="token punctuation">&gt;</span></span>restart<span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>on_reboot</span><span class="token punctuation">&gt;</span></span>
+<span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>on_crash</span><span class="token punctuation">&gt;</span></span>restart<span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>on_crash</span><span class="token punctuation">&gt;</span></span>
+<span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>devices</span><span class="token punctuation">&gt;</span></span>
+    <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>emulator</span><span class="token punctuation">&gt;</span></span>/usr/bin/qemu-system-x86_64<span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>emulator</span><span class="token punctuation">&gt;</span></span>
+    <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>disk</span> <span class="token attr-name">type</span><span class="token attr-value"><span class="token punctuation attr-equals">=</span><span class="token punctuation">'</span>file<span class="token punctuation">'</span></span> <span class="token attr-name">device</span><span class="token attr-value"><span class="token punctuation attr-equals">=</span><span class="token punctuation">'</span>disk<span class="token punctuation">'</span></span><span class="token punctuation">&gt;</span></span>
+    <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>driver</span> <span class="token attr-name">name</span><span class="token attr-value"><span class="token punctuation attr-equals">=</span><span class="token punctuation">'</span>qemu<span class="token punctuation">'</span></span> <span class="token attr-name">type</span><span class="token attr-value"><span class="token punctuation attr-equals">=</span><span class="token punctuation">'</span>qcow2<span class="token punctuation">'</span></span><span class="token punctuation">/&gt;</span></span>
+    <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>source</span> <span class="token attr-name">file</span><span class="token attr-value"><span class="token punctuation attr-equals">=</span><span class="token punctuation">'</span>/mnt/vdc/ubuntutest.img<span class="token punctuation">'</span></span><span class="token punctuation">/&gt;</span></span>
+    <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>backingStore</span><span class="token punctuation">/&gt;</span></span>
+    <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>target</span> <span class="token attr-name">dev</span><span class="token attr-value"><span class="token punctuation attr-equals">=</span><span class="token punctuation">'</span>vda<span class="token punctuation">'</span></span> <span class="token attr-name">bus</span><span class="token attr-value"><span class="token punctuation attr-equals">=</span><span class="token punctuation">'</span>virtio<span class="token punctuation">'</span></span><span class="token punctuation">/&gt;</span></span>
+    <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>alias</span> <span class="token attr-name">name</span><span class="token attr-value"><span class="token punctuation attr-equals">=</span><span class="token punctuation">'</span>virtio-disk0<span class="token punctuation">'</span></span><span class="token punctuation">/&gt;</span></span>
+    <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>address</span> <span class="token attr-name">type</span><span class="token attr-value"><span class="token punctuation attr-equals">=</span><span class="token punctuation">'</span>pci<span class="token punctuation">'</span></span> <span class="token attr-name">domain</span><span class="token attr-value"><span class="token punctuation attr-equals">=</span><span class="token punctuation">'</span>0x0000<span class="token punctuation">'</span></span> <span class="token attr-name">bus</span><span class="token attr-value"><span class="token punctuation attr-equals">=</span><span class="token punctuation">'</span>0x00<span class="token punctuation">'</span></span> <span class="token attr-name">slot</span><span class="token attr-value"><span class="token punctuation attr-equals">=</span><span class="token punctuation">'</span>0x04<span class="token punctuation">'</span></span> <span class="token attr-name">function</span><span class="token attr-value"><span class="token punctuation attr-equals">=</span><span class="token punctuation">'</span>0x0<span class="token punctuation">'</span></span><span class="token punctuation">/&gt;</span></span>
+    <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>disk</span><span class="token punctuation">&gt;</span></span>
+......
+    <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>interface</span> <span class="token attr-name">type</span><span class="token attr-value"><span class="token punctuation attr-equals">=</span><span class="token punctuation">'</span>bridge<span class="token punctuation">'</span></span><span class="token punctuation">&gt;</span></span>
+    <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>mac</span> <span class="token attr-name">address</span><span class="token attr-value"><span class="token punctuation attr-equals">=</span><span class="token punctuation">'</span>fa:16:3e:6e:89:ce<span class="token punctuation">'</span></span><span class="token punctuation">/&gt;</span></span>
+    <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>source</span> <span class="token attr-name">bridge</span><span class="token attr-value"><span class="token punctuation attr-equals">=</span><span class="token punctuation">'</span>br0<span class="token punctuation">'</span></span><span class="token punctuation">/&gt;</span></span>
+    <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>target</span> <span class="token attr-name">dev</span><span class="token attr-value"><span class="token punctuation attr-equals">=</span><span class="token punctuation">'</span>tap1<span class="token punctuation">'</span></span><span class="token punctuation">/&gt;</span></span>
+    <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>model</span> <span class="token attr-name">type</span><span class="token attr-value"><span class="token punctuation attr-equals">=</span><span class="token punctuation">'</span>virtio<span class="token punctuation">'</span></span><span class="token punctuation">/&gt;</span></span>
+    <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>alias</span> <span class="token attr-name">name</span><span class="token attr-value"><span class="token punctuation attr-equals">=</span><span class="token punctuation">'</span>net0<span class="token punctuation">'</span></span><span class="token punctuation">/&gt;</span></span>
+    <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>address</span> <span class="token attr-name">type</span><span class="token attr-value"><span class="token punctuation attr-equals">=</span><span class="token punctuation">'</span>pci<span class="token punctuation">'</span></span> <span class="token attr-name">domain</span><span class="token attr-value"><span class="token punctuation attr-equals">=</span><span class="token punctuation">'</span>0x0000<span class="token punctuation">'</span></span> <span class="token attr-name">bus</span><span class="token attr-value"><span class="token punctuation attr-equals">=</span><span class="token punctuation">'</span>0x00<span class="token punctuation">'</span></span> <span class="token attr-name">slot</span><span class="token attr-value"><span class="token punctuation attr-equals">=</span><span class="token punctuation">'</span>0x03<span class="token punctuation">'</span></span> <span class="token attr-name">function</span><span class="token attr-value"><span class="token punctuation attr-equals">=</span><span class="token punctuation">'</span>0x0<span class="token punctuation">'</span></span><span class="token punctuation">/&gt;</span></span>
+    <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>interface</span><span class="token punctuation">&gt;</span></span>
+......
+<span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>devices</span><span class="token punctuation">&gt;</span></span>
+<span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span><span class="token namespace">qemu:</span>commandline</span><span class="token punctuation">&gt;</span></span>
+    <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span><span class="token namespace">qemu:</span>arg</span> <span class="token attr-name">value</span><span class="token attr-value"><span class="token punctuation attr-equals">=</span><span class="token punctuation">'</span>-s<span class="token punctuation">'</span></span><span class="token punctuation">/&gt;</span></span>
+<span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span><span class="token namespace">qemu:</span>commandline</span><span class="token punctuation">&gt;</span></span>
+<span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>domain</span><span class="token punctuation">&gt;</span></span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>另外，为了远程debug成功，我们还需要修改qemu里面的虚拟机的grub和menu.list，在内核命令行中添加nokaslr，来关闭KASLR。KASLR会使得内核地址空间布局随机化，从而会造成我们打的断点不起作用。</p>
+</li>
+</ul>
+<p>对于grub.conf，修改如下：</p>
+<pre class="line-numbers language-text" data-language="text"><code class="language-text">submenu 'Advanced options for Ubuntu' $menuentry_id_option 'gnulinux-advanced-470f3a42-7a97-4b9d-aaa0-26deb3d234f9' {
+        menuentry 'Ubuntu, with Linux 4.15.18' --class ubuntu --class gnu-linux --class gnu --class os $menuentry_id_option 'gnulinux-4.15.18-advanced-470f3a42-7a97-4b9d-aaa0-26deb3d234f9' {
+                recordfail
+                load_video
+                gfxmode $linux_gfx_mode
+                insmod gzio
+                if [ x$grub_platform = xxen ]; then insmod xzio; insmod lzopio; fi
+                insmod part_gpt
+                insmod ext2
+                if [ x$feature_platform_search_hint = xy ]; then
+                  search --no-floppy --fs-uuid --set=root  470f3a42-7a97-4b9d-aaa0-26deb3d234f9
+                else
+                  search --no-floppy --fs-uuid --set=root 470f3a42-7a97-4b9d-aaa0-26deb3d234f9
+                fi
+                echo    'Loading Linux 4.15.18 ...'
+                linux   /boot/vmlinuz-4.15.18 root=UUID=470f3a42-7a97-4b9d-aaa0-26deb3d234f9 ro nokaslr console=ttyS0 maybe-ubiquity
+                echo    'Loading initial ramdisk ...'
+                initrd  /boot/initrd.img-4.15.18
+        }<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>对于menu.list，修改如下：</p>
+<pre class="line-numbers language-text" data-language="text"><code class="language-text">title           Ubuntu 18.04.2 LTS, kernel 4.15.18
+root            (hd0)
+kernel          /boot/vmlinuz-4.15.18 root=/dev/hda1 ro nokaslr console=hvc0 console=ttyS0
+initrd          /boot/initrd.img-4.15.18<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span></span></code></pre>
+<p>修改完毕后，我们需要在虚拟机里面shutdown -h now，来关闭虚拟机。注意不要reboot，因为虚拟机里面运行reboot，我们改过的那个XML会不起作用。</p>
+<p>当我们在宿主机上发现虚拟机关机之后，就可以通过virsh start ubuntutest启动虚拟机，这个时候我们添加的参数-s才起作用。</p>
+<p>第五步，使用gdb运行内核的二进制文件，执行gdb vmlinux。</p>
+<pre class="line-numbers language-text" data-language="text"><code class="language-text">/mnt/vdc/linux-source-4.15.0# gdb vmlinux
+GNU gdb (Ubuntu 7.11.1-0ubuntu1~16.5) 7.11.1
+......
+To enable execution of this file add
+        add-auto-load-safe-path /mnt/vdc/linux-source-4.15.0/vmlinux-gdb.py
+......
+(gdb) b sys_sayhelloworld
+Breakpoint 1 at 0xffffffff8109e2f0: file kernel/sys.c, line 192.
+(gdb) target remote :1234
+Remote debugging using :1234
+native_safe_halt () at ./arch/x86/include/asm/irqflags.h:61
+61      }
+(gdb) c
+Continuing.
+[Switching to Thread 2]
+Thread 2 hit Breakpoint 1, sys_sayhelloworld (words=0x563cbfa907c4 "I am liuchao from user mode.", count=29) at kernel/sys.c:192
+192     {
+(gdb) bt
+#0  sys_sayhelloworld (words=0x55b2811537c4 "I am liuchao from user mode.", count=29) at kernel/sys.c:192
+#1  0xffffffff810039f7 in do_syscall_64 (regs=0xffffc9000133bf58) at arch/x86/entry/common.c:290
+#2  0xffffffff81a00081 in entry_SYSCALL_64 () at arch/x86/entry/entry_64.S:237
+(gdb) n
+195             if(count &gt;= 1024){
+(gdb) n
+198             copy_from_user(buffer, words, count);
+(gdb) n
+199             ret=printk("User Mode says %s to the Kernel Mode!", buffer);
+(gdb) p buffer
+$1 = "I am liuchao from user mode.\000\177\000\000\...
+(gdb) n
+200             return ret;
+(gdb) p ret
+$2 = 63
+(gdb) c
+(gdb) n
+do_syscall_64 (regs=0xffffc9000133bf58) at arch/x86/entry/common.c:295
+295             syscall_return_slowpath(regs);
+(gdb) s
+syscall_return_slowpath (regs=&lt;optimized out&gt;) at arch/x86/entry/common.c:295
+(gdb) n
+268             prepare_exit_to_usermode(regs);
+(gdb) n
+do_syscall_64 (regs=0xffffc9000133bf58) at arch/x86/entry/common.c:296
+296     }
+(gdb) n
+entry_SYSCALL_64 () at arch/x86/entry/entry_64.S:246
+246             movq    RCX(%rsp), %rcx
+......
+(gdb) n
+entry_SYSCALL_64 () at arch/x86/entry/entry_64.S:330
+330             USERGS_SYSRET64<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>我们先设置一个断点在我们自己写的系统调用上b sys_sayhelloworld，通过执行target remote :1234，来attach到qemu上，然后，执行c，也即continue运行内核。这个时候内核始终在Continuing的状态，也即持续在运行中，这个时候我们可以远程登录到qemu里的虚拟机上，执行各种命令。</p>
+<p>如果我们在虚拟机里面运行syscall.c编译好的a.out，这个时候肯定会调用到内核。内核肯定会经过系统调用的过程，到达sys_sayhelloworld这个函数，这就碰到了我们设置的那个断点。</p>
+<p>如果执行bt，我们能看到，这个系统调用是从entry_64.S里面的entry_SYSCALL_64 ()函数，调用到do_syscall_64函数，再调用到sys_sayhelloworld函数的。这一点和我们在<a target="_blank" rel="noopener" href="https://time.geekbang.org/column/article/90394">系统调用</a>那一节分析的过程是一模一样的。</p>
+<p>我们可以通过执行next命令，来看sys_sayhelloworld一步一步是怎么执行的，通过p buffer查看buffer里面的内容。在这个过程中，由于内核是逐行运行的，因而我们在虚拟机里面的命令行是卡死的状态。</p>
+<p>当我们不断地next，直到执行完毕sys_sayhelloworld的时候，会看到，do_syscall_64会调用syscall_return_slowpath。它会调用prepare_exit_to_usermode，然后会回到entry_SYSCALL_64，然后对于寄存器进行操作，最后调用指令USERGS_SYSRET64回到用户态。这个返回的过程和系统调用那一节也一模一样。</p>
+<p>看，通过debug我们能够跟踪系统调用的整个过程。你可以将我们这一门课里面学得的所有的过程都debug一下，看看变量的值，从而对于内核的工作机制有更加深入的了解。</p>
+<h4 id="55-3-总结"><a href="#55-3-总结" class="headerlink" title="55.3 总结"></a>55.3 总结</h4><p>在这个课程里面，我们写过一些程序，为了保证程序能够顺利运行，我一般会将代码完整地放到文本中，让你拷贝下来就能编译和运行。如果你运行的时候发现有问题，或者想了解一步一步运行的细节，这一节介绍的gdb是一个很好的工具。</p>
+<p>这一节你尤其应该掌握的是，如何通过宿主机上的gdb来debug虚拟机里面的内核。这一点非常重要，会了这个，你就能够返回去，挨个研究每一章每一节的内核数据结构和运行逻辑了。</p>
+<p>在这门课中，进程管理、内存管理、文件管理、设备管理网络管理，我们都介绍了从系统调用到底层的整个逻辑。如果你对我前面的代码解析还比较困惑，你可以尝试着去debug这些过程，只要把断点打在系统调用的入口位置就可以了。</p>
+<p>从此，开启你的内核debug之旅吧！</p>
 
                 
             </div>
@@ -17623,7 +18043,7 @@ memory_cgrp_subsys
             <br>
             
             &nbsp;<i class="fas fa-chart-area"></i>&nbsp;站点总字数:&nbsp;<span
-                class="white-color">595.9k</span>&nbsp;字
+                class="white-color">601.9k</span>&nbsp;字
             
             
             
