@@ -2839,10 +2839,10 @@ internal_function
 <span class="token function">EXPORT_PER_CPU_SYMBOL_GPL</span><span class="token punctuation">(</span>gdt_page<span class="token punctuation">)</span><span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
 <p>这里面对于64位的和32位的，都定义了内核代码段、内核数据段、用户代码段和用户数据段。</p>
 <p>另外，还会定义下面四个段选择子，指向上面的段描述符表项。这四个段选择子看着是不是有点眼熟？咱们讲内核初始化的时候，启动第一个用户态的进程，就是将这四个值赋值给段寄存器。</p>
-<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">define</span> <span class="token expression"><span class="token function">__KERNEL_CS</span>   <span class="token punctuation">(</span>GDT_ENTRY_KERNEL_CS<span class="token operator">*</span><span class="token number">8</span><span class="token punctuation">)</span></span></span>
-<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">define</span> <span class="token expression"><span class="token function">__KERNEL_DS</span>   <span class="token punctuation">(</span>GDT_ENTRY_KERNEL_DS<span class="token operator">*</span><span class="token number">8</span><span class="token punctuation">)</span></span></span>
-<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">define</span> <span class="token expression"><span class="token function">__USER_DS</span>         <span class="token punctuation">(</span>GDT_ENTRY_DEFAULT_USER_DS<span class="token operator">*</span><span class="token number">8</span> <span class="token operator">+</span> <span class="token number">3</span><span class="token punctuation">)</span></span></span>
-<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">define</span> <span class="token expression"><span class="token function">__USER_CS</span>         <span class="token punctuation">(</span>GDT_ENTRY_DEFAULT_USER_CS<span class="token operator">*</span><span class="token number">8</span> <span class="token operator">+</span> <span class="token number">3</span><span class="token punctuation">)</span></span></span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span></span></code></pre>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">define</span> <span class="token expression"><span class="token function">__KERNEL_CS</span>     <span class="token punctuation">(</span>GDT_ENTRY_KERNEL_CS<span class="token operator">*</span><span class="token number">8</span><span class="token punctuation">)</span></span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">define</span> <span class="token expression"><span class="token function">__KERNEL_DS</span>     <span class="token punctuation">(</span>GDT_ENTRY_KERNEL_DS<span class="token operator">*</span><span class="token number">8</span><span class="token punctuation">)</span></span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">define</span> <span class="token expression"><span class="token function">__USER_DS</span>       <span class="token punctuation">(</span>GDT_ENTRY_DEFAULT_USER_DS<span class="token operator">*</span><span class="token number">8</span> <span class="token operator">+</span> <span class="token number">3</span><span class="token punctuation">)</span></span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">define</span> <span class="token expression"><span class="token function">__USER_CS</span>       <span class="token punctuation">(</span>GDT_ENTRY_DEFAULT_USER_CS<span class="token operator">*</span><span class="token number">8</span> <span class="token operator">+</span> <span class="token number">3</span><span class="token punctuation">)</span></span></span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span></span></code></pre>
 <p>通过分析，我们发现，所有的段的起始地址都是一样的，都是0。这算哪门子分段嘛！所以，在Linux操作系统中，并没有使用到全部的分段功能。那分段是不是完全没有用处呢？分段可以做权限审核，例如用户态DPL是3，内核态DPL是0。当用户态试图访问内核态的时候，会因为权限不足而报错。</p>
 <p>其实Linux倾向于另外一种从虚拟地址到物理地址的转换方式，称为 <strong>分页（Paging）</strong> 。</p>
 <p>对于物理内存，操作系统把它分成一块一块大小相同的页，这样更方便管理，例如有的内存页面长时间不用了，可以暂时写到硬盘上，称为 <strong>换出</strong> 。一旦需要的时候，再加载进来，叫作 <strong>换入</strong> 。这样可以扩大可用物理内存的大小，提高物理内存的利用率。</p>
@@ -4527,14 +4527,14 @@ L3_START_KERNEL <span class="token operator">=</span> <span class="token functio
 <p>什么是inode呢？inode的“i”是index的意思，其实就是“索引”。既然如此，我们每个文件都会对应一个inode；一个文件夹就是一个文件，也对应一个inode。</p>
 <p>至于inode里面有哪些信息，其实我们在内核中就有定义。你可以看下面这个数据结构。</p>
 <pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">struct</span> <span class="token class-name">ext4_inode</span> <span class="token punctuation">{</span>
-    __le16  i_mode<span class="token punctuation">;</span>   <span class="token comment">/* File mode */</span>
-    __le16  i_uid<span class="token punctuation">;</span>      <span class="token comment">/* Low 16 bits of Owner Uid */</span>
-    __le32  i_size_lo<span class="token punctuation">;</span>    <span class="token comment">/* Size in bytes */</span>
+    __le16  i_mode<span class="token punctuation">;</span>         <span class="token comment">/* File mode */</span>
+    __le16  i_uid<span class="token punctuation">;</span>          <span class="token comment">/* Low 16 bits of Owner Uid */</span>
+    __le32  i_size_lo<span class="token punctuation">;</span>      <span class="token comment">/* Size in bytes */</span>
     __le32  i_atime<span class="token punctuation">;</span>        <span class="token comment">/* Access time */</span>
     __le32  i_ctime<span class="token punctuation">;</span>        <span class="token comment">/* Inode Change time */</span>
     __le32  i_mtime<span class="token punctuation">;</span>        <span class="token comment">/* Modification time */</span>
     __le32  i_dtime<span class="token punctuation">;</span>        <span class="token comment">/* Deletion Time */</span>
-    __le16  i_gid<span class="token punctuation">;</span>      <span class="token comment">/* Low 16 bits of Group Id */</span>
+    __le16  i_gid<span class="token punctuation">;</span>          <span class="token comment">/* Low 16 bits of Group Id */</span>
     __le16  i_links_count<span class="token punctuation">;</span>  <span class="token comment">/* Links count */</span>
     __le32  i_blocks_lo<span class="token punctuation">;</span>    <span class="token comment">/* Blocks count */</span>
     __le32  i_flags<span class="token punctuation">;</span>        <span class="token comment">/* File flags */</span>
@@ -4546,15 +4546,15 @@ L3_START_KERNEL <span class="token operator">=</span> <span class="token functio
 <span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
 <span class="token punctuation">}</span><span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
 <p>从这个数据结构中，我们可以看出，inode里面有文件的读写权限i_mode，属于哪个用户i_uid，哪个组i_gid，大小是多少i_size_io，占用多少个块i_blocks_io。咱们讲ls命令行的时候，列出来的权限、用户、大小这些信息，就是从这里面取出来的。</p>
-<p>另外，这里面还有几个与文件相关的时间。i_atime是access time，是最近一次访问文件的时间；i_ctime是change time，是最近一次更改inode的时间；i_mtime是modify time，是最近一次更改文件的时间。</p>
+<p>另外，这里面还有几个与文件相关的时间。i_atime是access time，是最近一次访问文件的时间；i_ctime是change time，是最近一次<strong>更改inode的时间</strong>；i_mtime是modify time，是最近一次<strong>更改文件的时间</strong>。</p>
 <p>这里你需要注意区分几个地方。首先，访问了，不代表修改了，也可能只是打开看看，就会改变access time。其次，修改inode，有可能修改的是用户和权限，没有修改数据部分，就会改变change time。只有数据也修改了，才改变modify time。</p>
 <p>我们刚才说的“某个文件分成几块、每一块在哪里”，这些在inode里面，应该保存在i_block里面。</p>
 <p>具体如何保存的呢？EXT4_N_BLOCKS有如下的定义，计算下来一共有15项。</p>
 <pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">define</span> <span class="token expression">EXT4_NDIR_BLOCKS        <span class="token number">12</span></span></span>
-<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">define</span> <span class="token expression">EXT4_IND_BLOCK      EXT4_NDIR_BLOCKS</span></span>
-<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">define</span> <span class="token expression"><span class="token function">EXT4_DIND_BLOCK</span>   <span class="token punctuation">(</span>EXT4_IND_BLOCK <span class="token operator">+</span> <span class="token number">1</span><span class="token punctuation">)</span></span></span>
-<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">define</span> <span class="token expression"><span class="token function">EXT4_TIND_BLOCK</span>   <span class="token punctuation">(</span>EXT4_DIND_BLOCK <span class="token operator">+</span> <span class="token number">1</span><span class="token punctuation">)</span></span></span>
-<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">define</span> <span class="token expression"><span class="token function">EXT4_N_BLOCKS</span>         <span class="token punctuation">(</span>EXT4_TIND_BLOCK <span class="token operator">+</span> <span class="token number">1</span><span class="token punctuation">)</span></span></span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">define</span> <span class="token expression">EXT4_IND_BLOCK          EXT4_NDIR_BLOCKS</span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">define</span> <span class="token expression"><span class="token function">EXT4_DIND_BLOCK</span>         <span class="token punctuation">(</span>EXT4_IND_BLOCK <span class="token operator">+</span> <span class="token number">1</span><span class="token punctuation">)</span></span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">define</span> <span class="token expression"><span class="token function">EXT4_TIND_BLOCK</span>         <span class="token punctuation">(</span>EXT4_DIND_BLOCK <span class="token operator">+</span> <span class="token number">1</span><span class="token punctuation">)</span></span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">define</span> <span class="token expression"><span class="token function">EXT4_N_BLOCKS</span>           <span class="token punctuation">(</span>EXT4_TIND_BLOCK <span class="token operator">+</span> <span class="token number">1</span><span class="token punctuation">)</span></span></span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span></span></code></pre>
 <p>在ext2和ext3中，其中前12项直接保存了块的位置，也就是说，我们可以通过i_block[0-11]，直接得到保存文件内容的块。</p>
 <p><img src="/images/《趣谈Linux操作系统》学习笔记/ext3_inode.jpeg" alt="ext3_inode"></p>
 <p>但是，如果一个文件比较大，12块放不下。当我们用到i_block[12]的时候，就不能直接放数据块的位置了，要不然i_block很快就会用完了。这该怎么办呢？我们需要想个办法。我们可以让i_block[12]指向一个块，这个块里面不放数据块，而是放数据块的位置，这个块我们称为间接块。也就是说，我们在i_block[12]里面放间接块的位置，通过i_block[12]找到间接块后，间接块里面放数据块的位置，通过间接块可以找到数据块。</p>
@@ -4566,10 +4566,10 @@ L3_START_KERNEL <span class="token operator">=</span> <span class="token functio
 <p><img src="/images/《趣谈Linux操作系统》学习笔记/ext4_inode.jpeg" alt="ext4_inode"></p>
 <p>树有一个个的节点，有叶子节点，也有分支节点。每个节点都有一个头，ext4_extent_header可以用来描述某个节点。</p>
 <pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">struct</span> <span class="token class-name">ext4_extent_header</span> <span class="token punctuation">{</span>
-    __le16  eh_magic<span class="token punctuation">;</span>      <span class="token comment">/* probably will support different formats */</span>
-    __le16  eh_entries<span class="token punctuation">;</span>  <span class="token comment">/* number of valid entries */</span>
-    __le16  eh_max<span class="token punctuation">;</span>   <span class="token comment">/* capacity of store in entries */</span>
-    __le16  eh_depth<span class="token punctuation">;</span>      <span class="token comment">/* has tree real underlying blocks? */</span>
+    __le16  eh_magic<span class="token punctuation">;</span>       <span class="token comment">/* probably will support different formats */</span>
+    __le16  eh_entries<span class="token punctuation">;</span>     <span class="token comment">/* number of valid entries */</span>
+    __le16  eh_max<span class="token punctuation">;</span>         <span class="token comment">/* capacity of store in entries */</span>
+    __le16  eh_depth<span class="token punctuation">;</span>       <span class="token comment">/* has tree real underlying blocks? */</span>
     __le32  eh_generation<span class="token punctuation">;</span>  <span class="token comment">/* generation of the tree */</span>
 <span class="token punctuation">}</span><span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
 <p>eh_entries表示这个节点里面有多少项。这里的项分两种，如果是叶子节点，这一项会直接指向硬盘上的连续块的地址，我们称为数据节点ext4_extent；如果是分支节点，这一项会指向下一层的分支节点或者叶子节点，我们称为索引节点ext4_extent_idx。这两种类型的项的大小都是12个byte。</p>
@@ -4578,8 +4578,8 @@ L3_START_KERNEL <span class="token operator">=</span> <span class="token functio
  * It's used at the bottom of the tree.
  */</span>
 <span class="token keyword">struct</span> <span class="token class-name">ext4_extent</span> <span class="token punctuation">{</span>
-    __le32  ee_block<span class="token punctuation">;</span>      <span class="token comment">/* first logical block extent covers */</span>
-    __le16  ee_len<span class="token punctuation">;</span>   <span class="token comment">/* number of blocks covered by extent */</span>
+    __le32  ee_block<span class="token punctuation">;</span>       <span class="token comment">/* first logical block extent covers */</span>
+    __le16  ee_len<span class="token punctuation">;</span>         <span class="token comment">/* number of blocks covered by extent */</span>
     __le16  ee_start_hi<span class="token punctuation">;</span>    <span class="token comment">/* high 16 bits of physical block */</span>
     __le32  ee_start_lo<span class="token punctuation">;</span>    <span class="token comment">/* low 32 bits of physical block */</span>
 <span class="token punctuation">}</span><span class="token punctuation">;</span>
@@ -4590,7 +4590,7 @@ L3_START_KERNEL <span class="token operator">=</span> <span class="token functio
 <span class="token keyword">struct</span> <span class="token class-name">ext4_extent_idx</span> <span class="token punctuation">{</span>
     __le32  ei_block<span class="token punctuation">;</span>   <span class="token comment">/* index covers logical blocks from 'block' */</span>
     __le32  ei_leaf_lo<span class="token punctuation">;</span> <span class="token comment">/* pointer to the physical block of the next *
-                 * level. leaf or next index could be there */</span>
+                         * level. leaf or next index could be there */</span>
     __le16  ei_leaf_hi<span class="token punctuation">;</span> <span class="token comment">/* high 16 bits of physical block */</span>
     __u16   ei_unused<span class="token punctuation">;</span>
 <span class="token punctuation">}</span><span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
@@ -4625,22 +4625,22 @@ L3_START_KERNEL <span class="token operator">=</span> <span class="token functio
 <span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
 <p>想要创建新的inode，我们就要调用dir_inode，也就是文件夹的inode的create函数。它的具体定义是这样的：</p>
 <pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">const</span> <span class="token keyword">struct</span> <span class="token class-name">inode_operations</span> ext4_dir_inode_operations <span class="token operator">=</span> <span class="token punctuation">{</span>
-    <span class="token punctuation">.</span>create  <span class="token operator">=</span> ext4_create<span class="token punctuation">,</span>
-    <span class="token punctuation">.</span>lookup  <span class="token operator">=</span> ext4_lookup<span class="token punctuation">,</span>
-    <span class="token punctuation">.</span>link      <span class="token operator">=</span> ext4_link<span class="token punctuation">,</span>
-    <span class="token punctuation">.</span>unlink  <span class="token operator">=</span> ext4_unlink<span class="token punctuation">,</span>
+    <span class="token punctuation">.</span>create     <span class="token operator">=</span> ext4_create<span class="token punctuation">,</span>
+    <span class="token punctuation">.</span>lookup     <span class="token operator">=</span> ext4_lookup<span class="token punctuation">,</span>
+    <span class="token punctuation">.</span>link       <span class="token operator">=</span> ext4_link<span class="token punctuation">,</span>
+    <span class="token punctuation">.</span>unlink     <span class="token operator">=</span> ext4_unlink<span class="token punctuation">,</span>
     <span class="token punctuation">.</span>symlink    <span class="token operator">=</span> ext4_symlink<span class="token punctuation">,</span>
-    <span class="token punctuation">.</span>mkdir    <span class="token operator">=</span> ext4_mkdir<span class="token punctuation">,</span>
-    <span class="token punctuation">.</span>rmdir    <span class="token operator">=</span> ext4_rmdir<span class="token punctuation">,</span>
-    <span class="token punctuation">.</span>mknod    <span class="token operator">=</span> ext4_mknod<span class="token punctuation">,</span>
+    <span class="token punctuation">.</span>mkdir      <span class="token operator">=</span> ext4_mkdir<span class="token punctuation">,</span>
+    <span class="token punctuation">.</span>rmdir      <span class="token operator">=</span> ext4_rmdir<span class="token punctuation">,</span>
+    <span class="token punctuation">.</span>mknod      <span class="token operator">=</span> ext4_mknod<span class="token punctuation">,</span>
     <span class="token punctuation">.</span>tmpfile    <span class="token operator">=</span> ext4_tmpfile<span class="token punctuation">,</span>
-    <span class="token punctuation">.</span>rename  <span class="token operator">=</span> ext4_rename2<span class="token punctuation">,</span>
+    <span class="token punctuation">.</span>rename     <span class="token operator">=</span> ext4_rename2<span class="token punctuation">,</span>
     <span class="token punctuation">.</span>setattr    <span class="token operator">=</span> ext4_setattr<span class="token punctuation">,</span>
     <span class="token punctuation">.</span>getattr    <span class="token operator">=</span> ext4_getattr<span class="token punctuation">,</span>
     <span class="token punctuation">.</span>listxattr  <span class="token operator">=</span> ext4_listxattr<span class="token punctuation">,</span>
     <span class="token punctuation">.</span>get_acl    <span class="token operator">=</span> ext4_get_acl<span class="token punctuation">,</span>
     <span class="token punctuation">.</span>set_acl    <span class="token operator">=</span> ext4_set_acl<span class="token punctuation">,</span>
-    <span class="token punctuation">.</span>fiemap  <span class="token operator">=</span> ext4_fiemap<span class="token punctuation">,</span>
+    <span class="token punctuation">.</span>fiemap     <span class="token operator">=</span> ext4_fiemap<span class="token punctuation">,</span>
 <span class="token punctuation">}</span><span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
 <p>这里面定义了，如果文件夹inode要做一些操作，每个操作对应应该调用哪些函数。这里create操作调用的是ext4_create。</p>
 <p>接下来的调用链是这样的：ext4_create-&gt;ext4_new_inode_start_handle-&gt;<strong>ext4_new_inode。在</strong>ext4_new_inode函数中，我们会创建新的inode。</p>
@@ -4661,7 +4661,7 @@ ino <span class="token operator">=</span> <span class="token function">ext4_find
 <p>这里面一个重要的逻辑就是，从文件系统里面读取inode位图，然后找到下一个为0的inode，就是空闲的inode。</p>
 <p>对于block位图，在写入文件的时候，也会有这个过程，我就不展开说了。感兴趣的话，你可以自己去找代码看。</p>
 <h4 id="23-3-文件系统的格式"><a href="#23-3-文件系统的格式" class="headerlink" title="23.3 文件系统的格式"></a>23.3 文件系统的格式</h4><p>看起来，我们现在应该能够很顺利地通过inode位图和block位图创建文件了。如果仔细计算一下，其实还是有问题的。</p>
-<p>数据块的位图是放在一个块里面的，共4k。每位表示一个数据块，共可以表示$4 <em> 1024 </em> 8 = 2^{15}$个数据块。如果每个数据块也是按默认的4K，最大可以表示空间为$2^{15} <em> 4 </em> 1024 = 2^{27}$个byte，也就是128M。</p>
+<p>数据块的位图是放在一个块里面的，共4k。每位表示一个数据块，共可以表示 <code>4 * 1024 * 8 = 2^{15}</code> 个数据块。如果每个数据块也是按默认的4K，最大可以表示空间为 <code>2^{15} * 4 * 1024 = 2^{27}</code> 个byte，也就是128M。</p>
 <p>也就是说按照上面的格式，如果采用“<strong>一个块的位图+一系列的块</strong>”，外加“<strong>一个块的inode的位图+一系列的inode的结构</strong>”，最多能够表示128M。是不是太小了？现在很多文件都比这个大。我们先把这个结构称为一个<strong>块组</strong>。有N多的块组，就能够表示N大的文件。</p>
 <p>对于块组，我们也需要一个数据结构来表示为ext4_group_desc。这里面对于一个块组里的inode位图bg_inode_bitmap_lo、块位图bg_block_bitmap_lo、inode列表bg_inode_table_lo，都有相应的成员变量。</p>
 <p>这样一个个块组，就基本构成了我们整个文件系统的结构。因为块组有多个，块组描述符也同样组成一个列表，我们把这些称为<strong>块组描述符表</strong>。</p>
@@ -4671,7 +4671,7 @@ ino <span class="token operator">=</span> <span class="token function">ext4_find
 <p><img src="/images/《趣谈Linux操作系统》学习笔记/ext4文件系统格式.jpeg" alt="ext4文件系统格式"></p>
 <p>超级块和块组描述符表都是全局信息，而且这些数据很重要。如果这些数据丢失了，整个文件系统都打不开了，这比一个文件的一个块损坏更严重。所以，这两部分我们都需要备份，但是采取不同的策略。</p>
 <p>默认情况下，超级块和块组描述符表都有副本保存在每一个块组里面。</p>
-<p>如果开启了sparse_super特性，超级块和块组描述符表的副本只会保存在块组索引为0、3、5、7的整数幂里。除了块组0中存在一个超级块外，在块组1（$3^0=1$）的第一个块中存在一个副本；在块组3（$3^1=3$）、块组5（$5^1=5$）、块组7（$7^1=7$）、块组9（$3^2=9$）、块组25（$5^2=25$）、块组27（$3^3=27$）的第一个block处也存在一个副本。</p>
+<p>如果开启了sparse_super特性，超级块和块组描述符表的副本只会保存在块组索引为0、3、5、7的整数幂里。除了块组0中存在一个超级块外，在块组1（$3^0=1$）的第一个块中存在一个副本；在块组3（<code>3^1=3</code>）、块组5（<code>5^1=5</code>）、块组7（<code>7^1=7</code>）、块组9（<code>3^2=9</code>）、块组25（<code>5^2=25</code>）、块组27（<code>3^3=27</code>）的第一个block处也存在一个副本。</p>
 <p>对于超级块来讲，由于超级块不是很大，所以就算我们备份多了也没有太多问题。但是，对于块组描述符表来讲，如果每个块组里面都保存一份完整的块组描述符表，一方面很浪费空间；另一个方面，由于一个块组最大128M，而块组描述符表里面有多少项，这就限制了有多少个块组，128M * 块组的总数目是整个文件系统的大小，就被限制住了。</p>
 <p>我们的改进的思路就是引入<strong>Meta Block Groups特性</strong>。</p>
 <p>首先，块组描述符表不会保存所有块组的描述符了，而是将块组分成多个组，我们称为元块组（Meta Block Group）。每个元块组里面的块组描述符表仅仅包括自己的，一个元块组包含64个块组，这样一个元块组中的块组描述符表最多64项。我们假设一共有256个块组，原来是一个整的块组描述符表，里面有256项，要备份就全备份，现在分成4个元块组，每个元块组里面的块组描述符表就只有64项了，这就小多了，而且四个元块组自己备份自己的。</p>
@@ -4680,26 +4680,26 @@ ino <span class="token operator">=</span> <span class="token function">ext4_find
 <p>这样化整为零，我们就可以发挥出ext4的48位块寻址的优势了，在超级块ext4_super_block的定义中，我们可以看到块寻址的分为高位和地位，均为32位，其中有用的是48位，2^48个块是1EB，足够用了。</p>
 <pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">struct</span> <span class="token class-name">ext4_super_block</span> <span class="token punctuation">{</span>
 <span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
-    __le32  s_blocks_count_lo<span class="token punctuation">;</span>    <span class="token comment">/* Blocks count */</span>
+    __le32  s_blocks_count_lo<span class="token punctuation">;</span>      <span class="token comment">/* Blocks count */</span>
     __le32  s_r_blocks_count_lo<span class="token punctuation">;</span>    <span class="token comment">/* Reserved blocks count */</span>
     __le32  s_free_blocks_count_lo<span class="token punctuation">;</span> <span class="token comment">/* Free blocks count */</span>
 <span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
-    __le32  s_blocks_count_hi<span class="token punctuation">;</span>    <span class="token comment">/* Blocks count */</span>
+    __le32  s_blocks_count_hi<span class="token punctuation">;</span>      <span class="token comment">/* Blocks count */</span>
     __le32  s_r_blocks_count_hi<span class="token punctuation">;</span>    <span class="token comment">/* Reserved blocks count */</span>
     __le32  s_free_blocks_count_hi<span class="token punctuation">;</span> <span class="token comment">/* Free blocks count */</span>
 <span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
 <span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
 <h4 id="23-4-目录的存储格式"><a href="#23-4-目录的存储格式" class="headerlink" title="23.4 目录的存储格式"></a>23.4 目录的存储格式</h4><p>其实目录本身也是个文件，也有inode。inode里面也是指向一些块。和普通文件不同的是，普通文件的块里面保存的是文件数据，而目录文件的块里面保存的是目录里面一项一项的文件信息。这些信息我们称为ext4_dir_entry。从代码来看，有两个版本，在成员来讲几乎没有差别，只不过第二个版本ext4_dir_entry_2是将一个16位的name_len，变成了一个8位的name_len和8位的file_type。</p>
 <pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">struct</span> <span class="token class-name">ext4_dir_entry</span> <span class="token punctuation">{</span>
-    __le32  inode<span class="token punctuation">;</span>          <span class="token comment">/* Inode number */</span>
+    __le32  inode<span class="token punctuation">;</span>                  <span class="token comment">/* Inode number */</span>
     __le16  rec_len<span class="token punctuation">;</span>                <span class="token comment">/* Directory entry length */</span>
-    __le16  name_len<span class="token punctuation">;</span>            <span class="token comment">/* Name length */</span>
+    __le16  name_len<span class="token punctuation">;</span>               <span class="token comment">/* Name length */</span>
     <span class="token keyword">char</span>    name<span class="token punctuation">[</span>EXT4_NAME_LEN<span class="token punctuation">]</span><span class="token punctuation">;</span>    <span class="token comment">/* File name */</span>
 <span class="token punctuation">}</span><span class="token punctuation">;</span>
 <span class="token keyword">struct</span> <span class="token class-name">ext4_dir_entry_2</span> <span class="token punctuation">{</span>
-    __le32  inode<span class="token punctuation">;</span>          <span class="token comment">/* Inode number */</span>
+    __le32  inode<span class="token punctuation">;</span>                  <span class="token comment">/* Inode number */</span>
     __le16  rec_len<span class="token punctuation">;</span>                <span class="token comment">/* Directory entry length */</span>
-    __u8    name_len<span class="token punctuation">;</span>            <span class="token comment">/* Name length */</span>
+    __u8    name_len<span class="token punctuation">;</span>               <span class="token comment">/* Name length */</span>
     __u8    file_type<span class="token punctuation">;</span>
     <span class="token keyword">char</span>    name<span class="token punctuation">[</span>EXT4_NAME_LEN<span class="token punctuation">]</span><span class="token punctuation">;</span>    <span class="token comment">/* File name */</span>
 <span class="token punctuation">}</span><span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
@@ -4707,7 +4707,23 @@ ino <span class="token operator">=</span> <span class="token function">ext4_find
 <p>每一项都会保存这个目录的下一级的文件的文件名和对应的inode，通过这个inode，就能找到真正的文件。第一项是“.”，表示当前目录，第二项是“…”，表示上一级目录，接下来就是一项一项的文件名和inode。</p>
 <p>有时候，如果一个目录下面的文件太多的时候，我们想在这个目录下找一个文件，按照列表一个个去找，太慢了，于是我们就添加了索引的模式。</p>
 <p>如果在inode中设置EXT4_INDEX_FL标志，则目录文件的块的组织形式将发生变化，变成了下面定义的这个样子：</p>
-<p>struct dx_root<br>{<br>    struct fake_dirent dot;<br>    char dot_name[4];<br>    struct fake_dirent dotdot;<br>    char dotdot_name[4];<br>    struct dx_root_info<br>    {<br>        __le32 reserved_zero;<br>        u8 hash_version;<br>        u8 info_length; /<em> 8 </em>/<br>        u8 indirect_levels;<br>        u8 unused_flags;<br>    }<br>    info;<br>    struct dx_entry entries[0];<br>};</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">struct</span> <span class="token class-name">dx_root</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword">struct</span> <span class="token class-name">fake_dirent</span> dot<span class="token punctuation">;</span>
+    <span class="token keyword">char</span> dot_name<span class="token punctuation">[</span><span class="token number">4</span><span class="token punctuation">]</span><span class="token punctuation">;</span>
+    <span class="token keyword">struct</span> <span class="token class-name">fake_dirent</span> dotdot<span class="token punctuation">;</span>
+    <span class="token keyword">char</span> dotdot_name<span class="token punctuation">[</span><span class="token number">4</span><span class="token punctuation">]</span><span class="token punctuation">;</span>
+    <span class="token keyword">struct</span> <span class="token class-name">dx_root_info</span>
+    <span class="token punctuation">{</span>
+        __le32 reserved_zero<span class="token punctuation">;</span>
+        u8 hash_version<span class="token punctuation">;</span>
+        u8 info_length<span class="token punctuation">;</span> <span class="token comment">/* 8 */</span>
+        u8 indirect_levels<span class="token punctuation">;</span>
+        u8 unused_flags<span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+    info<span class="token punctuation">;</span>
+    <span class="token keyword">struct</span> <span class="token class-name">dx_entry</span> entries<span class="token punctuation">[</span><span class="token number">0</span><span class="token punctuation">]</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
 <p>当然，首先出现的还是差不多的，第一项是“.”，表示当前目录；第二项是“…”，表示上一级目录，这两个不变。接下来就开始发生改变了。是一个dx_root_info的结构，其中最重要的成员变量是indirect_levels，表示间接索引的层数。</p>
 <p>接下来我们来看索引项dx_entry。这个也很简单，其实就是文件名的哈希值和数据块的一个映射关系。</p>
 <pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">struct</span> <span class="token class-name">dx_entry</span>
@@ -5958,7 +5974,7 @@ crct10dif_common       <span class="token number">12595</span>  <span class="tok
 <li>irq_handler_t handler是中断处理函数；</li>
 <li>unsigned long flags是一些标识位；</li>
 <li>const char *name是设备名称；</li>
-<li>void <em>dev这个通用指针应该和中断处理函数的void </em>dev相对应。</li>
+<li><code>void *dev</code>这个通用指针应该和中断处理函数的<code>void *dev</code>相对应。</li>
 </ul>
 <pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">static</span> <span class="token keyword">inline</span> <span class="token keyword">int</span> __must_check
 <span class="token function">request_irq</span><span class="token punctuation">(</span><span class="token keyword">unsigned</span> <span class="token keyword">int</span> irq<span class="token punctuation">,</span> irq_handler_t handler<span class="token punctuation">,</span> <span class="token keyword">unsigned</span> <span class="token keyword">long</span> flags<span class="token punctuation">,</span> <span class="token keyword">const</span> <span class="token keyword">char</span> <span class="token operator">*</span>name<span class="token punctuation">,</span> <span class="token keyword">void</span> <span class="token operator">*</span>dev<span class="token punctuation">)</span>
@@ -6344,9 +6360,7 @@ next_cpu<span class="token operator">:</span>
     <span class="token keyword">unsigned</span> <span class="token keyword">int</span> irq <span class="token operator">=</span> desc<span class="token operator">-&gt;</span>irq_data<span class="token punctuation">.</span>irq<span class="token punctuation">;</span>
     <span class="token keyword">struct</span> <span class="token class-name">irqaction</span> <span class="token operator">*</span>action<span class="token punctuation">;</span>
 
-
     <span class="token function">record_irq_time</span><span class="token punctuation">(</span>desc<span class="token punctuation">)</span><span class="token punctuation">;</span>
-
 
     <span class="token function">for_each_action_of_desc</span><span class="token punctuation">(</span>desc<span class="token punctuation">,</span> action<span class="token punctuation">)</span> <span class="token punctuation">{</span>
         irqreturn_t res<span class="token punctuation">;</span>
@@ -6363,7 +6377,7 @@ next_cpu<span class="token operator">:</span>
         retval <span class="token operator">|=</span> res<span class="token punctuation">;</span>
     <span class="token punctuation">}</span>
     <span class="token keyword">return</span> retval<span class="token punctuation">;</span>
-<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
 <p>__handle_irq_event_percpu里面调用了irq_desc里每个hander，这些hander是我们在所有action列表中注册的，这才是我们设置的那个中断处理函数。如果返回值是IRQ_HANDLED，就说明处理完毕；如果返回值是IRQ_WAKE_THREAD就唤醒线程。</p>
 <p>至此，中断的整个过程就结束了。</p>
 <h4 id="28-2-总结"><a href="#28-2-总结" class="headerlink" title="28.2 总结"></a>28.2 总结</h4><p>中断是从外部设备发起的，会形成外部中断。外部中断会到达中断控制器，中断控制器会发送中断向量Interrupt Vector给CPU。</p>
@@ -6729,7 +6743,7 @@ next_cpu<span class="token operator">:</span>
 <span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
 <p>我们可以想象这里面有两种情况。第一种情况是，block_device是指向整个磁盘设备的。这个时候，我们只需要根据dev_t，在bdev_map中将对应的gendisk拿出来就好。</p>
 <p>bdev_map是干什么的呢？前面咱们学习字符设备驱动的时候讲过，任何一个字符设备初始化的时候，都需要调用__register_chrdev_region，注册这个字符设备。对于块设备也是类似的，每一个块设备驱动初始化的时候，都会调用add_disk注册一个gendisk。</p>
-<p>这里需要说明一下，gen的意思是general通用的意思，也就是说，所有的块设备，不仅仅是硬盘disk，都会用一个gendisk来表示，然后通过调用链add_disk-&gt;device_add_disk-&gt;blk_register_region，将dev_t和一个gendisk关联起来，保存在bdev_map中。</p>
+<p>这里需要说明一下，<strong>gen的意思是general通用的意思</strong>，也就是说，所有的块设备，不仅仅是硬盘disk，都会用一个gendisk来表示，然后通过调用链add_disk-&gt;device_add_disk-&gt;blk_register_region，将dev_t和一个gendisk关联起来，保存在bdev_map中。</p>
 <pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">static</span> <span class="token keyword">struct</span> <span class="token class-name">kobj_map</span> <span class="token operator">*</span>bdev_map<span class="token punctuation">;</span>
 
 <span class="token keyword">static</span> <span class="token keyword">inline</span> <span class="token keyword">void</span> <span class="token function">add_disk</span><span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">gendisk</span> <span class="token operator">*</span>disk<span class="token punctuation">)</span>
