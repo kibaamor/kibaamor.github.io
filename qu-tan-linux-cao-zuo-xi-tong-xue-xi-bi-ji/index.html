@@ -14060,7 +14060,7 @@ done<span class="token operator">:</span>
 <p>KVM 只需为每个客户机维护一套 EPT 页表，也大大减少了内存的开销。</p>
 <p>这里，我们重点看第二种方式。因为使用了EPT之后，客户机里面的页表映射，也即从GVA到GPA的转换，还是用传统的方式，和在内存管理那一章讲的没有什么区别。而EPT重点帮我们解决的就是从GPA到HPA的转换问题。因为要经过两次页表，所以EPT又tdp(two dimentional paging)。</p>
 <p>EPT的页表结构也是分为四层，EPT Pointer （EPTP）指向PML4的首地址。</p>
-<p><img src="/images/《趣谈Linux操作系统》学习笔记/EPT的页表结构.jpg" alt="EPT的页表结构.jpg"></p>
+<p><img src="/images/《趣谈Linux操作系统》学习笔记/EPT的页表结构.jpg" alt="EPT的页表结构"></p>
 <p>管理物理页面的Page结构和咱们讲内存管理那一章是一样的。EPT页表也需要存放在一个页中，这些页要用kvm_mmu_page这个结构来管理。</p>
 <p>当一个虚拟机运行，进入客户机模式的时候，我们上一节解析过，它会调用vcpu_enter_guest函数，这里面会调用kvm_mmu_reload-&gt;kvm_mmu_load。</p>
 <pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">int</span> <span class="token function">kvm_mmu_load</span><span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">kvm_vcpu</span> <span class="token operator">*</span>vcpu<span class="token punctuation">)</span>
@@ -16110,7 +16110,7 @@ bool <span class="token function">virtqueue_kick</span><span class="token punctu
 <p>为了运行Docker，有一个daemon进程Docker Daemon用于接收命令行。</p>
 <p>为了描述Docker里面运行的环境和应用，有一个Dockerfile，通过build命令称为容器镜像。容器镜像可以上传到镜像仓库，也可以通过pull命令从镜像仓库中下载现成的容器镜像。</p>
 <p>通过Docker run命令将容器镜像运行为容器，通过namespace和cgroup进行隔离，容器里面不包含内核，是共享宿主机的内核的。对比虚拟机，虚拟机在qemu进程里面是有客户机内核的，应用运行在客户机的用户态。</p>
-<p><img src="/images/《趣谈Linux操作系统》学习笔记/容器总结.jpg" alt="容器总结.jpg"></p>
+<p><img src="/images/《趣谈Linux操作系统》学习笔记/容器总结.jpg" alt="容器总结"></p>
 <h3 id="51-Namespace技术"><a href="#51-Namespace技术" class="headerlink" title="51. Namespace技术"></a>51. Namespace技术</h3><p>为了隔离不同类型的资源，Linux内核里面实现了以下几种不同类型的namespace。</p>
 <ul>
 <li>UTS，对应的宏为CLONE_NEWUTS，表示不同的namespace可以配置不同的hostname。</li>
@@ -16534,7 +16534,7 @@ $ <span class="token builtin class-name">echo</span> <span class="token variable
 <p>还有两个常用的命令nsenter和unshare，主要用于操作Namespace，有三个常用的函数clone、setns和unshare。</p>
 <p>在内核里面，对于任何一个进程task_struct来讲，里面都会有一个成员struct nsproxy，用于保存namespace相关信息，里面有 struct uts_namespace、struct ipc_namespace、struct mnt_namespace、struct pid_namespace、struct net <em>net_ns和struct cgroup_namespace </em>cgroup_ns。</p>
 <p>创建namespace的时候，我们在内核中会调用copy_namespaces，调用顺序依次是copy_mnt_ns、copy_utsname、copy_ipcs、copy_pid_ns、copy_cgroup_ns和copy_net_ns，来复制namespace。</p>
-<p><img src="/images/《趣谈Linux操作系统》学习笔记/容器的namespace技术思维导图.png" alt="容器的namespace技术思维导图.png"></p>
+<p><img src="/images/《趣谈Linux操作系统》学习笔记/容器的namespace技术思维导图.png" alt="容器的namespace技术思维导图"></p>
 <h3 id="52-CGroup技术"><a href="#52-CGroup技术" class="headerlink" title="52. CGroup技术"></a>52. CGroup技术</h3><p>我们前面说了，容器实现封闭的环境主要要靠两种技术，一种是“看起来是隔离”的技术Namespace，另一种是用起来是隔离的技术CGroup。</p>
 <p>上一节我们讲了“看起来隔离“的技术Namespace，这一节我们就来看一下“用起来隔离“的技术CGroup。</p>
 <p>CGroup全称是Control Group，顾名思义，它是用来做“控制”的。控制什么东西呢？当然是资源的使用了。那它都能控制哪些资源的使用呢？我们一起来看一看。</p>
@@ -17181,7 +17181,7 @@ memory_cgrp_subsys
 <p>在mem_cgroup_try_charge中，先是调用get_mem_cgroup_from_mm获得这个进程对应的mem_cgroup结构，然后在try_charge中，根据mem_cgroup的限制，看是否可以申请分配内存。</p>
 <p>至此，cgroup对于内存的限制才真正起作用。</p>
 <h4 id="52-1-总结"><a href="#52-1-总结" class="headerlink" title="52.1 总结"></a>52.1 总结</h4><p>内核中cgroup的工作机制，我们在这里总结一下。</p>
-<p><img src="/images/《趣谈Linux操作系统》学习笔记/cgroup的工作机制.png" alt="cgroup的工作机制.png"></p>
+<p><img src="/images/《趣谈Linux操作系统》学习笔记/cgroup的工作机制.png" alt="cgroup的工作机制"></p>
 <p>第一步，系统初始化的时候，初始化cgroup的各个子系统的操作函数，分配各个子系统的数据结构。</p>
 <p>第二步，mount cgroup文件系统，创建文件系统的树形结构，以及操作函数。</p>
 <p>第三步，写入cgroup文件，设置cpu或者memory的相关参数，这个时候文件系统的操作函数会调用到cgroup子系统的操作函数，从而将参数设置到cgroup子系统的数据结构中。</p>
