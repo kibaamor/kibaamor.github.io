@@ -445,7 +445,7 @@
                 
                 <div class="info-break-policy">
                     <i class="far fa-clock fa-fw"></i>阅读时长:&nbsp;&nbsp;
-                    422 分
+                    421 分
                 </div>
                 
 
@@ -3492,7 +3492,7 @@ TypeImpl <span class="token operator">*</span><span class="token function">type_
 <li>-enable-kvm：表示启用硬件辅助虚拟化。</li>
 <li>-name instance-00000024：表示虚拟机的名称。</li>
 <li>-machine pc-i440fx-trusty,accel=kvm,usb=off：machine是什么呢？其实就是计算机体系结构。不知道什么是体系结构的话，可以订阅极客时间的另一个专栏《深入浅出计算机组成原理》。qemu会模拟多种体系结构，常用的有普通PC机，也即x86的32位或者64位的体系结构、Mac电脑PowerPC的体系结构、Sun的体系结构、MIPS的体系结构，精简指令集。如果使用KVM hardware-assisted virtualization，也即BIOS中VD-T是打开的，则参数中accel=kvm。如果不使用hardware-assisted virtualization，用的是纯模拟，则有参数accel = tcg，-no-kvm。</li>
-<li>-cpu SandyBridge,+erms,+smep,+fsgsbase,+pdpe1gb,+rdrand,+f16c,+osxsave,+dca,+pcid,+pdcm,+xtpr,+tm2,+est,+smx,+vmx,+ds_cpl,+monitor,+dtes64,+pbe,+tm,+ht,+ss,+acpi,+ds,+vme：表示设置CPU，SandyBridge是Intel处理器，后面的加号都是添加的CPU的参数，这些参数会显示在/proc/cpuinfo里面。</li>
+<li>-cpu SandyBridge,+erms,+smep,+fsgsbase,+pdpe1gb,+rdrand,+f16c,…：表示设置CPU，SandyBridge是Intel处理器，后面的加号都是添加的CPU的参数，这些参数会显示在/proc/cpuinfo里面。</li>
 <li>-m 2048：表示内存。</li>
 <li>-smp 1,sockets=1,cores=1,threads=1：SMP我们解析过，叫对称多处理器，和NUMA对应。qemu仿真了一个具有1个vcpu，一个socket，一个core，一个threads的处理器。socket、core、threads是什么概念呢？socket就是主板上插cpu的槽的数目，也即常说的“路”，core就是我们平时说的“核”，即双核、4核等。thread就是每个core的硬件线程数，即超线程。举个具体的例子，某个服务器是：2路4核超线程（一般默认为2个线程），通过cat /proc/cpuinfo，我们看到的是242=16个processor，很多人也习惯成为16核了。</li>
 <li>-rtc base=utc,driftfix=slew：表示系统时间由参数-rtc指定。</li>
@@ -4405,7 +4405,7 @@ out<span class="token operator">:</span>
 <li>CPU初始化的时候，会调用pc_new_cpu创建一个虚拟CPU，它会调用CPU这个类的初始化函数。</li>
 <li>每一个虚拟CPU会调用qemu_thread_create创建一个线程，线程的执行函数为qemu_kvm_cpu_thread_fn。</li>
 <li>在虚拟CPU对应的线程执行函数中，我们先是调用kvm_vm_ioctl(KVM_CREATE_VCPU)，在内核的KVM里面，创建一个结构struct vcpu_vmx，表示这个虚拟CPU。在这个结构里面，有一个VMCS，用于保存当前虚拟机CPU的运行时的状态，用于状态切换。</li>
-<li>在虚拟CPU对应的线程执行函数中，我们接着调用kvm_vcpu_ioctl(KVM_RUN)，在内核的KVM里面运行这个虚拟机CPU。运行的方式是保存宿主机的寄存器，加载客户机的寄存器，然后调用<strong>ex(ASM_VMX_VMLAUNCH)或者</strong>ex(ASM_VMX_VMRESUME)，进入客户机模式运行。一旦退出客户机模式，就会保存客户机寄存器，加载宿主机寄存器，进入宿主机模式运行，并且会记录退出虚拟机模式的原因。大部分的原因是等待I/O，因而宿主机调用kvm_handle_io进行处理。</li>
+<li>在虚拟CPU对应的线程执行函数中，我们接着调用kvm_vcpu_ioctl(KVM_RUN)，在内核的KVM里面运行这个虚拟机CPU。运行的方式是保存宿主机的寄存器，加载客户机的寄存器，然后调用<code>__ex(ASM_VMX_VMLAUNCH)</code>或者<code>__ex(ASM_VMX_VMRESUME)</code>，进入客户机模式运行。一旦退出客户机模式，就会保存客户机寄存器，加载宿主机寄存器，进入宿主机模式运行，并且会记录退出虚拟机模式的原因。大部分的原因是等待I/O，因而宿主机调用kvm_handle_io进行处理。</li>
 </ul>
 <h3 id="46-计算虚拟化之内存"><a href="#46-计算虚拟化之内存" class="headerlink" title="46. 计算虚拟化之内存"></a>46. 计算虚拟化之内存</h3><p>上一节，我们解析了计算虚拟化之CPU。可以看到，CPU的虚拟化是用户态的qemu和内核态的KVM共同配合完成的。它们二者通过ioctl进行通信。对于内存管理来讲，也是需要这两者配合完成的。</p>
 <p>咱们在内存管理的时候讲过，操作系统给每个进程分配的内存都是虚拟内存，需要通过页表映射，变成物理内存进行访问。当有了虚拟机之后，情况会变得更加复杂。因为虚拟机对于物理机来讲是一个进程，但是虚拟机里面也有内核，也有虚拟机里面跑的进程。所以有了虚拟机，内存就变成了四类：</p>
@@ -4993,7 +4993,7 @@ done<span class="token operator">:</span>
     <span class="token keyword">return</span> <span class="token function">hva_to_pfn</span><span class="token punctuation">(</span>addr<span class="token punctuation">,</span> atomic<span class="token punctuation">,</span> async<span class="token punctuation">,</span> write_fault<span class="token punctuation">,</span>
               writable<span class="token punctuation">)</span><span class="token punctuation">;</span>
 <span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
-<p>在<strong>gfn_to_pfn_memslot中，我们会调用</strong>gfn_to_hva_many，从客户机物理地址对应的页号，得到宿主机虚拟地址hva，然后从宿主机虚拟地址到宿主机物理地址，调用的是hva_to_pfn。</p>
+<p>在<code>__gfn_to_pfn_memslot</code>中，我们会调用<code>__gfn_to_hva_many</code>，从客户机物理地址对应的页号，得到宿主机虚拟地址hva，然后从宿主机虚拟地址到宿主机物理地址，调用的是hva_to_pfn。</p>
 <p>hva_to_pfn会调用hva_to_pfn_slow。</p>
 <pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">static</span> <span class="token keyword">int</span> <span class="token function">hva_to_pfn_slow</span><span class="token punctuation">(</span><span class="token keyword">unsigned</span> <span class="token keyword">long</span> addr<span class="token punctuation">,</span> bool <span class="token operator">*</span>async<span class="token punctuation">,</span> bool write_fault<span class="token punctuation">,</span>
                bool <span class="token operator">*</span>writable<span class="token punctuation">,</span> kvm_pfn_t <span class="token operator">*</span>pfn<span class="token punctuation">)</span>
