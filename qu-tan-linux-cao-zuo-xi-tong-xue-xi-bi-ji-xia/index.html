@@ -445,7 +445,7 @@
                 
                 <div class="info-break-policy">
                     <i class="far fa-clock fa-fw"></i>阅读时长:&nbsp;&nbsp;
-                    421 分
+                    422 分
                 </div>
                 
 
@@ -3242,7 +3242,18 @@ do_prequeue<span class="token operator">:</span>
 <p><img src="/images/《趣谈Linux操作系统》学习笔记/创建虚拟机七.png" alt="创建虚拟机七"></p>
 <p>接下来Virtualbox就会有一个界面，可以看到安装的整个过程，在KVM里面，我们用VNC来做。参数为-vnc :19</p>
 <p>于是，我们也可以创建KVM虚拟机了，可以用下面的命令：</p>
-<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">qemu-system-x86_64 -enable-kvm-name ubuntutest  -m <span class="token number">2048</span> -hda ubuntutest.img -cdromubuntu-14.04-server-amd64.iso -boot d -vnc :19<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">qemu-system-x86_64 <span class="token punctuation">\</span>
+    -enable-kvm <span class="token punctuation">\</span>
+    -name ubuntutest <span class="token punctuation">\</span>
+    -cpu <span class="token function">host</span> <span class="token punctuation">\</span>
+    -m <span class="token number">2048</span> <span class="token punctuation">\</span>
+    -hda ubuntutest.img <span class="token punctuation">\</span>
+    -cdrom ubuntu-14.04-server-amd64.iso <span class="token punctuation">\</span>
+    -boot d <span class="token punctuation">\</span>
+    -vnc :19<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<blockquote>
+<p>实际测试发现，直接运行上面的命令，在虚拟机里面就能正常访问网络。</p>
+</blockquote>
 <p>启动了虚拟机后，连接VNC，我们也能看到安装的过程。</p>
 <p><img src="/images/《趣谈Linux操作系统》学习笔记/创建虚拟机八.png" alt="创建虚拟机八"></p>
 <p>按照普通安装Ubuntu的流程安装好Ubuntu，然后shutdown -h now，关闭虚拟机。</p>
@@ -3258,20 +3269,41 @@ do_prequeue<span class="token operator">:</span>
 <p><img src="/images/《趣谈Linux操作系统》学习笔记/虚拟机网络结构四.png" alt="虚拟机网络结构四"></p>
 <p>qemu-kvm如何才能创建一个这样的桥接网络呢？</p>
 <ol>
+<li><p>先安装 <code>brctl</code></p>
+ <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token function">apt</span> <span class="token function">install</span> bridge-utils<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre></li>
 <li><p>在Host机器上创建bridge br0。</p>
- <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">brctl addbr br0<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre></li>
+ <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">brctl addbr br0
+<span class="token comment"># or</span>
+<span class="token function">ip</span> <span class="token function">link</span> <span class="token function">add</span> br0 <span class="token builtin class-name">type</span> bridge<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span></span></code></pre></li>
 <li><p>将br0设为up。</p>
- <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token function">ip</span> <span class="token function">link</span> <span class="token builtin class-name">set</span> br0 up<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre></li>
+ <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token function">ip</span> <span class="token function">link</span> <span class="token builtin class-name">set</span> dev br0 up<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre></li>
 <li><p>创建tap device。</p>
- <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">tunctl -b<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre></li>
+ <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">tunctl -b -t tap0
+<span class="token comment"># or</span>
+<span class="token function">ip</span> tuntap <span class="token function">add</span> dev tap0 mode tap user root<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span></span></code></pre></li>
 <li><p>将tap0设为up。</p>
- <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token function">ip</span> <span class="token function">link</span> <span class="token builtin class-name">set</span> tap0 up<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre></li>
+ <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token function">ip</span> <span class="token function">link</span> <span class="token builtin class-name">set</span> dev tap0 up<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre></li>
 <li><p>将tap0加入到br0上。</p>
- <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">brctl addif br0 tap0<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre></li>
+ <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">brctl addif br0 tap0
+<span class="token comment"># or</span>
+<span class="token function">ip</span> <span class="token function">link</span> <span class="token builtin class-name">set</span> tap0 master br0<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span></span></code></pre></li>
 <li><p>启动虚拟机, 虚拟机连接tap0、tap0连接br0。</p>
- <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">qemu-system-x86_64 -enable-kvm -name ubuntutest -m <span class="token number">2048</span> -hda ubuntutest.qcow2 -vnc :19 -net nic,model<span class="token operator">=</span>virtio -nettap,ifname<span class="token operator">=</span>tap0,script<span class="token operator">=</span>no,downscript<span class="token operator">=</span>no<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre></li>
+ <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">qemu-system-x86_64 <span class="token punctuation">\</span>
+    -enable-kvm <span class="token punctuation">\</span>
+    -name ubuntutest <span class="token punctuation">\</span>
+    -cpu <span class="token function">host</span> <span class="token punctuation">\</span>
+    -m <span class="token number">2048</span> <span class="token punctuation">\</span>
+    -hda ubuntutest.qcow2 <span class="token punctuation">\</span>
+    -vnc :19 <span class="token punctuation">\</span>
+    -nic user,model<span class="token operator">=</span>virtio-net-pci
+    -net nic,model<span class="token operator">=</span>virtio <span class="token punctuation">\</span>
+    -netdev tap,id<span class="token operator">=</span>mynet0,ifname<span class="token operator">=</span>tap0,script<span class="token operator">=</span>no,downscript<span class="token operator">=</span>no<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p> <a target="_blank" rel="noopener" href="https://wiki.qemu.org/Documentation/Networking#Tap">Documentation/Networking</a></p>
+</li>
 <li><p>虚拟机启动后，网卡没有配置，所以无法连接外网，先给br0设置一个ip。</p>
- <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token function">ifconfig</span> br0 <span class="token number">192.168</span>.57.1/24<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre></li>
+ <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token function">ifconfig</span> br0 <span class="token number">192.168</span>.57.1/24
+<span class="token comment"># or</span>
+<span class="token function">ip</span> addr <span class="token function">add</span> <span class="token number">192.168</span>.57.1/24 dev br0<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span></span></code></pre></li>
 <li><p>VNC连上虚拟机，给网卡设置地址，重启虚拟机，可ping通br0。</p>
 </li>
 <li><p>要想访问外网，在Host上设置NAT，并且enable ip forwarding，可以ping通外网网关。</p>
@@ -9220,7 +9252,7 @@ entry_SYSCALL_64 () at arch/x86/entry/entry_64.S:330
             <br>
             
             &nbsp;<i class="fas fa-chart-area"></i>&nbsp;站点总字数:&nbsp;<span
-                class="white-color">625.4k</span>&nbsp;字
+                class="white-color">625.5k</span>&nbsp;字
             
             
             
