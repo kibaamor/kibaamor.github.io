@@ -431,21 +431,21 @@
                 
                 <div class="post-date info-break-policy">
                     <i class="far fa-calendar-check fa-fw"></i>更新日期:&nbsp;&nbsp;
-                    2022-01-06
+                    2022-01-07
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-file-word fa-fw"></i>文章字数:&nbsp;&nbsp;
-                    102.1k
+                    102k
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-clock fa-fw"></i>阅读时长:&nbsp;&nbsp;
-                    417 分
+                    416 分
                 </div>
                 
 
@@ -8066,9 +8066,11 @@ Escape character is ^<span class="token punctuation">]</span><span aria-hidden="
 <h4 id="54-2-下载源代码"><a href="#54-2-下载源代码" class="headerlink" title="54.2 下载源代码"></a>54.2 下载源代码</h4><p>首先，打开源码仓库</p>
 <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token function">sudo</span> <span class="token function">sed</span> -i.bk <span class="token string">'s/# deb-src/deb-src/g'</span> /etc/apt/sources.list
 <span class="token function">sudo</span> <span class="token function">apt</span> update
-<span class="token function">sudo</span> <span class="token function">apt</span> full-upgrade<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span></span></code></pre>
+<span class="token function">sudo</span> <span class="token function">apt</span> full-upgrade
+<span class="token function">sudo</span> <span class="token function">apt</span> autoremove<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span></span></code></pre>
 <p>下载源代码。</p>
-<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token function">apt-get</span> <span class="token builtin class-name">source</span> linux-image-unsigned-<span class="token variable"><span class="token variable">$(</span><span class="token function">uname</span> -r<span class="token variable">)</span></span><span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token function">sudo</span> <span class="token function">apt</span> <span class="token function">install</span> dpkg-dev
+<span class="token function">apt-get</span> <span class="token builtin class-name">source</span> linux-image-unsigned-<span class="token variable"><span class="token variable">$(</span><span class="token function">uname</span> -r<span class="token variable">)</span></span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre>
 <p><a target="_blank" rel="noopener" href="https://wiki.ubuntu.com/Kernel/BuildYourOwnKernel">BuildYourOwnKernel</a></p>
 <p>这行命令会将当前版本Ubuntu的内核代码下载到当前目录下，并解压缩。</p>
 <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ <span class="token function">uname</span> -r
@@ -8079,16 +8081,15 @@ linux-hwe-5.4-5.4.0  linux-hwe-5.4_5.4.0-92.103~18.04.2.diff.gz  linux-hwe-5.4_5
 <p>准备工作都做好了。这一节，我们先来做第一个实验，也就是，在原有内核代码的基础上加一个我们自己的系统调用。</p>
 <p>在哪里加代码呢？如果你忘了，请出门左转，回顾一下<a target="_blank" rel="noopener" href="https://time.geekbang.org/column/article/90394">系统调用</a>那一节。</p>
 <p>第一个要加的地方是arch/x86/entry/syscalls/syscall_64.tbl。这里面登记了所有的系统调用号以及相应的处理函数。</p>
-<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token number">332</span>     common  statx                   sys_statx
-<span class="token number">333</span>     <span class="token number">64</span>      sayhelloworld           sys_sayhelloworld<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre>
-<p>在这里，我们找到332号系统调用sys_statx，然后照猫画虎，添加一个sys_sayhelloworld，这里我们只添加64位操作系统的。</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token number">435</span>     common  clone3                  __x64_sys_clone3/ptregs
+<span class="token number">436</span>     common  sayhelloworld           __x64_sys_sayhelloworld<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre>
+<p>在这里，我们找到435号系统调用<strong>x64_sys_clone3，然后照猫画虎，添加一个</strong>x64_sys_sayhelloworld。</p>
 <p>第二个要加的地方是include/linux/syscalls.h，也就是系统调用的头文件，然后添加一个系统调用的声明。</p>
-<pre class="line-numbers language-c" data-language="c"><code class="language-c">asmlinkage <span class="token keyword">long</span> <span class="token function">sys_statx</span><span class="token punctuation">(</span><span class="token keyword">int</span> dfd<span class="token punctuation">,</span> <span class="token keyword">const</span> <span class="token keyword">char</span> __user <span class="token operator">*</span>path<span class="token punctuation">,</span> <span class="token keyword">unsigned</span> flags<span class="token punctuation">,</span>
-                          <span class="token keyword">unsigned</span> mask<span class="token punctuation">,</span> <span class="token keyword">struct</span> <span class="token class-name">statx</span> __user <span class="token operator">*</span>buffer<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c">asmlinkage <span class="token keyword">long</span> <span class="token function">sys_clone3</span><span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">clone_args</span> __user <span class="token operator">*</span>uargs<span class="token punctuation">,</span> size_t size<span class="token punctuation">)</span><span class="token punctuation">;</span>
 
-asmlinkage <span class="token keyword">long</span> <span class="token function">sys_sayhelloworld</span><span class="token punctuation">(</span><span class="token keyword">char</span> __user <span class="token operator">*</span>words<span class="token punctuation">,</span> <span class="token keyword">int</span> count<span class="token punctuation">)</span><span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span></span></code></pre>
-<p>同样，我们找到sys_statx的声明，照猫画虎，声明一个sys_sayhelloworld。其中，words参数是用户态传递给内核态的文本的指针，count是数目。</p>
-<p>第三个就是对于这个系统调用的实现，方便起见，我们不再用SYSCALL_DEFINEx系列的宏来定义了，直接在kernel/sys.c中实现。</p>
+asmlinkage <span class="token keyword">long</span> <span class="token function">sys_sayhelloworld</span><span class="token punctuation">(</span><span class="token keyword">char</span> __user <span class="token operator">*</span>words<span class="token punctuation">,</span> <span class="token keyword">int</span> count<span class="token punctuation">)</span><span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span></span></code></pre>
+<p>同样，我们找到sys_clone3的声明，照猫画虎，声明一个sys_sayhelloworld。其中，words参数是用户态传递给内核态的文本的指针，count是数目。</p>
+<p>第三个就是对于这个系统调用的实现，方便起见，我们直接在kernel/sys.c中实现。</p>
 <pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token function">SYSCALL_DEFINE2</span><span class="token punctuation">(</span>sayhelloworld<span class="token punctuation">,</span> <span class="token keyword">char</span> __user <span class="token operator">*</span><span class="token punctuation">,</span> words<span class="token punctuation">,</span> <span class="token keyword">int</span><span class="token punctuation">,</span> count<span class="token punctuation">)</span>
 <span class="token punctuation">{</span>
     <span class="token keyword">char</span> buffer<span class="token punctuation">[</span><span class="token number">512</span><span class="token punctuation">]</span><span class="token punctuation">;</span>
@@ -8105,10 +8106,13 @@ asmlinkage <span class="token keyword">long</span> <span class="token function">
 <h4 id="54-3-编译内核"><a href="#54-3-编译内核" class="headerlink" title="54.3 编译内核"></a>54.3 编译内核</h4><p>编译之前，我们需要安装一些编译要依赖的包。</p>
 <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token function">sudo</span> <span class="token function">apt</span> <span class="token function">install</span> libncurses-dev bison flex libelf-dev libssl-dev dwarves<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
 <p>首先，我们要定义编译选项。</p>
-<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token function">make</span> menuconfig<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token function">make</span> mrproper <span class="token comment"># 清理临时文件</span>
+<span class="token function">make</span> oldconfig <span class="token comment"># 将当前系统编译选项作为初始值，并修改编译选项</span>
+<span class="token function">make</span> menuconfig<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span></span></code></pre>
 <blockquote>
 <p>当前系统的内核编译选项可以通过命令 <code>cat /boot/config-$(uname -r)</code> 获取。</p>
 </blockquote>
+<p><a target="_blank" rel="noopener" href="https://www.kernel.org/doc/html/latest/admin-guide/README.html#configuring-the-kernel">Configuring the kernel</a></p>
 <p>然后，我们能通过选中下面的选项，激活CONFIG_DEBUG_INFO和CONFIG_FRAME_POINTER选项。</p>
 <pre class="line-numbers language-text" data-language="text"><code class="language-text">Kernel hacking  ---&gt;
 Compile-time checks and compiler options  ---&gt;
@@ -8119,12 +8123,12 @@ Compile-time checks and compiler options  ---&gt;
 <span class="token assign-left variable">CONFIG_DEBUG_INFO</span><span class="token operator">=</span>y<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre>
 <p>接下来，我们编译内核。</p>
 <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token function">make</span> -j10 <span class="token comment"># 编译内核</span>
-<span class="token function">make</span> modules_install  <span class="token comment"># 把编译好的模块拷贝到系统目录下（一般是/lib/modules/）</span>
-<span class="token function">make</span> <span class="token function">install</span>  <span class="token comment"># 安装内核二进制映像, 生成并安装boot初始化文件系统映像文件</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span></span></code></pre>
+<span class="token function">sudo</span> <span class="token function">make</span> modules_install  <span class="token comment"># 把编译好的模块拷贝到系统目录下（一般是/lib/modules/）</span>
+<span class="token function">sudo</span> <span class="token function">make</span> <span class="token function">install</span>  <span class="token comment"># 安装内核二进制映像, 生成并安装boot初始化文件系统映像文件</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span></span></code></pre>
 <p>下面，我们要做的就是重启虚拟机。进入的时候，会出现GRUB界面。我们选择Ubuntu高级选项，然后选择第一项进去，通过uname命令，我们就进入了新的内核。</p>
 <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ <span class="token function">uname</span> -a
 Linux popsuper <span class="token number">4.15</span>.18 <span class="token comment">#1 SMP Sat Jul 27 13:43:42 UTC 2019 x86_64 x86_64 x86_64 GNU/Linux</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre>
-<p>进入新的系统后，我们写一个测试程序。</p>
+<p>进入新的系统后，我们写一个测试程序 syscall.c 。</p>
 <pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;stdio.h&gt;</span></span>
 <span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;stdlib.h&gt;</span></span>
 <span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;unistd.h&gt;</span></span>
@@ -8134,14 +8138,20 @@ Linux popsuper <span class="token number">4.15</span>.18 <span class="token comm
 
 <span class="token keyword">int</span> <span class="token function">main</span> <span class="token punctuation">(</span><span class="token punctuation">)</span>
 <span class="token punctuation">{</span>
-  <span class="token keyword">char</span> <span class="token operator">*</span> words <span class="token operator">=</span> <span class="token string">"I am liuchao from user mode."</span><span class="token punctuation">;</span>
+  <span class="token keyword">char</span> <span class="token operator">*</span> words <span class="token operator">=</span> <span class="token string">"I am kibazen from user mode."</span><span class="token punctuation">;</span>
   <span class="token keyword">int</span> ret<span class="token punctuation">;</span>
-  ret <span class="token operator">=</span> <span class="token function">syscall</span><span class="token punctuation">(</span><span class="token number">333</span><span class="token punctuation">,</span> words<span class="token punctuation">,</span> <span class="token function">strlen</span><span class="token punctuation">(</span>words<span class="token punctuation">)</span><span class="token operator">+</span><span class="token number">1</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+  ret <span class="token operator">=</span> <span class="token function">syscall</span><span class="token punctuation">(</span><span class="token number">436</span><span class="token punctuation">,</span> words<span class="token punctuation">,</span> <span class="token function">strlen</span><span class="token punctuation">(</span>words<span class="token punctuation">)</span><span class="token operator">+</span><span class="token number">1</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
   <span class="token function">printf</span><span class="token punctuation">(</span><span class="token string">"return %d from kernel mode.\n"</span><span class="token punctuation">,</span> ret<span class="token punctuation">)</span><span class="token punctuation">;</span>
   <span class="token keyword">return</span> <span class="token number">0</span><span class="token punctuation">;</span>
 <span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
-<p>然后，我们能利用gcc编译器编译后运行。如果我们查看日志/var/log/syslog，就能够看到里面打印出来下面的日志，这说明我们的系统调用已经添加成功了。</p>
-<pre class="line-numbers language-text" data-language="text"><code class="language-text">Aug  1 06:33:12 popsuper kernel: [ 2048.873393] User Mode says I am liuchao from user mode. to the Kernel Mode!<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>然后，我们能利用gcc编译器编译后运行。</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ gcc syscall.c
+
+$ ./a.out
+<span class="token builtin class-name">return</span> <span class="token number">63</span> from kernel mode.<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span></span></code></pre>
+<p>如果我们查看日志/var/log/syslog，就能够看到里面打印出来下面的日志，这说明我们的系统调用已经添加成功了。</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ <span class="token function">grep</span> kibazen /var/log/syslog
+Jan  <span class="token number">6</span> <span class="token number">23</span>:36:25 k kernel: <span class="token punctuation">[</span>  <span class="token number">374.215173</span><span class="token punctuation">]</span> User Mode says I am kibazen from user mode. to the Kernel Mode<span class="token operator">!</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre>
 <h4 id="54-4-总结"><a href="#54-4-总结" class="headerlink" title="54.4 总结"></a>54.4 总结</h4><p>这一节是一节实战课，我们创建了一台虚拟机，在里面下载源代码，尝试修改了Linux内核，添加了一个自己的系统调用，并且进行了编译并安装了新内核。如果你按照这个过程做下来，你会惊喜地发现，原来令我们敬畏的内核，也是能够加以干预，为我而用的呢。没错，这就是你开始逐渐掌握内核的重要一步。</p>
 <h3 id="55-搭建操作系统实验环境（下）"><a href="#55-搭建操作系统实验环境（下）" class="headerlink" title="55. 搭建操作系统实验环境（下）"></a>55. 搭建操作系统实验环境（下）</h3><p>上一节我们做了一个实验，添加了一个系统调用，并且编译了内核。这一节，我们来尝试调试内核。这样，我们就可以一步一步来看，内核的代码逻辑执行到哪一步了，对应的变量值是什么。</p>
 <h4 id="55-1-了解gdb"><a href="#55-1-了解gdb" class="headerlink" title="55.1 了解gdb"></a>55.1 了解gdb</h4><p>在Linux下面，调试程序使用一个叫作gdb的工具。通过这个工具，我们可以逐行运行程序。</p>
@@ -8151,9 +8161,7 @@ Linux popsuper <span class="token number">4.15</span>.18 <span class="token comm
 <p>接下来，我们安装一下gdb。</p>
 <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token function">apt-get</span> <span class="token function">install</span> gdb<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
 <p>然后，我们就可以来调试这个程序了。</p>
-<pre class="line-numbers language-text" data-language="text"><code class="language-text">~/syscall# gdb ./a.out
-GNU gdb (Ubuntu 8.1-0ubuntu3.1) 8.1.0.20180409-git
-......
+<pre class="line-numbers language-text" data-language="text"><code class="language-text">k@k:~$ gdb -q ./a.out
 Reading symbols from ./a.out...done.
 (gdb) l
 1       #include &lt;stdio.h&gt;
@@ -8165,28 +8173,29 @@ Reading symbols from ./a.out...done.
 7
 8       int main ()
 9       {
-10        char * words = "I am liuchao from user mode.";
+10        char * words = "I am kibazen from user mode.";
 (gdb) b 10
 Breakpoint 1 at 0x6e2: file syscall.c, line 10.
 (gdb) r
-Starting program: /root/syscall/a.out
+Starting program: /home/k/a.out
 
 Breakpoint 1, main () at syscall.c:10
-10        char * words = "I am liuchao from user mode.";
+10        char * words = "I am kibazen from user mode.";
 (gdb) n
-12        ret = syscall(333, words, strlen(words)+1);
+12        ret = syscall(436, words, strlen(words)+1);
 (gdb) p words
-$1 = 0x5555555547c4 "I am liuchao from user mode."
+$1 = 0x5555555547c4 "I am kibazen from user mode."
 (gdb) s
-__strlen_sse2 () at ../sysdeps/x86_64/multiarch/../strlen.S:79
+__strlen_avx2 () at ../sysdeps/x86_64/multiarch/strlen-avx2.S:55
+55      ../sysdeps/x86_64/multiarch/strlen-avx2.S: No such file or directory.
 (gdb) bt
-#0  __strlen_sse2 () at ../sysdeps/x86_64/multiarch/../strlen.S:79
+#0  __strlen_avx2 () at ../sysdeps/x86_64/multiarch/strlen-avx2.S:55
 #1  0x00005555555546f9 in main () at syscall.c:12
 (gdb) c
 Continuing.
 return 63 from kernel mode.
-[Inferior 1 (process 1774) exited normally]
-(gdb) q<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+[Inferior 1 (process 4049) exited normally]
+(gdb) q<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
 <p>在上面的例子中，我们只要掌握简单的几个gdb的命令就可以了。</p>
 <ul>
 <li>l，即list，用于显示多行源代码。</li>
@@ -8203,9 +8212,9 @@ return 63 from kernel mode.
 <p>第一步，要想kernel能够被debug，需要向上面编译程序一样，将debug所需信息也放入二进制文件里面去。这个我们在编译内核的时候已经设置过了，也就是把“CONFIG_DEBUG_INFO”和“CONFIG_FRAME_POINTER“两个变量设置为yes。</p>
 <p>第二步，就是安装gdb。kernel运行在qemu虚拟机里面，gdb运行在宿主机上，所以我们应该在宿主机上进行安装。</p>
 <p>第三步，找到gdb要运行的那个内核的二进制文件。这个文件在哪里呢？根据grub里面的配置，它应该在/boot/vmlinuz-4.15.18这里。</p>
-<p>另外，为了方便在debug的过程中查看源代码，我们可以将/usr/src/linux-source-4.15.0整个目录，都拷贝到宿主机上来。因为内核一旦进入debug模式，就不能运行了。</p>
-<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token function">scp</span> -r popsuper@192.168.57.100:/usr/src/linux-source-4.15.0 ./<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
-<p>在/usr/src/linux-source-4.15.0这个目录下面，vmlinux文件也是内核的二进制文件。</p>
+<p>另外，为了方便在debug的过程中查看源代码，我们可以将 <code>linux-hwe-5.4-5.4.0</code> 整个目录，都拷贝到宿主机上来。因为内核一旦进入debug模式，就不能运行了。</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token function">scp</span> -r ./linux-hwe-5.4-5.4.0 k@192.168.104.113:/home/k/qemu/source<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>在 <code>linux-hwe-5.4-5.4.0</code> 这个目录下面，vmlinux文件也是内核的二进制文件。</p>
 <p>第四步，修改qemu的启动参数和qemu里面虚拟机的启动参数，从而使得gdb可以远程attach到qemu里面的内核上。</p>
 <p>我们知道，gdb debug一个进程的时候，gdb会监控进程的运行，使得进程一行一行地执行二进制文件。如果像syscall.c的二进制文件a.out一样，就在本地，gdb可以通过attach到这个进程上，作为这个进程的父进程，来监控它的运行。</p>
 <p>但是，gdb debug一个内核的时候，因为内核在qemu虚拟机里面，所以我们无法监控本地进程，而要通过qemu来监控qemu里面的内核，这就要借助qemu的机制。</p>
@@ -8256,36 +8265,14 @@ return 63 from kernel mode.
     <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span><span class="token namespace">qemu:</span>arg</span> <span class="token attr-name">value</span><span class="token attr-value"><span class="token punctuation attr-equals">=</span><span class="token punctuation">'</span>-s<span class="token punctuation">'</span></span><span class="token punctuation">/&gt;</span></span>
 <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span><span class="token namespace">qemu:</span>commandline</span><span class="token punctuation">&gt;</span></span>
 <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>domain</span><span class="token punctuation">&gt;</span></span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
-<p>另外，为了远程debug成功，我们还需要修改qemu里面的虚拟机的grub和menu.list，在内核命令行中添加nokaslr，来关闭KASLR。KASLR会使得内核地址空间布局随机化，从而会造成我们打的断点不起作用。</p>
+<p>另外，为了远程debug成功，我们还需要修改qemu里面的虚拟机，在内核命令行中添加nokaslr，来关闭KASLR。KASLR会使得内核地址空间布局随机化，从而会造成我们打的断点不起作用。</p>
 </li>
 </ul>
-<p>对于grub.conf，修改如下：</p>
-<pre class="line-numbers language-text" data-language="text"><code class="language-text">submenu 'Advanced options for Ubuntu' $menuentry_id_option 'gnulinux-advanced-470f3a42-7a97-4b9d-aaa0-26deb3d234f9' {
-        menuentry 'Ubuntu, with Linux 4.15.18' --class ubuntu --class gnu-linux --class gnu --class os $menuentry_id_option 'gnulinux-4.15.18-advanced-470f3a42-7a97-4b9d-aaa0-26deb3d234f9' {
-                recordfail
-                load_video
-                gfxmode $linux_gfx_mode
-                insmod gzio
-                if [ x$grub_platform = xxen ]; then insmod xzio; insmod lzopio; fi
-                insmod part_gpt
-                insmod ext2
-                if [ x$feature_platform_search_hint = xy ]; then
-                  search --no-floppy --fs-uuid --set=root  470f3a42-7a97-4b9d-aaa0-26deb3d234f9
-                else
-                  search --no-floppy --fs-uuid --set=root 470f3a42-7a97-4b9d-aaa0-26deb3d234f9
-                fi
-                echo    'Loading Linux 4.15.18 ...'
-                linux   /boot/vmlinuz-4.15.18 root=UUID=470f3a42-7a97-4b9d-aaa0-26deb3d234f9 ro nokaslr console=ttyS0 maybe-ubiquity
-                echo    'Loading initial ramdisk ...'
-                initrd  /boot/initrd.img-4.15.18
-        }<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
-<p>对于menu.list，修改如下：</p>
-<pre class="line-numbers language-text" data-language="text"><code class="language-text">title           Ubuntu 18.04.2 LTS, kernel 4.15.18
-root            (hd0)
-kernel          /boot/vmlinuz-4.15.18 root=/dev/hda1 ro nokaslr console=hvc0 console=ttyS0
-initrd          /boot/initrd.img-4.15.18<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span></span></code></pre>
+<p>在虚拟机里面，我们修改文件/etc/default/grub：</p>
+<pre class="line-numbers language-diff" data-language="diff"><code class="language-diff"><span class="token deleted-sign deleted"><span class="token prefix deleted">-</span><span class="token line"> GRUB_CMDLINE_LINUX="console=ttyS0,115200"
+</span></span><span class="token inserted-sign inserted"><span class="token prefix inserted">+</span><span class="token line"> GRUB_CMDLINE_LINUX="nokaslr console=ttyS0,115200"</span></span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre>
 <p>修改完毕后，我们需要在虚拟机里面shutdown -h now，来关闭虚拟机。注意不要reboot，因为虚拟机里面运行reboot，我们改过的那个XML会不起作用。</p>
-<p>当我们在宿主机上发现虚拟机关机之后，就可以通过virsh start ubuntutest启动虚拟机，这个时候我们添加的参数-s才起作用。</p>
+<p>当我们在宿主机上发现虚拟机关机之后，就可以通过sudo virsh start ubuntutest启动虚拟机，这个时候我们添加的参数-s才起作用。</p>
 <p>第五步，使用gdb运行内核的二进制文件，执行gdb vmlinux。</p>
 <pre class="line-numbers language-text" data-language="text"><code class="language-text">/mnt/vdc/linux-source-4.15.0# gdb vmlinux
 GNU gdb (Ubuntu 7.11.1-0ubuntu1~16.5) 7.11.1
@@ -9126,7 +9113,7 @@ entry_SYSCALL_64 () at arch/x86/entry/entry_64.S:330
             <br>
             
             &nbsp;<i class="fas fa-chart-area"></i>&nbsp;站点总字数:&nbsp;<span
-                class="white-color">624.5k</span>&nbsp;字
+                class="white-color">624.4k</span>&nbsp;字
             
             
             
