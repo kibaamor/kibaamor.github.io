@@ -438,14 +438,14 @@
                 
                 <div class="info-break-policy">
                     <i class="far fa-file-word fa-fw"></i>文章字数:&nbsp;&nbsp;
-                    5.9k
+                    10k
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-clock fa-fw"></i>阅读时长:&nbsp;&nbsp;
-                    23 分
+                    38 分
                 </div>
                 
 
@@ -476,7 +476,7 @@
 <p>在 Linux 上直接查看 Page Cache 的方式有很多，包括 /proc/meminfo、free 、/proc/vmstat 命令等。</p>
 <p>以 /proc/meminfo 命令为例：</p>
 <blockquote>
-<p>如果你想了解 /proc/meminfo 中每一项具体含义的话，可以去看 <a target="_blank" rel="noopener" href="https://www.kernel.org/doc/Documentation/filesystems/proc.rst">Kernel Documentation</a> 的 meminfo 这一节，它详细解释了每一项的具体含义，Kernel Documentation 是应用开发者想要了解内核最简单、直接的方式。</p>
+<p>如果你想了解 /proc/meminfo 中每一项具体含义的话，可以去看 <a target="_blank" rel="noopener" href="https://www.kernel.org/doc/Documentation/filesystems/proc.rst">Kernel Documentation</a> 中 meminfo 这一节，它详细解释了每一项的具体含义，Kernel Documentation 是应用开发者想要了解内核最简单、直接的方式。</p>
 </blockquote>
 <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">
 $ <span class="token function">cat</span> /proc/meminfo
@@ -644,7 +644,7 @@ Swap:      <span class="token number">0</span>     <span class="token number">0<
 <li>%vmeff: pgsteal/(pgscank+pgscand), 回收效率，越接近 100 说明系统越安全，越接近 0 说明系统内存压力越大。</li>
 </ul>
 <p>这几个指标也是通过解析 /proc/vmstat 里面的数据来得出的，对应关系如下：</p>
-<p><img src="/images/《Linux内核技术实战课》学习笔记/sar中的指标与procvmstat中数据的对应关系.jpg" alt="sar中的指标与procvmstat中数据的对应关系"></p>
+<p><img src="/images/《Linux内核技术实战课》学习笔记/sar中的指标与proc_vmstat中数据的对应关系.jpg" alt="sar中的指标与proc_vmstat中数据的对应关系"></p>
 <h3 id="03-案例篇-如何处理Page-Cache难以回收产生的load飙高问题？"><a href="#03-案例篇-如何处理Page-Cache难以回收产生的load飙高问题？" class="headerlink" title="03 案例篇 | 如何处理Page Cache难以回收产生的load飙高问题？"></a>03 案例篇 | 如何处理Page Cache难以回收产生的load飙高问题？</h3><p>在平时的工作中，应该会或多或少遇到过这些情形：系统很卡顿，敲命令响应非常慢；应用程序的 RT 变得很高，或者抖动得很厉害。在发生这些问题时，很有可能也伴随着系统 load 飙得很高。</p>
 <p>那这是什么原因导致的呢？据我观察，大多是有三种情况：</p>
 <ul>
@@ -721,6 +721,159 @@ node   <span class="token number">0</span>   <span class="token number">1</span>
 <p>推荐将 zone_reclaim_mode 配置为 0。</p>
 <pre class="line-numbers language-text" data-language="text"><code class="language-text">vm.zone_reclaim_mode = 0<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
 <p>因为相比内存回收的危害而言，NUMA 带来的性能提升几乎可以忽略，所以配置为 0，利远大于弊。</p>
+<h3 id="04-案例篇-如何处理Page-Cache容易回收引起的业务性能问题？"><a href="#04-案例篇-如何处理Page-Cache容易回收引起的业务性能问题？" class="headerlink" title="04 案例篇 | 如何处理Page Cache容易回收引起的业务性能问题？"></a>04 案例篇 | 如何处理Page Cache容易回收引起的业务性能问题？</h3><p>我把大家经常遇到的这类问题做个总结，大致可以分为两方面：</p>
+<ul>
+<li>误操作而导致 Page Cache 被回收掉，进而导致业务性能下降明显；</li>
+<li>内核的一些机制导致业务 Page Cache 被回收，从而引起性能下降。</li>
+</ul>
+<h4 id="4-1-对-Page-Cache-操作不当产生的业务性能下降"><a href="#4-1-对-Page-Cache-操作不当产生的业务性能下降" class="headerlink" title="4.1 对 Page Cache 操作不当产生的业务性能下降"></a>4.1 对 Page Cache 操作不当产生的业务性能下降</h4><p>我们先从一个相对简单的案例说起，一起分析下误操作导致 Page Cache 被回收掉的情况，它具体是怎样发生的。</p>
+<p>我们知道，对于 Page Cache 而言，是可以通过 drop_cache 来清掉的，很多人在看到系统中存在非常多的 Page Cache 时会习惯使用 drop_cache 来清理它们，但是这样做是会有一些负面影响的，比如说这些 Page Cache 被清理掉后可能会引起系统性能下降。为什么？</p>
+<p>其实这和 inode 有关，那 inode 是什么意思呢？inode 是内存中对磁盘文件的索引，进程在查找或者读取文件时就是通过 inode 来进行操作的，我们用下面这张图来表示一下这种关系：</p>
+<p><img src="/images/《Linux内核技术实战课》学习笔记/inode在进程操作文件时的作用.jpg" alt="inode在进程操作文件时的作用.jpg"></p>
+<p>如上图所示，进程会通过 inode 来找到文件的地址空间（address_space），然后结合文件偏移（会转换成 page index）来找具体的 Page。如果该 Page 存在，那就说明文件内容已经被读取到了内存；如果该 Page 不存在那就说明不在内存中，需要到磁盘中去读取。你可以理解为 inode 是 Pagecache Page（页缓存的页）的宿主（host），如果 inode 不存在了，那么 PageCache Page 也就不存在了。</p>
+<p>如果你使用过 drop_cache 来释放 inode 的话，应该会清楚它有几个控制选项，我们可以通过写入不同的数值来释放不同类型的 cache（用户数据 Page Cache，内核数据 Slab，或者二者都释放），这些选项你可以去看 <a target="_blank" rel="noopener" href="https://www.kernel.org/doc/Documentation/sysctl/vm.txt">Kernel Documentation</a> 中 drop_caches 这一节 的描述。</p>
+<p><img src="/images/《Linux内核技术实战课》学习笔记/drop_caches选项说明.jpg" alt="drop_caches选项说明.jpg"></p>
+<p>于是这样就引入了一个容易被我们忽略的问题：<strong>当我们执行 echo 2 来 drop slab 的时候，它也会把 Page Cache 给 drop 掉</strong>，很多运维人员都会忽视掉这一点。</p>
+<p>由于 drop_caches 是一种内存事件，内核会在 /proc/vmstat 中来记录这一事件，所以我们可以通过 /proc/vmstat 来判断是否有执行过 drop_caches。</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ <span class="token function">grep</span> drop /proc/vmstat
+drop_pagecache <span class="token number">3</span>
+drop_slab <span class="token number">2</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span></span></code></pre>
+<p>如上所示，它们分别意味着 pagecache 被 drop 了 3 次（通过 echo 1 或者 echo 3），slab 被 drop 了 2 次（通过 echo 2 或者 echo 3）。如果这两个值在问题发生前后没有变化，那就可以排除是有人执行了 drop_caches；否则可以认为是因为 drop_caches 引起的 Page Cache 被回收。</p>
+<h4 id="4-2-内核机制引起-Page-Cache-被回收而产生的业务性能下降"><a href="#4-2-内核机制引起-Page-Cache-被回收而产生的业务性能下降" class="headerlink" title="4.2 内核机制引起 Page Cache 被回收而产生的业务性能下降"></a>4.2 内核机制引起 Page Cache 被回收而产生的业务性能下降</h4><p>我们在前面已经提到过，在内存紧张的时候会触发内存回收，内存回收会尝试去回收 reclaimable（可以被回收的）内存，这部分内存既包含 Page Cache 又包含 reclaimable kernel memory(比如 slab)。我们可以用下图来简单描述这个过程：</p>
+<p><img src="/images/《Linux内核技术实战课》学习笔记/内存紧张的时候会触发内存回收.jpg" alt="内存紧张的时候会触发内存回收.jpg"></p>
+<p>我简单来解释一下这个图。Reclaimer 是指回收者，它可以是内核线程（包括 kswapd）也可以是用户线程。回收的时候，它会依次来扫描 pagecache page 和 slab page 中有哪些可以被回收的，如果有的话就会尝试去回收，如果没有的话就跳过。在扫描可回收 page 的过程中回收者一开始扫描的较少，然后逐渐增加扫描比例直至全部都被扫描完。这就是内存回收的大致过程。</p>
+<p>接下来我所要讲述的案例就发生在“relcaim slab”中，我们从前一个案例已然知道，如果 inode 被回收的话，那么它对应的 Page Cache 也都会被回收掉，所以如果业务进程读取的文件对应的 inode 被回收了，那么该文件所有的 Page Cache 都会被释放掉，这也是容易引起性能问题的地方。</p>
+<p>可以通过 /proc/vmstat 来观察：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ <span class="token function">grep</span> inodesteal /proc/vmstat
+ pginodesteal <span class="token number">114341</span>
+ kswapd_inodesteal <span class="token number">1291853</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span></span></code></pre>
+<p>这个行为对应的事件是 inodesteal，就是上面这两个事件，其中 kswapd_inodesteal 是指在 kswapd 回收的过程中，因为回收 inode 而释放的 pagecache page 个数；pginodesteal 是指 kswapd 之外其他线程在回收过程中，因为回收 inode 而释放的 pagecache page 个数。所以在你发现业务的 Page Cache 被释放掉后，你可以通过观察来发现是否因为该事件导致的。</p>
+<h4 id="4-3-如何避免-Page-Cache-被回收而引起的性能问题？"><a href="#4-3-如何避免-Page-Cache-被回收而引起的性能问题？" class="headerlink" title="4.3 如何避免 Page Cache 被回收而引起的性能问题？"></a>4.3 如何避免 Page Cache 被回收而引起的性能问题？</h4><p>避免 Page Cache 里相对比较重要的数据被回收掉的思路也是有两种：</p>
+<ul>
+<li>从应用代码层面来优化；</li>
+<li>从系统层面来调整。</li>
+</ul>
+<p>从应用程序代码层面来解决是相对比较彻底的方案，因为应用更清楚哪些 Page Cache 是重要的，哪些是不重要的，所以就可以明确地来对读写文件过程中产生的 Page Cache 区别对待。比如说，对于重要的数据，可以通过 mlock(2) 来保护它，防止被回收以及被 drop；对于不重要的数据（比如日志），那可以通过 madvise(2) 告诉内核来立即释放这些 Page Cache。</p>
+<p>我们来看一个通过 mlock(2) 来保护重要数据防止被回收或者被 drop 的例子：</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;fcntl.h&gt;</span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;string.h&gt;</span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;sys/mman.h&gt;</span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;sys/stat.h&gt;</span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;sys/types.h&gt;</span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;unistd.h&gt;</span></span>
+
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">define</span> <span class="token expression">FILE_NAME </span><span class="token string">"/home/k/test_mmap_data"</span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">define</span> <span class="token expression"><span class="token function">SIZE</span> <span class="token punctuation">(</span><span class="token number">1024</span> <span class="token operator">*</span> <span class="token number">1000</span> <span class="token operator">*</span> <span class="token number">1000</span><span class="token punctuation">)</span></span></span>
+
+<span class="token keyword">int</span> <span class="token function">main</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+  <span class="token keyword">int</span> fd<span class="token punctuation">;</span>
+  <span class="token keyword">char</span> <span class="token operator">*</span>p<span class="token punctuation">;</span>
+  <span class="token keyword">int</span> ret<span class="token punctuation">;</span>
+
+  fd <span class="token operator">=</span> <span class="token function">open</span><span class="token punctuation">(</span>FILE_NAME<span class="token punctuation">,</span> O_CREAT <span class="token operator">|</span> O_RDWR<span class="token punctuation">,</span> S_IRUSR <span class="token operator">|</span> S_IWUSR<span class="token punctuation">)</span><span class="token punctuation">;</span>
+  <span class="token keyword">if</span> <span class="token punctuation">(</span>fd <span class="token operator">&lt;</span> <span class="token number">0</span><span class="token punctuation">)</span>
+    <span class="token keyword">return</span> <span class="token operator">-</span><span class="token number">1</span><span class="token punctuation">;</span>
+
+  <span class="token comment">/* Set size of this file */</span>
+  ret <span class="token operator">=</span> <span class="token function">ftruncate</span><span class="token punctuation">(</span>fd<span class="token punctuation">,</span> SIZE<span class="token punctuation">)</span><span class="token punctuation">;</span>
+  <span class="token keyword">if</span> <span class="token punctuation">(</span>ret <span class="token operator">&lt;</span> <span class="token number">0</span><span class="token punctuation">)</span>
+    <span class="token keyword">return</span> <span class="token operator">-</span><span class="token number">1</span><span class="token punctuation">;</span>
+
+  <span class="token comment">/* The current offset is 0, so we don't need to reset the offset. */</span>
+  <span class="token comment">/* lseek(fd, 0, SEEK_CUR); */</span>
+  <span class="token comment">/* Mmap virtual memory */</span>
+  p <span class="token operator">=</span> <span class="token function">mmap</span><span class="token punctuation">(</span><span class="token number">0</span><span class="token punctuation">,</span> SIZE<span class="token punctuation">,</span> PROT_READ <span class="token operator">|</span> PROT_WRITE<span class="token punctuation">,</span> MAP_FILE <span class="token operator">|</span> MAP_SHARED<span class="token punctuation">,</span> fd<span class="token punctuation">,</span> <span class="token number">0</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+  <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token operator">!</span>p<span class="token punctuation">)</span>
+    <span class="token keyword">return</span> <span class="token operator">-</span><span class="token number">1</span><span class="token punctuation">;</span>
+
+  <span class="token comment">/* Alloc physical memory */</span>
+  <span class="token function">memset</span><span class="token punctuation">(</span>p<span class="token punctuation">,</span> <span class="token number">1</span><span class="token punctuation">,</span> SIZE<span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+  <span class="token comment">/* Lock these memory to prevent from being reclaimed */</span>
+  <span class="token function">mlock</span><span class="token punctuation">(</span>p<span class="token punctuation">,</span> SIZE<span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+  <span class="token comment">/* Wait until we kill it specifically */</span>
+  <span class="token keyword">while</span> <span class="token punctuation">(</span><span class="token number">1</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+    <span class="token function">sleep</span><span class="token punctuation">(</span><span class="token number">10</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+  <span class="token punctuation">}</span>
+
+  <span class="token comment">/*
+   * Unmap the memory.
+   * Actually the kernel will unmap it automatically after the
+   * process exits, whatever we call munamp() specifically or not.
+   */</span>
+  <span class="token function">munmap</span><span class="token punctuation">(</span>p<span class="token punctuation">,</span> SIZE<span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+  <span class="token keyword">return</span> <span class="token number">0</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>在这个例子中，我们通过 mlock(2) 来锁住了读 FILE_NAME 这个文件内容对应的 Page Cache。在运行上述程序之后，我们来看下该如何来观察这种行为：确认这些 Page Cache 是否被保护住了，被保护了多大。这同样可以通过 /proc/meminfo 来观察:</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ <span class="token function">egrep</span> <span class="token string">"Unevictable|Mlocked"</span> /proc/meminfo
+Unevictable:     <span class="token number">1000000</span> kB
+Mlocked:         <span class="token number">1000000</span> kB<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span></span></code></pre>
+<p>然后你可以发现，drop_caches 或者内存回收是回收不了这些内容的，我们的目的也就达到了。</p>
+<p>在有些情况下，对应用程序而言，修改源码是件比较麻烦的事，如果可以不修改源码来达到目的那就最好不过了。Linux 内核同样实现了这种不改应用程序的源码而从系统层面调整来保护重要数据的机制，这个机制就是 memory cgroup protection。<br>它大致的思路是，将需要保护的应用程序使用 memory cgroup 来保护起来，这样该应用程序读写文件过程中所产生的 Page Cache 就会被保护起来不被回收或者最后被回收。memory cgroup protection 大致的原理如下图所示：</p>
+<p><img src="/images/《Linux内核技术实战课》学习笔记/memory_cgroup_protection大致原理.jpg" alt="memory_cgroup_protection大致原理.jpg"></p>
+<p>如上图所示，memory cgroup 提供了几个内存水位控制线 memory.{min, low, high, max} 。</p>
+<ul>
+<li><p><strong>memory.max</strong></p>
+<p>  这是指 memory cgroup 内的进程最多能够分配的内存，如果不设置的话，就默认不做内存大小的限制。</p>
+</li>
+<li><p><strong>memory.high</strong></p>
+<p>  如果设置了这一项，当 memory cgroup 内进程的内存使用量超过了该值后就会立即被回收掉，所以这一项的目的是为了尽快的回收掉不活跃的 Page Cache。</p>
+</li>
+<li><p><strong>memory.low</strong></p>
+<p>  这一项是用来保护重要数据的，当 memory cgroup 内进程的内存使用量低于了该值后，在内存紧张触发回收后就会先去回收不属于该 memory cgroup 的 Page Cache，等到其他的 Page Cache 都被回收掉后再来回收这些 Page Cache。</p>
+</li>
+<li><p><strong>memory.min</strong></p>
+<p>  这一项同样是用来保护重要数据的，只不过与 memoy.low 有所不同的是，当 memory cgroup 内进程的内存使用量低于该值后，即使其他不在该 memory cgroup 内的 Page Cache 都被回收完了也不会去回收这些 Page Cache，可以理解为这是用来保护最高优先级的数据的。</p>
+</li>
+</ul>
+<p><strong>如果你想要保护你的 Page Cache 不被回收，你就可以考虑将你的业务进程放在一个 memory cgroup 中，然后设置 memory.{min,low} 来进行保护；与之相反，如果你想要尽快释放你的 Page Cache，那你可以考虑设置 memory.high 来及时的释放掉不活跃的 Page Cache。</strong></p>
+<h3 id="05-分析篇-如何判断问题是否由Page-Cache产生的？"><a href="#05-分析篇-如何判断问题是否由Page-Cache产生的？" class="headerlink" title="05 分析篇 | 如何判断问题是否由Page Cache产生的？"></a>05 分析篇 | 如何判断问题是否由Page Cache产生的？</h3><h4 id="5-1-Linux-问题的典型分析手段"><a href="#5-1-Linux-问题的典型分析手段" class="headerlink" title="5.1 Linux 问题的典型分析手段"></a>5.1 Linux 问题的典型分析手段</h4><p>简单地归纳为下图：</p>
+<p><img src="/images/《Linux内核技术实战课》学习笔记/Linux的典型分析手段.jpg" alt="Linux的典型分析手段.jpg"></p>
+<p>Linux 内核主要是通过 /proc 和 /sys 把系统信息导出给用户，当你不清楚问题发生的原因时，你就可以试着去这几个目录下读取一下系统信息，看看哪些指标异常。比如当你不清楚问题是否由 Page Cache 引起时，你可以试着去把 /proc/vmstat 里面的信息给读取出来，看看哪些指标单位时间内变化较大。如果 pgscan 相关指标变化较大，那就可能是 Page Cache 引起的，因为 pgscan 代表了 Page Cache 的内存回收行为，它变化较大往往意味着系统内存压力很紧张。</p>
+<p>/proc 和 /sys 里面的信息可以给我们指出一个问题分析的大致方向，我们可以判断出问题是不是由 Page Cache 引起的，但是如果想要深入地分析问题，知道 Page Cache 是如何引起问题的，我们还需要掌握更加专业的分析手段，专业的分析工具有 ftrace，ebpf，perf 等。</p>
+<p>为了让你在遇到问题时更加方便地找到合适的分析工具，我借用 <a target="_blank" rel="noopener" href="https://www.brendangregg.com/linuxperf.html">Bredan Gregg</a> 的一张图，并根据自己的经验，把这张图略作了一些改进，帮助你学习该如何使用这些分析工具：</p>
+<p><img src="/images/《Linux内核技术实战课》学习笔记/Linux分析工具速查.jpg" alt="Linux分析工具速查.jpg"></p>
+<p>在这张图里，整体上追踪方式分为了静态追踪（预置了追踪点）和动态追踪（需要借助 probe）：</p>
+<ul>
+<li>如果你想要追踪的东西已经有了预置的追踪点，那你直接使用这些预置追踪点就可以了；</li>
+<li>如果没有预置追踪点，那你就要看看是否可以使用 probe(包括 kprobe 和 uprobe) 来实现。</li>
+</ul>
+<p>因为分析工具自身也会对业务造成一些影响（Heisenbug），比如说使用 strace 会阻塞进程的运行，再比如使用 systemtap 也会有加载编译的开销等，<strong>所以我们在使用这些工具之前也需要去详细了解下这些工具的副作用，以免引起意料之外的问题。</strong></p>
+<p>接下来我们一起分析两个具体问题。</p>
+<h4 id="5-2-系统现在-load-很高，是由-Page-Cache-引起的吗？"><a href="#5-2-系统现在-load-很高，是由-Page-Cache-引起的吗？" class="headerlink" title="5.2 系统现在 load 很高，是由 Page Cache 引起的吗？"></a>5.2 系统现在 load 很高，是由 Page Cache 引起的吗？</h4><p>我相信你肯定会遇到过这种场景：业务一直稳定运行着却忽然出现很大的性能抖动，或者系统一直稳定运行着却忽然出现较高的 load 值，那怎么去判断这个问题是不是由 Page Cache 引起的呢？</p>
+<p>分析问题的第一步，就是需要对系统的概括做一个了解，对于 Page Cahe 相关的问题，我推荐你<strong>使用 sar 来采集 Page Cache 的概况</strong>。</p>
+<p>我在课程的第 1 讲也提到了对 sar 的一些使用：比如通过 sar -B 来分析分页信息 (Paging statistics)， 以及 sar -r 来分析内存使用情况统计 (Memory utilization statistics) 等。在这里，我特别推荐你使用 sar 里面记录的 PSI（Pressure-Stall Information）信息来查看 Page Cache 产生压力情况，尤其是给业务产生的压力，而这些压力最终都会体现在 load 上。不过该功能需要 4.20 以上的内核版本才支持，同时 sar 的版本也要更新到 12.3.3 版本以上。比如 PSI 中表示内存压力的如下输出：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ <span class="token function">cat</span> /proc/pressure/memory
+some <span class="token assign-left variable">avg10</span><span class="token operator">=</span><span class="token number">45.49</span> <span class="token assign-left variable">avg60</span><span class="token operator">=</span><span class="token number">10.23</span> <span class="token assign-left variable">avg300</span><span class="token operator">=</span><span class="token number">5.41</span> <span class="token assign-left variable">total</span><span class="token operator">=</span><span class="token number">76464318</span>
+full <span class="token assign-left variable">avg10</span><span class="token operator">=</span><span class="token number">40.87</span> <span class="token assign-left variable">avg60</span><span class="token operator">=</span><span class="token number">9.05</span> <span class="token assign-left variable">avg300</span><span class="token operator">=</span><span class="token number">4.29</span> <span class="token assign-left variable">total</span><span class="token operator">=</span><span class="token number">58141082</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span></span></code></pre>
+<p>你需要重点关注 avg10 这一列，它表示最近 10s 内存的平均压力情况，如果它很大（比如大于 40）那 load 飙高大概率是由于内存压力，尤其是 Page Cache 的压力引起的。</p>
+<p>明白了概况之后，我们还需要进一步查看究竟是 Page Cache 的什么行为引起的系统压力。<br>因为 sar 采集的只是一些常用的指标，它并没有覆盖 Page Cache 的所有行为，比如说内存规整（memory compaction）、业务 workingset 等这些容易引起 load 飙高的问题点。在我们想要分析更加具体的原因时，就需要去采集这些指标了。通常在 Page Cache 出问题时，这些指标中的一个或多个都会有异常，这里我给你列出一些常见指标：</p>
+<p><img src="/images/《Linux内核技术实战课》学习笔记/与PageCache问题相关的常见指标.jpg" alt="与PageCache问题相关的常见指标.jpg"></p>
+<p>采集完这些指标后，我们就可以分析 Page Cache 异常是由什么引起的了。比如说，当我们发现，单位时间内 compact_fail 变化很大时，那往往意味着系统内存碎片很严重，已经很难申请到连续物理内存了，这时你就需要去调整碎片指数或者手动触发内存规整，来减缓因为内存碎片引起的压力了。</p>
+<p>我们在前面的步骤中采集的数据指标，可以帮助我们来定位到问题点究竟是什么，比如下面这些问题点。但是有的时候，我们还需要知道是什么东西在进行连续内存的申请，从而来做更加有针对性的调整，这就需要进行进一步的观察了。我们可以利用内核预置的相关 tracepoint 来做更加细致的分析。</p>
+<p><img src="/images/《Linux内核技术实战课》学习笔记/利用内核预置的相关tracepoint分析PageCache问题.jpg" alt="利用内核预置的相关tracepoint分析PageCache问题.jpg"></p>
+<p>我们继续以内存规整 (memory compaction) 为例，来看下如何利用 tracepoint 来对它进行观察：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token comment">#首先来使能compcation相关的一些tracepoing</span>
+$ <span class="token builtin class-name">echo</span> <span class="token number">1</span> <span class="token operator">&gt;</span>
+/sys/kernel/debug/tracing/events/compaction/mm_compaction_begin/enable
+
+$ <span class="token builtin class-name">echo</span> <span class="token number">1</span> <span class="token operator">&gt;</span>
+/sys/kernel/debug/tracing/events/compaction/mm_compaction_end/enable
+
+<span class="token comment">#然后来读取信息，当compaction事件触发后就会有信息输出</span>
+$ <span class="token function">cat</span> /sys/kernel/debug/tracing/trace_pipe
+           <span class="token operator">&lt;</span><span class="token punctuation">..</span>.<span class="token operator">&gt;</span>-49355 <span class="token punctuation">[</span>037<span class="token punctuation">]</span> <span class="token punctuation">..</span><span class="token punctuation">..</span> <span class="token number">1578020.975159</span>: mm_compaction_begin:
+<span class="token assign-left variable">zone_start</span><span class="token operator">=</span>0x2080000 <span class="token assign-left variable">migrate_pfn</span><span class="token operator">=</span>0x2080000 <span class="token assign-left variable">free_pfn</span><span class="token operator">=</span>0x3fe5800
+<span class="token assign-left variable">zone_end</span><span class="token operator">=</span>0x4080000, <span class="token assign-left variable">mode</span><span class="token operator">=</span>async
+           <span class="token operator">&lt;</span><span class="token punctuation">..</span>.<span class="token operator">&gt;</span>-49355 <span class="token punctuation">[</span>037<span class="token punctuation">]</span> .N<span class="token punctuation">..</span> <span class="token number">1578020.992136</span>: mm_compaction_end:
+<span class="token assign-left variable">zone_start</span><span class="token operator">=</span>0x2080000 <span class="token assign-left variable">migrate_pfn</span><span class="token operator">=</span>0x208f420 <span class="token assign-left variable">free_pfn</span><span class="token operator">=</span>0x3f4b720
+<span class="token assign-left variable">zone_end</span><span class="token operator">=</span>0x4080000, <span class="token assign-left variable">mode</span><span class="token operator">=</span>async <span class="token assign-left variable">status</span><span class="token operator">=</span>contended<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>从这个例子中的信息里，我们可以看到是 49355 这个进程触发了 compaction，begin 和 end 这两个 tracepoint 触发的时间戳相减，就可以得到 compaction 给业务带来的延迟，我们可以计算出这一次的延迟为 17ms。</p>
+<h4 id="5-3-系统-load-值在昨天飙得很高，是由-Page-Cache-引起的吗？"><a href="#5-3-系统-load-值在昨天飙得很高，是由-Page-Cache-引起的吗？" class="headerlink" title="5.3 系统 load 值在昨天飙得很高，是由 Page Cache 引起的吗？"></a>5.3 系统 load 值在昨天飙得很高，是由 Page Cache 引起的吗？</h4><p>有时候，我们没有办法及时地去搜集现场信息，比如问题发生在深夜时，我们没有来得及去采集现场信息，这个时候就只能查看历史记录了。</p>
+<p>曾经有一个业务反馈说 RT 抖动得比较明显，让我帮他们分析一下抖动的原因，我把业务 RT 抖动的时间和 sar -B 里的 pgscand 不为 0 的时刻相比较后发现，二者在很多时候都是吻合的。于是，我推断业务抖动跟 Page Cache 回收存在一些关系，然后我让业务方调 vm.min_free_kbytes 来验证效果，业务方将该值从初始值 90112 调整为 4G 后效果立竿见影，就几乎没有抖动了。</p>
+<p>如果你的 sysstat 版本较新并且内核版本较高，那你也可以观察 PSI 记录的日志信息是否跟业务抖动相吻合。根据 sar 的这些信息我们可以推断出故障是否跟 Page Cache 相关。</p>
 <h2 id="二、内存泄漏问题"><a href="#二、内存泄漏问题" class="headerlink" title="二、内存泄漏问题"></a>二、内存泄漏问题</h2><h2 id="三、TCP重传问题"><a href="#三、TCP重传问题" class="headerlink" title="三、TCP重传问题"></a>三、TCP重传问题</h2><h2 id="四、内核态CPU利用率飙高问题"><a href="#四、内核态CPU利用率飙高问题" class="headerlink" title="四、内核态CPU利用率飙高问题"></a>四、内核态CPU利用率飙高问题</h2>
                 
             </div>
@@ -1114,7 +1267,7 @@ node   <span class="token number">0</span>   <span class="token number">1</span>
             <br>
             
             &nbsp;<i class="fas fa-chart-area"></i>&nbsp;站点总字数:&nbsp;<span
-                class="white-color">630.3k</span>&nbsp;字
+                class="white-color">634.4k</span>&nbsp;字
             
             
             
