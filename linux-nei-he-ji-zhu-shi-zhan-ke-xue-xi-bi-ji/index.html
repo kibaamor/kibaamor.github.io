@@ -438,14 +438,14 @@
                 
                 <div class="info-break-policy">
                     <i class="far fa-file-word fa-fw"></i>文章字数:&nbsp;&nbsp;
-                    10k
+                    19.7k
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-clock fa-fw"></i>阅读时长:&nbsp;&nbsp;
-                    38 分
+                    77 分
                 </div>
                 
 
@@ -729,10 +729,10 @@ node   <span class="token number">0</span>   <span class="token number">1</span>
 <h4 id="4-1-对-Page-Cache-操作不当产生的业务性能下降"><a href="#4-1-对-Page-Cache-操作不当产生的业务性能下降" class="headerlink" title="4.1 对 Page Cache 操作不当产生的业务性能下降"></a>4.1 对 Page Cache 操作不当产生的业务性能下降</h4><p>我们先从一个相对简单的案例说起，一起分析下误操作导致 Page Cache 被回收掉的情况，它具体是怎样发生的。</p>
 <p>我们知道，对于 Page Cache 而言，是可以通过 drop_cache 来清掉的，很多人在看到系统中存在非常多的 Page Cache 时会习惯使用 drop_cache 来清理它们，但是这样做是会有一些负面影响的，比如说这些 Page Cache 被清理掉后可能会引起系统性能下降。为什么？</p>
 <p>其实这和 inode 有关，那 inode 是什么意思呢？inode 是内存中对磁盘文件的索引，进程在查找或者读取文件时就是通过 inode 来进行操作的，我们用下面这张图来表示一下这种关系：</p>
-<p><img src="/images/《Linux内核技术实战课》学习笔记/inode在进程操作文件时的作用.jpg" alt="inode在进程操作文件时的作用.jpg"></p>
+<p><img src="/images/《Linux内核技术实战课》学习笔记/inode在进程操作文件时的作用.jpg" alt="inode在进程操作文件时的作用"></p>
 <p>如上图所示，进程会通过 inode 来找到文件的地址空间（address_space），然后结合文件偏移（会转换成 page index）来找具体的 Page。如果该 Page 存在，那就说明文件内容已经被读取到了内存；如果该 Page 不存在那就说明不在内存中，需要到磁盘中去读取。你可以理解为 inode 是 Pagecache Page（页缓存的页）的宿主（host），如果 inode 不存在了，那么 PageCache Page 也就不存在了。</p>
 <p>如果你使用过 drop_cache 来释放 inode 的话，应该会清楚它有几个控制选项，我们可以通过写入不同的数值来释放不同类型的 cache（用户数据 Page Cache，内核数据 Slab，或者二者都释放），这些选项你可以去看 <a target="_blank" rel="noopener" href="https://www.kernel.org/doc/Documentation/sysctl/vm.txt">Kernel Documentation</a> 中 drop_caches 这一节 的描述。</p>
-<p><img src="/images/《Linux内核技术实战课》学习笔记/drop_caches选项说明.jpg" alt="drop_caches选项说明.jpg"></p>
+<p><img src="/images/《Linux内核技术实战课》学习笔记/drop_caches选项说明.jpg" alt="drop_caches选项说明"></p>
 <p>于是这样就引入了一个容易被我们忽略的问题：<strong>当我们执行 echo 2 来 drop slab 的时候，它也会把 Page Cache 给 drop 掉</strong>，很多运维人员都会忽视掉这一点。</p>
 <p>由于 drop_caches 是一种内存事件，内核会在 /proc/vmstat 中来记录这一事件，所以我们可以通过 /proc/vmstat 来判断是否有执行过 drop_caches。</p>
 <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ <span class="token function">grep</span> drop /proc/vmstat
@@ -740,7 +740,7 @@ drop_pagecache <span class="token number">3</span>
 drop_slab <span class="token number">2</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span></span></code></pre>
 <p>如上所示，它们分别意味着 pagecache 被 drop 了 3 次（通过 echo 1 或者 echo 3），slab 被 drop 了 2 次（通过 echo 2 或者 echo 3）。如果这两个值在问题发生前后没有变化，那就可以排除是有人执行了 drop_caches；否则可以认为是因为 drop_caches 引起的 Page Cache 被回收。</p>
 <h4 id="4-2-内核机制引起-Page-Cache-被回收而产生的业务性能下降"><a href="#4-2-内核机制引起-Page-Cache-被回收而产生的业务性能下降" class="headerlink" title="4.2 内核机制引起 Page Cache 被回收而产生的业务性能下降"></a>4.2 内核机制引起 Page Cache 被回收而产生的业务性能下降</h4><p>我们在前面已经提到过，在内存紧张的时候会触发内存回收，内存回收会尝试去回收 reclaimable（可以被回收的）内存，这部分内存既包含 Page Cache 又包含 reclaimable kernel memory(比如 slab)。我们可以用下图来简单描述这个过程：</p>
-<p><img src="/images/《Linux内核技术实战课》学习笔记/内存紧张的时候会触发内存回收.jpg" alt="内存紧张的时候会触发内存回收.jpg"></p>
+<p><img src="/images/《Linux内核技术实战课》学习笔记/内存紧张的时候会触发内存回收.jpg" alt="内存紧张的时候会触发内存回收"></p>
 <p>我简单来解释一下这个图。Reclaimer 是指回收者，它可以是内核线程（包括 kswapd）也可以是用户线程。回收的时候，它会依次来扫描 pagecache page 和 slab page 中有哪些可以被回收的，如果有的话就会尝试去回收，如果没有的话就跳过。在扫描可回收 page 的过程中回收者一开始扫描的较少，然后逐渐增加扫描比例直至全部都被扫描完。这就是内存回收的大致过程。</p>
 <p>接下来我所要讲述的案例就发生在“relcaim slab”中，我们从前一个案例已然知道，如果 inode 被回收的话，那么它对应的 Page Cache 也都会被回收掉，所以如果业务进程读取的文件对应的 inode 被回收了，那么该文件所有的 Page Cache 都会被释放掉，这也是容易引起性能问题的地方。</p>
 <p>可以通过 /proc/vmstat 来观察：</p>
@@ -812,7 +812,7 @@ Unevictable:     <span class="token number">1000000</span> kB
 Mlocked:         <span class="token number">1000000</span> kB<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span></span></code></pre>
 <p>然后你可以发现，drop_caches 或者内存回收是回收不了这些内容的，我们的目的也就达到了。</p>
 <p>在有些情况下，对应用程序而言，修改源码是件比较麻烦的事，如果可以不修改源码来达到目的那就最好不过了。Linux 内核同样实现了这种不改应用程序的源码而从系统层面调整来保护重要数据的机制，这个机制就是 memory cgroup protection。<br>它大致的思路是，将需要保护的应用程序使用 memory cgroup 来保护起来，这样该应用程序读写文件过程中所产生的 Page Cache 就会被保护起来不被回收或者最后被回收。memory cgroup protection 大致的原理如下图所示：</p>
-<p><img src="/images/《Linux内核技术实战课》学习笔记/memory_cgroup_protection大致原理.jpg" alt="memory_cgroup_protection大致原理.jpg"></p>
+<p><img src="/images/《Linux内核技术实战课》学习笔记/memory_cgroup_protection大致原理.jpg" alt="memory_cgroup_protection大致原理"></p>
 <p>如上图所示，memory cgroup 提供了几个内存水位控制线 memory.{min, low, high, max} 。</p>
 <ul>
 <li><p><strong>memory.max</strong></p>
@@ -830,11 +830,11 @@ Mlocked:         <span class="token number">1000000</span> kB<span aria-hidden="
 </ul>
 <p><strong>如果你想要保护你的 Page Cache 不被回收，你就可以考虑将你的业务进程放在一个 memory cgroup 中，然后设置 memory.{min,low} 来进行保护；与之相反，如果你想要尽快释放你的 Page Cache，那你可以考虑设置 memory.high 来及时的释放掉不活跃的 Page Cache。</strong></p>
 <h3 id="05-分析篇-如何判断问题是否由Page-Cache产生的？"><a href="#05-分析篇-如何判断问题是否由Page-Cache产生的？" class="headerlink" title="05 分析篇 | 如何判断问题是否由Page Cache产生的？"></a>05 分析篇 | 如何判断问题是否由Page Cache产生的？</h3><h4 id="5-1-Linux-问题的典型分析手段"><a href="#5-1-Linux-问题的典型分析手段" class="headerlink" title="5.1 Linux 问题的典型分析手段"></a>5.1 Linux 问题的典型分析手段</h4><p>简单地归纳为下图：</p>
-<p><img src="/images/《Linux内核技术实战课》学习笔记/Linux的典型分析手段.jpg" alt="Linux的典型分析手段.jpg"></p>
+<p><img src="/images/《Linux内核技术实战课》学习笔记/Linux的典型分析手段.jpg" alt="Linux的典型分析手段"></p>
 <p>Linux 内核主要是通过 /proc 和 /sys 把系统信息导出给用户，当你不清楚问题发生的原因时，你就可以试着去这几个目录下读取一下系统信息，看看哪些指标异常。比如当你不清楚问题是否由 Page Cache 引起时，你可以试着去把 /proc/vmstat 里面的信息给读取出来，看看哪些指标单位时间内变化较大。如果 pgscan 相关指标变化较大，那就可能是 Page Cache 引起的，因为 pgscan 代表了 Page Cache 的内存回收行为，它变化较大往往意味着系统内存压力很紧张。</p>
 <p>/proc 和 /sys 里面的信息可以给我们指出一个问题分析的大致方向，我们可以判断出问题是不是由 Page Cache 引起的，但是如果想要深入地分析问题，知道 Page Cache 是如何引起问题的，我们还需要掌握更加专业的分析手段，专业的分析工具有 ftrace，ebpf，perf 等。</p>
 <p>为了让你在遇到问题时更加方便地找到合适的分析工具，我借用 <a target="_blank" rel="noopener" href="https://www.brendangregg.com/linuxperf.html">Bredan Gregg</a> 的一张图，并根据自己的经验，把这张图略作了一些改进，帮助你学习该如何使用这些分析工具：</p>
-<p><img src="/images/《Linux内核技术实战课》学习笔记/Linux分析工具速查.jpg" alt="Linux分析工具速查.jpg"></p>
+<p><img src="/images/《Linux内核技术实战课》学习笔记/Linux分析工具速查.jpg" alt="Linux分析工具速查"></p>
 <p>在这张图里，整体上追踪方式分为了静态追踪（预置了追踪点）和动态追踪（需要借助 probe）：</p>
 <ul>
 <li>如果你想要追踪的东西已经有了预置的追踪点，那你直接使用这些预置追踪点就可以了；</li>
@@ -850,10 +850,10 @@ some <span class="token assign-left variable">avg10</span><span class="token ope
 full <span class="token assign-left variable">avg10</span><span class="token operator">=</span><span class="token number">40.87</span> <span class="token assign-left variable">avg60</span><span class="token operator">=</span><span class="token number">9.05</span> <span class="token assign-left variable">avg300</span><span class="token operator">=</span><span class="token number">4.29</span> <span class="token assign-left variable">total</span><span class="token operator">=</span><span class="token number">58141082</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span></span></code></pre>
 <p>你需要重点关注 avg10 这一列，它表示最近 10s 内存的平均压力情况，如果它很大（比如大于 40）那 load 飙高大概率是由于内存压力，尤其是 Page Cache 的压力引起的。</p>
 <p>明白了概况之后，我们还需要进一步查看究竟是 Page Cache 的什么行为引起的系统压力。<br>因为 sar 采集的只是一些常用的指标，它并没有覆盖 Page Cache 的所有行为，比如说内存规整（memory compaction）、业务 workingset 等这些容易引起 load 飙高的问题点。在我们想要分析更加具体的原因时，就需要去采集这些指标了。通常在 Page Cache 出问题时，这些指标中的一个或多个都会有异常，这里我给你列出一些常见指标：</p>
-<p><img src="/images/《Linux内核技术实战课》学习笔记/与PageCache问题相关的常见指标.jpg" alt="与PageCache问题相关的常见指标.jpg"></p>
+<p><img src="/images/《Linux内核技术实战课》学习笔记/与PageCache问题相关的常见指标.jpg" alt="与PageCache问题相关的常见指标"></p>
 <p>采集完这些指标后，我们就可以分析 Page Cache 异常是由什么引起的了。比如说，当我们发现，单位时间内 compact_fail 变化很大时，那往往意味着系统内存碎片很严重，已经很难申请到连续物理内存了，这时你就需要去调整碎片指数或者手动触发内存规整，来减缓因为内存碎片引起的压力了。</p>
 <p>我们在前面的步骤中采集的数据指标，可以帮助我们来定位到问题点究竟是什么，比如下面这些问题点。但是有的时候，我们还需要知道是什么东西在进行连续内存的申请，从而来做更加有针对性的调整，这就需要进行进一步的观察了。我们可以利用内核预置的相关 tracepoint 来做更加细致的分析。</p>
-<p><img src="/images/《Linux内核技术实战课》学习笔记/利用内核预置的相关tracepoint分析PageCache问题.jpg" alt="利用内核预置的相关tracepoint分析PageCache问题.jpg"></p>
+<p><img src="/images/《Linux内核技术实战课》学习笔记/利用内核预置的相关tracepoint分析PageCache问题.jpg" alt="利用内核预置的相关tracepoint分析PageCache问题"></p>
 <p>我们继续以内存规整 (memory compaction) 为例，来看下如何利用 tracepoint 来对它进行观察：</p>
 <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token comment">#首先来使能compcation相关的一些tracepoing</span>
 $ <span class="token builtin class-name">echo</span> <span class="token number">1</span> <span class="token operator">&gt;</span>
@@ -874,7 +874,467 @@ $ <span class="token function">cat</span> /sys/kernel/debug/tracing/trace_pipe
 <h4 id="5-3-系统-load-值在昨天飙得很高，是由-Page-Cache-引起的吗？"><a href="#5-3-系统-load-值在昨天飙得很高，是由-Page-Cache-引起的吗？" class="headerlink" title="5.3 系统 load 值在昨天飙得很高，是由 Page Cache 引起的吗？"></a>5.3 系统 load 值在昨天飙得很高，是由 Page Cache 引起的吗？</h4><p>有时候，我们没有办法及时地去搜集现场信息，比如问题发生在深夜时，我们没有来得及去采集现场信息，这个时候就只能查看历史记录了。</p>
 <p>曾经有一个业务反馈说 RT 抖动得比较明显，让我帮他们分析一下抖动的原因，我把业务 RT 抖动的时间和 sar -B 里的 pgscand 不为 0 的时刻相比较后发现，二者在很多时候都是吻合的。于是，我推断业务抖动跟 Page Cache 回收存在一些关系，然后我让业务方调 vm.min_free_kbytes 来验证效果，业务方将该值从初始值 90112 调整为 4G 后效果立竿见影，就几乎没有抖动了。</p>
 <p>如果你的 sysstat 版本较新并且内核版本较高，那你也可以观察 PSI 记录的日志信息是否跟业务抖动相吻合。根据 sar 的这些信息我们可以推断出故障是否跟 Page Cache 相关。</p>
-<h2 id="二、内存泄漏问题"><a href="#二、内存泄漏问题" class="headerlink" title="二、内存泄漏问题"></a>二、内存泄漏问题</h2><h2 id="三、TCP重传问题"><a href="#三、TCP重传问题" class="headerlink" title="三、TCP重传问题"></a>三、TCP重传问题</h2><h2 id="四、内核态CPU利用率飙高问题"><a href="#四、内核态CPU利用率飙高问题" class="headerlink" title="四、内核态CPU利用率飙高问题"></a>四、内核态CPU利用率飙高问题</h2>
+<h2 id="二、内存泄漏问题"><a href="#二、内存泄漏问题" class="headerlink" title="二、内存泄漏问题"></a>二、内存泄漏问题</h2><h3 id="06-基础篇-进程的哪些内存类型容易引起内存泄漏？"><a href="#06-基础篇-进程的哪些内存类型容易引起内存泄漏？" class="headerlink" title="06 基础篇 | 进程的哪些内存类型容易引起内存泄漏？"></a>06 基础篇 | 进程的哪些内存类型容易引起内存泄漏？</h3><h4 id="6-1-进程的地址空间"><a href="#6-1-进程的地址空间" class="headerlink" title="6.1 进程的地址空间"></a>6.1 进程的地址空间</h4><p>我们用一张图，来表示进程的地址空间。图的左侧是说进程可以通过什么方式来更改进程虚拟地址空间，而中间就是进程虚拟地址空间是如何划分的，右侧则是进程的虚拟地址空间所对应的物理内存或者说物理地址空间。</p>
+<p><img src="/images/《Linux内核技术实战课》学习笔记/进程修改进程虚拟地址空间的各种方式.jpg" alt="进程修改进程虚拟地址空间的各种方式"></p>
+<p>应用程序首先会调用内存申请释放相关的函数，比如 glibc 提供的 malloc(3)、 free(3)、calloc(3) 等；或者是直接使用系统调用 mmap(2)、munmap(2)、 brk(2)、sbrk(2) 等。</p>
+<p>如果使用的是库函数，这些库函数其实最终也是对系统调用的封装，所以可以理解为是应用程序动态申请释放内存，最终是要经过 mmap(2)、munmap(2)、brk(2)、sbrk(2) 等这些系统调用。当然从库函数到系统调用，这其中还涉及到这些库本身进行的一些内存层面的优化，比如说，malloc(3) 既可能调用 mmap(2)，又可能会调用 brk(2)。</p>
+<p>然后这些内存申请和释放相关的系统调用会修改进程的地址空间 (address space)，其中 brk(2) 和 sbrk(2) 修改的是 heap(堆)，而 mmap(2) 和 munmap(2) 修改的是 Memory Mapping Region（内存映射区）。</p>
+<p>请注意这些针对的都是虚拟地址，应用程序都是跟虚拟地址打交道，不会直接跟物理地址打交道。而虚拟地址最终都要转换为物理地址，由于 Linux 都是使用 Page（页）来进行管理的，所以这个过程叫 Paging（分页）。</p>
+<p>我们用一张表格来简单汇总下这些不同的申请方式所对应的不同内存类型，这张表格也包含了我们在课程上一个模块讲的 Page Cache，所以你可以把它理解为是进程申请内存的类型大汇总：</p>
+<p><img src="/images/《Linux内核技术实战课》学习笔记/进程申请内存的类型大汇总.jpg" alt="进程申请内存的类型大汇总"></p>
+<p>进程运行所需要的内存类型有很多种，总的来说，这些内存类型可以从是不是文件映射，以及是不是私有内存这两个不同的维度来做区分，也就是可以划分为上面所列的四类内存。</p>
+<ul>
+<li><p>私有匿名内存。</p>
+<p>进程的堆、栈，以及 mmap(MAP_ANON | MAP_PRIVATE) 这种方式申请的内存都属于这种类型的内存。其中栈是由操作系统来进行管理的，应用程序无需关注它的申请和释放；堆和私有匿名映射则是由应用程序（程序员）来进行管理的，它们的申请和释放都是由应用程序来负责的，所以它们是容易产生内存泄漏的地方。</p>
+</li>
+<li><p>共享匿名内存。</p>
+<p>进程通过 mmap(MAP_ANON | MAP_SHARED) 这种方式来申请的内存，比如说 tmpfs 和 shm。这个类型的内存也是由应用程序来进行管理的，所以也可能会发生内存泄漏。</p>
+</li>
+<li><p>私有文件映射。</p>
+<p>进程通过 mmap(MAP_FILE | MAP_PRIVATE) 这种方式来申请的内存，比如进程将共享库（Shared libraries）和可执行文件的代码段（Text Segment）映射到自己的地址空间就是通过这种方式。对于共享库和可执行文件的代码段的映射，这是通过操作系统来进行管理的，应用程序无需关注它们的申请和释放。而应用程序直接通过 mmap(MAP_FILE | MAP_PRIVATE) 来申请的内存则是需要应用程序自己来进行管理，这也是可能会发生内存泄漏的地方。</p>
+</li>
+<li><p>共享文件映射。</p>
+<p>进程通过 mmap(MAP_FILE | MAP_SHARED) 这种方式来申请的内存，我们在上一个模块课程中讲到的 File Page Cache 就属于这类内存。这部分内存也需要应用程序来申请和释放，所以也存在内存泄漏的可能性。</p>
+</li>
+</ul>
+<p>进程虚拟地址空间是通过 Paging（分页）这种方式来映射为物理内存的，进程调用 malloc() 或者 mmap() 来申请的内存都是虚拟内存，只有往这些内存中写入数据后（比如通过 memset），才会真正地分配物理内存 。</p>
+<p>如果进程只是调用 malloc() 或者 mmap() 而不去写这些地址，即不去给它分配物理内存，是不是就不用担心内存泄漏了？</p>
+<p>答案是这依然需要关注内存泄露，因为这可能导致进程虚拟地址空间耗尽，即虚拟地址空间同样存在内存泄露的问题。</p>
+<p>接下来，我们继续用一张图片来细化一下分页的过程。</p>
+<p><img src="/images/《Linux内核技术实战课》学习笔记/分页的过程.jpg" alt="分页的过程"></p>
+<p>Paging 的大致过程是，CPU 将要请求的虚拟地址传给 MMU（Memory Management Unit，内存管理单元），然后 MMU 先在高速缓存 TLB（Translation Lookaside Buffer，页表缓存）中查找转换关系，如果找到了相应的物理地址则直接访问；如果找不到则在地址转换表（Page Table）里查找计算。最终进程访问的虚拟地址就对应到了实际的物理地址。</p>
+<p>Linux 上最典型的规划进程地址空间的方式就是通过 ulimit，你可以通过调配它，来规划进程最大的虚拟地址空间、物理地址空间、栈空间是多少，等等。</p>
+<h4 id="6-2-用数据观察进程的内存"><a href="#6-2-用数据观察进程的内存" class="headerlink" title="6.2 用数据观察进程的内存"></a>6.2 用数据观察进程的内存</h4><p>学会观察进程地址空间是分析内存泄漏问题的前提，当你怀疑内存有泄漏时，首先需要去观察哪些内存在持续增长，哪些内存特别大，这样才能够判断出内存泄漏大致是出在哪里，然后针对性地去做分析。</p>
+<p>比如说 pmap、ps、top 等，都可以很好地来观察进程的内存。</p>
+<p>首先我们可以使用 top 来观察系统所有进程的内存使用概况，打开 top 后，然后按 g 再输入 3，从而进入内存模式就可以了。在内存模式中，我们可以看到各个进程内存的 %MEM、VIRT、RES、CODE、DATA、SHR、nMaj、nDRT，这些信息通过 strace 来跟踪 top 进程，你会发现这些信息都是从 /proc/[pid]/statm 和 /proc/[pid]/stat 这个文件里面读取的：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ <span class="token function">strace</span> -p <span class="token variable"><span class="token variable">`</span>pidof <span class="token function">top</span><span class="token variable">`</span></span>
+open<span class="token punctuation">(</span><span class="token string">"/proc/16348/statm"</span>, O_RDONLY<span class="token punctuation">)</span>     <span class="token operator">=</span> <span class="token number">9</span>
+read<span class="token punctuation">(</span><span class="token number">9</span>, <span class="token string">"40509 1143 956 24 0 324 0<span class="token entity" title="\n">\n</span>"</span>, <span class="token number">1024</span><span class="token punctuation">)</span> <span class="token operator">=</span> <span class="token number">26</span>
+close<span class="token punctuation">(</span><span class="token number">9</span><span class="token punctuation">)</span>                                <span class="token operator">=</span> <span class="token number">0</span>
+<span class="token punctuation">..</span>.
+open<span class="token punctuation">(</span><span class="token string">"/proc/16366/stat"</span>, O_RDONLY<span class="token punctuation">)</span>      <span class="token operator">=</span> <span class="token number">9</span>
+read<span class="token punctuation">(</span><span class="token number">9</span>, <span class="token string">"16366 (kworker/u16:1-events_unbo"</span><span class="token punctuation">..</span>., <span class="token number">1024</span><span class="token punctuation">)</span> <span class="token operator">=</span> <span class="token number">182</span>
+close<span class="token punctuation">(</span><span class="token number">9</span><span class="token punctuation">)</span>
+<span class="token punctuation">..</span>.<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>除了 nMaj（Major Page Fault， 主缺页中断，指内容不在内存中然后从磁盘中来读取的页数）外，%MEM 则是从 RES 计算而来的，其余的内存信息都是从 statm 文件里面读取的，如下是 top 命令中的字段和 statm 中字段的对应关系：</p>
+<p><img src="/images/《Linux内核技术实战课》学习笔记/top命令中的字段和statm中字段的对应关系.jpg" alt="top命令中的字段和statm中字段的对应关系"></p>
+<blockquote>
+<p>有些时候所有进程的 RES 相加起来要比系统总的物理内存大，这是因为 RES 中有一些内存是被一些进程给共享的。</p>
+</blockquote>
+<p>在明白了系统中各个进程的内存使用概况后，如果想要继续看某个进程的内存使用细节，你可以使用 pmap。如下是 pmap 来展示 sshd 进程地址空间里的部分内容：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$  pmap -x <span class="token variable"><span class="token variable">`</span>pidof sshd<span class="token variable">`</span></span>
+Address           Kbytes     RSS   Dirty Mode  Mapping
+000055e798e1d000     <span class="token number">768</span>     <span class="token number">652</span>       <span class="token number">0</span> r-x-- sshd
+000055e7990dc000      <span class="token number">16</span>      <span class="token number">16</span>      <span class="token number">16</span> r---- sshd
+000055e7990e0000       <span class="token number">4</span>       <span class="token number">4</span>       <span class="token number">4</span> rw--- sshd
+000055e7990e1000      <span class="token number">40</span>      <span class="token number">40</span>      <span class="token number">40</span> rw---   <span class="token punctuation">[</span> anon <span class="token punctuation">]</span>
+<span class="token punctuation">..</span>.
+00007f189613a000    <span class="token number">1800</span>    <span class="token number">1624</span>       <span class="token number">0</span> r-x-- libc-2.17.so
+00007f18962fc000    <span class="token number">2048</span>       <span class="token number">0</span>       <span class="token number">0</span> ----- libc-2.17.so
+00007f18964fc000      <span class="token number">16</span>      <span class="token number">16</span>      <span class="token number">16</span> r---- libc-2.17.so
+00007f1896500000       <span class="token number">8</span>       <span class="token number">8</span>       <span class="token number">8</span> rw--- libc-2.17.so
+<span class="token punctuation">..</span>.
+00007ffd9d30f000     <span class="token number">132</span>      <span class="token number">40</span>      <span class="token number">40</span> rw---   <span class="token punctuation">[</span> stack <span class="token punctuation">]</span>
+<span class="token punctuation">..</span>.<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>每一行表示一种类型的内存（Virtual Memory Area），每一列的含义如下。</p>
+<ul>
+<li><p><strong>Mapping</strong>，用来表示文件映射中占用内存的文件，比如 sshd 这个可执行文件，或者堆[heap]，或者栈[stack]，或者其他，等等。</p>
+</li>
+<li><p><strong>Mode</strong>，它是该内存的权限，比如，“r-x”是可读可执行，它往往是代码段 (Text Segment)；“rw-”是可读可写，这部分往往是数据段 (Data Segment)；“r–”是只读，这往往是数据段中的只读部分。</p>
+</li>
+<li><p><strong>Address、Kbytes、RSS、Dirty</strong>，Address 和 Kbytes 分别表示起始地址和虚拟内存的大小，RSS（Resident Set Size）则表示虚拟内存中已经分配的物理内存的大小，Dirty 则表示内存中数据未同步到磁盘的字节数。</p>
+</li>
+</ul>
+<p>可以看到，通过 pmap 我们能够清楚地观察一个进程的整个的地址空间，包括它们分配的物理内存大小，这非常有助于我们对进程的内存使用概况做一个大致的判断。比如说，如果地址空间中[heap]太大，那有可能是堆内存产生了泄漏；再比如说，如果进程地址空间包含太多的 vma（可以把 maps 中的每一行理解为一个 vma），那很可能是应用程序调用了很多 mmap 而没有 munmap；再比如持续观察地址空间的变化，如果发现某些项在持续增长，那很可能是那里存在问题。</p>
+<p>pmap 同样也是解析的 /proc 里的文件，具体文件是 /proc/[pid]/maps 和 /proc/[pid]/smaps，其中 smaps 文件相比 maps 的内容更详细，可以理解为是对 maps 的一个扩展。你可以对比 /proc/[pid]/maps 和 pmaps 的输出，你会发现二者的内容是一致的。</p>
+<p>除了观察进程自身的内存外，我们还可以观察进程分配的内存和系统指标的关联，我们就以常用的 /proc/meminfo 为例，来说明我们上面提到的四种内存类型（私有匿名，私有文件，共享匿名，共享文件）是如何体现在系统指标中的。</p>
+<p><img src="/images/《Linux内核技术实战课》学习笔记/proc_meminfo与内存类型的对应关系.jpg" alt="proc_meminfo与内存类型的对应关系"></p>
+<p>如上图所示，凡是私有的内存都会体现在 /proc/meminfo 中的 AnonPages 这一项，凡是共享的内存都会体现在 Cached 这一项，匿名共享的则还会体现在 Shmem 这一项。</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ <span class="token function">cat</span> /proc/meminfo
+<span class="token punctuation">..</span>.
+Cached:          <span class="token number">3799380</span> kB
+<span class="token punctuation">..</span>.
+AnonPages:       <span class="token number">1060684</span> kB
+<span class="token punctuation">..</span>.
+Shmem:              <span class="token number">8724</span> kB
+<span class="token punctuation">..</span>.<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<h3 id="07-案例篇-如何预防内存泄漏导致的系统假死？"><a href="#07-案例篇-如何预防内存泄漏导致的系统假死？" class="headerlink" title="07 案例篇 | 如何预防内存泄漏导致的系统假死？"></a>07 案例篇 | 如何预防内存泄漏导致的系统假死？</h3><h4 id="7-1-什么样的内存泄漏是有危害的？"><a href="#7-1-什么样的内存泄漏是有危害的？" class="headerlink" title="7.1 什么样的内存泄漏是有危害的？"></a>7.1 什么样的内存泄漏是有危害的？</h4><p>下面是一个内存泄漏的简单示例程序。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c">
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;stdlib.h&gt;</span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;string.h&gt;</span></span>
+
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">define</span> <span class="token expression"><span class="token function">SIZE</span> <span class="token punctuation">(</span><span class="token number">1024</span> <span class="token operator">*</span> <span class="token number">1024</span> <span class="token operator">*</span> <span class="token number">1024</span><span class="token punctuation">)</span> </span><span class="token comment">/* 1G */</span></span>
+
+<span class="token keyword">int</span> <span class="token function">main</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword">char</span> <span class="token operator">*</span>p <span class="token operator">=</span> <span class="token function">malloc</span><span class="token punctuation">(</span>SIZE<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token operator">!</span>p<span class="token punctuation">)</span>
+      <span class="token keyword">return</span> <span class="token operator">-</span><span class="token number">1</span><span class="token punctuation">;</span>
+
+    <span class="token function">memset</span><span class="token punctuation">(</span>p<span class="token punctuation">,</span> <span class="token number">1</span><span class="token punctuation">,</span> SIZE<span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+    <span class="token comment">/* 然后就再也不使用这块内存空间 */</span>
+    <span class="token comment">/* 没有释放p所指向的内存进程就退出了 */</span>
+    <span class="token comment">/* free(p); */</span>
+    <span class="token keyword">return</span> <span class="token number">0</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>我们可以看到，这个程序里面申请了 1G 的内存后，没有进行释放就退出了，那这 1G 的内存空间是泄漏了吗？<br>我们可以使用一个简单的内存泄漏检查工具 (valgrind) 来看看。</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ valgrind --leak-check<span class="token operator">=</span>full  ./a.out
+<span class="token operator">==</span><span class="token number">20146</span><span class="token operator">==</span> HEAP SUMMARY:
+<span class="token operator">==</span><span class="token number">20146</span><span class="token operator">==</span>     <span class="token keyword">in</span> use at exit: <span class="token number">1,073</span>,741,824 bytes <span class="token keyword">in</span> <span class="token number">1</span> blocks
+<span class="token operator">==</span><span class="token number">20146</span><span class="token operator">==</span>   total heap usage: <span class="token number">1</span> allocs, <span class="token number">0</span> frees, <span class="token number">1,073</span>,741,824 bytes allocated
+<span class="token operator">==</span><span class="token number">20146</span><span class="token operator">==</span>
+<span class="token operator">==</span><span class="token number">20146</span><span class="token operator">==</span> <span class="token number">1,073</span>,741,824 bytes <span class="token keyword">in</span> <span class="token number">1</span> blocks are possibly lost <span class="token keyword">in</span> loss record <span class="token number">1</span> of <span class="token number">1</span>
+<span class="token operator">==</span><span class="token number">20146</span><span class="token operator">==</span>    at 0x4C29F73: malloc <span class="token punctuation">(</span>vg_replace_malloc.c:309<span class="token punctuation">)</span>
+<span class="token operator">==</span><span class="token number">20146</span><span class="token operator">==</span>    by 0x400543: main <span class="token punctuation">(</span>in /home/yafang/test/mmleak/a.out<span class="token punctuation">)</span>
+<span class="token operator">==</span><span class="token number">20146</span><span class="token operator">==</span>
+<span class="token operator">==</span><span class="token number">20146</span><span class="token operator">==</span> LEAK SUMMARY:
+<span class="token operator">==</span><span class="token number">20146</span><span class="token operator">==</span>    definitely lost: <span class="token number">0</span> bytes <span class="token keyword">in</span> <span class="token number">0</span> blocks
+<span class="token operator">==</span><span class="token number">20146</span><span class="token operator">==</span>    indirectly lost: <span class="token number">0</span> bytes <span class="token keyword">in</span> <span class="token number">0</span> blocks
+<span class="token operator">==</span><span class="token number">20146</span><span class="token operator">==</span>      possibly lost: <span class="token number">1,073</span>,741,824 bytes <span class="token keyword">in</span> <span class="token number">1</span> blocks
+<span class="token operator">==</span><span class="token number">20146</span><span class="token operator">==</span>    still reachable: <span class="token number">0</span> bytes <span class="token keyword">in</span> <span class="token number">0</span> blocks
+<span class="token operator">==</span><span class="token number">20146</span><span class="token operator">==</span>         suppressed: <span class="token number">0</span> bytes <span class="token keyword">in</span> <span class="token number">0</span> blocks<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>从 valgrind 的检查结果里我们可以清楚地看到，申请的内存只被使用了一次（memset）就再没被使用，但是在使用完后却没有把这段内存空间给释放掉，这就是典型的内存泄漏。那这个内存泄漏是有危害的吗？</p>
+<p>这就要从进程地址空间的分配和销毁来说起，下面是一个简单的示意图：</p>
+<p><img src="/images/《Linux内核技术实战课》学习笔记/进程地址空间的分配和销毁.jpg" alt="进程地址空间的分配和销毁"></p>
+<p>从上图可以看出，进程在退出的时候，会把它建立的映射都给解除掉。换句话说，进程退出时，会把它申请的内存都给释放掉，这个内存泄漏就是没危害的。</p>
+<p>但是，对于后台服务型的业务而言，基本上都是需要长时间运行的程序，所以后台服务的内存泄漏会给系统造成实际的危害。</p>
+<h4 id="7-2-如何预防内存泄漏导致的危害？"><a href="#7-2-如何预防内存泄漏导致的危害？" class="headerlink" title="7.2 如何预防内存泄漏导致的危害？"></a>7.2 如何预防内存泄漏导致的危害？</h4><p>我们还是以上面这个 malloc() 程序为例，在这个例子中，它只是申请了 1G 的内存，如果说持续不断地申请内存而不释放，你会发现，很快系统内存就会被耗尽，进而触发 OOM killer 去杀进程。这个信息可以通过 dmesg（该命令是用来查看内核日志的）这个命令来查看：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ <span class="token function">dmesg</span>
+<span class="token punctuation">[</span><span class="token number">944835.029319</span><span class="token punctuation">]</span> a.out invoked oom-killer: <span class="token assign-left variable">gfp_mask</span><span class="token operator">=</span>0x100dca<span class="token punctuation">(</span>GFP_HIGHUSER_MOVABLE<span class="token operator">|</span>__GFP_ZERO<span class="token punctuation">)</span>, <span class="token assign-left variable">order</span><span class="token operator">=</span><span class="token number">0</span>, <span class="token assign-left variable">oom_score_adj</span><span class="token operator">=</span><span class="token number">0</span>
+<span class="token punctuation">[</span><span class="token punctuation">..</span>.<span class="token punctuation">]</span>
+<span class="token punctuation">[</span><span class="token number">944835.052448</span><span class="token punctuation">]</span> Out of memory: Killed process <span class="token number">1426</span> <span class="token punctuation">(</span>a.out<span class="token punctuation">)</span> total-vm:8392864kB, anon-rss:7551936kB, file-rss:4kB, shmem-rss:0kB, <span class="token environment constant">UID</span>:0 pgtables:14832kB oom_score_adj:0<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span></span></code></pre>
+<p>系统内存不足时会唤醒 OOM killer 来选择一个进程给杀掉，在我们这个例子中它杀掉了这个正在内存泄漏的程序，该进程被杀掉后，整个系统也就变得安全了。但是你要注意，<strong>OOM killer 选择进程是有策略的，它未必一定会杀掉正在内存泄漏的进程，很有可能是一个无辜的进程被杀掉</strong>。而且，OOM 本身也会带来一些副作用。</p>
+<p>OOM 日志可以理解为是一个单生产者多消费者的模型，如下图所示：</p>
+<p><img src="/images/《Linux内核技术实战课》学习笔记/OOM_Info.jpg" alt="OOM_Info"></p>
+<p>这个单生产者多消费者模型，其实是由 OOM killer 打印日志（OOM info）时所使用的 printk（类似于 userspace 的 printf）机制来决定的。printk 会检查这些日志需要输出给哪些消费者，比如写入到内核缓冲区（kernel buffer），然后通过 dmesg 命令来查看；我们通常也都会配置 rsyslog，然后 rsyslogd 会将内核缓冲区的内容给转储到日志文件（/var/log/messages）中；服务器也可能会连着一些控制台（console ），比如串口，这些日志也会输出到这些 console。</p>
+<p>问题就出在 console 这里，如果 console 的速率很慢，输出太多日志会非常消耗时间，而当时我们配置了“console=ttyS1,19200”，即波特率为 19200 的串口，这是个很低速率的串口。一个完整的 OOM info 需要约 10s 才能打印完，这在系统内存紧张时就会成为一个瓶颈点，为什么会是瓶颈点呢？答案如下图所示：</p>
+<p><img src="/images/《Linux内核技术实战课》学习笔记/OOM为什么会成为瓶颈点.jpg" alt="OOM为什么会成为瓶颈点"></p>
+<p>进程 A 在申请内存失败后会触发 OOM，在发生 OOM 的时候会打印很多很多日志（这些日志是为了方便分析为什么 OOM 会发生），然后会选择一个合适的进程来杀掉，从而释放出来空闲的内存，这些空闲的内存就可以满足后续内存申请了。</p>
+<p>如果这个 OOM 的过程耗时很长（即打印到 slow console 所需的时间太长，如上图红色部分所示），其他进程（进程 B）也在此时申请内存，也会申请失败，于是进程 B 同样也会触发 OOM 来尝试释放内存，而 OOM 这里又有一个全局锁（oom_lock）来进行保护，进程 B 尝试获取（trylock）这个锁的时候会失败，就只能再次重试。</p>
+<p>如果此时系统中有很多进程都在申请内存，那么这些申请内存的进程都会被阻塞在这里，这就形成了一个恶性循环，甚至会引发系统长时间无响应（假死）。</p>
+<p>一些规避措施：</p>
+<ol>
+<li><p>在发生 OOM 时尽可能少地打印信息</p>
+<p> 通过将vm.oom_dump_tasks调整为 0，可以不去备份（dump）当前系统中所有可被 kill 的进程信息，如果系统中有很多进程，这些信息的打印可能会非常消耗时间。在我们这个案例里，这部分耗时约为 6s 多，占 OOM 整体耗时 10s 的一多半，所以减少这部分的打印能够缓解这个问题。</p>
+<p> 但是，<strong>这并不是一个完美的方案，只是一个规避措施。</strong>因为当我们把 vm.oom_dump_tasks 配置为 1 时，是可以通过这些打印的信息来检查 OOM killer 是否选择了合理的进程，以及系统中是否存在不合理的 OOM 配置策略的。如果我们将它配置为 0，就无法得到这些信息了，而且这些信息不仅不会打印到串口，也不会打印到内核缓冲区，导致无法被转储到不会产生问题的日志文件中。</p>
+</li>
+<li><p>调整串口打印级别，不将 OOM 信息打印到串口</p>
+<p> 过调整/proc/sys/kernel/printk可以做到避免将 OOM 信息输出到串口，我们通过设置 console_loglevel 来将它的级别设置的比 OOM 日志级别（为 4）小，就可以避免 OOM 的信息打印到 console，比如将它设置为 3:</p>
+ <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token comment"># 初始配置(为7)：所有信息都会输出到console</span>
+$ <span class="token function">cat</span> /proc/sys/kernel/printk
+<span class="token number">7</span>  <span class="token number">4</span>  <span class="token number">1</span>  <span class="token number">7</span>
+
+<span class="token comment"># 调整console_loglevel级别，不让OOM信息打印到console</span>
+$ <span class="token builtin class-name">echo</span> <span class="token string">"3 4 1 7"</span> <span class="token operator">&gt;</span> /proc/sys/kernel/printk
+
+<span class="token comment"># 查看调整后的配置</span>
+$ <span class="token function">cat</span> /proc/sys/kernel/printk
+<span class="token number">3</span>  <span class="token number">4</span>  <span class="token number">1</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p> 但是这样做会导致所有低于默认级别（为 4）的内核日志都无法输出到 console，在系统出现问题时，我们有时候（比如无法登录到服务器上面时）会需要查看 console 信息来判断问题是什么引起的，如果某些信息没有被打印到 console，可能会影响我们的分析。</p>
+</li>
+</ol>
+<h3 id="08-案例篇-Shmem：进程没有消耗内存，内存哪去了？"><a href="#08-案例篇-Shmem：进程没有消耗内存，内存哪去了？" class="headerlink" title="08 案例篇 | Shmem：进程没有消耗内存，内存哪去了？"></a>08 案例篇 | Shmem：进程没有消耗内存，内存哪去了？</h3><h4 id="8-1-进程没有消耗内存，内存哪去了？"><a href="#8-1-进程没有消耗内存，内存哪去了？" class="headerlink" title="8.1 进程没有消耗内存，内存哪去了？"></a>8.1 进程没有消耗内存，内存哪去了？</h4><p>我生产环境上就遇到过一个真实的案例。我们的运维人员发现某几台机器 used（已使用的）内存越来越多，但是通过 top 以及其他一些命令，却检查不出来到底是谁在占用内存。随着可用内存变得越来越少，业务进程也被 OOM killer 给杀掉，这给业务带来了比较严重的影响。于是他们向我寻求帮助，看看产生问题的原因是什么。</p>
+<p>通过查看这几台服务器的 /proc/meminfo，发现是 Shmem 的大小有些异常：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ <span class="token function">cat</span> /proc/meminfo
+<span class="token punctuation">..</span>.
+Shmem  <span class="token number">16777216</span> kB
+<span class="token punctuation">..</span>.<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span></span></code></pre>
+<p>我们在前面的基础篇里提到，Shmem 是指匿名共享内存，即进程以 mmap（MAP_ANON|MAP_SHARED）这种方式来申请的内存。你可能会有疑问，进程以这种方式来申请的内存不应该是属于进程的 RES（resident）吗？比如下面这个简单的示例：</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;sys/mman.h&gt;</span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;string.h&gt;</span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;unistd.h&gt;</span></span>
+
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">define</span> <span class="token expression"><span class="token function">SIZE</span> <span class="token punctuation">(</span><span class="token number">1024</span><span class="token operator">*</span><span class="token number">1024</span><span class="token operator">*</span><span class="token number">1024</span><span class="token punctuation">)</span></span></span>
+
+<span class="token keyword">int</span> <span class="token function">main</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword">char</span> <span class="token operator">*</span>p<span class="token punctuation">;</span>
+
+    p <span class="token operator">=</span> <span class="token function">mmap</span><span class="token punctuation">(</span><span class="token constant">NULL</span><span class="token punctuation">,</span> SIZE<span class="token punctuation">,</span> PROT_READ<span class="token operator">|</span>PROT_WRITE<span class="token punctuation">,</span> MAP_ANON<span class="token operator">|</span>MAP_SHARED<span class="token punctuation">,</span> <span class="token operator">-</span><span class="token number">1</span><span class="token punctuation">,</span> <span class="token number">0</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token operator">!</span>p<span class="token punctuation">)</span>
+        <span class="token keyword">return</span> <span class="token operator">-</span><span class="token number">1</span><span class="token punctuation">;</span>
+
+    <span class="token function">memset</span><span class="token punctuation">(</span>p<span class="token punctuation">,</span> <span class="token number">1</span><span class="token punctuation">,</span> SIZE<span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+    <span class="token keyword">while</span> <span class="token punctuation">(</span><span class="token number">1</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+        <span class="token function">sleep</span><span class="token punctuation">(</span><span class="token number">1</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+    <span class="token keyword">return</span> <span class="token number">0</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>运行该程序后，通过 top 可以看到确实会体现在进程的 RES 里面，而且还同时体现在了进程的 SHR 里面，也就是说，如果进程是以 mmap 这种方式来申请内存的话，我们是可以通过进程的内存消耗来观察到的。</p>
+<p>但是在我们生产环境上遇到的问题，各个进程的 RES 都不大，看起来和 /proc/meminfo 中的 Shmem 完全对应不起来，这又是为什么呢？</p>
+<p>先说答案：这跟一种特殊的 Shmem 有关。我们知道，磁盘的速度是远远低于内存的，有些应用程序为了提升性能，会避免将一些无需持续化存储的数据写入到磁盘，而是把这部分临时数据写入到内存中，然后定期或者在不需要这部分数据时，清理掉这部分内容来释放出内存。在这种需求下，就产生了一种特殊的 Shmem：tmpfs。tmpfs 如下图所示：</p>
+<p><img src="/images/《Linux内核技术实战课》学习笔记/tmpfs.jpg" alt="tmpfs"></p>
+<p>它是一种内存文件系统，只存在于内存中，它无需应用程序去申请和释放内存，而是操作系统自动来规划好一部分空间，应用程序只需要往这里面写入数据就可以了，这样会很方便。我们可以使用 moun 命令或者 df 命令来看系统中 tmpfs 的挂载点：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ <span class="token function">df</span> -h
+Filesystem      Size  Used Avail Use% Mounted on
+<span class="token punctuation">..</span>.
+tmpfs            16G  15G   1G   <span class="token number">94</span>% /run
+<span class="token punctuation">..</span>.<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>就像进程往磁盘写文件一样，进程写完文件之后就把文件给关闭掉了，这些文件和进程也就不再有关联，所以这些磁盘文件的大小不会体现在进程中。同样地，tmpfs 中的文件也一样，它也不会体现在进程的内存占用上。讲到这里，你大概已经猜到了，我们 Shmem 占用内存多，是不是因为 Shmem 中的 tmpfs 较大导致的呢？</p>
+<p>tmpfs 是属于文件系统的一种。对于文件系统，我们都可以通过 df 来查看它的使用情况。所以呢，我们也可以通过 df 来看是不是 tmpfs 占用的内存较多，结果发现确实是它消耗了很多内存。这个问题就变得很清晰了，我们只要去分析 tmpfs 中存储的是什么文件就可以了。</p>
+<p>我们在生产环境上还遇到过这样一个问题：systemd 不停地往 tmpfs 中写入日志但是没有去及时清理，而 tmpfs 配置的初始值又太大，这就导致 systemd 产生的日志量越来越多，最终可用内存越来越少。<br>针对这个问题，解决方案就是限制 systemd 所使用的 tmpfs 的大小，在日志量达到 tmpfs 大小限制时，自动地清理掉临时日志，或者定期清理掉这部分日志，这都可以通过 systemd 的配置文件来做到。tmpfs 的大小可以通过如下命令（比如调整为 2G）调整：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token function">mount</span> -o remount,size<span class="token operator">=</span>2G /run<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<h4 id="8-1-OOM-杀进程的危害"><a href="#8-1-OOM-杀进程的危害" class="headerlink" title="8.1 OOM 杀进程的危害"></a>8.1 OOM 杀进程的危害</h4><p>OOM 杀进程的逻辑大致如下图所示：</p>
+<p><img src="/images/《Linux内核技术实战课》学习笔记/OOM杀进程的逻辑.jpg" alt="OOM杀进程的逻辑"></p>
+<p>OOM killer 在杀进程的时候，会把系统中可以被杀掉的进程扫描一遍，根据进程占用的内存以及配置的 oom_score_adj 来计算出进程最终的得分，然后把得分（oom_score）最大的进程给杀掉，如果得分最大的进程有多个，那就把先扫描到的那个给杀掉。</p>
+<p>进程的 oom_score 可以通过 /proc/[pid]/oom_score 来查看，你可以扫描一下你系统中所有进程的 oom_score，其中分值最大的那个就是在发生 OOM 时最先被杀掉的进程。不过你需要注意，由于 oom_score 和进程的内存开销有关，而进程的内存开销又是会动态变化的，所以该值也会动态变化。</p>
+<p>如果你不想这个进程被首先杀掉，那你可以调整该进程的 oom_score_adj 改变这个 oom_score；如果你的进程无论如何都不能被杀掉，那你可以将 oom_score_adj 配置为 -1000。</p>
+<p>通常而言，我们都需要将一些很重要的系统服务的 oom_score_adj 配置为 -1000，比如 sshd，因为这些系统服务一旦被杀掉，我们就很难再登陆进系统了。</p>
+<h3 id="09-分析篇-如何对内核内存泄漏做些基础的分析？"><a href="#09-分析篇-如何对内核内存泄漏做些基础的分析？" class="headerlink" title="09 分析篇 | 如何对内核内存泄漏做些基础的分析？"></a>09 分析篇 | 如何对内核内存泄漏做些基础的分析？</h3><h4 id="9-1-内核内存泄漏是什么？"><a href="#9-1-内核内存泄漏是什么？" class="headerlink" title="9.1 内核内存泄漏是什么？"></a>9.1 内核内存泄漏是什么？</h4><p>在进行具体的分析之前，我们需要先对内核内存泄漏有个初步的概念，究竟内核内存泄漏是指什么呢？这得从内核空间内存分配的基本方法说起。</p>
+<p>进程的虚拟地址空间（address space）既包括用户地址空间，也包括内核地址空间。这可以简单地理解为，进程运行在用户态申请的内存，对应的是用户地址空间，进程运行在内核态申请的内存，对应的是内核地址空间，如下图所示：</p>
+<p><img src="/images/《Linux内核技术实战课》学习笔记/进程的虚拟地址空间.jpg" alt="进程的虚拟地址空间"></p>
+<p>应用程序可以通过 malloc() 和 free() 在用户态申请和释放内存，与之对应，可以通过 kmalloc()/kfree() 以及 vmalloc()/vfree() 在内核态申请和释放内存。当然，还有其他申请和释放内存的方法，但大致可以分为这两类。</p>
+<p>从最右侧的物理内存中你可以看出这两类内存申请方式的主要区别，kmalloc() 内存的物理地址是连续的，而 vmalloc() 内存的物理地址则是不连续的。这两种不同类型的内存也是可以通过 /proc/meminfo 来观察的：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ <span class="token function">cat</span> /proc/meminfo
+<span class="token punctuation">..</span>.
+Slab:            <span class="token number">2400284</span> kB
+SReclaimable:      <span class="token number">47248</span> kB
+SUnreclaim:      <span class="token number">2353036</span> kB
+<span class="token punctuation">..</span>.
+VmallocTotal:   <span class="token number">34359738367</span> kB
+VmallocUsed:     <span class="token number">1065948</span> kB
+<span class="token punctuation">..</span>.<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>其中 vmalloc 申请的内存会体现在 VmallocUsed 这一项中，即已使用的 Vmalloc 区大小；而 kmalloc 申请的内存则是体现在 Slab 这一项中，它又分为两部分，其中 SReclaimable 是指在内存紧张的时候可以被回收的内存，而 SUnreclaim 则是不可以被回收只能主动释放的内存。</p>
+<p>在讲述具体的案例以及排查方法之前，我们先以一个简单的程序来看下内核空间是如何进行内存申请和释放的。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token comment">/* kmem_test */</span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;linux/init.h&gt;</span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;linux/vmalloc.h&gt;</span></span>
+
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">define</span> <span class="token expression"><span class="token function">SIZE</span> <span class="token punctuation">(</span><span class="token number">1024</span> <span class="token operator">*</span> <span class="token number">1024</span> <span class="token operator">*</span> <span class="token number">1024</span><span class="token punctuation">)</span></span></span>
+
+<span class="token keyword">char</span> <span class="token operator">*</span>kaddr<span class="token punctuation">;</span>
+
+<span class="token keyword">char</span> <span class="token operator">*</span><span class="token function">kmem_alloc</span><span class="token punctuation">(</span><span class="token keyword">unsigned</span> <span class="token keyword">long</span> size<span class="token punctuation">)</span> <span class="token punctuation">{</span>
+    <span class="token keyword">char</span> <span class="token operator">*</span>p<span class="token punctuation">;</span>
+    p <span class="token operator">=</span> <span class="token function">vmalloc</span><span class="token punctuation">(</span>size<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token operator">!</span>p<span class="token punctuation">)</span>
+        <span class="token function">pr_info</span><span class="token punctuation">(</span><span class="token string">"[kmem_test]: vmalloc failed\n"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">return</span> p<span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+
+<span class="token keyword">void</span> <span class="token function">kmem_free</span><span class="token punctuation">(</span><span class="token keyword">const</span> <span class="token keyword">void</span> <span class="token operator">*</span>addr<span class="token punctuation">)</span> <span class="token punctuation">{</span>
+    <span class="token keyword">if</span> <span class="token punctuation">(</span>addr<span class="token punctuation">)</span>
+        <span class="token function">vfree</span><span class="token punctuation">(</span>addr<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+
+<span class="token keyword">int</span> __init <span class="token function">kmem_init</span><span class="token punctuation">(</span><span class="token keyword">void</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+    <span class="token function">pr_info</span><span class="token punctuation">(</span><span class="token string">"[kmem_test]: kernel memory init\n"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    kaddr <span class="token operator">=</span> <span class="token function">kmem_alloc</span><span class="token punctuation">(</span>SIZE<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">return</span> <span class="token number">0</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+
+<span class="token keyword">void</span> __exit <span class="token function">kmem_exit</span><span class="token punctuation">(</span><span class="token keyword">void</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+    <span class="token function">kmem_free</span><span class="token punctuation">(</span>kaddr<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token function">pr_info</span><span class="token punctuation">(</span><span class="token string">"[kmem_test]: kernel memory exit\n"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+
+<span class="token function">module_init</span><span class="token punctuation">(</span>kmem_init<span class="token punctuation">)</span>
+<span class="token function">module_exit</span><span class="token punctuation">(</span>kmem_exit<span class="token punctuation">)</span>
+
+<span class="token function">MODULE_LICENSE</span><span class="token punctuation">(</span><span class="token string">"GPLv2"</span><span class="token punctuation">)</span><span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>这是一个典型的内核模块，在这个内核模块中，我们使用 vmalloc 来分配了 1G 的内存空间，然后在模块退出的时候使用 vfree 释放掉它。这在形式上跟应用申请 / 释放内存其实是一致的，只是申请和释放内存的接口函数不一样而已。</p>
+<p>我们需要使用 Makefile 来编译这个内核模块：</p>
+<pre class="line-numbers language-makefile" data-language="makefile"><code class="language-makefile">obj-m <span class="token operator">=</span> kmem_test.o
+<span class="token symbol">all</span><span class="token punctuation">:</span>
+    make -C /lib/modules/`uname -r`/build M<span class="token operator">=</span>`pwd`
+<span class="token symbol">clean</span><span class="token punctuation">:</span>
+    rm -f *.o *.ko *.mod.c *.mod *.a modules.order Module.symvers<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>执行 make 命令后就会生成一个 kmem_test 的内核模块，接着执行下面的命令就可以安装该模块了：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">insmod kmem_test<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>用 rmmod 命令则可以把它卸载掉：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">rmmod kmem_test<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>这个示例程序就是内核空间内存分配的基本方法。你可以在插入 / 卸载模块前后观察 VmallocUsed 的变化，以便于你更好地理解这一项的含义。</p>
+<p>那么，在什么情况下会发生内核空间的内存泄漏呢？</p>
+<p>跟用户空间的内存泄漏类似，内核空间的内存泄漏也是指只申请内存而不去释放该内存的情况，比如说，如果我们不在 kmem_exit() 这个函数中调用 kmem_free()，就会产生内存泄漏问题。</p>
+<p>那么，内核空间的内存泄漏与用户空间的内存泄漏有什么不同呢？我们知道，用户空间内存的生命周期与用户进程是一致的，进程退出后这部分内存就会自动释放掉。但是，内核空间内存的生命周期是与内核一致的，却不是跟内核模块一致的，也就是说，在内核模块退出时，不会自动释放掉该内核模块申请的内存，只有在内核重启（即服务器重启）时才会释放掉这部分内存。</p>
+<p>总之，一旦发生内核内存泄漏，你很难有很好的方法来优雅地解决掉它，很多时候唯一的解决方案就是重启服务器，这显然是件很严重的问题。</p>
+<h4 id="9-2-如何观察内核内存泄漏？"><a href="#9-2-如何观察内核内存泄漏？" class="headerlink" title="9.2 如何观察内核内存泄漏？"></a>9.2 如何观察内核内存泄漏？</h4><p>我们可以通过 /proc/meminfo 来观察内核内存的分配情况，这提供了一个观察内核内存的简便方法：</p>
+<ul>
+<li>如果 /proc/meminfo 中内核内存（比如 VmallocUsed 和 SUnreclaim）太大，那很有可能发生了内核内存泄漏；</li>
+<li>另外，你也可以周期性地观察 VmallocUsed 和 SUnreclaim 的变化，如果它们持续增长而不下降，也可能是发生了内核内存泄漏。</li>
+</ul>
+<p>/proc/meminfo 只是提供了系统内存的整体使用情况，如果我们想要看具体是什么模块在使用内存，那该怎么办呢？</p>
+<p>这也可以通过 /proc 来查看，所以再次强调一遍，当你不清楚该如何去分析时，你可以试着去查看 /proc 目录下的文件。以上面的程序为例，安装 kmem_test 这个内核模块后，我们可以通过 /proc/vmallocinfo 来看到该模块的内存使用情况：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ <span class="token function">cat</span> /proc/vmallocinfo <span class="token operator">|</span> <span class="token function">grep</span> kmem_test
+0xffffc9008a003000-0xffffc900ca004000 <span class="token number">1073745920</span> kmem_alloc+0x13/0x30 <span class="token punctuation">[</span>kmem_test<span class="token punctuation">]</span> <span class="token assign-left variable">pages</span><span class="token operator">=</span><span class="token number">262144</span> vmalloc vpages <span class="token assign-left variable">N0</span><span class="token operator">=</span><span class="token number">262144</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre>
+<p>可以看到，在[kmem_test]这个模块里，通过 kmem_alloc 这个函数申请了 262144 个 pages，即总共 1G 大小的内存。</p>
+<h4 id="9-3-复杂场景下内核内存泄漏问题分析思路"><a href="#9-3-复杂场景下内核内存泄漏问题分析思路" class="headerlink" title="9.3 复杂场景下内核内存泄漏问题分析思路"></a>9.3 复杂场景下内核内存泄漏问题分析思路</h4><p>如果我们想要对内核内存泄漏做些基础的分析，最好借助一些内核内存泄漏分析工具，其中最常用的分析工具就是kmemleak。</p>
+<p>kmemleak 是内核内存泄漏检查的利器，但是，它的使用也存在一些不便性，因为打开该特性会给性能带来一些损耗，所以生产环境中的内核都会默认关闭该特性。该特性我们一般只用在测试环境中，然后在测试环境中运行需要分析的驱动程序以及其他内核模块。</p>
+<p>与其他内存泄漏检查工具类似，kmemleak 也是通过检查内核内存的申请和释放，来判断是否存在申请的内存不再使用也不释放的情况。如果存在，就认为是内核内存泄漏，然后把这些泄漏的信息通过 /sys/kernel/debug/kmemleak 这个文件导出给用户分析。同样以我们上面的程序为例，检查结果如下：</p>
+<pre class="line-numbers language-text" data-language="text"><code class="language-text">unreferenced object 0xffffc9008a003000 (size 1073741824):
+  comm "insmod", pid 11247, jiffies 4344145825 (age 3719.606s)
+  hex dump (first 32 bytes):
+    38 40 18 ba 80 88 ff ff 00 00 00 00 00 00 00 00  8@..............
+    f0 13 c9 73 80 88 ff ff 18 40 18 ba 80 88 ff ff  ...s.....@......
+  backtrace:
+    [&lt;00000000fbd7cb65&gt;] __vmalloc_node_range+0x22f/0x2a0
+    [&lt;000000008c0afaef&gt;] vmalloc+0x45/0x50
+    [&lt;000000004f3750a2&gt;] 0xffffffffa0937013
+    [&lt;0000000078198a11&gt;] 0xffffffffa093c01a
+    [&lt;000000002041c0ec&gt;] do_one_initcall+0x4a/0x200
+    [&lt;000000008d10d1ed&gt;] do_init_module+0x60/0x220
+    [&lt;000000003c285703&gt;] load_module+0x156c/0x17f0
+    [&lt;00000000c428a5fe&gt;] __do_sys_finit_module+0xbd/0x120
+    [&lt;00000000bc613a5a&gt;] __x64_sys_finit_module+0x1a/0x20
+    [&lt;000000004b0870a2&gt;] do_syscall_64+0x52/0x90
+    [&lt;000000002f458917&gt;] entry_SYSCALL_64_after_hwframe+0x44/0xa9<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>由于该程序通过 vmalloc 申请的内存以后再也没有使用，所以被 kmemleak 标记为了“unreferenced object”，我们需要在使用完该内存空间后就释放它以节省内存。</p>
+<p>如果我们想在生产环境上来观察内核内存泄漏，就无法使用 kmemleak 了，那还有没有其他的方法呢？</p>
+<p>我们可以使用内核提供的内核内存申请释放的 tracepoint，来动态观察内核内存使用情况：</p>
+<p><img src="/images/《Linux内核技术实战课》学习笔记/使用tracepoint来观察内核内存使用情况.jpg" alt="使用tracepoint来观察内核内存使用情况"></p>
+<p>当我们使能这些 tracepoints 后，就可以观察内存的动态申请和释放情况了，只是这个分析过程不如 kmemleak 那么高效。</p>
+<p>当我们想要观察某些内核结构体的申请和释放时，可能没有对应的 tracepiont。这个时候就需要使用 kprobe 或者 systemtap，来针对具体的内核结构体申请释放函数进行追踪了。</p>
+<h3 id="10-分析篇-内存泄漏时，我们该如何一步步找到根因？"><a href="#10-分析篇-内存泄漏时，我们该如何一步步找到根因？" class="headerlink" title="10 分析篇 | 内存泄漏时，我们该如何一步步找到根因？"></a>10 分析篇 | 内存泄漏时，我们该如何一步步找到根因？</h3><h4 id="10-1-如何定位出是谁在消耗内存-？"><a href="#10-1-如何定位出是谁在消耗内存-？" class="headerlink" title="10.1 如何定位出是谁在消耗内存 ？"></a>10.1 如何定位出是谁在消耗内存 ？</h4><p>首先，我们需要去找出到底是谁在消耗内存，/proc/meminfo 可以帮助我们来快速定位出问题所在。</p>
+<p><img src="/images/《Linux内核技术实战课》学习笔记/proc_meminfo中指标含义及排查思路.jpg" alt="proc_meminfo中指标含义及排查思路"></p>
+<p>总之，如果进程的内存有问题，那使用 top 就可以观察出来；如果进程的内存没有问题，那你可以从 /proc/meminfo 入手来一步步地去深入分析。</p>
+<h4 id="10-2-如何去分析进程的内存泄漏原因？"><a href="#10-2-如何去分析进程的内存泄漏原因？" class="headerlink" title="10.2 如何去分析进程的内存泄漏原因？"></a>10.2 如何去分析进程的内存泄漏原因？</h4><p>这是我多年以前帮助一个小伙伴分析的内存泄漏问题。这个小伙伴已经使用 top 排查出了业务进程的内存异常，但是不清楚该如何去进一步分析。</p>
+<p>他遇到的这个异常是，业务进程的虚拟地址空间（VIRT）被消耗很大，但是物理内存（RES）使用得却很少，所以他怀疑是进程的虚拟地址空间有内存泄漏。</p>
+<p>出现该现象时，可以用 top 命令观察：</p>
+<pre class="line-numbers language-text" data-language="text"><code class="language-text">  PID USER      PR  NI  VIRT  RES  SHR S %CPU %MEM    TIME+  COMMAND
+31108 app      20   0  285g 4.0g  19m S 60.6 12.7  10986:15 app_server<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre>
+<p>继续用 pidstat 命令：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ pidstat -r -p <span class="token number">31108</span>  <span class="token number">1</span>
+04:47:00 PM     <span class="token number">31108</span>    <span class="token number">353.00</span>      <span class="token number">0.00</span> <span class="token number">299029776</span> <span class="token number">4182152</span>  <span class="token number">12.73</span>  app_server
+<span class="token punctuation">..</span>.
+04:47:59 PM     <span class="token number">31108</span>    <span class="token number">149.00</span>      <span class="token number">0.00</span> <span class="token number">299029776</span> <span class="token number">4181052</span>  <span class="token number">12.73</span>  app_server
+04:48:00 PM     <span class="token number">31108</span>    <span class="token number">191.00</span>      <span class="token number">0.00</span> <span class="token number">299040020</span> <span class="token number">4181188</span>  <span class="token number">12.73</span>  app_server
+<span class="token punctuation">..</span>.
+04:48:59 PM     <span class="token number">31108</span>    <span class="token number">179.00</span>      <span class="token number">0.00</span> <span class="token number">299040020</span> <span class="token number">4181400</span>  <span class="token number">12.73</span>  app_server
+04:49:00 PM     <span class="token number">31108</span>    <span class="token number">183.00</span>      <span class="token number">0.00</span> <span class="token number">299050264</span> <span class="token number">4181524</span>  <span class="token number">12.73</span>  app_server
+<span class="token punctuation">..</span>.
+04:49:59 PM     <span class="token number">31108</span>    <span class="token number">157.00</span>      <span class="token number">0.00</span> <span class="token number">299050264</span> <span class="token number">4181456</span>  <span class="token number">12.73</span>  app_server
+04:50:00 PM     <span class="token number">31108</span>    <span class="token number">207.00</span>      <span class="token number">0.00</span> <span class="token number">299060508</span> <span class="token number">4181560</span>  <span class="token number">12.73</span>  app_server
+<span class="token punctuation">..</span>.
+04:50:59 PM     <span class="token number">31108</span>    <span class="token number">127.00</span>      <span class="token number">0.00</span> <span class="token number">299060508</span> <span class="token number">4180816</span>  <span class="token number">12.73</span>  app_server
+04:51:00 PM     <span class="token number">31108</span>    <span class="token number">172.00</span>      <span class="token number">0.00</span> <span class="token number">299070752</span> <span class="token number">4180956</span>  <span class="token number">12.73</span>  app_server<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>如上所示，在每个整分钟的时候，VSZ 会增大 10244KB，这看起来是一个很有规律的现象。然后，我们再来看下增大的这个内存区域到底是什么，你可以通过 /proc/PID/smaps 来看。</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ <span class="token function">cat</span> /proc/31108/smaps
+<span class="token punctuation">..</span>.
+7faae0e49000-7faae1849000 rw-p 00000000 00:00 <span class="token number">0</span>
+Size:              <span class="token number">10240</span> kB
+Rss:                  <span class="token number">80</span> kB
+Pss:                  <span class="token number">80</span> kB
+Shared_Clean:          <span class="token number">0</span> kB
+Shared_Dirty:          <span class="token number">0</span> kB
+Private_Clean:         <span class="token number">0</span> kB
+Private_Dirty:        <span class="token number">80</span> kB
+Referenced:           <span class="token number">60</span> kB
+Anonymous:            <span class="token number">80</span> kB
+AnonHugePages:         <span class="token number">0</span> kB
+Swap:                  <span class="token number">0</span> kB
+KernelPageSize:        <span class="token number">4</span> kB
+MMUPageSize:           <span class="token number">4</span> kB
+7faae1849000-7faae184a000 ---p 00000000 00:00 <span class="token number">0</span>
+Size:                  <span class="token number">4</span> kB
+Rss:                   <span class="token number">0</span> kB
+Pss:                   <span class="token number">0</span> kB
+Shared_Clean:          <span class="token number">0</span> kB
+Shared_Dirty:          <span class="token number">0</span> kB
+Private_Clean:         <span class="token number">0</span> kB
+Private_Dirty:         <span class="token number">0</span> kB
+Referenced:            <span class="token number">0</span> kB
+Anonymous:             <span class="token number">0</span> kB
+AnonHugePages:         <span class="token number">0</span> kB
+Swap:                  <span class="token number">0</span> kB
+KernelPageSize:        <span class="token number">4</span> kB
+MMUPageSize:           <span class="token number">4</span> kB<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>可以看到，它包括：一个私有地址空间，这从 rw-p 这个属性中的 private 可以看出来；以及一个保护页 ，这从—p 这个属性可以看出来，即进程无法访问。对于有经验的开发者而言，从这个 4K 的保护页就可以猜测出应该跟线程栈有关了。</p>
+<p>然后我们跟踪下进程申请这部分地址空间的目的是什么，通过 strace 命令来跟踪系统调用就可以了。因为 VIRT 的增加，它的系统调用函数无非是 mmap 或者 brk，那么我们只需要 strace 的结果来看下 mmap 或 brk 就可以了。</p>
+<p>用 strace 跟踪如下：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token function">strace</span> -t -f -p <span class="token number">31108</span> -o <span class="token number">31108</span>.strace<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>线程数较多，如果使用 -f 来跟踪线程，跟踪的信息量也很大，逐个搜索日志里面的 mmap 或者 brk 真是眼花缭乱， 所以我们来 grep 一下这个大小 (10489856 即 10244KB)，然后过滤下就好了：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ <span class="token function">cat</span> <span class="token number">31108</span>.strace <span class="token operator">|</span> <span class="token function">grep</span> <span class="token number">10489856</span>
+<span class="token number">31152</span> <span class="token number">23</span>:00:00 mmap<span class="token punctuation">(</span>NULL, <span class="token number">10489856</span>, PROT_READ<span class="token operator">|</span>PROT_WRITE, MAP_PRIVATE<span class="token operator">|</span>MAP_ANONYMOUS<span class="token operator">|</span>MAP_STACK, -1, <span class="token number">0</span> <span class="token operator">&lt;</span>unfinished <span class="token punctuation">..</span>.<span class="token operator">&gt;</span>
+<span class="token number">31151</span> <span class="token number">23</span>:01:00 mmap<span class="token punctuation">(</span>NULL, <span class="token number">10489856</span>, PROT_READ<span class="token operator">|</span>PROT_WRITE, MAP_PRIVATE<span class="token operator">|</span>MAP_ANONYMOUS<span class="token operator">|</span>MAP_STACK, -1, <span class="token number">0</span> <span class="token operator">&lt;</span>unfinished <span class="token punctuation">..</span>.<span class="token operator">&gt;</span>
+<span class="token number">31157</span> <span class="token number">23</span>:02:00 mmap<span class="token punctuation">(</span>NULL, <span class="token number">10489856</span>, PROT_READ<span class="token operator">|</span>PROT_WRITE, MAP_PRIVATE<span class="token operator">|</span>MAP_ANONYMOUS<span class="token operator">|</span>MAP_STACK, -1, <span class="token number">0</span> <span class="token operator">&lt;</span>unfinished <span class="token punctuation">..</span>.<span class="token operator">&gt;</span>
+<span class="token number">31158</span> <span class="token number">23</span>:03:00 mmap<span class="token punctuation">(</span>NULL, <span class="token number">10489856</span>, PROT_READ<span class="token operator">|</span>PROT_WRITE, MAP_PRIVATE<span class="token operator">|</span>MAP_ANONYMOUS<span class="token operator">|</span>MAP_STACK, -1, <span class="token number">0</span> <span class="token operator">&lt;</span>unfinished <span class="token punctuation">..</span>.<span class="token operator">&gt;</span>
+<span class="token number">31165</span> <span class="token number">23</span>:04:00 mmap<span class="token punctuation">(</span>NULL, <span class="token number">10489856</span>, PROT_READ<span class="token operator">|</span>PROT_WRITE, MAP_PRIVATE<span class="token operator">|</span>MAP_ANONYMOUS<span class="token operator">|</span>MAP_STACK, -1, <span class="token number">0</span> <span class="token operator">&lt;</span>unfinished <span class="token punctuation">..</span>.<span class="token operator">&gt;</span>
+<span class="token number">31163</span> <span class="token number">23</span>:05:00 mmap<span class="token punctuation">(</span>NULL, <span class="token number">10489856</span>, PROT_READ<span class="token operator">|</span>PROT_WRITE, MAP_PRIVATE<span class="token operator">|</span>MAP_ANONYMOUS<span class="token operator">|</span>MAP_STACK, -1, <span class="token number">0</span> <span class="token operator">&lt;</span>unfinished <span class="token punctuation">..</span>.<span class="token operator">&gt;</span>
+<span class="token number">31153</span> <span class="token number">23</span>:06:00 mmap<span class="token punctuation">(</span>NULL, <span class="token number">10489856</span>, PROT_READ<span class="token operator">|</span>PROT_WRITE, MAP_PRIVATE<span class="token operator">|</span>MAP_ANONYMOUS<span class="token operator">|</span>MAP_STACK, -1, <span class="token number">0</span> <span class="token operator">&lt;</span>unfinished <span class="token punctuation">..</span>.<span class="token operator">&gt;</span>
+<span class="token number">31155</span> <span class="token number">23</span>:07:00 mmap<span class="token punctuation">(</span>NULL, <span class="token number">10489856</span>, PROT_READ<span class="token operator">|</span>PROT_WRITE, MAP_PRIVATE<span class="token operator">|</span>MAP_ANONYMOUS<span class="token operator">|</span>MAP_STACK, -1, <span class="token number">0</span> <span class="token operator">&lt;</span>unfinished <span class="token punctuation">..</span>.<span class="token operator">&gt;</span>
+<span class="token number">31149</span> <span class="token number">23</span>:08:00 mmap<span class="token punctuation">(</span>NULL, <span class="token number">10489856</span>, PROT_READ<span class="token operator">|</span>PROT_WRITE, MAP_PRIVATE<span class="token operator">|</span>MAP_ANONYMOUS<span class="token operator">|</span>MAP_STACK, -1, <span class="token number">0</span> <span class="token operator">&lt;</span>unfinished <span class="token punctuation">..</span>.<span class="token operator">&gt;</span>
+<span class="token number">31147</span> <span class="token number">23</span>:09:00 mmap<span class="token punctuation">(</span>NULL, <span class="token number">10489856</span>, PROT_READ<span class="token operator">|</span>PROT_WRITE, MAP_PRIVATE<span class="token operator">|</span>MAP_ANONYMOUS<span class="token operator">|</span>MAP_STACK, -1, <span class="token number">0</span> <span class="token operator">&lt;</span>unfinished <span class="token punctuation">..</span>.<span class="token operator">&gt;</span>
+<span class="token number">31159</span> <span class="token number">23</span>:10:00 mmap<span class="token punctuation">(</span>NULL, <span class="token number">10489856</span>, PROT_READ<span class="token operator">|</span>PROT_WRITE, MAP_PRIVATE<span class="token operator">|</span>MAP_ANONYMOUS<span class="token operator">|</span>MAP_STACK, -1, <span class="token number">0</span> <span class="token operator">&lt;</span>unfinished <span class="token punctuation">..</span>.<span class="token operator">&gt;</span>
+<span class="token number">31157</span> <span class="token number">23</span>:11:00 mmap<span class="token punctuation">(</span>NULL, <span class="token number">10489856</span>, PROT_READ<span class="token operator">|</span>PROT_WRITE, MAP_PRIVATE<span class="token operator">|</span>MAP_ANONYMOUS<span class="token operator">|</span>MAP_STACK, -1, <span class="token number">0</span> <span class="token operator">&lt;</span>unfinished <span class="token punctuation">..</span>.<span class="token operator">&gt;</span>
+<span class="token number">31148</span> <span class="token number">23</span>:12:00 mmap<span class="token punctuation">(</span>NULL, <span class="token number">10489856</span>, PROT_READ<span class="token operator">|</span>PROT_WRITE, MAP_PRIVATE<span class="token operator">|</span>MAP_ANONYMOUS<span class="token operator">|</span>MAP_STACK, -1, <span class="token number">0</span> <span class="token operator">&lt;</span>unfinished <span class="token punctuation">..</span>.<span class="token operator">&gt;</span>
+<span class="token number">31150</span> <span class="token number">23</span>:13:00 mmap<span class="token punctuation">(</span>NULL, <span class="token number">10489856</span>, PROT_READ<span class="token operator">|</span>PROT_WRITE, MAP_PRIVATE<span class="token operator">|</span>MAP_ANONYMOUS<span class="token operator">|</span>MAP_STACK, -1, <span class="token number">0</span> <span class="token operator">&lt;</span>unfinished <span class="token punctuation">..</span>.<span class="token operator">&gt;</span>
+<span class="token number">31173</span> <span class="token number">23</span>:14:00 mmap<span class="token punctuation">(</span>NULL, <span class="token number">10489856</span>, PROT_READ<span class="token operator">|</span>PROT_WRITE, MAP_PRIVATE<span class="token operator">|</span>MAP_ANONYMOUS<span class="token operator">|</span>MAP_STACK, -1, <span class="token number">0</span> <span class="token operator">&lt;</span>unfinished <span class="token punctuation">..</span>.<span class="token operator">&gt;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>从这个日志我们可以看到，出错的是 mmap() 这个系统调用，那我们再来看下 mmap 这个内存的目的：</p>
+<pre class="line-numbers language-text" data-language="text"><code class="language-text">31151 23:01:00 mmap(NULL, 10489856, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS|MAP_STACK, -1, 0 &lt;unfinished ...&gt;
+31151 23:01:00 mprotect(0x7fa94bbc0000, 4096, PROT_NONE &lt;unfinished ...&gt;   &lt;&lt;&lt; 创建一个保护页
+31151 23:01:00 clone( &lt;unfinished ...&gt;   &lt;&lt;&lt; 创建线程
+31151 23:01:00 &lt;... clone resumed&gt; child_stack=0x7fa94c5afe50, flags=CLONE_VM|CLONE_FS|CLONE_FILES|CLONE_SIGHAND
+|CLONE_THREAD|CLONE_SYSVSEM|CLONE_SETTLS|CLONE_PARENT_SETTID
+|CLONE_CHILD_CLEARTID, parent_tidptr=0x7fa94c5c09d0, tls=0x7fa94c5c0700, child_tidptr=0x7fa94c5c09d0) = 20610<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>可以看出，这是在 clone 时申请的线程栈。到这里你可能会有一个疑问：既然线程栈消耗了这么多的内存，那理应有很多才对啊？<br>但是实际上，系统中并没有很多 app_server 的线程，那这是为什么呢？答案其实比较简单：线程短暂执行完毕后就退出了，可是 mmap 的线程栈却没有被释放。</p>
+<p>我们来写一个简单的程序复现这个现象，问题的复现是很重要的，如果很复杂的问题可以用简单的程序来复现，那就是最好的结果了。<br>如下是一个简单的复现程序：mmap 一个 40K 的线程栈，然后线程简单执行一下就退出。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;stdio.h&gt;</span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;sys/mman.h&gt;</span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;sys/types.h&gt;</span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;sys/wait.h&gt;</span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;unistd.h&gt;</span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">define</span> <span class="token expression">_SCHED_H</span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">define</span> <span class="token expression">__USE_GNU</span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;bits/sched.h&gt;</span></span>
+
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">define</span> <span class="token expression">STACK_SIZE <span class="token number">40960</span></span></span>
+
+<span class="token keyword">int</span> <span class="token function">func</span><span class="token punctuation">(</span><span class="token keyword">void</span> <span class="token operator">*</span>arg<span class="token punctuation">)</span> <span class="token punctuation">{</span>
+  <span class="token function">printf</span><span class="token punctuation">(</span><span class="token string">"thread enter.\n"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+  <span class="token function">sleep</span><span class="token punctuation">(</span><span class="token number">1</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+  <span class="token function">printf</span><span class="token punctuation">(</span><span class="token string">"thread exit.\n"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+  <span class="token keyword">return</span> <span class="token number">0</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+<span class="token keyword">int</span> <span class="token function">main</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+  <span class="token keyword">int</span> thread_pid<span class="token punctuation">;</span>
+  <span class="token keyword">int</span> status<span class="token punctuation">;</span>
+  <span class="token keyword">int</span> w<span class="token punctuation">;</span>
+
+  <span class="token keyword">while</span> <span class="token punctuation">(</span><span class="token number">1</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+    <span class="token keyword">void</span> <span class="token operator">*</span>addr <span class="token operator">=</span> <span class="token function">mmap</span><span class="token punctuation">(</span><span class="token constant">NULL</span><span class="token punctuation">,</span> STACK_SIZE<span class="token punctuation">,</span> PROT_READ <span class="token operator">|</span> PROT_WRITE<span class="token punctuation">,</span>
+                      MAP_PRIVATE <span class="token operator">|</span> MAP_ANONYMOUS <span class="token operator">|</span> MAP_STACK<span class="token punctuation">,</span> <span class="token operator">-</span><span class="token number">1</span><span class="token punctuation">,</span> <span class="token number">0</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">if</span> <span class="token punctuation">(</span>addr <span class="token operator">==</span> <span class="token constant">NULL</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+      <span class="token function">perror</span><span class="token punctuation">(</span><span class="token string">"mmap"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+      <span class="token keyword">goto</span> error<span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+    <span class="token function">printf</span><span class="token punctuation">(</span><span class="token string">"creat new thread...\n"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    thread_pid <span class="token operator">=</span> <span class="token function">clone</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>func<span class="token punctuation">,</span> addr <span class="token operator">+</span> STACK_SIZE<span class="token punctuation">,</span>
+                       CLONE_SIGHAND <span class="token operator">|</span> CLONE_FS <span class="token operator">|</span> CLONE_VM <span class="token operator">|</span> CLONE_FILES<span class="token punctuation">,</span> <span class="token constant">NULL</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token function">printf</span><span class="token punctuation">(</span><span class="token string">"Done! Thread pid: %d\n"</span><span class="token punctuation">,</span> thread_pid<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">if</span> <span class="token punctuation">(</span>thread_pid <span class="token operator">!=</span> <span class="token operator">-</span><span class="token number">1</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+      <span class="token keyword">do</span> <span class="token punctuation">{</span>
+        w <span class="token operator">=</span> <span class="token function">waitpid</span><span class="token punctuation">(</span><span class="token operator">-</span><span class="token number">1</span><span class="token punctuation">,</span> <span class="token constant">NULL</span><span class="token punctuation">,</span> __WCLONE <span class="token operator">|</span> __WALL<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span>w <span class="token operator">==</span> <span class="token operator">-</span><span class="token number">1</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+          <span class="token function">perror</span><span class="token punctuation">(</span><span class="token string">"waitpid"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+          <span class="token keyword">goto</span> error<span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+      <span class="token punctuation">}</span> <span class="token keyword">while</span> <span class="token punctuation">(</span><span class="token operator">!</span><span class="token function">WIFEXITED</span><span class="token punctuation">(</span>status<span class="token punctuation">)</span> <span class="token operator">&amp;&amp;</span> <span class="token operator">!</span><span class="token function">WIFSIGNALED</span><span class="token punctuation">(</span>status<span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+    <span class="token function">sleep</span><span class="token punctuation">(</span><span class="token number">10</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+  <span class="token punctuation">}</span>
+error<span class="token operator">:</span>
+  <span class="token keyword">return</span> <span class="token number">0</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>然后我们用 pidstat 观察该进程的执行，可以发现它的现象跟生产环境中的问题是一致的：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ pidstat -r -p <span class="token number">535</span> <span class="token number">5</span>
+<span class="token number">11</span>:56:51 PM   <span class="token environment constant">UID</span>       PID  minflt/s  majflt/s     VSZ    RSS   %MEM  Command
+<span class="token number">11</span>:56:56 PM     <span class="token number">0</span>       <span class="token number">535</span>      <span class="token number">0.20</span>      <span class="token number">0.00</span>    <span class="token number">4364</span>    <span class="token number">360</span>   <span class="token number">0.00</span>  a.out
+<span class="token number">11</span>:57:01 PM     <span class="token number">0</span>       <span class="token number">535</span>      <span class="token number">0.00</span>      <span class="token number">0.00</span>    <span class="token number">4364</span>    <span class="token number">360</span>   <span class="token number">0.00</span>  a.out
+<span class="token number">11</span>:57:06 PM     <span class="token number">0</span>       <span class="token number">535</span>      <span class="token number">0.20</span>      <span class="token number">0.00</span>    <span class="token number">4404</span>    <span class="token number">360</span>   <span class="token number">0.00</span>  a.out
+<span class="token number">11</span>:57:11 PM     <span class="token number">0</span>       <span class="token number">535</span>      <span class="token number">0.00</span>      <span class="token number">0.00</span>    <span class="token number">4404</span>    <span class="token number">360</span>   <span class="token number">0.00</span>  a.out
+<span class="token number">11</span>:57:16 PM     <span class="token number">0</span>       <span class="token number">535</span>      <span class="token number">0.20</span>      <span class="token number">0.00</span>    <span class="token number">4444</span>    <span class="token number">360</span>   <span class="token number">0.00</span>  a.out
+<span class="token number">11</span>:57:21 PM     <span class="token number">0</span>       <span class="token number">535</span>      <span class="token number">0.00</span>      <span class="token number">0.00</span>    <span class="token number">4444</span>    <span class="token number">360</span>   <span class="token number">0.00</span>  a.out
+<span class="token number">11</span>:57:26 PM     <span class="token number">0</span>       <span class="token number">535</span>      <span class="token number">0.20</span>      <span class="token number">0.00</span>    <span class="token number">4484</span>    <span class="token number">360</span>   <span class="token number">0.00</span>  a.out
+<span class="token number">11</span>:57:31 PM     <span class="token number">0</span>       <span class="token number">535</span>      <span class="token number">0.00</span>      <span class="token number">0.00</span>    <span class="token number">4484</span>    <span class="token number">360</span>   <span class="token number">0.00</span>  a.out
+<span class="token number">11</span>:57:36 PM     <span class="token number">0</span>       <span class="token number">535</span>      <span class="token number">0.20</span>      <span class="token number">0.00</span>    <span class="token number">4524</span>    <span class="token number">360</span>   <span class="token number">0.00</span>  a.out
+^C
+Average:        <span class="token number">0</span>       <span class="token number">535</span>      <span class="token number">0.11</span>      <span class="token number">0.00</span>    <span class="token number">4435</span>    <span class="token number">360</span>   <span class="token number">0.00</span>  a.out<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>你可以看到，VSZ 每 10s 增大 40K，但是增加的那个线程只存在了 1s 就消失了。</p>
+<p>至此我们就可以推断出 app_server 的代码哪里有问题了，然后小伙伴去修复该代码 Bug，很快就把该问题给解决了。</p>
+<h2 id="三、TCP重传问题"><a href="#三、TCP重传问题" class="headerlink" title="三、TCP重传问题"></a>三、TCP重传问题</h2><h2 id="四、内核态CPU利用率飙高问题"><a href="#四、内核态CPU利用率飙高问题" class="headerlink" title="四、内核态CPU利用率飙高问题"></a>四、内核态CPU利用率飙高问题</h2>
                 
             </div>
             <hr/>
@@ -1267,7 +1727,7 @@ $ <span class="token function">cat</span> /sys/kernel/debug/tracing/trace_pipe
             <br>
             
             &nbsp;<i class="fas fa-chart-area"></i>&nbsp;站点总字数:&nbsp;<span
-                class="white-color">634.4k</span>&nbsp;字
+                class="white-color">644.1k</span>&nbsp;字
             
             
             
