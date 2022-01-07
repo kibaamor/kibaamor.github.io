@@ -8211,7 +8211,7 @@ return 63 from kernel mode.
 <h4 id="55-2-Debug-kernel"><a href="#55-2-Debug-kernel" class="headerlink" title="55.2 Debug kernel"></a>55.2 Debug kernel</h4><p>看了debug一个进程还是简单的，接下来，我们来试着debug整个kernel。</p>
 <p>第一步，要想kernel能够被debug，需要向上面编译程序一样，将debug所需信息也放入二进制文件里面去。这个我们在编译内核的时候已经设置过了，也就是把“CONFIG_DEBUG_INFO”和“CONFIG_FRAME_POINTER“两个变量设置为yes。</p>
 <p>第二步，就是安装gdb。kernel运行在qemu虚拟机里面，gdb运行在宿主机上，所以我们应该在宿主机上进行安装。</p>
-<p>第三步，找到gdb要运行的那个内核的二进制文件。这个文件在哪里呢？根据grub里面的配置，它应该在/boot/vmlinuz-4.15.18这里。</p>
+<p>第三步，找到gdb要运行的那个内核的二进制文件。这个文件在哪里呢？根据grub里面的配置，它应该在/boot/vmlinuz-5.4.157这里。</p>
 <p>另外，为了方便在debug的过程中查看源代码，我们可以将 <code>linux-hwe-5.4-5.4.0</code> 整个目录，都拷贝到宿主机上来。因为内核一旦进入debug模式，就不能运行了。</p>
 <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token function">scp</span> -r ./linux-hwe-5.4-5.4.0 k@192.168.104.113:/home/k/qemu/source<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
 <p>在 <code>linux-hwe-5.4-5.4.0</code> 这个目录下面，vmlinux文件也是内核的二进制文件。</p>
@@ -8281,6 +8281,8 @@ return 63 from kernel mode.
 <p>在虚拟机里面，我们修改文件/etc/default/grub：</p>
 <pre class="line-numbers language-diff" data-language="diff"><code class="language-diff"><span class="token deleted-sign deleted"><span class="token prefix deleted">-</span><span class="token line"> GRUB_CMDLINE_LINUX="console=ttyS0,115200"
 </span></span><span class="token inserted-sign inserted"><span class="token prefix inserted">+</span><span class="token line"> GRUB_CMDLINE_LINUX="nokaslr console=ttyS0,115200"</span></span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre>
+<p>更新虚拟机的grub启动</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token function">sudo</span> <span class="token function">update-grub</span><span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
 <p>修改完毕后，重新创建并启动虚拟机。</p>
 <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token function">sudo</span> <span class="token function">virsh</span> destroy ubuntutest
 <span class="token function">sudo</span> <span class="token function">virsh</span> undefine ubuntutest
