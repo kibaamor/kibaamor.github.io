@@ -431,21 +431,21 @@
                 
                 <div class="post-date info-break-policy">
                     <i class="far fa-calendar-check fa-fw"></i>更新日期:&nbsp;&nbsp;
-                    2022-01-07
+                    2022-01-08
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-file-word fa-fw"></i>文章字数:&nbsp;&nbsp;
-                    22.6k
+                    28k
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-clock fa-fw"></i>阅读时长:&nbsp;&nbsp;
-                    87 分
+                    107 分
                 </div>
                 
 
@@ -714,8 +714,8 @@ node <span class="token number">1</span> size: <span class="token number">131072
 node <span class="token number">1</span> free: <span class="token number">122995</span> MB
 node distances:
 node   <span class="token number">0</span>   <span class="token number">1</span>
-  <span class="token number">0</span>:  <span class="token number">10</span>  <span class="token number">21</span>
-  <span class="token number">1</span>:  <span class="token number">21</span>  <span class="token number">10</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+    <span class="token number">0</span>:  <span class="token number">10</span>  <span class="token number">21</span>
+    <span class="token number">1</span>:  <span class="token number">21</span>  <span class="token number">10</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
 <p>其中 CPU0～11，24～35 的 local node 为 node 0；而 CPU12～23，36～47 的 local node 为 node 1。如下图所示：</p>
 <p><img src="/images/《Linux内核技术实战课》学习笔记/NUMA策略配置不当引起的load飙高举例.jpg" alt="NUMA策略配置不当引起的load飙高举例"></p>
 <p>推荐将 zone_reclaim_mode 配置为 0。</p>
@@ -745,8 +745,8 @@ drop_slab <span class="token number">2</span><span aria-hidden="true" class="lin
 <p>接下来我所要讲述的案例就发生在“relcaim slab”中，我们从前一个案例已然知道，如果 inode 被回收的话，那么它对应的 Page Cache 也都会被回收掉，所以如果业务进程读取的文件对应的 inode 被回收了，那么该文件所有的 Page Cache 都会被释放掉，这也是容易引起性能问题的地方。</p>
 <p>可以通过 /proc/vmstat 来观察：</p>
 <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ <span class="token function">grep</span> inodesteal /proc/vmstat
- pginodesteal <span class="token number">114341</span>
- kswapd_inodesteal <span class="token number">1291853</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span></span></code></pre>
+pginodesteal <span class="token number">114341</span>
+kswapd_inodesteal <span class="token number">1291853</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span></span></code></pre>
 <p>这个行为对应的事件是 inodesteal，就是上面这两个事件，其中 kswapd_inodesteal 是指在 kswapd 回收的过程中，因为回收 inode 而释放的 pagecache page 个数；pginodesteal 是指 kswapd 之外其他线程在回收过程中，因为回收 inode 而释放的 pagecache page 个数。所以在你发现业务的 Page Cache 被释放掉后，你可以通过观察来发现是否因为该事件导致的。</p>
 <h4 id="4-3-如何避免-Page-Cache-被回收而引起的性能问题？"><a href="#4-3-如何避免-Page-Cache-被回收而引起的性能问题？" class="headerlink" title="4.3 如何避免 Page Cache 被回收而引起的性能问题？"></a>4.3 如何避免 Page Cache 被回收而引起的性能问题？</h4><p>避免 Page Cache 里相对比较重要的数据被回收掉的思路也是有两种：</p>
 <ul>
@@ -766,45 +766,45 @@ drop_slab <span class="token number">2</span><span aria-hidden="true" class="lin
 <span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">define</span> <span class="token expression"><span class="token function">SIZE</span> <span class="token punctuation">(</span><span class="token number">1024</span> <span class="token operator">*</span> <span class="token number">1000</span> <span class="token operator">*</span> <span class="token number">1000</span><span class="token punctuation">)</span></span></span>
 
 <span class="token keyword">int</span> <span class="token function">main</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
-  <span class="token keyword">int</span> fd<span class="token punctuation">;</span>
-  <span class="token keyword">char</span> <span class="token operator">*</span>p<span class="token punctuation">;</span>
-  <span class="token keyword">int</span> ret<span class="token punctuation">;</span>
+    <span class="token keyword">int</span> fd<span class="token punctuation">;</span>
+    <span class="token keyword">char</span> <span class="token operator">*</span>p<span class="token punctuation">;</span>
+    <span class="token keyword">int</span> ret<span class="token punctuation">;</span>
 
-  fd <span class="token operator">=</span> <span class="token function">open</span><span class="token punctuation">(</span>FILE_NAME<span class="token punctuation">,</span> O_CREAT <span class="token operator">|</span> O_RDWR<span class="token punctuation">,</span> S_IRUSR <span class="token operator">|</span> S_IWUSR<span class="token punctuation">)</span><span class="token punctuation">;</span>
-  <span class="token keyword">if</span> <span class="token punctuation">(</span>fd <span class="token operator">&lt;</span> <span class="token number">0</span><span class="token punctuation">)</span>
-    <span class="token keyword">return</span> <span class="token operator">-</span><span class="token number">1</span><span class="token punctuation">;</span>
+    fd <span class="token operator">=</span> <span class="token function">open</span><span class="token punctuation">(</span>FILE_NAME<span class="token punctuation">,</span> O_CREAT <span class="token operator">|</span> O_RDWR<span class="token punctuation">,</span> S_IRUSR <span class="token operator">|</span> S_IWUSR<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">if</span> <span class="token punctuation">(</span>fd <span class="token operator">&lt;</span> <span class="token number">0</span><span class="token punctuation">)</span>
+        <span class="token keyword">return</span> <span class="token operator">-</span><span class="token number">1</span><span class="token punctuation">;</span>
 
-  <span class="token comment">/* Set size of this file */</span>
-  ret <span class="token operator">=</span> <span class="token function">ftruncate</span><span class="token punctuation">(</span>fd<span class="token punctuation">,</span> SIZE<span class="token punctuation">)</span><span class="token punctuation">;</span>
-  <span class="token keyword">if</span> <span class="token punctuation">(</span>ret <span class="token operator">&lt;</span> <span class="token number">0</span><span class="token punctuation">)</span>
-    <span class="token keyword">return</span> <span class="token operator">-</span><span class="token number">1</span><span class="token punctuation">;</span>
+    <span class="token comment">/* Set size of this file */</span>
+    ret <span class="token operator">=</span> <span class="token function">ftruncate</span><span class="token punctuation">(</span>fd<span class="token punctuation">,</span> SIZE<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">if</span> <span class="token punctuation">(</span>ret <span class="token operator">&lt;</span> <span class="token number">0</span><span class="token punctuation">)</span>
+        <span class="token keyword">return</span> <span class="token operator">-</span><span class="token number">1</span><span class="token punctuation">;</span>
 
-  <span class="token comment">/* The current offset is 0, so we don't need to reset the offset. */</span>
-  <span class="token comment">/* lseek(fd, 0, SEEK_CUR); */</span>
-  <span class="token comment">/* Mmap virtual memory */</span>
-  p <span class="token operator">=</span> <span class="token function">mmap</span><span class="token punctuation">(</span><span class="token number">0</span><span class="token punctuation">,</span> SIZE<span class="token punctuation">,</span> PROT_READ <span class="token operator">|</span> PROT_WRITE<span class="token punctuation">,</span> MAP_FILE <span class="token operator">|</span> MAP_SHARED<span class="token punctuation">,</span> fd<span class="token punctuation">,</span> <span class="token number">0</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
-  <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token operator">!</span>p<span class="token punctuation">)</span>
-    <span class="token keyword">return</span> <span class="token operator">-</span><span class="token number">1</span><span class="token punctuation">;</span>
+    <span class="token comment">/* The current offset is 0, so we don't need to reset the offset. */</span>
+    <span class="token comment">/* lseek(fd, 0, SEEK_CUR); */</span>
+    <span class="token comment">/* Mmap virtual memory */</span>
+    p <span class="token operator">=</span> <span class="token function">mmap</span><span class="token punctuation">(</span><span class="token number">0</span><span class="token punctuation">,</span> SIZE<span class="token punctuation">,</span> PROT_READ <span class="token operator">|</span> PROT_WRITE<span class="token punctuation">,</span> MAP_FILE <span class="token operator">|</span> MAP_SHARED<span class="token punctuation">,</span> fd<span class="token punctuation">,</span> <span class="token number">0</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token operator">!</span>p<span class="token punctuation">)</span>
+        <span class="token keyword">return</span> <span class="token operator">-</span><span class="token number">1</span><span class="token punctuation">;</span>
 
-  <span class="token comment">/* Alloc physical memory */</span>
-  <span class="token function">memset</span><span class="token punctuation">(</span>p<span class="token punctuation">,</span> <span class="token number">1</span><span class="token punctuation">,</span> SIZE<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token comment">/* Alloc physical memory */</span>
+    <span class="token function">memset</span><span class="token punctuation">(</span>p<span class="token punctuation">,</span> <span class="token number">1</span><span class="token punctuation">,</span> SIZE<span class="token punctuation">)</span><span class="token punctuation">;</span>
 
-  <span class="token comment">/* Lock these memory to prevent from being reclaimed */</span>
-  <span class="token function">mlock</span><span class="token punctuation">(</span>p<span class="token punctuation">,</span> SIZE<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token comment">/* Lock these memory to prevent from being reclaimed */</span>
+    <span class="token function">mlock</span><span class="token punctuation">(</span>p<span class="token punctuation">,</span> SIZE<span class="token punctuation">)</span><span class="token punctuation">;</span>
 
-  <span class="token comment">/* Wait until we kill it specifically */</span>
-  <span class="token keyword">while</span> <span class="token punctuation">(</span><span class="token number">1</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
-    <span class="token function">sleep</span><span class="token punctuation">(</span><span class="token number">10</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
-  <span class="token punctuation">}</span>
+    <span class="token comment">/* Wait until we kill it specifically */</span>
+    <span class="token keyword">while</span> <span class="token punctuation">(</span><span class="token number">1</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+        <span class="token function">sleep</span><span class="token punctuation">(</span><span class="token number">10</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
 
-  <span class="token comment">/*
-   * Unmap the memory.
-   * Actually the kernel will unmap it automatically after the
-   * process exits, whatever we call munamp() specifically or not.
-   */</span>
-  <span class="token function">munmap</span><span class="token punctuation">(</span>p<span class="token punctuation">,</span> SIZE<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token comment">/*
+    * Unmap the memory.
+    * Actually the kernel will unmap it automatically after the
+    * process exits, whatever we call munamp() specifically or not.
+    */</span>
+    <span class="token function">munmap</span><span class="token punctuation">(</span>p<span class="token punctuation">,</span> SIZE<span class="token punctuation">)</span><span class="token punctuation">;</span>
 
-  <span class="token keyword">return</span> <span class="token number">0</span><span class="token punctuation">;</span>
+    <span class="token keyword">return</span> <span class="token number">0</span><span class="token punctuation">;</span>
 <span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
 <p>在这个例子中，我们通过 mlock(2) 来锁住了读 FILE_NAME 这个文件内容对应的 Page Cache。在运行上述程序之后，我们来看下该如何来观察这种行为：确认这些 Page Cache 是否被保护住了，被保护了多大。这同样可以通过 /proc/meminfo 来观察:</p>
 <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ <span class="token function">egrep</span> <span class="token string">"Unevictable|Mlocked"</span> /proc/meminfo
@@ -885,16 +885,16 @@ $ <span class="token function">cat</span> /sys/kernel/debug/tracing/trace_pipe
 <p>进程运行所需要的内存类型有很多种，总的来说，这些内存类型可以从是不是文件映射，以及是不是私有内存这两个不同的维度来做区分，也就是可以划分为上面所列的四类内存。</p>
 <ul>
 <li><p>私有匿名内存。</p>
-<p>进程的堆、栈，以及 mmap(MAP_ANON | MAP_PRIVATE) 这种方式申请的内存都属于这种类型的内存。其中栈是由操作系统来进行管理的，应用程序无需关注它的申请和释放；堆和私有匿名映射则是由应用程序（程序员）来进行管理的，它们的申请和释放都是由应用程序来负责的，所以它们是容易产生内存泄漏的地方。</p>
+<p>  进程的堆、栈，以及 mmap(MAP_ANON | MAP_PRIVATE) 这种方式申请的内存都属于这种类型的内存。其中栈是由操作系统来进行管理的，应用程序无需关注它的申请和释放；堆和私有匿名映射则是由应用程序（程序员）来进行管理的，它们的申请和释放都是由应用程序来负责的，所以它们是容易产生内存泄漏的地方。</p>
 </li>
 <li><p>共享匿名内存。</p>
-<p>进程通过 mmap(MAP_ANON | MAP_SHARED) 这种方式来申请的内存，比如说 tmpfs 和 shm。这个类型的内存也是由应用程序来进行管理的，所以也可能会发生内存泄漏。</p>
+<p>  进程通过 mmap(MAP_ANON | MAP_SHARED) 这种方式来申请的内存，比如说 tmpfs 和 shm。这个类型的内存也是由应用程序来进行管理的，所以也可能会发生内存泄漏。</p>
 </li>
 <li><p>私有文件映射。</p>
-<p>进程通过 mmap(MAP_FILE | MAP_PRIVATE) 这种方式来申请的内存，比如进程将共享库（Shared libraries）和可执行文件的代码段（Text Segment）映射到自己的地址空间就是通过这种方式。对于共享库和可执行文件的代码段的映射，这是通过操作系统来进行管理的，应用程序无需关注它们的申请和释放。而应用程序直接通过 mmap(MAP_FILE | MAP_PRIVATE) 来申请的内存则是需要应用程序自己来进行管理，这也是可能会发生内存泄漏的地方。</p>
+<p>  进程通过 mmap(MAP_FILE | MAP_PRIVATE) 这种方式来申请的内存，比如进程将共享库（Shared libraries）和可执行文件的代码段（Text Segment）映射到自己的地址空间就是通过这种方式。对于共享库和可执行文件的代码段的映射，这是通过操作系统来进行管理的，应用程序无需关注它们的申请和释放。而应用程序直接通过 mmap(MAP_FILE | MAP_PRIVATE) 来申请的内存则是需要应用程序自己来进行管理，这也是可能会发生内存泄漏的地方。</p>
 </li>
 <li><p>共享文件映射。</p>
-<p>进程通过 mmap(MAP_FILE | MAP_SHARED) 这种方式来申请的内存，我们在上一个模块课程中讲到的 File Page Cache 就属于这类内存。这部分内存也需要应用程序来申请和释放，所以也存在内存泄漏的可能性。</p>
+<p>  进程通过 mmap(MAP_FILE | MAP_SHARED) 这种方式来申请的内存，我们在上一个模块课程中讲到的 File Page Cache 就属于这类内存。这部分内存也需要应用程序来申请和释放，所以也存在内存泄漏的可能性。</p>
 </li>
 </ul>
 <p>进程虚拟地址空间是通过 Paging（分页）这种方式来映射为物理内存的，进程调用 malloc() 或者 mmap() 来申请的内存都是虚拟内存，只有往这些内存中写入数据后（比如通过 memset），才会真正地分配物理内存 。</p>
@@ -1282,42 +1282,43 @@ MMUPageSize:           <span class="token number">4</span> kB<span aria-hidden="
 <span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">define</span> <span class="token expression">STACK_SIZE <span class="token number">40960</span></span></span>
 
 <span class="token keyword">int</span> <span class="token function">func</span><span class="token punctuation">(</span><span class="token keyword">void</span> <span class="token operator">*</span>arg<span class="token punctuation">)</span> <span class="token punctuation">{</span>
-  <span class="token function">printf</span><span class="token punctuation">(</span><span class="token string">"thread enter.\n"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
-  <span class="token function">sleep</span><span class="token punctuation">(</span><span class="token number">1</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
-  <span class="token function">printf</span><span class="token punctuation">(</span><span class="token string">"thread exit.\n"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token function">printf</span><span class="token punctuation">(</span><span class="token string">"thread enter.\n"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token function">sleep</span><span class="token punctuation">(</span><span class="token number">1</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token function">printf</span><span class="token punctuation">(</span><span class="token string">"thread exit.\n"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
 
-  <span class="token keyword">return</span> <span class="token number">0</span><span class="token punctuation">;</span>
+    <span class="token keyword">return</span> <span class="token number">0</span><span class="token punctuation">;</span>
 <span class="token punctuation">}</span>
 <span class="token keyword">int</span> <span class="token function">main</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
-  <span class="token keyword">int</span> thread_pid<span class="token punctuation">;</span>
-  <span class="token keyword">int</span> status<span class="token punctuation">;</span>
-  <span class="token keyword">int</span> w<span class="token punctuation">;</span>
+    <span class="token keyword">int</span> thread_pid<span class="token punctuation">;</span>
+    <span class="token keyword">int</span> status<span class="token punctuation">;</span>
+    <span class="token keyword">int</span> w<span class="token punctuation">;</span>
 
-  <span class="token keyword">while</span> <span class="token punctuation">(</span><span class="token number">1</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
-    <span class="token keyword">void</span> <span class="token operator">*</span>addr <span class="token operator">=</span> <span class="token function">mmap</span><span class="token punctuation">(</span><span class="token constant">NULL</span><span class="token punctuation">,</span> STACK_SIZE<span class="token punctuation">,</span> PROT_READ <span class="token operator">|</span> PROT_WRITE<span class="token punctuation">,</span>
-                      MAP_PRIVATE <span class="token operator">|</span> MAP_ANONYMOUS <span class="token operator">|</span> MAP_STACK<span class="token punctuation">,</span> <span class="token operator">-</span><span class="token number">1</span><span class="token punctuation">,</span> <span class="token number">0</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
-    <span class="token keyword">if</span> <span class="token punctuation">(</span>addr <span class="token operator">==</span> <span class="token constant">NULL</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
-      <span class="token function">perror</span><span class="token punctuation">(</span><span class="token string">"mmap"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
-      <span class="token keyword">goto</span> error<span class="token punctuation">;</span>
-    <span class="token punctuation">}</span>
-    <span class="token function">printf</span><span class="token punctuation">(</span><span class="token string">"creat new thread...\n"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
-    thread_pid <span class="token operator">=</span> <span class="token function">clone</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>func<span class="token punctuation">,</span> addr <span class="token operator">+</span> STACK_SIZE<span class="token punctuation">,</span>
-                       CLONE_SIGHAND <span class="token operator">|</span> CLONE_FS <span class="token operator">|</span> CLONE_VM <span class="token operator">|</span> CLONE_FILES<span class="token punctuation">,</span> <span class="token constant">NULL</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
-    <span class="token function">printf</span><span class="token punctuation">(</span><span class="token string">"Done! Thread pid: %d\n"</span><span class="token punctuation">,</span> thread_pid<span class="token punctuation">)</span><span class="token punctuation">;</span>
-    <span class="token keyword">if</span> <span class="token punctuation">(</span>thread_pid <span class="token operator">!=</span> <span class="token operator">-</span><span class="token number">1</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
-      <span class="token keyword">do</span> <span class="token punctuation">{</span>
-        w <span class="token operator">=</span> <span class="token function">waitpid</span><span class="token punctuation">(</span><span class="token operator">-</span><span class="token number">1</span><span class="token punctuation">,</span> <span class="token constant">NULL</span><span class="token punctuation">,</span> __WCLONE <span class="token operator">|</span> __WALL<span class="token punctuation">)</span><span class="token punctuation">;</span>
-        <span class="token keyword">if</span> <span class="token punctuation">(</span>w <span class="token operator">==</span> <span class="token operator">-</span><span class="token number">1</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
-          <span class="token function">perror</span><span class="token punctuation">(</span><span class="token string">"waitpid"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
-          <span class="token keyword">goto</span> error<span class="token punctuation">;</span>
+    <span class="token keyword">while</span> <span class="token punctuation">(</span><span class="token number">1</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+        <span class="token keyword">void</span> <span class="token operator">*</span>addr <span class="token operator">=</span> <span class="token function">mmap</span><span class="token punctuation">(</span><span class="token constant">NULL</span><span class="token punctuation">,</span> STACK_SIZE<span class="token punctuation">,</span> PROT_READ <span class="token operator">|</span> PROT_WRITE<span class="token punctuation">,</span>
+                        MAP_PRIVATE <span class="token operator">|</span> MAP_ANONYMOUS <span class="token operator">|</span> MAP_STACK<span class="token punctuation">,</span> <span class="token operator">-</span><span class="token number">1</span><span class="token punctuation">,</span> <span class="token number">0</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span>addr <span class="token operator">==</span> <span class="token constant">NULL</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+            <span class="token function">perror</span><span class="token punctuation">(</span><span class="token string">"mmap"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token keyword">goto</span> error<span class="token punctuation">;</span>
         <span class="token punctuation">}</span>
-      <span class="token punctuation">}</span> <span class="token keyword">while</span> <span class="token punctuation">(</span><span class="token operator">!</span><span class="token function">WIFEXITED</span><span class="token punctuation">(</span>status<span class="token punctuation">)</span> <span class="token operator">&amp;&amp;</span> <span class="token operator">!</span><span class="token function">WIFSIGNALED</span><span class="token punctuation">(</span>status<span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token function">printf</span><span class="token punctuation">(</span><span class="token string">"creat new thread...\n"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        thread_pid <span class="token operator">=</span> <span class="token function">clone</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>func<span class="token punctuation">,</span> addr <span class="token operator">+</span> STACK_SIZE<span class="token punctuation">,</span>
+                        CLONE_SIGHAND <span class="token operator">|</span> CLONE_FS <span class="token operator">|</span> CLONE_VM <span class="token operator">|</span> CLONE_FILES<span class="token punctuation">,</span> <span class="token constant">NULL</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token function">printf</span><span class="token punctuation">(</span><span class="token string">"Done! Thread pid: %d\n"</span><span class="token punctuation">,</span> thread_pid<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span>thread_pid <span class="token operator">!=</span> <span class="token operator">-</span><span class="token number">1</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+            <span class="token keyword">do</span> <span class="token punctuation">{</span>
+                w <span class="token operator">=</span> <span class="token function">waitpid</span><span class="token punctuation">(</span><span class="token operator">-</span><span class="token number">1</span><span class="token punctuation">,</span> <span class="token constant">NULL</span><span class="token punctuation">,</span> __WCLONE <span class="token operator">|</span> __WALL<span class="token punctuation">)</span><span class="token punctuation">;</span>
+                <span class="token keyword">if</span> <span class="token punctuation">(</span>w <span class="token operator">==</span> <span class="token operator">-</span><span class="token number">1</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+                    <span class="token function">perror</span><span class="token punctuation">(</span><span class="token string">"waitpid"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+                    <span class="token keyword">goto</span> error<span class="token punctuation">;</span>
+                <span class="token punctuation">}</span>
+            <span class="token punctuation">}</span> <span class="token keyword">while</span> <span class="token punctuation">(</span><span class="token operator">!</span><span class="token function">WIFEXITED</span><span class="token punctuation">(</span>status<span class="token punctuation">)</span> <span class="token operator">&amp;&amp;</span> <span class="token operator">!</span><span class="token function">WIFSIGNALED</span><span class="token punctuation">(</span>status<span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+        <span class="token function">sleep</span><span class="token punctuation">(</span><span class="token number">10</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
     <span class="token punctuation">}</span>
-    <span class="token function">sleep</span><span class="token punctuation">(</span><span class="token number">10</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
-  <span class="token punctuation">}</span>
+
 error<span class="token operator">:</span>
-  <span class="token keyword">return</span> <span class="token number">0</span><span class="token punctuation">;</span>
-<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+    <span class="token keyword">return</span> <span class="token number">0</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
 <p>然后我们用 pidstat 观察该进程的执行，可以发现它的现象跟生产环境中的问题是一致的：</p>
 <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ pidstat -r -p <span class="token number">535</span> <span class="token number">5</span>
 <span class="token number">11</span>:56:51 PM   <span class="token environment constant">UID</span>       PID  minflt/s  majflt/s     VSZ    RSS   %MEM  Command
@@ -1383,6 +1384,119 @@ Average:        <span class="token number">0</span>       <span class="token num
 <p>对于 CLOSE_WAIT 状态而言，系统中没有对应的配置项。但是该状态也是一个危险信号，如果这个状态的 TCP 连接较多，那往往意味着应用程序有 Bug，在某些条件下没有调用 close() 来关闭连接。我们在生产环境上就遇到过很多这类问题。所以，如果你的系统中存在很多 CLOSE_WAIT 状态的连接，那你最好去排查一下你的应用程序，看看哪里漏掉了 close()。</p>
 <h4 id="11-3-总结"><a href="#11-3-总结" class="headerlink" title="11.3 总结"></a>11.3 总结</h4><p><img src="/images/《Linux内核技术实战课》学习笔记/TCP握手挥手相关的配置项.jpg" alt="TCP握手挥手相关的配置项"></p>
 <p>当然了，有些配置项也是可以根据你的服务器负载以及 CPU 和内存大小来做灵活配置的，比如 tcp_max_syn_backlog、somaxconn、tcp_max_tw_buckets 这三项，如果你的物理内存足够大、CPU 核数足够多，你可以适当地增大这些值，这些往往都是一些经验值。</p>
+<h3 id="12-基础篇-TCP收发包过程会受哪些配置项影响？"><a href="#12-基础篇-TCP收发包过程会受哪些配置项影响？" class="headerlink" title="12 基础篇 | TCP收发包过程会受哪些配置项影响？"></a>12 基础篇 | TCP收发包过程会受哪些配置项影响？</h3><h4 id="12-1-TCP-数据包的发送过程会受什么影响？"><a href="#12-1-TCP-数据包的发送过程会受什么影响？" class="headerlink" title="12.1 TCP 数据包的发送过程会受什么影响？"></a>12.1 TCP 数据包的发送过程会受什么影响？</h4><p><img src="/images/《Linux内核技术实战课》学习笔记/TCP数据包发送过程.jpg" alt="TCP数据包发送过程"></p>
+<p>上图就是一个简略的 TCP 数据包的发送过程。应用程序调用 write(2) 或者 send(2) 系列系统调用开始往外发包时，这些系统调用会把数据包从用户缓冲区拷贝到 TCP 发送缓冲区（TCP Send Buffer），这个 TCP 发送缓冲区的大小是受限制的，这里也是容易引起问题的地方。</p>
+<p>TCP 发送缓冲区的大小默认是受 net.ipv4.tcp_wmem 来控制：</p>
+<pre class="line-numbers language-text" data-language="text"><code class="language-text">net.ipv4.tcp_wmem = 8192 65536 16777216<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>tcp_wmem 中这三个数字的含义分别为 min、default、max。TCP 发送缓冲区的大小会在 min 和 max 之间动态调整，初始的大小是 default，这个动态调整的过程是由内核自动来做的，应用程序无法干预。自动调整的目的，是为了在尽可能少的浪费内存的情况下来满足发包的需要。</p>
+<p>tcp_wmem 中的 max 不能超过 net.core.wmem_max 这个配置项的值，如果超过了，TCP 发送缓冲区最大就是 net.core.wmem_max。通常情况下，我们需要设置 net.core.wmem_max 的值大于等于 net.ipv4.tcp_wmem 的 max：</p>
+<pre class="line-numbers language-text" data-language="text"><code class="language-text">net.core.wmem_max = 16777216<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>对于 TCP 发送缓冲区的大小，我们需要根据服务器的负载能力来灵活调整。通常情况下我们需要调大它们的默认值，我上面列出的 tcp_wmem 的 min、default、max 这几组数值就是调大后的值，也是我们在生产环境中配置的值。</p>
+<p>我之所以将这几个值给调大，是因为我们在生产环境中遇到过 TCP 发送缓冲区太小，导致业务延迟很大的问题，这类问题也是可以使用 systemtap 之类的工具在内核里面打点来进行观察的（观察 sk_stream_wait_memory 这个事件）:</p>
+<pre class="line-numbers language-text" data-language="text"><code class="language-text"># sndbuf_overflow.stp
+# Usage :
+# $ stap sndbuf_overflow.stp
+probe kernel.function("sk_stream_wait_memory")
+{
+    printf("%d %s TCP send buffer overflow\n",
+         pid(), execname())
+}<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>如果你可以观察到 sk_stream_wait_memory 这个事件，就意味着 TCP 发送缓冲区太小了，你需要继续去调大 wmem_max 和 tcp_wmem:max 的值了。</p>
+<p>应用程序有的时候会很明确地知道自己发送多大的数据，需要多大的 TCP 发送缓冲区，这个时候就可以通过 setsockopt(2) 里的 SO_SNDBUF 来设置固定的缓冲区大小。一旦进行了这种设置后，tcp_wmem 就会失效，而且这个缓冲区大小设置的是固定值，内核也不会对它进行动态调整。</p>
+<p>但是，SO_SNDBUF 设置的最大值不能超过 net.core.wmem_max，如果超过了该值，内核会把它强制设置为 net.core.wmem_max。所以，如果你想要设置 SO_SNDBUF，一定要确认好 net.core.wmem_max 是否满足需求，否则你的设置可能发挥不了作用。通常情况下，我们都不会通过 SO_SNDBUF 来设置 TCP 发送缓冲区的大小，而是使用内核设置的 tcp_wmem，因为如果 SO_SNDBUF 设置得太大就会浪费内存，设置得太小又会引起缓冲区不足的问题。</p>
+<p>另外，如果你关注过 Linux 的最新技术动态，你一定听说过 eBPF。你也可以通过 eBPF 来设置 SO_SNDBUF 和 SO_RCVBUF，进而分别设置 TCP 发送缓冲区和 TCP 接收缓冲区的大小。同样地，使用 eBPF 来设置这两个缓冲区时，也不能超过 wmem_max 和 rmem_max。</p>
+<p>tcp_wmem 以及 wmem_max 的大小设置都是针对单个 TCP 连接的，这两个值的单位都是 Byte（字节）。系统中可能会存在非常多的 TCP 连接，如果 TCP 连接太多，就可能导致内存耗尽。因此，所有 TCP 连接消耗的总内存也有限制：</p>
+<pre class="line-numbers language-text" data-language="text"><code class="language-text">net.ipv4.tcp_mem = 8388608 12582912 16777216<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>我们通常也会把这个配置项给调大。与前两个选项不同的是，该选项中这些值的单位是 Page（页数），也就是 4K。它也有 3 个值：min、pressure、max。当所有 TCP 连接消耗的内存总和达到 max 后，也会因达到限制而无法再往外发包。</p>
+<p>因 tcp_mem 达到限制而无法发包或者产生抖动的问题，我们也是可以观测到的。为了方便地观测这类问题，Linux 内核里面预置了静态观测点：sock_exceed_buf_limit。观察时你只需要打开 tracepiont（需要 4.16+ 的内核版本）：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token builtin class-name">echo</span> <span class="token number">1</span> <span class="token operator">&gt;</span> /sys/kernel/debug/tracing/events/sock/sock_exceed_buf_limit/enable<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>然后去看是否有该事件发生：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token function">cat</span> /sys/kernel/debug/tracing/trace_pipe<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>如果有日志输出（即发生了该事件），就意味着你需要调大 tcp_mem 了，或者是需要断开一些 TCP 连接了。</p>
+<p>TCP 层处理完数据包后，就继续往下来到了 IP 层。IP 层这里容易触发问题的地方是 net.ipv4.ip_local_port_range 这个配置选项，它是指和其他服务器建立 IP 连接时本地端口（local port）的范围。我们在生产环境中就遇到过默认的端口范围太小，以致于无法创建新连接的问题。所以通常情况下，我们都会扩大默认的端口范围：</p>
+<pre class="line-numbers language-text" data-language="text"><code class="language-text">net.ipv4.ip_local_port_range = 1024 65535<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>为了能够对 TCP/IP 数据流进行流控，Linux 内核在 IP 层实现了 qdisc（排队规则）。我们平时用到的 TC 就是基于 qdisc 的流控工具。qdisc 的队列长度是我们用 ifconfig 来看到的 txqueuelen，我们在生产环境中也遇到过因为 txqueuelen 太小导致数据包被丢弃的情况，这类问题可以通过下面这个命令来观察：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ <span class="token function">ip</span> -s -s <span class="token function">link</span> <span class="token function">ls</span> dev eth0
+<span class="token punctuation">..</span><span class="token punctuation">..</span><span class="token punctuation">..</span>
+TX: bytes packets errors dropped carrier collsns
+<span class="token number">3263284</span> <span class="token number">25060</span> <span class="token number">0</span> <span class="token number">0</span> <span class="token number">0</span> <span class="token number">0</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span></span></code></pre>
+<p>如果观察到 dropped 这一项不为 0，那就有可能是 txqueuelen 太小导致的。当遇到这种情况时，你就需要增大该值了，比如增加 eth0 这个网络接口的 txqueuelen：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token function">ifconfig</span> eth0 txqueuelen <span class="token number">2000</span><span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>或者使用 ip 这个工具：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token function">ip</span> <span class="token function">link</span> <span class="token builtin class-name">set</span> eth0 txqueuelen <span class="token number">2000</span><span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>在调整了 txqueuelen 的值后，你需要持续观察是否可以缓解丢包的问题，这也便于你将它调整到一个合适的值。</p>
+<p>Linux 系统默认的 qdisc 为 pfifo_fast（先进先出），通常情况下我们无需调整它。如果你想使用TCP BBR来改善 TCP 拥塞控制的话，那就需要将它调整为 fq（fair queue, 公平队列）：</p>
+<pre class="line-numbers language-text" data-language="text"><code class="language-text">net.core.default_qdisc = fq<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>经过 IP 层后，数据包再往下就会进入到网卡了，然后通过网卡发送出去。至此，你需要发送出去的数据就走完了 TCP/IP 协议栈，然后正常地发送给对端了。</p>
+<h4 id="12-2-TCP-数据包的接收过程会受什么影响？"><a href="#12-2-TCP-数据包的接收过程会受什么影响？" class="headerlink" title="12.2 TCP 数据包的接收过程会受什么影响？"></a>12.2 TCP 数据包的接收过程会受什么影响？</h4><p>TCP 数据包的接收过程，同样也可以用一张图来简单表示：</p>
+<p><img src="/images/《Linux内核技术实战课》学习笔记/TCP数据包接收过程.jpg" alt="TCP数据包接收过程"></p>
+<p>从上图可以看出，TCP 数据包的接收流程在整体上与发送流程类似，只是方向是相反的。数据包到达网卡后，就会触发中断（IRQ）来告诉 CPU 读取这个数据包。但是在高性能网络场景下，数据包的数量会非常大，如果每来一个数据包都要产生一个中断，那 CPU 的处理效率就会大打折扣，所以就产生了 NAPI（New API）这种机制让 CPU 一次性地去轮询（poll）多个数据包，以批量处理的方式来提升效率，降低网卡中断带来的性能开销。</p>
+<p>那在 poll 的过程中，一次可以 poll 多少个呢？这个 poll 的个数可以通过 sysctl 选项来控制：</p>
+<pre class="line-numbers language-text" data-language="text"><code class="language-text">net.core.netdev_budget = 600<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>该控制选项的默认值是 300，在网络吞吐量较大的场景中，我们可以适当地增大该值，比如增大到 600。增大该值可以一次性地处理更多的数据包。但是这种调整也是有缺陷的，因为这会导致 CPU 在这里 poll 的时间增加，如果系统中运行的任务很多的话，其他任务的调度延迟就会增加。</p>
+<p>接下来继续看 TCP 数据包的接收过程。我们刚才提到，数据包到达网卡后会触发 CPU 去 poll 数据包，这些 poll 的数据包紧接着就会到达 IP 层去处理，然后再达到 TCP 层，这时就会面对另外一个很容易引发问题的地方了：TCP Receive Buffer（TCP 接收缓冲区）。</p>
+<p>与 TCP 发送缓冲区类似，TCP 接收缓冲区的大小也是受控制的。通常情况下，默认都是使用 tcp_rmem 来控制缓冲区的大小。同样地，我们也会适当地增大这几个值的默认值，来获取更好的网络性能，调整为如下数值：</p>
+<pre class="line-numbers language-text" data-language="text"><code class="language-text">net.ipv4.tcp_rmem = 8192 87380 16777216<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>它也有 3 个字段：min、default、max。TCP 接收缓冲区大小也是在 min 和 max 之间动态调整 ，不过跟发送缓冲区不同的是，这个动态调整是可以通过控制选项来关闭的，这个选项是 tcp_moderate_rcvbuf 。通常我们都是打开它，这也是它的默认值：</p>
+<pre class="line-numbers language-text" data-language="text"><code class="language-text">net.ipv4.tcp_moderate_rcvbuf = 1<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>之所以接收缓冲区有选项可以控制自动调节，而发送缓冲区没有，那是因为 TCP 接收缓冲区会直接影响 TCP 拥塞控制，进而影响到对端的发包，所以使用该控制选项可以更加灵活地控制对端的发包行为。</p>
+<p>除了 tcp_moderate_rcvbuf 可以控制 TCP 接收缓冲区的动态调节外，也可以通过 setsockopt() 中的配置选项 SO_RCVBUF 来控制，这与 TCP 发送缓冲区是类似的。如果应用程序设置了 SO_RCVBUF 这个标记，那么 TCP 接收缓冲区的动态调整就是关闭，即使 tcp_moderate_rcvbuf 为 1，接收缓冲区的大小始终就为设置的 SO_RCVBUF 这个值。</p>
+<p>也就是说，只有在 tcp_moderate_rcvbuf 为 1，并且应用程序没有通过 SO_RCVBUF 来配置缓冲区大小的情况下，TCP 接收缓冲区才会动态调节。</p>
+<p>同样地，与 TCP 发送缓冲区类似，SO_RCVBUF 设置的值最大也不能超过 net.core.rmem_max。通常情况下，我们也需要设置 net.core.rmem_max 的值大于等于 net.ipv4.tcp_rmem 的 max：</p>
+<pre class="line-numbers language-text" data-language="text"><code class="language-text">net.core.rmem_max = 16777216<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<h4 id="12-3-总结"><a href="#12-3-总结" class="headerlink" title="12.3 总结"></a>12.3 总结</h4><p><img src="/images/《Linux内核技术实战课》学习笔记/TCP发收包相关配置总结.jpg" alt="TCP发收包相关配置总结"></p>
+<h3 id="13-案例篇-TCP拥塞控制是如何导致业务性能抖动的？"><a href="#13-案例篇-TCP拥塞控制是如何导致业务性能抖动的？" class="headerlink" title="13 案例篇 | TCP拥塞控制是如何导致业务性能抖动的？"></a>13 案例篇 | TCP拥塞控制是如何导致业务性能抖动的？</h3><h4 id="13-1-TCP-拥塞控制是如何对业务网络性能产生影响的-？"><a href="#13-1-TCP-拥塞控制是如何对业务网络性能产生影响的-？" class="headerlink" title="13.1 TCP 拥塞控制是如何对业务网络性能产生影响的 ？"></a>13.1 TCP 拥塞控制是如何对业务网络性能产生影响的 ？</h4><p>我们先来看下 TCP 拥塞控制的大致原理。</p>
+<p><img src="/images/《Linux内核技术实战课》学习笔记/TCP拥塞控制.jpg" alt="TCP拥塞控制"></p>
+<p>上图就是 TCP 拥塞控制的简单图示，它大致分为四个阶段。</p>
+<ol>
+<li><p>慢启动</p>
+<p> TCP 连接建立好后，发送方就进入慢速启动阶段，然后逐渐地增大发包数量（TCP Segments）。这个阶段每经过一个 RTT（round-trip time），发包数量就会翻倍。如下图所示：</p>
+<p> <img src="/images/《Linux内核技术实战课》学习笔记/TCPSlowStart示意图.jpg" alt="TCPSlowStart示意图"></p>
+<p> 初始发送数据包的数量是由 init_cwnd（初始拥塞窗口）来决定的，该值在 Linux 内核中被设置为 10（TCP_INIT_CWND），这是由 Google 的研究人员总结出的一个经验值，这个经验值也被写入了RFC6928。并且，Linux 内核在 2.6.38 版本中也将它从默认值 3 修改为了 Google 建议的 10，你感兴趣的话可以看下这个 commit：  tcp: Increase the initial congestion window to 10。</p>
+<p> 增大 init_cwnd 可以显著地提升网络性能，因为这样在初始阶段就可以一次性发送很多 TCP Segments，更加细节性的原因你可以参考RFC6928的解释。</p>
+<p> 增大 init_cwnd 的值对于提升短连接的网络性能会很有效，特别是数据量在慢启动阶段就能发送完的短连接，比如针对 http 这种服务，http 的短连接请求数据量一般不大，通常在慢启动阶段就能传输完，这些都可以通过 tcpdump 来进行观察。</p>
+<p> 在慢启动阶段，当拥塞窗口（cwnd）增大到一个阈值（ ssthresh，慢启动阈值）后，TCP 拥塞控制就进入了下一个阶段：拥塞避免（Congestion Avoidance）。</p>
+</li>
+<li><p>拥塞避免</p>
+<p> 在这个阶段 cwnd 不再成倍增加，而是一个 RTT 增加 1，即缓慢地增加 cwnd，以防止网络出现拥塞。网络出现拥塞是难以避免的，由于网络链路的复杂性，甚至会出现乱序（Out of Order）报文。乱序报文产生原因之一如下图所示：</p>
+<p> <img src="/images/《Linux内核技术实战课》学习笔记/TCP乱序报文.jpg" alt="TCP乱序报文"></p>
+<p> 在上图中，发送端一次性发送了 4 个 TCP segments，但是第 2 个 segment 在传输过程中被丢弃掉了，那么接收方就接收不到该 segment 了。然而第 3 个 TCP segment 和第 4 个 TCP segment 能够被接收到，此时 3 和 4 就属于乱序报文，它们会被加入到接收端的 ofo queue（乱序队列）里。</p>
+<p> 丢包这类问题在移动网络环境中比较容易出现，特别是在一个网络状况不好的环境中，比如在电梯里丢包率就会很高，而丢包率高就会导致网络响应特别慢。在数据中心内部的服务上很少会有数据包在网络链路中被丢弃的情况，我说的这类丢包问题主要是针对网关服务这种和外部网络有连接的服务上。</p>
+<p> 针对我们的网关服务，我们自己也做过一些 TCP 单边优化工作，主要是优化 Cubic 拥塞控制算法，以缓解丢包引起的网络性能下降问题。另外，Google 前几年开源的一个新的拥塞控制算法 BBR在理论上也可以很好地缓解 TCP 丢包问题，但是在我们的实践中，BBR 的效果并不好，因此我们最终也没有使用它。</p>
+<p> 我们再回到上面这张图，因为接收端没有接收到第 2 个 segment，因此接收端每次收到一个新的 segment 后都会去 ack 第 2 个 segment，即 ack 17。紧接着，发送端就会接收到三个相同的 ack（ack 17）。连续出现了 3 个响应的 ack 后，发送端会据此判断数据包出现了丢失，于是就进入了下一个阶段：快速重传。</p>
+</li>
+<li><p>快速重传和快速恢复</p>
+<p> 快速重传和快速恢复是一起工作的，它们是为了应对丢包这种行为而做的优化，在这种情况下，由于网络并没有出现拥塞，所以拥塞窗口不必恢复到初始值。判断丢包的依据就是收到 3 个相同的 ack。</p>
+<p> Google 的工程师同样对 TCP 快速重传提出了一个改进策略：tcp early retrans，它允许一些情况下的 TCP 连接可以绕过重传延时（RTO）来进行快速重传。</p>
+<p> 除了快速重传外，还有一种重传机制是超时重传。不过，这是非常糟糕的一种情况。如果发送出去一个数据包，超过一段时间（RTO）都收不到它的 ack，那就认为是网络出现了拥塞。这个时候就需要将 cwnd 恢复为初始值，再次从慢启动开始调整 cwnd 的大小。</p>
+<p> RTO 一般发生在网络链路有拥塞的情况下，如果某一个连接数据量太大，就可能会导致其他连接的数据包排队，从而出现较大的延迟。我们在开头提到的，下载电影影响到别人玩网络游戏的例子就是这个原因。</p>
+<p> 关于 RTO，它也是一个优化点。如果 RTO 过大的话，那么业务就可能要阻塞很久，所以在 3.1 版本的内核里引入了一种改进来将 RTO 的初始值从 3s 调整为 1s，这可以显著节省业务的阻塞时间。不过，RTO=1s  在某些场景下还是有些大了，特别是在数据中心内部这种网络质量相对比较稳定的环境中。</p>
+<p> 我们在生产环境中发生过这样的案例：业务人员反馈说业务 RT 抖动得比较厉害，我们使用 strace 初步排查后发现，进程阻塞在了 send() 这类发包函数里。然后我们使用 tcpdump 来抓包，发现发送方在发送数据后，迟迟不能得到对端的响应，一直到 RTO 时间再次重传。与此同时，我们还尝试了在对端也使用 tcpdump 来抓包，发现对端是过了很长时间后才收到数据包。因此，我们判断是网络发生了拥塞，从而导致对端没有及时收到数据包。</p>
+<p> 那么，针对这种网络拥塞引起业务阻塞时间太久的情况，有没有什么解决方案呢？一种解决方案是，创建 TCP 连接，使用 SO_SNDTIMEO 来设置发送超时时间，以防止应用在发包的时候阻塞在发送端太久，如下所示：</p>
+ <pre class="line-numbers language-c" data-language="c"><code class="language-c">ret <span class="token operator">=</span> <span class="token function">setsockopt</span><span class="token punctuation">(</span>sockfd<span class="token punctuation">,</span> SOL_SOCKET<span class="token punctuation">,</span> SO_SNDTIMEO<span class="token punctuation">,</span> <span class="token operator">&amp;</span>timeout<span class="token punctuation">,</span> len<span class="token punctuation">)</span><span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p> 当业务发现该 TCP 连接超时后，就会主动断开该连接，然后尝试去使用其他的连接。</p>
+<p> 这种做法可以针对某个 TCP 连接来设置 RTO 时间，那么，有没有什么方法能够设置全局的 RTO 时间（设置一次，所有的 TCP 连接都能生效）呢？答案是有的，这就需要修改内核。针对这类需求，我们在生产环境中的实践是：将 TCP RTO min、TCP RTO max、TCP RTO init 更改为可以使用 sysctl 来灵活控制的变量，从而根据实际情况来做调整，比如说针对数据中心内部的服务器，我们可以适当地调小这几个值，从而减少业务阻塞时间。</p>
+<p> 上述这 4 个阶段是 TCP 拥塞控制的基础，总体来说，拥塞控制就是根据 TCP 的数据传输状况来灵活地调整拥塞窗口，从而控制发送方发送数据包的行为。换句话说，拥塞窗口的大小可以表示网络传输链路的拥塞情况。TCP 连接 cwnd 的大小可以通过 ss 这个命令来查看：</p>
+ <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ ss -nipt
+State       Recv-Q Send-Q     Local Address:Port            Peer Address:Port         Process
+ESTAB       <span class="token number">0</span>      <span class="token number">36</span>          <span class="token number">172.23</span>.245.7:22             <span class="token number">172.30</span>.16.162:60490        users:<span class="token variable"><span class="token punctuation">((</span>"sshd"<span class="token punctuation">,</span>pid<span class="token operator">=</span><span class="token number">19256</span><span class="token punctuation">,</span>fd<span class="token operator">=</span><span class="token number">3</span><span class="token punctuation">))</span></span>
+    cubic wscale:5,7 rto:272 rtt:71.53/1.068 ato:40 mss:1248 rcvmss:1248 advmss:1448 cwnd:10 bytes_acked:19591 bytes_received:2817 segs_out:64 segs_in:80 data_segs_out:57
+    data_segs_in:28 send <span class="token number">1</span>.4Mbps lastsnd:6 lastrcv:6 lastack:6 pacing_rate <span class="token number">2</span>.8Mbps delivery_rate <span class="token number">1</span>.5Mbps app_limited busy:2016ms unacked:1 rcv_space:14600 minrtt:69.402<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p> 通过该命令，我们可以发现这个 TCP 连接的 cwnd 为 10。</p>
+<p> 如果你想要追踪拥塞窗口的实时变化信息，还有另外一个更好的办法：通过 tcp_probe 这个 tracepoint 来追踪：</p>
+ <pre class="line-numbers language-text" data-language="text"><code class="language-text">/sys/kernel/debug/tracing/events/tcp/tcp_probe<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p> 但是这个 tracepoint 只有 4.16 以后的内核版本才支持，如果你的内核版本比较老，你也可以使用 tcp_probe 这个内核模块（net/ipv4/tcp_probe.c）来进行追踪。</p>
+<p> 除了网络状况外，发送方还需要知道接收方的处理能力。如果接收方的处理能力差，那么发送方就必须要减缓它的发包速度，否则数据包都会挤压在接收方的缓冲区里，甚至被接收方给丢弃掉。接收方的处理能力是通过另外一个窗口——rwnd（接收窗口）来表示的。那么，接收方的 rwnd 又是如何影响发送方的行为呢？</p>
+</li>
+</ol>
+<h4 id="13-2-接收方是如何影响发送方发送数据的？"><a href="#13-2-接收方是如何影响发送方发送数据的？" class="headerlink" title="13.2 接收方是如何影响发送方发送数据的？"></a>13.2 接收方是如何影响发送方发送数据的？</h4><p>同样地，我也画了一张简单的图，来表示接收方的 rwnd 是如何影响发送方的：</p>
+<p><img src="/images/《Linux内核技术实战课》学习笔记/rwnd与cwnd.jpg" alt="rwnd与cwnd"></p>
+<p>如上图所示，接收方在收到数据包后，会给发送方回一个 ack，然后把自己的 rwnd 大小写入到 TCP 头部的 win 这个字段，这样发送方就能根据这个字段来知道接收方的 rwnd 了。接下来，发送方在发送下一个 TCP segment 的时候，会先对比发送方的 cwnd 和接收方的 rwnd，得出这二者之间的较小值，然后控制发送的 TCP segment 个数不能超过这个较小值。</p>
+<p>关于接收方的 rwnd 对发送方发送行为的影响，我们曾经遇到过这样的案例：业务反馈说 Server 向 Client 发包很慢，但是 Server 本身并不忙，而且网络看起来也没有问题，所以不清楚是什么原因导致的。对此，我们使用 tcpdump 在 server 上抓包后发现，Client 响应的 ack 里经常出现 win 为 0 的情况，也就是 Client 的接收窗口为 0。于是我们就去 Client 上排查，最终发现是 Client 代码存在 bug，从而导致无法及时读取收到的数据包。</p>
+<p>如果系统中发生了接收窗口太小而无法收包的情况，就会产生TCPZeroWindowDrop事件，然后该事件可以通过 /proc/net/netstat 里的 TCPZeroWindowDrop 这个字段来查看。</p>
+<p>因为 TCP 头部大小是有限制的，而其中的 win 这个字段只有 16bit，win 能够表示的大小最大只有 65535（64K），所以如果想要支持更大的接收窗口以满足高性能网络，我们就需要打开下面这个配置项，系统中也是默认打开了该选项：</p>
+<pre class="line-numbers language-text" data-language="text"><code class="language-text">net.ipv4.tcp_window_scaling = 1<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>关于该选项更加详细的设计，你如果想了解的话，可以去参考RFC1323。</p>
 <h2 id="四、内核态CPU利用率飙高问题"><a href="#四、内核态CPU利用率飙高问题" class="headerlink" title="四、内核态CPU利用率飙高问题"></a>四、内核态CPU利用率飙高问题</h2>
                 
             </div>
@@ -1776,7 +1890,7 @@ Average:        <span class="token number">0</span>       <span class="token num
             <br>
             
             &nbsp;<i class="fas fa-chart-area"></i>&nbsp;站点总字数:&nbsp;<span
-                class="white-color">647k</span>&nbsp;字
+                class="white-color">652.4k</span>&nbsp;字
             
             
             
