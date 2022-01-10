@@ -438,14 +438,14 @@
                 
                 <div class="info-break-policy">
                     <i class="far fa-file-word fa-fw"></i>文章字数:&nbsp;&nbsp;
-                    33.7k
+                    43.5k
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-clock fa-fw"></i>阅读时长:&nbsp;&nbsp;
-                    128 分
+                    166 分
                 </div>
                 
 
@@ -1634,7 +1634,290 @@ TcpExtTCPRcvQDrop               <span class="token number">0</span>             
 <h4 id="16-3-TCP-疑难问题的轻量级分析手段：TCP-Tracepoints"><a href="#16-3-TCP-疑难问题的轻量级分析手段：TCP-Tracepoints" class="headerlink" title="16.3 TCP 疑难问题的轻量级分析手段：TCP Tracepoints"></a>16.3 TCP 疑难问题的轻量级分析手段：TCP Tracepoints</h4><p>对于 TCP 的相关问题，我也习惯使用这些 TCP Tracepoints 来分析问题。要想使用这些 Tracepoints，你的内核版本需要为 4.16 及以上。这些常用的 TCP Tracepoints 路径位于 /sys/kernel/debug/tracing/events/tcp/ 和 /sys/kernel/debug/tracing/events/sock/，它们的作用如下表所示：</p>
 <p><img src="/images/《Linux内核技术实战课》学习笔记/TCPTracepoint.jpg" alt="TCPTracepoint"></p>
 <p>我们回到 TCP Tracepoints 这一轻量级的追踪方式。有一篇文章对它讲解得很好，就是 Brendan Gregg 写的<a target="_blank" rel="noopener" href="https://www.brendangregg.com/blog/2018-03-22/tcp-tracepoints.html">TCP Tracepoints</a>，这里面还详细介绍了基于 Tracepoints 的一些工具，如果你觉得用 Python 脚本解析 TCP Tracepoints 的输出有点麻烦，你可以直接使用里面推荐的那些工具。不过，你需要注意的是，这些工具都是基于 ebpf 来实现的，而 ebpf 有一个缺点，就是它在加载的时候 CPU 开销有些大。这是因为有一些编译工作比较消耗 CPU，所以你在使用这些命令时要先看下你的系统 CPU 使用情况。当 ebpf 加载起来后，CPU 开销就很小了，大致在 1% 以内。在停止 ebpf 工具的追踪时，也会有一些 CPU 开销，不过这个开销比加载时消耗的要小很多，但是你同样需要注意一下，以免影响到业务。</p>
-<h2 id="四、内核态CPU利用率飙高问题"><a href="#四、内核态CPU利用率飙高问题" class="headerlink" title="四、内核态CPU利用率飙高问题"></a>四、内核态CPU利用率飙高问题</h2>
+<h2 id="四、内核态CPU利用率飙高问题"><a href="#四、内核态CPU利用率飙高问题" class="headerlink" title="四、内核态CPU利用率飙高问题"></a>四、内核态CPU利用率飙高问题</h2><h3 id="17-基础篇-CPU是如何执行任务的？"><a href="#17-基础篇-CPU是如何执行任务的？" class="headerlink" title="17 基础篇 | CPU是如何执行任务的？"></a>17 基础篇 | CPU是如何执行任务的？</h3><h4 id="17-1-CPU-是如何读写数据的-？"><a href="#17-1-CPU-是如何读写数据的-？" class="headerlink" title="17.1 CPU 是如何读写数据的 ？"></a>17.1 CPU 是如何读写数据的 ？</h4><p>CPU 的架构图如下所示：</p>
+<p><img src="/images/《Linux内核技术实战课》学习笔记/CPU架构.jpg" alt="CPU架构"></p>
+<p>对于现代处理器而言，一个实体 CPU 通常会有两个逻辑线程，也就是上图中的 Core 0 和 Core  1。每个 Core 都有自己的 L1 Cache，L1 Cache 又分为 dCache 和 iCache，对应到上图就是 L1d 和 L1i。L1 Cache 只有 Core 本身可以看到，其他的 Core 是看不到的。同一个实体 CPU 中的这两个 Core 会共享 L2 Cache，其他的实体 CPU 是看不到这个 L2 Cache 的。所有的实体 CPU 会共享 L3 Cache。这就是典型的 CPU 架构。</p>
+<p>相信你也看到，在 CPU 外还会有内存（DRAM）、磁盘等，这些存储介质共同构成了体系结构里的金字塔存储层次。如下所示：</p>
+<p><img src="/images/《Linux内核技术实战课》学习笔记/金字塔存储层次.jpg" alt="金字塔存储层次"></p>
+<p>在这个“金字塔”中，越往下，存储容量就越大，它的速度也会变得越慢。</p>
+<p>Cache 伪共享问题：</p>
+<p><img src="/images/《Linux内核技术实战课》学习笔记/CacheLineFalseSharing.jpg" alt="CacheLineFalseSharing"></p>
+<p>如上图所示，两个 CPU 上并行运行着两个不同线程，它们同时从内存中读取两个不同的数据，这两个数据的地址在物理内存上是连续的，它们位于同一个 Cache Line 中。CPU 从内存中读数据到 Cache 是以 Cache Line 为单位的，所以该 Cache Line 里的数据被同时读入到了这两个 CPU 的各自 Cache 中。紧接着这两个线程分别改写不同的数据，每次改写 Cache 中的数据都会将整个 Cache Line 置为无效。因此，虽然这两个线程改写的数据不同，但是由于它们位于同一个 Cache Line 中，所以一个 CPU 中的线程在写数据时会导致另外一个 CPU 中的 Cache Line 失效，而另外一个 CPU 中的线程在读写数据时就会发生 cache miss，然后去内存读数据，这就大大降低了性能。</p>
+<p>Cache 伪共享问题可以说是性能杀手，我们在写代码时一定要留意那些频繁改写的共享数据，必要的时候可以将它跟其他的热数据放在不同的 Cache Line 中避免伪共享问题，就像我们在内核代码里经常看到的 ____cacheline_aligned 所做的那样。</p>
+<p>那怎么来观测 Cache 伪共享问题呢？你可以使用perf c2c这个命令，但是这需要较新版本内核支持才可以。不过，perf 同样可以观察 cache miss 的现象，它对很多性能问题的分析还是很有帮助的。</p>
+<p>我们再来看内存这个存储层次中的典型问题：并行计算时的竞争，即两个 CPU 同时去操作同一个物理内存地址时的竞争。关于这类问题，我举一些简单的例子给你说明一下。</p>
+<p>以 C 语言为例：</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">struct</span> <span class="token class-name">foo</span> <span class="token punctuation">{</span>
+    <span class="token keyword">int</span> a<span class="token punctuation">;</span>
+    <span class="token keyword">int</span> b<span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span></span></code></pre>
+<p>在这段示例代码里，我们定义了一个结构体，该结构体里的两个成员 a 和 b 在地址上是连续的。如果 CPU 0 去写 a，同时 CPU 1 去读 b 的话，此时不会有竞争，因为 a 和 b 是不同的地址。不过，a 和 b 由于在地址上是连续的，它们可能会位于同一个 Cache Line 中，所以为了防止前面提到的 Cache 伪共享问题，我们可以强制将 b 的地址设置为 Cache Line 对齐地址，如下:</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">struct</span> <span class="token class-name">foo</span> <span class="token punctuation">{</span>
+    <span class="token keyword">int</span> a<span class="token punctuation">;</span>
+    <span class="token keyword">int</span> b ____cacheline_aligned<span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span></span></code></pre>
+<p>接下来，我们看下另外一种情况：</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">struct</span> <span class="token class-name">foo</span> <span class="token punctuation">{</span>
+    <span class="token keyword">int</span> a<span class="token operator">:</span><span class="token number">1</span><span class="token punctuation">;</span>
+    <span class="token keyword">int</span> b<span class="token operator">:</span><span class="token number">1</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span></span></code></pre>
+<p>这个示例程序定义了两个位域（bit field），a 和 b 的地址是一样的，只是属于该地址的不同 bit。在这种情况下，CPU 0 去写 a （a = 1），同时 CPU 1 去写 b （b = 1），就会产生竞争。在总线仲裁后，先写的数据就会被后写的数据给覆盖掉。这就是执行 RMW 操作时典型的竞争问题。在这种场景下，就需要同步原语了，比如使用 atomic 操作。</p>
+<h4 id="17-2-CPU-是如何选择线程执行的-？"><a href="#17-2-CPU-是如何选择线程执行的-？" class="headerlink" title="17.2 CPU 是如何选择线程执行的 ？"></a>17.2 CPU 是如何选择线程执行的 ？</h4><p>一个系统中可能会运行着非常多的线程，这些线程数可能远超系统中的 CPU 核数，这时候这些任务就需要排队，每个 CPU 都会维护着自己运行队列（runqueue）里的线程。这个运行队列的结构大致如下图所示：</p>
+<p><img src="/images/《Linux内核技术实战课》学习笔记/CPU运行队列.jpg" alt="CPU运行队列"></p>
+<p>每个 CPU 都有自己的运行队列（runqueue），需要运行的线程会被加入到这个队列中。因为有些线程的优先级高，Linux 内核为了保障这些高优先级任务的执行，设置了不同的调度类（Scheduling Class），如下所示：</p>
+<p><img src="/images/《Linux内核技术实战课》学习笔记/调度器类.jpg" alt="调度器类"></p>
+<p>这几个调度类的优先级如下：Deadline &gt; Realtime &gt; Fair。Linux 内核在选择下一个任务执行时，会按照该顺序来进行选择，也就是先从 dl_rq 里选择任务，然后从 rt_rq 里选择任务，最后从 cfs_rq 里选择任务。所以实时任务总是会比普通任务先得到执行。</p>
+<p>如果你的某些任务对延迟容忍度很低，比如说在嵌入式系统中就有很多这类任务，那就可以考虑将你的任务设置为实时任务，比如将它设置为 SCHED_FIFO 的任务：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">chrt -f -p <span class="token number">1</span> <span class="token number">1327</span><span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>如果你不做任何设置的话，用户线程在默认情况下都是普通线程，也就是属于 Fair 调度类，由 CFS 调度器来进行管理。CFS 调度器的目的是为了实现线程运行的公平性，举个例子，假设一个 CPU 上有两个线程需要执行，那么每个线程都将分配 50% 的 CPU 时间，以保障公平性。其实，各个线程之间执行时间的比例，也是可以人为干预的，比如在 Linux 上可以调整进程的 nice 值来干预，从而让优先级高一些的线程执行更多时间。这就是 CFS 调度器的大致思想。</p>
+<h3 id="18-案例篇-业务是否需要使用透明大页：水可载舟，亦可覆舟？"><a href="#18-案例篇-业务是否需要使用透明大页：水可载舟，亦可覆舟？" class="headerlink" title="18 案例篇 | 业务是否需要使用透明大页：水可载舟，亦可覆舟？"></a>18 案例篇 | 业务是否需要使用透明大页：水可载舟，亦可覆舟？</h3><h4 id="18-1-细化-CPU-利用率监控"><a href="#18-1-细化-CPU-利用率监控" class="headerlink" title="18.1 细化 CPU 利用率监控"></a>18.1 细化 CPU 利用率监控</h4><p>这里我们以常用的 top 命令为例，来看看 CPU 更加细化的利用率指标（不同版本的 top 命令显示可能会略有不同）：</p>
+<pre class="line-numbers language-text" data-language="text"><code class="language-text">%Cpu(s): 12.5 us,  0.0 sy,  0.0 ni, 87.4 id,  0.0 wa,  0.0 hi,  0.0 si,  0.0 st<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>CPU 利用率监控通常是去解析 /proc/stat 文件，而这些文件中就包含了这些细化的指标。</p>
+<p>上述几个指标的具体含义，这些含义你也可以从top 手册里来查看：</p>
+<pre class="line-numbers language-text" data-language="text"><code class="language-text">us, user    : time running un-niced user processes
+sy, system  : time running kernel processes
+ni, nice    : time running niced user processes
+id, idle    : time spent in the kernel idle handler
+wa, IO-wait : time waiting for I/O completion
+hi : time spent servicing hardware interrupts
+si : time spent servicing software interrupts
+st : time stolen from this vm by the hypervisor<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>上述指标的具体含义以及注意事项如下：</p>
+<p><img src="/images/《Linux内核技术实战课》学习笔记/top中CPU指标及具体含义.jpg" alt="top中CPU指标及具体含义"></p>
+<p>在上面这几项中，idle 和 wait 是 CPU 不工作的时间，其余的项都是 CPU 工作的时间。idle 和 wait 的主要区别是，idle 是 CPU 无事可做，而 wait 则是 CPU 想做事却做不了。你也可以将 wait 理解为是一类特殊的 idle，即该 CPU 上有至少一个线程阻塞在 I/O 时的 idle。</p>
+<h4 id="18-2-抓取-sys-利用率飙高现场"><a href="#18-2-抓取-sys-利用率飙高现场" class="headerlink" title="18.2 抓取 sys 利用率飙高现场"></a>18.2 抓取 sys 利用率飙高现场</h4><p>我们在前面讲到，CPU 的 sys 利用率高，说明内核函数执行花费了太多的时间，所以我们需要采集 CPU 在 sys 飙高的瞬间所执行的内核函数。采集内核函数的方法有很多，比如：</p>
+<ul>
+<li>通过 perf 可以采集 CPU 的热点，看看 sys 利用率高时，哪些内核耗时的 CPU 利用率高；</li>
+<li>通过 perf 的 call-graph 功能可以查看具体的调用栈信息，也就是线程是从什么路径上执行下来的；</li>
+<li>通过 perf 的 annotate 功能可以追踪到线程是在内核函数的哪些语句上比较耗时；</li>
+<li>通过 ftrace 的 function-graph 功能可以查看这些内核函数的具体耗时，以及在哪个路径上耗时最大。</li>
+</ul>
+<p>不过，这些常用的追踪方式在这种瞬间消失的问题上是不太适用的，因为它们更加适合采集一个时间段内的信息。</p>
+<p>那么针对这种瞬时的状态，我希望有一个系统快照，把当前 CPU 正在做的工作记录下来，然后我们就可以结合内核源码分析为什么 sys 利用率会高了。</p>
+<p>有一个工具就可以很好地追踪这种系统瞬时状态，即系统快照，它就是 sysrq。sysrq 是我经常用来分析内核问题的工具，用它可以观察当前的内存快照、任务快照，可以构造 vmcore 把系统的所有信息都保存下来，甚至还可以在内存紧张的时候用它杀掉内存开销最大的那个进程。sysrq 可以说是分析很多疑难问题的利器。</p>
+<p>要想用 sysrq 来分析问题，首先需要使能 sysyrq。我建议你将 sysrq 的所有功能都使能，你无需担心会有什么额外开销，而且这也没有什么风险。使能方式如下：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">sysctl -w kernel.sysrq <span class="token operator">=</span> <span class="token number">1</span><span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>sysrq 的功能被使能后，你可以使用它的 -t 选项把当前的任务快照保存下来，看看系统中都有哪些任务，以及这些任务都在干什么。使用方式如下：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token builtin class-name">echo</span> t <span class="token operator">&gt;</span> /proc/sysrq-trigger<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>然后任务快照就会被打印到内核缓冲区，这些任务快照信息你可以通过 dmesg 命令来查看：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token function">dmesg</span><span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>当时我为了抓取这种瞬时的状态，写了一个脚本来采集，如下就是一个简单的脚本示例：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token shebang important">#!/bin/sh</span>
+<span class="token keyword">while</span> <span class="token punctuation">[</span> <span class="token number">1</span> <span class="token punctuation">]</span><span class="token punctuation">;</span> <span class="token keyword">do</span>
+     <span class="token function">top</span> -bn2 <span class="token operator">|</span> <span class="token function">grep</span> <span class="token string">"Cpu(s)"</span> <span class="token operator">|</span> <span class="token function">tail</span> -1 <span class="token operator">|</span> <span class="token function">awk</span> <span class="token string">'{
+         # <span class="token variable">$2</span> is usr, <span class="token variable">$4</span> is sys.
+         if (<span class="token variable">$2</span> &lt; 30.0 &amp;&amp; <span class="token variable">$4</span> &gt; 15.0) {
+              # save the current usr and sys into a tmp file
+              while ("date" | getline date) {
+                   split(date, str, " ");
+                   prefix=sprintf("%s_%s_%s_%s", str[2],str[3], str[4], str[5]);
+               }
+
+              sys_usr_file=sprintf("/tmp/%s_info.highsys", prefix);
+              print <span class="token variable">$2</span> &gt; sys_usr_file;
+              print <span class="token variable">$4</span> &gt;&gt; sys_usr_file;
+
+              # run sysrq
+              system("echo t &gt; /proc/sysrq-trigger");
+         }
+     }'</span>
+     <span class="token function">sleep</span> 1m
+<span class="token keyword">done</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>这个脚本会检测 sys 利用率高于 15% 同时 usr 较低的情况，也就是说检测 CPU 是否在内核里花费了太多时间。如果出现这种情况，就会运行 sysrq 来保存当前任务快照。你可以发现这个脚本设置的是 1 分钟执行一次，之所以这么做是因为不想引起很大的性能开销，而且当时业务团队里有几台机器差不多是一天出现两三次这种状况，有些机器每次可以持续几分钟，所以这已经足够了。不过，如果你遇到的问题出现的频率更低，持续时间更短，那就需要更加精确的方法了。</p>
+<h4 id="18-3-透明大页：水可载舟，亦可覆舟？"><a href="#18-3-透明大页：水可载舟，亦可覆舟？" class="headerlink" title="18.3 透明大页：水可载舟，亦可覆舟？"></a>18.3 透明大页：水可载舟，亦可覆舟？</h4><p>我们把脚本部署好后，就把问题现场抓取出来了。从 dmesg 输出的信息中，我们发现处于 R 状态的线程都在进行 compcation（内存规整），线程的调用栈如下所示（这是一个比较古老的内核，版本为 2.6.32）：</p>
+<pre class="line-numbers language-text" data-language="text"><code class="language-text">java          R  running task        0 144305 144271 0x00000080
+ ffff88096393d788 0000000000000086 ffff88096393d7b8 ffffffff81060b13
+ ffff88096393d738 ffffea003968ce50 000000000000000e ffff880caa713040
+ ffff8801688b0638 ffff88096393dfd8 000000000000fbc8 ffff8801688b0640
+Call Trace:
+ [&lt;ffffffff81060b13&gt;] ? perf_event_task_sched_out+0x33/0x70
+ [&lt;ffffffff8100bb8e&gt;] ? apic_timer_interrupt+0xe/0x20
+ [&lt;ffffffff810686da&gt;] __cond_resched+0x2a/0x40
+ [&lt;ffffffff81528300&gt;] _cond_resched+0x30/0x40
+ [&lt;ffffffff81169505&gt;] compact_checklock_irqsave+0x65/0xd0
+ [&lt;ffffffff81169862&gt;] compaction_alloc+0x202/0x460
+ [&lt;ffffffff811748d8&gt;] ? buffer_migrate_page+0xe8/0x130
+ [&lt;ffffffff81174b4a&gt;] migrate_pages+0xaa/0x480
+ [&lt;ffffffff81169660&gt;] ? compaction_alloc+0x0/0x460
+ [&lt;ffffffff8116a1a1&gt;] compact_zone+0x581/0x950
+ [&lt;ffffffff8116a81c&gt;] compact_zone_order+0xac/0x100
+ [&lt;ffffffff8116a951&gt;] try_to_compact_pages+0xe1/0x120
+ [&lt;ffffffff8112f1ba&gt;] __alloc_pages_direct_compact+0xda/0x1b0
+ [&lt;ffffffff8112f80b&gt;] __alloc_pages_nodemask+0x57b/0x8d0
+ [&lt;ffffffff81167b9a&gt;] alloc_pages_vma+0x9a/0x150
+ [&lt;ffffffff8118337d&gt;] do_huge_pmd_anonymous_page+0x14d/0x3b0
+ [&lt;ffffffff8152a116&gt;] ? rwsem_down_read_failed+0x26/0x30
+ [&lt;ffffffff8114b350&gt;] handle_mm_fault+0x2f0/0x300
+ [&lt;ffffffff810ae950&gt;] ? wake_futex+0x40/0x60
+ [&lt;ffffffff8104a8d8&gt;] __do_page_fault+0x138/0x480
+ [&lt;ffffffff810097cc&gt;] ? __switch_to+0x1ac/0x320
+ [&lt;ffffffff81527910&gt;] ? thread_return+0x4e/0x76e
+ [&lt;ffffffff8152d45e&gt;] do_page_fault+0x3e/0xa0
+ [&lt;ffffffff8152a815&gt;] page_fault+0x25/0x30<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>从该调用栈我们可以看出，此时这个 java 线程在申请 THP（do_huge_pmd_anonymous_page）。THP 就是透明大页，它是一个 2M 的连续物理内存。但是，因为这个时候物理内存中已经没有连续 2M 的内存空间了，所以触发了 direct compaction（直接内存规整），内存规整的过程可以用下图来表示：</p>
+<p><img src="/images/《Linux内核技术实战课》学习笔记/THPCompaction.jpg" alt="THPCompaction"></p>
+<p>这个过程并不复杂，在进行 compcation 时，线程会从前往后扫描已使用的 movable page，然后从后往前扫描 free page，扫描结束后会把这些 movable page 给迁移到 free page 里，最终规整出一个 2M 的连续物理内存，这样 THP 就可以成功申请内存了。</p>
+<p>direct compaction 这个过程是很耗时的，而且在 2.6.32 版本的内核上，该过程需要持有粗粒度的锁，所以在运行过程中线程还可能会主动检查（_cond_resched）是否有其他更高优先级的任务需要执行。如果有的话就会让其他线程先执行，这便进一步加剧了它的执行耗时。这也就是 sys 利用率飙高的原因。关于这些，你也都可以从内核源码的注释来看到：</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token comment">/*
+ * Compaction requires the taking of some coarse locks that are potentially
+ * very heavily contended. Check if the process needs to be scheduled or
+ * if the lock is contended. For async compaction, back out in the event
+ * if contention is severe. For sync compaction, schedule.
+ * ...
+ */</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>在我们找到了原因之后，为了快速解决生产环境上的这些问题，我们就把该业务服务器上的 THP 关掉了，关闭后系统变得很稳定，再也没有出现过 sys 利用率飙高的问题。关闭 THP 可以使用下面这个命令：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token builtin class-name">echo</span> never <span class="token operator">&gt;</span> /sys/kernel/mm/transparent_hugepage/enabled<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>关闭了生产环境上的 THP 后，我们又在线下测试环境中评估了 THP 对该业务的性能影响，我们发现 THP 并不能给该业务带来明显的性能提升，即使是在内存不紧张、不会触发内存规整的情况下。这也引起了我的思考，<strong>THP 究竟适合什么样的业务呢？</strong></p>
+<p>这就要从 THP 的目的来说起了。我们长话短说，THP 的目的是用一个页表项来映射更大的内存（大页），这样可以减少 Page Fault，因为需要的页数少了。当然，这也会提升 TLB 命中率，因为需要的页表项也少了。如果进程要访问的数据都在这个大页中，那么这个大页就会很热，会被缓存在 Cache 中。而大页对应的页表项也会出现在 TLB 中，从上一讲的存储层次我们可以知道，这有助于性能提升。但是反过来，假设应用程序的数据局部性比较差，它在短时间内要访问的数据很随机地位于不同的大页上，那么大页的优势就会消失。</p>
+<p>因此，我们基于大页给业务做性能优化的时候，首先要评估业务的数据局部性，尽量把业务的热点数据聚合在一起，以便于充分享受大页的优势。以我在华为任职期间所做的大页性能优化为例，我们将业务的热点数据聚合在一起，然后将这些热点数据分配到大页上，再与不使用大页的情况相比，最终发现这可以带来 20% 以上的性能提升。对于 TLB 较小的架构（比如 MIPS 这种架构），它可以带来 50% 以上的性能提升。当然了，我们在这个过程中也对内核的大页代码做了很多优化，这里就不展开说了。</p>
+<p>针对 THP 的使用，我在这里给你几点建议：</p>
+<ul>
+<li>不要将 /sys/kernel/mm/transparent_hugepage/enabled 配置为 always，你可以将它配置为 madvise。如果你不清楚该如何来配置，那就将它配置为 never；</li>
+<li>如果你想要用 THP 优化业务，最好可以让业务以 madvise 的方式来使用大页，即通过修改业务代码来指定特定数据使用 THP，因为业务更熟悉自己的数据流；</li>
+<li>很多时候修改业务代码会很麻烦，如果你不想修改业务代码的话，那就去优化 THP 的内核代码吧。</li>
+</ul>
+<h3 id="19-案例篇-网络吞吐高的业务是否需要开启网卡特性呢？"><a href="#19-案例篇-网络吞吐高的业务是否需要开启网卡特性呢？" class="headerlink" title="19 案例篇 | 网络吞吐高的业务是否需要开启网卡特性呢？"></a>19 案例篇 | 网络吞吐高的业务是否需要开启网卡特性呢？</h3><h4 id="19-1-中断与业务进程之间是如何相互干扰的？"><a href="#19-1-中断与业务进程之间是如何相互干扰的？" class="headerlink" title="19.1 中断与业务进程之间是如何相互干扰的？"></a>19.1 中断与业务进程之间是如何相互干扰的？</h4><p>这是我多年以前遇到的一个案例，当时业务反馈说为了提升 QPS（Query per Second），他们开启了 RPS（Receivce Packet Steering）来模拟网卡多队列，没想到开启 RPS 反而导致了 QPS 明显下降，不知道是什么原因。</p>
+<p>其实，这类特定行为改变引起的性能下降问题相对好分析一些。最简单的方式就是去对比这个行为前后的性能数据。即使你不清楚 RPS 是什么，也不知道它背后的机制，你也可以采集需要的性能指标进行对比分析，然后判断问题可能出在哪里。这些性能指标包括 CPU 指标，内存指标，I/O 指标，网络指标等，我们可以使用 dstat 来观察它们的变化。</p>
+<p>在业务打开 RPS 之前的性能指标：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ dstat
+You did not <span class="token keyword">select</span> any stats, using -cdngy by default.
+----total-cpu-usage---- -dsk/total- -net/total- ---paging-- ---system--
+usr sys idl wai hiq siq<span class="token operator">|</span> <span class="token builtin class-name">read</span>  writ<span class="token operator">|</span> recv  send<span class="token operator">|</span>  <span class="token keyword">in</span>   out <span class="token operator">|</span> int   csw
+ <span class="token number">64</span>  <span class="token number">23</span>   <span class="token number">6</span>   <span class="token number">0</span>   <span class="token number">0</span>   <span class="token number">7</span><span class="token operator">|</span>   <span class="token number">0</span>  8192B<span class="token operator">|</span>7917k   12M<span class="token operator">|</span>   <span class="token number">0</span>     <span class="token number">0</span> <span class="token operator">|</span>  27k <span class="token number">1922</span>
+ <span class="token number">64</span>  <span class="token number">22</span>   <span class="token number">6</span>   <span class="token number">0</span>   <span class="token number">0</span>   <span class="token number">8</span><span class="token operator">|</span>   <span class="token number">0</span>     <span class="token number">0</span> <span class="token operator">|</span>7739k   12M<span class="token operator">|</span>   <span class="token number">0</span>     <span class="token number">0</span> <span class="token operator">|</span>  26k <span class="token number">2210</span>
+ <span class="token number">61</span>  <span class="token number">23</span>   <span class="token number">9</span>   <span class="token number">0</span>   <span class="token number">0</span>   <span class="token number">7</span><span class="token operator">|</span>   <span class="token number">0</span>     <span class="token number">0</span> <span class="token operator">|</span>7397k   11M<span class="token operator">|</span>   <span class="token number">0</span>     <span class="token number">0</span> <span class="token operator">|</span>  25k <span class="token number">2267</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>打开了 RPS 之后的性能指标：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ dstat
+You did not <span class="token keyword">select</span> any stats, using -cdngy by default.
+----total-cpu-usage---- -dsk/total- -net/total- ---paging-- ---system--
+usr sys idl wai hiq siq<span class="token operator">|</span> <span class="token builtin class-name">read</span>  writ<span class="token operator">|</span> recv  send<span class="token operator">|</span>  <span class="token keyword">in</span>   out <span class="token operator">|</span> int   csw
+ <span class="token number">62</span>  <span class="token number">23</span>   <span class="token number">4</span>   <span class="token number">0</span>   <span class="token number">0</span>  <span class="token number">12</span><span class="token operator">|</span>   <span class="token number">0</span>     <span class="token number">0</span> <span class="token operator">|</span>7096k   11M<span class="token operator">|</span>   <span class="token number">0</span>     <span class="token number">0</span> <span class="token operator">|</span>  49k <span class="token number">2261</span>
+ <span class="token number">74</span>  <span class="token number">13</span>   <span class="token number">4</span>   <span class="token number">0</span>   <span class="token number">0</span>   <span class="token number">9</span><span class="token operator">|</span>   <span class="token number">0</span>     <span class="token number">0</span> <span class="token operator">|</span>4003k 6543k<span class="token operator">|</span>   <span class="token number">0</span>     <span class="token number">0</span> <span class="token operator">|</span>  31k <span class="token number">2004</span>
+ <span class="token number">59</span>  <span class="token number">22</span>   <span class="token number">5</span>   <span class="token number">0</span>   <span class="token number">0</span>  <span class="token number">13</span><span class="token operator">|</span>   <span class="token number">0</span>  4096B<span class="token operator">|</span>6710k   10M<span class="token operator">|</span>   <span class="token number">0</span>     <span class="token number">0</span> <span class="token operator">|</span>  48k <span class="token number">2220</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>我们可以看到，打开 RPS 后，CPU 的利用率有所升高。其中，siq 即软中断利用率明显增加，int 即硬中断频率也明显升高，而 net 这一项里的网络吞吐数据则有所下降。也就是说，在网络吞吐不升反降的情况下，系统的硬中断和软中断都明显增加。由此我们可以推断出，网络吞吐的下降应该是中断增加导致的结果。</p>
+<p>那么，接下来我们就需要分析到底是什么类型的软中断和硬中断增加了，以便于找到问题的源头。</p>
+<p>系统中存在很多硬中断，这些硬中断及其发生频率我们都可以通过 /proc/interruptes 这个文件来查看：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token function">cat</span> /proc/interrupts<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>如果你想要了解某个中断的详细情况，比如中断亲和性，那你可以通过 /proc/irq/[irq_num]来查看，比如：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token function">cat</span> /proc/irq/123/smp_affinity<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>软中断可以通过 /proc/softirq 来查看：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token function">cat</span> /proc/softirqs<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>软中断是用来处理硬中断在短时间内无法完成的任务的。硬中断由于执行时间短，所以如果它的发生频率不高的话，一般不会给业务带来明显影响。但是由于内核里关中断的地方太多，所以进程往往会给硬中断带来一些影响，比如进程关中断时间太长会导致网络报文无法及时处理，进而引起业务性能抖动。</p>
+<p>我们在生产环境中就遇到过这种关中断时间太长引起的抖动案例，比如 cat /proc/slabinfo 这个操作里的逻辑关中断太长，它会致使业务 RT 抖动。这是因为该命令会统计系统中所有的 slab 数量，并显示出来，在统计的过程中会关中断。如果系统中的 slab 数量太多，就会导致关中断的时间太长，进而引起网络包阻塞，ping 延迟也会因此明显变大。所以，在生产环境中我们要尽量避免去采集 /proc/slabinfo，否则可能会引起业务抖动。</p>
+<p>如果你要分析因中断关闭时间太长而引发的问题，有一种最简单的方式，就是使用 ftrace 的 irqsoff 功能。它不仅可以统计出中断被关闭了多长时间，还可以统计出为什么会关闭中断。不过，你需要注意的是，irqsoff 功能依赖于 CONFIG_IRQSOFF_TRACER 这个配置项，如果你的内核没有打开该配置项，那你就需要使用其他方式来去追踪了。</p>
+<p>如何使用 irqsoff 呢？首先，你需要去查看你的系统是否支持了 irqsoff 这个 tracer：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token function">cat</span> /sys/kernel/debug/tracing/available_tracers<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>如果显示的内容包含了 irqsoff，说明系统支持该功能，你就可以打开它进行追踪了：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token builtin class-name">echo</span> irqsoff <span class="token operator">&gt;</span> /sys/kernel/debug/tracing/current_tracer<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>接下来，你就可以通过 /sys/kernel/debug/tracing/trace_pipe 和 trace 这两个文件，来观察系统中的 irqsoff 事件了。</p>
+<p>我们知道，相比硬中断，软中断的执行时间会长一些，而且它也会抢占正在执行进程的 CPU，从而导致进程在它运行期间只能等待。所以，相对而言它会更容易给业务带来延迟。那我们怎么对软中断的执行频率以及执行耗时进行观测呢？你可以通过如下两个 tracepoints 来进行观测：</p>
+<pre class="line-numbers language-text" data-language="text"><code class="language-text">/sys/kernel/debug/tracing/events/irq/softirq_entry
+/sys/kernel/debug/tracing/events/irq/softirq_exit<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre>
+<p>这两个 tracepoint 分别表示软中断的进入和退出，退出时间减去进入时间就是该软中断这一次的耗时。</p>
+<p>如果你的内核版本比较新，支持 eBPF 功能，那你同样可以使用 bcc 里的softirqs.py这个工具来进行观测。它会统计软中断的次数和耗时，这对我们分析软中断引起的业务延迟来说，是比较方便的。</p>
+<p>为了避免软中断太过频繁，进程无法得到 CPU 而被饿死的情况，内核引入了 ksoftirqd 这个机制。如果所有的软中断在短时间内无法被处理完，内核就会唤醒 ksoftirqd 处理接下来的软中断。ksoftirqd 与普通进程的优先级一样，也就是说它会和普通进程公平地使用 CPU，这在一定程度上可以避免用户进程被饿死的情况，特别是对于那些更高优先级的实时用户进程而言。</p>
+<p>不过，这也会带来一些问题。如果 ksoftrirqd 长时间得不到 CPU，就会致使软中断的延迟变得很大，它引起的典型问题也是 ping 延迟。如果 ping 包无法在软中断里得到处理，就会被 ksoftirqd 处理。而 ksoftirqd 的实时性是很难得到保障的，可能需要等其他线程执行完，ksoftirqd 才能得到执行，这就会导致 ping 延迟变得很大。</p>
+<p>要观测 ksoftirqd 延迟的问题，你可以使用 bcc 里的runqlat.py。这里我们以网卡中断为例，它唤醒 ksoftirqd 的逻辑大致如下图所示：</p>
+<p><img src="/images/《Linux内核技术实战课》学习笔记/中断与ksoftirqd.jpg" alt="中断与ksoftirqd"></p>
+<p>我们具体来看看这个过程：软中断被唤醒后会检查一遍软中断向量表，逐个处理这些软中断；处理完一遍后，它会再次检查，如果又有新的软中断要处理，就会唤醒 ksoftrqd 来处理。ksoftirqd 是 per-cpu 的内核线程，每个 CPU 都有一个。对于 CPU1 而言，它运行的是 ksoftirqd/1 这个线程。ksoftirqd/1 被唤醒后会检查软中断向量表并进行处理。如果你使用 ps 来查看 ksoftirqd/1 的优先级，会发现它其实就是一个普通线程（对应的 Nice 值为 0）：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ <span class="token function">ps</span> -eo <span class="token string">"pid,comm,ni"</span> <span class="token operator">|</span> <span class="token function">grep</span> softirqd
+    <span class="token number">9</span> ksoftirqd/0       <span class="token number">0</span>
+   <span class="token number">16</span> ksoftirqd/1       <span class="token number">0</span>
+   <span class="token number">21</span> ksoftirqd/2       <span class="token number">0</span>
+   <span class="token number">26</span> ksoftirqd/3       <span class="token number">0</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<h4 id="19-2-softirq-是如何影响业务的？"><a href="#19-2-softirq-是如何影响业务的？" class="headerlink" title="19.2 softirq 是如何影响业务的？"></a>19.2 softirq 是如何影响业务的？</h4><p>在我们对硬中断和软中断进行观察后发现，使能 RPS 后增加了很多 CAL（Function Call Interrupts）硬中断。CAL 是通过软件触发硬中断的一种方式，可以指定 CPU 以及需要执行的中断处理程序。它也常被用来进行 CPU 间通信（IPI），当一个 CPU 需要其他 CPU 来执行特定中断处理程序时，就可以通过 CAL 中断来进行。</p>
+<p>如果你对 RPS 的机制有所了解的话，应该清楚 RPS 就是通过 CAL 这种方式来让其他 CPU 去接收网络包的。为了验证这一点，我们可以通过 mpstat 这个命令来观察各个 CPU 利用率情况。</p>
+<p>使能 RPS 之前的 CPU 利用率如下所示：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ mpstat -P ALL <span class="token number">1</span>
+Average:     CPU    %usr   %nice    %sys %iowait    %irq   %soft  %steal  %guest  %gnice   %idle
+Average:     all   <span class="token number">70.18</span>    <span class="token number">0.00</span>   <span class="token number">19.28</span>    <span class="token number">0.00</span>    <span class="token number">0.00</span>    <span class="token number">5.86</span>    <span class="token number">0.00</span>    <span class="token number">0.00</span>    <span class="token number">0.00</span>    <span class="token number">4.68</span>
+Average:       <span class="token number">0</span>   <span class="token number">73.25</span>    <span class="token number">0.00</span>   <span class="token number">21.50</span>    <span class="token number">0.00</span>    <span class="token number">0.00</span>    <span class="token number">0.00</span>    <span class="token number">0.00</span>    <span class="token number">0.00</span>    <span class="token number">0.00</span>    <span class="token number">5.25</span>
+Average:       <span class="token number">1</span>   <span class="token number">58.85</span>    <span class="token number">0.00</span>   <span class="token number">14.46</span>    <span class="token number">0.00</span>    <span class="token number">0.00</span>   <span class="token number">23.44</span>    <span class="token number">0.00</span>    <span class="token number">0.00</span>    <span class="token number">0.00</span>    <span class="token number">3.24</span>
+Average:       <span class="token number">2</span>   <span class="token number">74.50</span>    <span class="token number">0.00</span>   <span class="token number">20.00</span>    <span class="token number">0.00</span>    <span class="token number">0.00</span>    <span class="token number">0.00</span>    <span class="token number">0.00</span>    <span class="token number">0.00</span>    <span class="token number">0.00</span>    <span class="token number">5.50</span>
+Average:       <span class="token number">3</span>   <span class="token number">74.25</span>    <span class="token number">0.00</span>   <span class="token number">21.00</span>    <span class="token number">0.00</span>    <span class="token number">0.00</span>    <span class="token number">0.00</span>    <span class="token number">0.00</span>    <span class="token number">0.00</span>    <span class="token number">0.00</span>    <span class="token number">4.75</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>使能 RPS 之后各个 CPU 的利用率情况为：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ mpstat -P ALL <span class="token number">1</span>
+Average:     CPU    %usr   %nice    %sys %iowait    %irq   %soft  %steal  %guest  %gnice   %idle
+Average:     all   <span class="token number">66.21</span>    <span class="token number">0.00</span>   <span class="token number">17.73</span>    <span class="token number">0.00</span>    <span class="token number">0.00</span>   <span class="token number">11.15</span>    <span class="token number">0.00</span>    <span class="token number">0.00</span>    <span class="token number">0.00</span>    <span class="token number">4.91</span>
+Average:       <span class="token number">0</span>   <span class="token number">68.17</span>    <span class="token number">0.00</span>   <span class="token number">18.33</span>    <span class="token number">0.00</span>    <span class="token number">0.00</span>    <span class="token number">7.67</span>    <span class="token number">0.00</span>    <span class="token number">0.00</span>    <span class="token number">0.00</span>    <span class="token number">5.83</span>
+Average:       <span class="token number">1</span>   <span class="token number">60.57</span>    <span class="token number">0.00</span>   <span class="token number">15.81</span>    <span class="token number">0.00</span>    <span class="token number">0.00</span>   <span class="token number">20.80</span>    <span class="token number">0.00</span>    <span class="token number">0.00</span>    <span class="token number">0.00</span>    <span class="token number">2.83</span>
+Average:       <span class="token number">2</span>   <span class="token number">69.95</span>    <span class="token number">0.00</span>   <span class="token number">19.20</span>    <span class="token number">0.00</span>    <span class="token number">0.00</span>    <span class="token number">7.01</span>    <span class="token number">0.00</span>    <span class="token number">0.00</span>    <span class="token number">0.00</span>    <span class="token number">3.84</span>
+Average:       <span class="token number">3</span>   <span class="token number">66.39</span>    <span class="token number">0.00</span>   <span class="token number">17.64</span>    <span class="token number">0.00</span>    <span class="token number">0.00</span>    <span class="token number">8.99</span>    <span class="token number">0.00</span>    <span class="token number">0.00</span>    <span class="token number">0.00</span>    <span class="token number">6.99</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>我们可以看到，使能 RPS 之后，softirq 在各个 CPU 之间更加均衡了一些，本来只有 CPU1 在处理 softirq，使能后每个 CPU 都会处理 softirq，并且 CPU1 的 softirq 利用率降低了一些。这就是 RPS 的作用：让网络收包软中断处理在各个 CPU 间更加均衡，以防止其在某个 CPU 上达到瓶颈。你可以看到，使能 RPS 后整体的 %soft 比原来高了很多。</p>
+<p>理论上，处理网络收包软中断的 CPU 变多，那么在单位时间内这些 CPU 应该可以处理更多的网络包，从而提升系统整体的吞吐。可是，在我们的案例中，为什么会引起业务的 QPS 不升反降呢？</p>
+<p>其实，答案同样可以从 CPU 利用率中得出。我们可以看到在使能 RPS 之前，CPU 利用率已经很高了，达到了 90% 以上，也就是说 CPU 已经在超负荷工作了。而打开 RPS，RPS 又会消耗额外的 CPU 时间来模拟网卡多队列特性，这就会导致 CPU 更加超负荷地工作，从而进一步挤压用户进程的处理时间。因此，我们会发现，在打开 RPS 后 %usr 的利用率下降了一些。</p>
+<p>我们知道 %usr 是衡量用户进程执行时间的一个指标，%usr 越高意味着业务代码的运行时间越多。如果 %usr 下降，那就意味着业务代码的运行时间变少了，在业务没有进行代码优化的前提下，这显然是一个危险的信号。</p>
+<p>由此我们可以发现，RPS 的本质就是把网卡特性（网卡多队列）给 upload 到 CPU，通过牺牲 CPU 时间来提升网络吞吐。如果你的系统已经很繁忙了，那么再使用该特性无疑是雪上加霜。所以，你需要注意，<strong>使用 RPS 的前提条件是：系统的整体 CPU 利用率不能太高</strong>。</p>
+<p>找到问题后，我们就把该系统的 RPS 特性关闭了。如果你的网卡比较新，它可能会支持硬件多队列。硬件多队列是在网卡里做负载均衡，在这种场景下硬件多队列会很有帮助。我们知道，与 upload 相反的方向是 offload，就是把 CPU 的工作给 offload 到网卡上去处理，这样可以把 CPU 解放出来，让它有更多的时间执行用户代码。关于网卡的 offload 特性，我们就不在此讨论了。</p>
+<h3 id="20-分析篇-如何分析CPU利用率飙高问题-？"><a href="#20-分析篇-如何分析CPU利用率飙高问题-？" class="headerlink" title="20 分析篇 | 如何分析CPU利用率飙高问题 ？"></a>20 分析篇 | 如何分析CPU利用率飙高问题 ？</h3><h4 id="20-1-如何拓展你分析问题的边界？"><a href="#20-1-如何拓展你分析问题的边界？" class="headerlink" title="20.1 如何拓展你分析问题的边界？"></a>20.1 如何拓展你分析问题的边界？</h4><p>我常用来追踪应用逻辑的工具之一就是 strace。strace 可以用来分析应用和内核的“边界”——系统调用。借助 strace，我们不仅能够了解应用执行的逻辑，还可以了解内核逻辑。那么，作为应用开发者的你，就可以借助这个工具来拓展你分析应用问题的边界。</p>
+<p>strace 可以跟踪进程的系统调用、特定的系统调用以及系统调用的执行时间。很多时候，我们通过系统调用的执行时间，就能判断出业务延迟发生在哪里。比如我们想要跟踪一个多线程程序的系统调用情况，那就可以这样使用 strace：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token function">strace</span> -T -tt -ff -p pid -o strace.out<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<h4 id="20-2-了解工具的原理，不要局限于如何使用它"><a href="#20-2-了解工具的原理，不要局限于如何使用它" class="headerlink" title="20.2 了解工具的原理，不要局限于如何使用它"></a>20.2 了解工具的原理，不要局限于如何使用它</h4><p>strace 工具的原理如下图所示（我们以上面的那个命令为例来说明）：</p>
+<p><img src="/images/《Linux内核技术实战课》学习笔记/strace基本原理.jpg" alt="strace基本原理"></p>
+<p>我们从图中可以看到，对于正在运行的进程而言，strace 可以 attach 到目标进程上，这是通过 ptrace 这个系统调用实现的（gdb 工具也是如此）。ptrace 的 PTRACE_SYSCALL 会去追踪目标进程的系统调用；目标进程被追踪后，每次进入 syscall，都会产生 SIGTRAP 信号并暂停执行；追踪者通过目标进程触发的 SIGTRAP 信号，就可以知道目标进程进入了系统调用，然后追踪者会去处理该系统调用，我们用 strace 命令观察到的信息输出就是该处理的结果；追踪者处理完该系统调用后，就会恢复目标进程的执行。被恢复的目标进程会一直执行下去，直到下一个系统调用。</p>
+<p>你可以发现，目标进程每执行一次系统调用都会被打断，等 strace 处理完后，目标进程才能继续执行，这就会给目标进程带来比较明显的延迟。因此，在生产环境中我不建议使用该命令，如果你要使用该命令来追踪生产环境的问题，那就一定要做好预案。</p>
+<p>假设我们使用 strace 跟踪到，线程延迟抖动是由某一个系统调用耗时长导致的，那么接下来我们该怎么继续追踪呢？这就到了应用开发者和运维人员需要拓展分析边界的时刻了，对内核开发者来说，这才算是分析问题的开始。</p>
+<h4 id="20-3-学会使用内核开发者常用的分析工具"><a href="#20-3-学会使用内核开发者常用的分析工具" class="headerlink" title="20.3 学会使用内核开发者常用的分析工具"></a>20.3 学会使用内核开发者常用的分析工具</h4><p>我们以一个实际案例来说明吧。有一次，业务开发者反馈说他们用 strace 追踪发现业务的 pread(2) 系统调用耗时很长，经常会有几十毫秒（ms）的情况，甚至能够达到秒级，但是不清楚接下来该如何分析，因此让我帮他们分析一下。</p>
+<p>因为已经明确了问题是由 pread(2) 这个系统调用引起的，所以对内核开发者而言，后续的分析就相对容易了。分析这类问题最合适的工具是 ftrace，我们可以使用 ftrace 的 function_trace 功能来追踪 pread(2) 这个系统调用到底是在哪里耗费了这么长的时间。</p>
+<p>要想追踪 pread(2) 究竟在哪里耗时长，我们就需要知道该系统调用对应的内核函数是什么。我们有两种途径可以方便地获取到系统调用对应的内核函数：</p>
+<ol>
+<li><p>查看include/linux/syscalls.h文件里的内核函数：</p>
+<p> 你可以看到，与 pread 有关的函数有多个，由于我们的系统是 64bit 的，只需关注 64bit 相关的系统调用就可以了，所以我们锁定在 ksys_pread64 和 sys_read64 这两个函数上。通过该头文件里的注释我们能知道，前者是内核使用的，后者是导出给用户的。那么在内核里，我们就需要去追踪前者。另外，请注意，不同内核版本对应的函数可能不一致，我们这里是以最新内核代码 (5.9-rc) 为例来说明的。</p>
+</li>
+<li><p>通过 /proc/kallsyms 这个文件来查找：</p>
+ <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ <span class="token function">cat</span> /proc/kallsyms <span class="token operator">|</span> <span class="token function">grep</span> pread64
+…
+ffffffffa02ef3d0 T ksys_pread64
+…<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span></span></code></pre>
+<p> /proc/kallsyms 里的每一行都是一个符号，其中第一列是符号地址，第二列是符号的属性，第三列是符号名字，比如上面这个信息中的 T 就表示全局代码符号，我们可以追踪这类的符号。关于这些符号属性的含义，你可以通过man nm来查看。</p>
+</li>
+</ol>
+<p>接下来我们就使用 ftrace 的 function_graph 功能来追踪 ksys_pread64 这个函数，看看究竟是内核的哪里耗时这么久。function_graph 的使用方式如下：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token comment"># 首先设置要追踪的函数</span>
+$ <span class="token builtin class-name">echo</span> ksys_pread64 <span class="token operator">&gt;</span> /sys/kernel/debug/tracing/set_graph_function
+
+<span class="token comment"># 其次设置要追踪的线程的pid，如果有多个线程，那需要将每个线程都逐个写入</span>
+$ <span class="token builtin class-name">echo</span> <span class="token number">6577</span> <span class="token operator">&gt;</span> /sys/kernel/debug/tracing/set_ftrace_pid
+$ <span class="token builtin class-name">echo</span> <span class="token number">6589</span> <span class="token operator">&gt;&gt;</span> /sys/kernel/debug/tracing/set_ftrace_pid
+
+<span class="token comment"># 将function_graph设置为当前的tracer，来追踪函数调用情况</span>
+$ <span class="token builtin class-name">echo</span> function_graph <span class="token operator">&gt;</span> /sys/kernel/debug/tracing/current_trace<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>然后我们就可以通过 /sys/kernel/debug/tracing/trace_pipe 来查看它的输出了，下面就是我追踪到的耗时情况：</p>
+<p><img src="/images/《Linux内核技术实战课》学习笔记/function_graph示例.png" alt="function_graph示例"></p>
+<p>我们可以发现 pread(2) 有 102ms 是阻塞在 io_schedule() 这个函数里的，io_schedule() 的意思是，该线程因 I/O 阻塞而被调度走，线程需要等待 I/O 完成才能继续执行。在 function_graph 里，我们同样也能看到 <strong>pread(2)</strong> 是如何一步步执行到 io_schedule 的，由于整个流程比较长，我在这里只把关键的调用逻辑贴出来：</p>
+<pre class="line-numbers language-text" data-language="text"><code class="language-text">21)               |            __lock_page_killable() {
+21)   0.073 us    |              page_waitqueue();
+21)               |              __wait_on_bit_lock() {
+21)               |                prepare_to_wait_exclusive() {
+21)   0.186 us    |                  _raw_spin_lock_irqsave();
+21)   0.051 us    |                  _raw_spin_unlock_irqrestore();
+21)   1.339 us    |                }
+21)               |                bit_wait_io() {
+21)               |                  io_schedule() {<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>我们可以看到，<strong>pread（2）</strong> 是从 __lock_page_killable 这个函数调用下来的。当 pread(2) 从磁盘中读文件到内存页（page）时，会先 lock 该 page，读完后再 unlock。如果该 page 已经被别的线程 lock 了，比如在 I/O 过程中被 lock，那么 pread(2) 就需要等待。等该 page 被 I/O 线程 unlock 后，pread(2) 才能继续把文件内容读到这个 page 中。我们当时遇到的情况是：在 pread(2) 从磁盘中读取文件内容到一个 page 中的时候，该 page 已经被 lock 了，于是调用 pread(2) 的线程就在这里等待。这其实是合理的内核逻辑，没有什么问题。接下来，我们就需要看看为什么该 page 会被 lock 了这么久。</p>
+<p>因为线程是阻塞在磁盘 I/O 里的，所以我们需要查看一下系统的磁盘 I/O 情况，我们可以使用 iostat 来观察：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">iostat -dxm <span class="token number">1</span><span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>追踪信息如下：</p>
+<p><img src="/images/《Linux内核技术实战课》学习笔记/iostat追踪截图.png" alt="iostat追踪截图"></p>
+<p>其中，sdb 是业务 pread(2) 读取的磁盘所在的文件，通常情况下它的读写量很小，但是我们从上图中可以看到，磁盘利用率（%util）会随机出现比较高的情况，接近 100%。而且 avgrq-sz 很大，也就是说出现了很多 I/O 排队的情况。另外，w/s 比平时也要高很多。我们还可以看到，由于此时存在大量的 I/O 写操作，磁盘 I/O 排队严重，磁盘 I/O 利用率也很高。根据这些信息我们可以判断，之所以 pread(2) 读磁盘文件耗时较长，很可能是因为被写操作饿死导致的。因此，我们接下来需要排查到底是谁在进行写 I/O 操作。</p>
+<p>通过 iotop 观察 I/O 行为，我们发现并没有用户线程在进行 I/O 写操作，写操作几乎都是内核线程 kworker 来执行的，也就是说用户线程把内容写在了 Page Cache 里，然后 kwoker 将这些 Page Cache 中的内容再同步到磁盘中。这就涉及到了我们这门课程第一个模块的内容了：如何观测 Page Cache 的行为。</p>
+<h4 id="20-4-自己写分析工具"><a href="#20-4-自己写分析工具" class="headerlink" title="20.4 自己写分析工具"></a>20.4 自己写分析工具</h4><p>如果你现在还不清楚该如何来观测 Page Cache 的行为，那我建议你再从头仔细看一遍我们这门课程的第一个模块，我在这里就不细说了。不过，我要提一下在 Page Cache 模块中未曾提到的一些方法，这些方法用于判断内存中都有哪些文件以及这些文件的大小。</p>
+<p>常规方式是用 fincore 和 mincore，不过它们都比较低效。这里有一个更加高效的方式：通过写一个内核模块遍历 inode 来查看 Page Cache 的组成。该模块的代码较多，我只说一下核心的思想，伪代码大致如下：</p>
+<pre class="line-numbers language-text" data-language="text"><code class="language-text">iterate_supers // 遍历super block
+  iterate_pagecache_sb // 遍历superblock里的inode
+      list_for_each_entry(inode, &amp;sb-&gt;s_inodes, i_sb_list)
+        // 记录该inode的pagecache大小
+        nrpages = inode-&gt;i_mapping-&gt;nrpages;
+        /* 获取该inode对应的dentry，然后根据该dentry来查找文件路径；
+         * 请注意inode可能没有对应的dentry，因为dentry可能被回收掉了，
+         * 此时就无法查看该inode对应的文件名了。
+         */
+        dentry = dentry_from_inode(inode);
+        dentry_path_raw(dentry, filename, PATH_MAX);<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>使用这种方式不仅可以查看进程正在打开的文件，也能查看文件已经被进程关闭，但文件内容还在内存中的情况。所以这种方式分析起来会更全面。</p>
+<p>通过查看 Page Cache 的文件内容，我们发现某些特定的文件占用的内存特别大，但是这些文件都是一些离线业务的文件，也就是不重要业务的文件。因为离线业务占用了大量的 Page Cache，导致该在线业务的 workingset 大大减小，所以 pread(2) 在读文件内容时经常命中不了 Page Cache，进而需要从磁盘来读文件，也就是说该在线业务存在大量的 pagein 和 pageout。</p>
+<p>至此，问题的解决方案也就有了：我们可以通过限制离线业务的 Page Cache 大小，来保障在线业务的 workingset，防止它出现较多的 refault。经过这样调整后，业务再也没有出现这种性能抖动了。</p>
+
                 
             </div>
             <hr/>
@@ -2027,7 +2310,7 @@ TcpExtTCPRcvQDrop               <span class="token number">0</span>             
             <br>
             
             &nbsp;<i class="fas fa-chart-area"></i>&nbsp;站点总字数:&nbsp;<span
-                class="white-color">658.1k</span>&nbsp;字
+                class="white-color">667.9k</span>&nbsp;字
             
             
             
