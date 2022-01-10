@@ -438,14 +438,14 @@
                 
                 <div class="info-break-policy">
                     <i class="far fa-file-word fa-fw"></i>文章字数:&nbsp;&nbsp;
-                    3.6k
+                    6.5k
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-clock fa-fw"></i>阅读时长:&nbsp;&nbsp;
-                    13 分
+                    23 分
                 </div>
                 
 
@@ -463,7 +463,10 @@
 
         <div class="card-content article-card-content">
             <div id="articleContent">
-                <h2 id="一、开篇词"><a href="#一、开篇词" class="headerlink" title="一、开篇词"></a>一、开篇词</h2><h3 id="0-开篇词-万变不离其宗，性能优化也有章可循"><a href="#0-开篇词-万变不离其宗，性能优化也有章可循" class="headerlink" title="0 开篇词 | 万变不离其宗，性能优化也有章可循"></a>0 开篇词 | 万变不离其宗，性能优化也有章可循</h3><p>一份系统性能优化核心关注点的知识脑图：</p>
+                <blockquote>
+<p>对应GitHub仓库：<a target="_blank" rel="noopener" href="https://github.com/russelltao/geektime_distrib_perf">https://github.com/russelltao/geektime_distrib_perf</a></p>
+</blockquote>
+<h2 id="一、开篇词"><a href="#一、开篇词" class="headerlink" title="一、开篇词"></a>一、开篇词</h2><h3 id="0-开篇词-万变不离其宗，性能优化也有章可循"><a href="#0-开篇词-万变不离其宗，性能优化也有章可循" class="headerlink" title="0 开篇词 | 万变不离其宗，性能优化也有章可循"></a>0 开篇词 | 万变不离其宗，性能优化也有章可循</h3><p>一份系统性能优化核心关注点的知识脑图：</p>
 <p><img src="/images/《系统性能调优必知必会》学习笔记/系统性能优化脑图.jpg" alt="系统性能优化脑图"></p>
 <p>通过这份脑图，你会发现，我是从 4 个方面来梳理的，这其实就是我们在提升一个新系统的性能时，可以入手的 4 个层次。</p>
 <p>首先，你可以从提升单机进程的性能入手，包括高效地使用主机的 CPU、内存、磁盘等硬件，通过并发编程提升吞吐量，根据业务特性选择合适的算法。</p>
@@ -534,6 +537,59 @@
 <h4 id="1-4-提升多核-CPU-下的缓存命中率"><a href="#1-4-提升多核-CPU-下的缓存命中率" class="headerlink" title="1.4 提升多核 CPU 下的缓存命中率"></a>1.4 提升多核 CPU 下的缓存命中率</h4><p>前面我们都是面向一个 CPU 核心谈数据及指令缓存的，然而现代 CPU 几乎都是多核的。虽然三级缓存面向所有核心，但一、二级缓存是每颗核心独享的。我们知道，即使只有一个 CPU 核心，现代分时操作系统都支持许多进程同时运行。这是因为操作系统把时间切成了许多片，微观上各进程按时间片交替地占用 CPU，这造成宏观上看起来各程序同时在执行。</p>
 <p>因此，若进程 A 在时间片 1 里使用 CPU 核心 1，自然也填满了核心 1 的一、二级缓存，当时间片 1 结束后，操作系统会让进程 A 让出 CPU，基于效率并兼顾公平的策略重新调度 CPU 核心 1，以防止某些进程饿死。如果此时 CPU 核心 1 繁忙，而 CPU 核心 2 空闲，则进程 A 很可能会被调度到 CPU 核心 2 上运行，这样，即使我们对代码优化得再好，也只能在一个时间片内高效地使用 CPU 一、二级缓存了，下一个时间片便面临着缓存效率的问题。</p>
 <p>因此，操作系统提供了将进程或者线程绑定到某一颗 CPU 上运行的能力。如 Linux 上提供了 sched_setaffinity 方法实现这一功能，其他操作系统也有类似功能的 API 可用。我在 GitHub 上提供了一个示例程序（代码见 <a target="_blank" rel="noopener" href="https://github.com/russelltao/geektime_distrib_perf/blob/master/1-cpu_cache/cpu_migrate/cpu_migrate.cpp">这里</a> ），你可以看到，当多线程同时执行密集计算，且 CPU 缓存命中率很高时，如果将每个线程分别绑定在不同的 CPU 核心上，性能便会获得非常可观的提升。Perf 工具也提供了 cpu-migrations 事件，它可以显示进程从不同的 CPU 核心上迁移的次数。</p>
+<h4 id="1-5-小结"><a href="#1-5-小结" class="headerlink" title="1.5 小结"></a>1.5 小结</h4><p>CPU 缓存分为数据缓存与指令缓存，对于数据缓存，我们应在循环体中尽量操作同一块内存上的数据，由于缓存是根据 CPU Cache Line 批量操作数据的，所以顺序地操作连续内存数据时也有性能提升。</p>
+<p>对于指令缓存，有规律的条件分支能够让 CPU 的分支预测发挥作用，进一步提升执行效率。对于多核系统，如果进程的缓存命中率非常高，则可以考虑绑定 CPU 来提升缓存命中率。</p>
+<h3 id="02-内存池：如何提升内存分配的效率？"><a href="#02-内存池：如何提升内存分配的效率？" class="headerlink" title="02 | 内存池：如何提升内存分配的效率？"></a>02 | 内存池：如何提升内存分配的效率？</h3><p>在 Linux 系统中，用 Xmx 设置 JVM 的最大堆内存为 8GB，但在近百个并发线程下，观察到 Java 进程占用了 14GB 的内存。为什么会这样呢？</p>
+<p>这是因为，绝大部分高级语言都是用 C 语言编写的，包括 Java，申请内存必须经过 C 库，而 C 库通过预分配更大的空间作为内存池，来加快后续申请内存的速度。这样，预分配的 6GB 的 C 库内存池就与 JVM 中预分配的 8G 内存池叠加在一起，造成了 Java 进程的内存占用超出了预期。</p>
+<h4 id="2-1-隐藏的内存池"><a href="#2-1-隐藏的内存池" class="headerlink" title="2.1 隐藏的内存池"></a>2.1 隐藏的内存池</h4><p>当代码申请内存时，首先会到达应用层内存池，如果应用层内存池有足够的可用内存，就会直接返回给业务代码，否则，它会向更底层的 C 库内存池申请内存。比如，如果你在 Apache、Nginx 等服务之上做模块开发，这些服务中就有独立的内存池。当然，Java 中也有内存池，当通过启动参数 Xmx 指定 JVM 的堆内存为 8GB 时，就设定了 JVM 堆内存池的大小。</p>
+<p>你可能听说过 Google 的 TCMalloc 和 FaceBook 的 JEMalloc，它们也是 C 库内存池。当 C 库内存池无法满足内存申请时，才会向操作系统内核申请分配内存。如下图所示：</p>
+<p><img src="/images/《系统性能调优必知必会》学习笔记/隐藏的内存池.jpg" alt="隐藏的内存池"></p>
+<p>回到文章开头的问题，Java 已经有了应用层内存池，为什么还会受到 C 库内存池的影响呢？这是因为，除了 JVM 负责管理的堆内存外，Java 还拥有一些堆外内存，由于它不使用 JVM 的垃圾回收机制，所以更稳定、持久，处理 IO 的速度也更快。这些堆外内存就会由 C 库内存池负责分配，这是 Java 受到 C 库内存池影响的原因。</p>
+<p>以 Linux 系统的默认 C 库内存池 Ptmalloc2 来具体分析，看看它到底对性能发挥着怎样的作用。</p>
+<p>C 库内存池工作时，会预分配比你申请的字节数更大的空间作为内存池。比如说，当主进程下申请 1 字节的内存时，Ptmalloc2 会预分配 132K 字节的内存（Ptmalloc2 中叫 Main Arena），应用代码再申请内存时，会从这已经申请到的 132KB 中继续分配。</p>
+<p>如下所示（你可以在这里找到 <a target="_blank" rel="noopener" href="https://github.com/russelltao/geektime_distrib_perf/tree/master/2-memory/alloc_address">示例程序</a> ，注意地址的单位是 16 进制）：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ <span class="token function">cat</span> /proc/2891/maps <span class="token operator">|</span> <span class="token function">grep</span> heap
+01643000-01664000 rw-p 00000000 00:00 <span class="token number">0</span>     <span class="token punctuation">[</span>heap<span class="token punctuation">]</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre>
+<p>当我们释放这 1 字节时，Ptmalloc2 也不会把内存归还给操作系统。Ptmalloc2 认为，与其把这 1 字节释放给操作系统，不如先缓存着放进内存池里，仍然当作用户态内存留下来，进程再次申请 1 字节的内存时就可以直接复用，这样速度快了很多。</p>
+<p>你可能会想，132KB 不多呀？为什么这一讲开头提到的 Java 进程，会被分配了几个 GB 的内存池呢？这是因为多线程与单线程的预分配策略并不相同。</p>
+<p>每个<strong>子线程预分配的内存是 64MB</strong>（Ptmalloc2 中被称为 Thread Arena，32 位系统下为 1MB，64 位系统下为 64MB）。如果有 100 个线程，就将有 6GB 的内存都会被内存池占用。当然，并不是设置了 1000 个线程，就会预分配 60GB 的内存，子线程内存池最多只能到 8 倍的 CPU 核数，比如在 32 核的服务器上，最多只会有 256 个子线程内存池，但这也非常夸张了，16GB（64MB * 256 = 16GB）的内存将一直被 Ptmalloc2 占用。</p>
+<p>回到本文开头的问题，Linux 下的 JVM 编译时默认使用了 Ptmalloc2 内存池，因此每个线程都预分配了 64MB 的内存，这造成含有上百个 Java 线程的 JVM 多使用了 6GB 的内存。在多数情况下，这些预分配出来的内存池，可以提升后续内存分配的性能。</p>
+<p>然而，Java 中的 JVM 内存池已经管理了绝大部分内存，确实不能接受莫名多出来 6GB 的内存，那该怎么办呢？既然我们知道了 Ptmalloc2 内存池的存在，就有两种解决办法。</p>
+<ol>
+<li><p>首先可以调整 Ptmalloc2 的工作方式。<strong>通过设置 MALLOC_ARENA_MAX 环境变量，可以限制线程内存池的最大数量</strong>，当然，线程内存池的数量减少后，会影响 Ptmalloc2 分配内存的速度。不过由于 Java 主要使用 JVM 内存池来管理对象，这点影响并不重要。</p>
+</li>
+<li><p>其次可以更换掉 Ptmalloc2 内存池，选择一个预分配内存更少的内存池，比如 Google 的 TCMalloc。</p>
+</li>
+</ol>
+<p>这并不是说 Google 出品的 TCMalloc 性能更好，而是在特定的场景中的选择不同。而且，盲目地选择 TCMalloc 很可能会降低性能，否则 Linux 系统早把默认的内存池改为 TCMalloc 了。</p>
+<h4 id="2-2-选择-Ptmalloc2-还是-TCMalloc？"><a href="#2-2-选择-Ptmalloc2-还是-TCMalloc？" class="headerlink" title="2.2 选择 Ptmalloc2 还是 TCMalloc？"></a>2.2 选择 Ptmalloc2 还是 TCMalloc？</h4><p>先来看 TCMalloc 适用的场景，<strong>它对多线程下小内存的分配特别友好。</strong></p>
+<p>比如，在 2GHz 的 CPU 上分配、释放 256K 字节的内存，Ptmalloc2 耗时 32 纳秒，而 TCMalloc 仅耗时 10 纳秒（测试代码参见 <a target="_blank" rel="noopener" href="https://github.com/russelltao/geektime_distrib_perf/tree/master/2-memory/benchmark">这里</a> ）。<strong>差距超过了 3 倍，为什么呢？</strong> 这是因为，Ptmalloc2 假定，如果线程 A 申请并释放了的内存，线程 B 可能也会申请类似的内存，所以它允许内存池在线程间复用以提升性能。</p>
+<p>因此，每次分配内存，Ptmalloc2 一定要加锁，才能解决共享资源的互斥问题。然而，加锁的消耗并不小。如果你监控分配速度的话，会发现单线程服务调整为 100 个线程，Ptmalloc2 申请内存的速度会变慢 10 倍。TCMalloc 针对小内存做了很多优化，每个线程独立分配内存，无须加锁，所以速度更快！</p>
+<p>而且，<strong>线程数越多，Ptmalloc2 出现锁竞争的概率就越高。</strong>比如我们用 40 个线程做同样的测试，TCMalloc 只是从 10 纳秒上升到 25 纳秒，只增长了 1.5 倍，而 Ptmalloc2 则从 32 纳秒上升到 137 纳秒，增长了 3 倍以上。</p>
+<p>下图是 TCMalloc 作者给出的性能测试数据，可以看到线程数越多，二者的速度差距越大。所以，<strong>当应用场景涉及大量的并发线程时，换成 TCMalloc 库也更有优势！</strong></p>
+<p><img src="/images/《系统性能调优必知必会》学习笔记/TCMallocThread-CachingMalloc.png" alt="TCMallocThread-CachingMalloc"></p>
+<blockquote>
+<p>图片来源：TCMalloc : Thread-Caching Malloc</p>
+</blockquote>
+<p>那么，为什么 GlibC 不把默认的 Ptmalloc2 内存池换成 TCMalloc 呢？<strong>因为 Ptmalloc2 更擅长大内存的分配。</strong></p>
+<p>比如，单线程下分配 257K 字节的内存，Ptmalloc2 的耗时不变仍然是 32 纳秒，但 TCMalloc 就由 10 纳秒上升到 64 纳秒，增长了 5 倍以上！<strong>现在 TCMalloc 反过来比 Ptmalloc2 慢了 1 倍！</strong>这是因为 TCMalloc 特意针对小内存做了优化。</p>
+<p>多少字节叫小内存呢？TCMalloc 把内存分为 3 个档次，小于等于 256KB 的称为小内存，从 256KB 到 1M 称为中等内存，大于 1MB 的叫做大内存。TCMalloc 对中等内存、大内存的分配速度很慢，比如我们用单线程分配 2M 的内存，Ptmalloc2 耗时仍然稳定在 32 纳秒，但 TCMalloc 已经上升到 86 纳秒，增长了 7 倍以上。</p>
+<p>所以，<strong>如果主要分配 256KB 以下的内存，特别是在多线程环境下，应当选择 TCMalloc；否则应使用 Ptmalloc2，它的通用性更好。</strong></p>
+<h4 id="2-3-从堆还是栈上分配内存？"><a href="#2-3-从堆还是栈上分配内存？" class="headerlink" title="2.3 从堆还是栈上分配内存？"></a>2.3 从堆还是栈上分配内存？</h4><p>不知道你发现没有，刚刚讨论的内存池中分配出的都是堆内存，如果你把在堆中分配的对象改为在栈上分配，速度还会再快上 1 倍（具体测试代码可以在<a target="_blank" rel="noopener" href="https://github.com/russelltao/geektime_distrib_perf/blob/master/2-memory/benchmark/heap_stack.java">这里</a>找到）！为什么？</p>
+<p>如果你使用的是静态类型语言，那么，不使用 new 关键字分配的对象大都是在栈中的。比如：</p>
+<pre class="line-numbers language-text" data-language="text"><code class="language-text">C/C++/Java语言： int a = 10;<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>否则，通过 new 或者 malloc 关键字分配的对象则是在堆中的：</p>
+<pre class="line-numbers language-text" data-language="text"><code class="language-text">C语言：int * a = (int*) malloc(sizeof(int));
+C++语言：int * a = new int;
+Java语言：int a = new Integer(10);<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span></span></code></pre>
+<p>另外，对于动态类型语言，无论是否使用 new 关键字，内存都是从堆中分配的。</p>
+<p>这是因为，由于每个线程都有独立的栈，所以分配内存时不需要加锁保护，而且栈上对象的尺寸在编译阶段就已经写入可执行文件了，执行效率更高！性能至上的 Golang 语言就是按照这个逻辑设计的，即使你用 new 关键字分配了堆内存，但编译器如果认为在栈中分配不影响功能语义时，会自动改为在栈中分配。</p>
+<p>当然，在栈中分配内存也有缺点，它有功能上的限制。一是， 栈内存生命周期有限，它会随着函数调用结束后自动释放。在堆中分配的内存，并不随着分配时所在函数调用的结束而释放，它的生命周期足够使用；二是，栈的容量有限，如 CentOS 7 中是 8MB 字节，如果你申请的内存超过限制会造成栈溢出错误（比如，递归函数调用很容易造成这种问题），而堆则没有容量限制。</p>
+<p><strong>所以，当我们分配内存时，如果在满足功能的情况下，可以在栈中分配的话，就选择栈。</strong></p>
+<h4 id="2-3-小结"><a href="#2-3-小结" class="headerlink" title="2.3 小结"></a>2.3 小结</h4><p>进程申请内存的速度，以及总内存空间都受到内存池的影响。知道这些隐藏内存池的存在，是提升分配内存效率的前提。</p>
+<p>隐藏着的 C 库内存池，对进程的内存开销有很大的影响。当进程的占用空间超出预期时，你需要清楚你正在使用的是什么内存池，它对每个线程预分配了多大的空间。</p>
+<p>不同的 C 库内存池，都有它们最适合的应用场景，例如 TCMalloc 对多线程下的小内存分配特别友好，而 Ptmalloc2 则对各类尺寸的内存申请都有稳定的表现，更加通用。</p>
+<p>内存池管理着堆内存，它的分配速度比不上在栈中分配内存。只是栈中分配的内存受到生命周期和容量大小的限制，应用场景更为有限。然而，如果有可能的话，尽量在栈中分配内存，它比内存池中的堆内存分配速度快很多！</p>
 <h2 id="三、系统层网络优化"><a href="#三、系统层网络优化" class="headerlink" title="三、系统层网络优化"></a>三、系统层网络优化</h2><h2 id="四、应用层编解码优化"><a href="#四、应用层编解码优化" class="headerlink" title="四、应用层编解码优化"></a>四、应用层编解码优化</h2><h2 id="五、期中考试周"><a href="#五、期中考试周" class="headerlink" title="五、期中考试周"></a>五、期中考试周</h2><h2 id="六、分布式系统优化"><a href="#六、分布式系统优化" class="headerlink" title="六、分布式系统优化"></a>六、分布式系统优化</h2><h2 id="七、加餐与分享"><a href="#七、加餐与分享" class="headerlink" title="七、加餐与分享"></a>七、加餐与分享</h2><h2 id="八、结束语"><a href="#八、结束语" class="headerlink" title="八、结束语"></a>八、结束语</h2>
                 
             </div>
@@ -935,7 +991,7 @@
             <br>
             
             &nbsp;<i class="fas fa-chart-area"></i>&nbsp;站点总字数:&nbsp;<span
-                class="white-color">671.5k</span>&nbsp;字
+                class="white-color">674.3k</span>&nbsp;字
             
             
             
