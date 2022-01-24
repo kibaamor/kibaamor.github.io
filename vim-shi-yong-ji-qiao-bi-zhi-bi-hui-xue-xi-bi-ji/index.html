@@ -434,14 +434,14 @@
                 
                 <div class="info-break-policy">
                     <i class="far fa-file-word fa-fw"></i>文章字数:&nbsp;&nbsp;
-                    29.1k
+                    33.2k
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-clock fa-fw"></i>阅读时长:&nbsp;&nbsp;
-                    107 分
+                    121 分
                 </div>
                 
 
@@ -1436,6 +1436,87 @@ vnoremap <span class="token operator">&lt;</span>Leader<span class="token operat
 <p>这个插件可以跟其他工具进一步配合。如果你安装了 <a target="_blank" rel="noopener" href="https://github.com/BurntSushi/ripgrep">ripgrep</a> 和 <a target="_blank" rel="noopener" href="https://github.com/sharkdp/bat">bat</a> 的话，可以获得更好的效果。动图中右下角文件预览的语法加亮的效果就依赖于系统里有 bat。如果你装了 ripgrep 的话，可以考虑设置下面的环境变量：</p>
 <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token builtin class-name">export</span> <span class="token assign-left variable">FZF_DEFAULT_COMMAND</span><span class="token operator">=</span><span class="token string">'rg --files --sortr modified'</span><span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
 <p>这样的话，fzf 可以利用 ripgrep 来自动过滤掉被 Git 忽略的文件、隐藏文件、二进制文件等程序员通常不关心的内容，并将结果以修改时间倒排，确保最新修改的文件在最下面，大大提高了迅速找到你需要的文件的概率。</p>
+<h2 id="10｜代码重构实验：在实战中提高编辑熟练度"><a href="#10｜代码重构实验：在实战中提高编辑熟练度" class="headerlink" title="10｜代码重构实验：在实战中提高编辑熟练度"></a>10｜代码重构实验：在实战中提高编辑熟练度</h2><h2 id="11｜文本的细节：关于字符、编码、行你所需要知道的一切"><a href="#11｜文本的细节：关于字符、编码、行你所需要知道的一切" class="headerlink" title="11｜文本的细节：关于字符、编码、行你所需要知道的一切"></a>11｜文本的细节：关于字符、编码、行你所需要知道的一切</h2><h3 id="11-1-什么是文本"><a href="#11-1-什么是文本" class="headerlink" title="11.1 什么是文本"></a>11.1 什么是文本</h3><p>从二元论的角度看，计算机文件可以分为文本文件（text file）和二进制文件（binary file），但这个分法并没有对文本做出清晰的界定。从实用的角度，我们大致可以这么区分：</p>
+<ul>
+<li>文本文件里存放的是用行结束符（EOL，即 End of Line）隔开的文本行，二进制文件里则没有这样的明确分隔符</li>
+<li>文本文件可以通过简单、直接的算法转换为人眼能够识别的文字，而二进制文件里含有不能简单转化为文字的信息</li>
+</ul>
+<p>事实上，计算机判定一个文件是不是文本文件，并不是件容易的事情，特别是在这个文件含有非 ASCII 字符的时候。</p>
+<p>从实用的角度，我对文本文件的判定通常是：</p>
+<blockquote>
+<p>一个文本文件可以直接输出到终端上，或在简单的编码转换后输出到终端上，显示为一行或多行可识别的字符，并且不包含乱码。</p>
+</blockquote>
+<p>想要理解这句话，你得先知道什么是字符？什么是编码？什么是行和行结束符？</p>
+<h3 id="11-2-字符和编码"><a href="#11-2-字符和编码" class="headerlink" title="11.2 字符和编码"></a>11.2 字符和编码</h3><p>从文件系统的角度看，文件的内容就是一堆比特（bit）而已。把比特对应到字符的方法，就是编码（encoding）。在目前的主流操作系统里，通常八比特是一个基本单位，也就是字节（byte）。最基本的编码方式，就是把一个字节对应到一个字符。</p>
+<p>目前的大部分编码方式，在 0－127 的范围里，字节值和字符的对应关系是基本相同的。除了个别字符外，编码的基本方式都和 ASCII（American Standard Code for Information Interchange，美国信息交换标准代码）兼容，如下图所示：</p>
+<p><img src="/images/《Vim实用技巧必知必会》学习笔记/ASCII字符映射表.gif" alt="ASCII字符映射表"></p>
+<p>注意，头 32 个字符和最后一个字符是控制字符，其中大部分现在已经很少有人使用了，但还有一些我们今天仍然会在不同的场合遇到，如马上就会讨论的 LF 和 CR。</p>
+<p>ASCII 是美国标准，里面只有基本的拉丁字母，对其他国家来讲可能就不合适。比如对欧洲国家来说，ASCII 既没有带变音符的拉丁字母（如 é 和 ä ），也不支持像希腊字母（如α、β、γ）、西里尔字母（如 Пушкин）这样的其他欧洲文字，使用起来很不方便。很多其他编码方式使用了 128－255 的字节值范围作为扩展，总共最多是 256 个字符，一次允许一套方式生效，称之为一个代码页（code page）。这种做法，只能适用于文字相近、且字符数不多的国家。比如，下图表示的 ISO-8859-1（也称作 Latin-1）和后面的 Windows 扩展代码页 1252（下图中绿框部分为 Windows 的扩展），就只能适用于西欧国家。</p>
+<p><img src="/images/《Vim实用技巧必知必会》学习笔记/ISO-8859-1和Windows-1252里的字符.png" alt="ISO-8859-1和Windows-1252里的字符"></p>
+<p>最早的中文字符集标准是 1980 年的国标 GB2312，其中收录了 6763 个常用汉字和 682 个其他符号。至于我们平时用到的编码 GB2312，它更准确的名字其实是 EUC-CN，是一种与 ASCII 兼容的编码方式。它用单字节表示 ASCII 字符而用双字节表示 GB2312 中的字符；由于 GB2312 中本身也含有 ASCII 中包含的字符，在使用中逐渐就形成了“半角”和“全角”的区别。</p>
+<p>国标字符集后面又有扩展，这个扩展后的字符集就是 GBK，是中文版 Windows 使用的标准编码方式。GB2312 和 GBK 所占用的编码位置可以参看下面的图（由 John M. Długosz 为 Wikipedia 绘制）：</p>
+<p><img src="/images/《Vim实用技巧必知必会》学习笔记/GBK编码的第一字节和第二字节分布.png" alt="GBK编码的第一字节和第二字节分布"></p>
+<p>图中 GBK/1 和 GBK/2 为 GB2312 中已经定义的区域，其他的则是 GBK 后面添加的字符，总共定义了两万多个编码点，支持了绝大部分现代汉语中还在使用的字。</p>
+<p>显然，多个不同的编码方式是不利于信息交换的。我们在打开文本文件时看到的“乱码”，最常见的情况就是文件的编码和打开文件的工具以为的编码不同。毕竟，只要出现了非 ASCII 字符，解释方式就多了。对我们来说，常见的情况是 Latin-1/Windows-1252（西欧文字）、GBK（简体中文）、Big5（繁体中文），今天还增加了 UTF-8。</p>
+<p>UTF-8 的全称是 8-bit Unicode Transformation Format，8 比特的 Unicode 转换格式。Unicode 自发明伊始，就是为了统一编码问题，但它的最早编码方式，UCS-2，存在两个重大问题：</p>
+<ul>
+<li>和 ASCII 不兼容，不能在现有软件和文件系统中直接使用</li>
+<li>在储存 ASCII 为主的字符时，存在一字节变两字节的空间浪费</li>
+</ul>
+<p>Ken Thompson 在 1992 年和 Rob Pike（罗勃 · 派克）一起发明了 UTF-8，解决了这两个问题（牛人就是牛人啊）。到了今天，UTF-8 已经成了互联网和 Unix 世界里文本文件（含 HTML 和 XHTML）的主流编码方式。但是，Windows 下的文本文件，由于历史原因，可能还大量使用着传统的编码方式（很错误地被叫做 ANSI）；对于中文 Windows，这个传统编码就是 GBK 了。</p>
+<p>抛开编码方式的细节（从网上你可以找到足够多的关于 Unicode 和 UTF-8 的资料），我们需要牢牢记住的是，UTF-8 是 Unicode 里最重要的编码方式，可以把一到四字节长度的字节序列映射成为一个 Unicode 字符。目前我们使用的任何字符都可以用 UTF-8 表示，因而 UTF-8 是我们在 Vim 中使用的内部编码（选项 encoding）。我们在第 2 讲中给出 fileencodings 选项设置，就是为了在读写文件时把文件内容进行适当的转换。这个选项表示的是自动检测使用的编码；而在文件被 Vim 载入后，文件的编码会出现在选项 fileencoding 里。如果 fileencoding 选项为空，则表示文件保存时不做任何转换。</p>
+<h3 id="11-3-字符和字形"><a href="#11-3-字符和字形" class="headerlink" title="11.3 字符和字形"></a>11.3 字符和字形</h3><p>Unicode 设计时的一个决定，目前看起来有点短视，那就是对中日韩文字中使用到的汉字进行了“统一”。如果字源相同，它们在 Unicode 中就只占据一个编码点。于是，一个字符可能就有多个字形。这个问题，我在第 2 讲中已经展示过了，它也是我们可能需要在图形界面 Vim 中单独设置宽字符字体（guifontwide）的原因。</p>
+<p><img src="/images/《Vim实用技巧必知必会》学习笔记/部分汉字的中文和日文字形对比.png" alt="部分汉字的中文和日文字形对比"></p>
+<p>跟中文字符集中“半角”和“全角”的概念有点像，Unicode 中也有字宽的概念。和简单的半角与全角的区别不同，Unicode 里除了窄字符和宽字符，还有模糊宽度（ambiguous width）字符。这些字符的宽度根据上下文而定：在东亚文字里一般是宽字符，而在西方文字里一般是窄字符。最常用的模糊宽度字符有（“U+”后面跟十六进制数值是用来表示 Unicode 字符所占编码点数值的通常方法）：</p>
+<ul>
+<li>U+00B0：「°」</li>
+<li>U+00B7：「·」</li>
+<li>U+00D7：「×」</li>
+<li>U+00F7：「÷」</li>
+<li>U+2014：「—」</li>
+<li>U+2018：「‘」</li>
+<li>U+2019：「’」</li>
+<li>U+201C：「“」</li>
+<li>U+201D：「”」</li>
+<li>U+2103：「℃」</li>
+</ul>
+<p>对于某一特定字体，它们的宽度当然就是确定的；尤其使用变宽字体（大部分英文字体，不同字符宽度不同）时，如在极客时间的正文里，这个模糊宽度没有什么意义。对于使用等宽字体（程序员一般使用的字体，Vim 只能用等宽字体）的文本编辑器，到底是把这些字符显示成跟 ASCII 字符一样的“单”宽度，还是显示成跟汉字一样的“双”宽度，就是一个需要考虑的问题了。</p>
+<p>稍微展开一点点，这个模糊宽度，在我们日常生活中还是造成了一点麻烦的。非常常见的一个排版错误，就是由于使用的软件（在中文 Windows 下的）的字体选择规则，西文中的 「’」误用了中文字体展示，导致这个符号展示出来的字间距过宽。一个相反的麻烦，是中文中写「·」希望两侧留空很足，但在另外一些环境下，永远优先选择西文的字体（如大部分的手机操作系统），导致需要手工两侧加空格才能有比较理想的排版效果……</p>
+<p>扯远了，这些毕竟不是 Vim 的问题。Vim 里的解决方式是提供选项 ambiwidth，可以设为 single（默认值）或 double，表示 Vim 到底把这些字符的宽度当成是占一个字符还是两个字符，你想怎么样都可以。对于终端 Vim，由于 Vim 不能决定显示的字体，这个选项只能决定光标在这些字符上应当移动的列数，用户必须自己保证在终端里的设定和 Vim的设定是一致的；否则，可能导致眼睛看到的编辑位置和实际编辑位置不一致。虽然 macOS 的终端应用、Linux 的 GNOME Terminal 和 Windows 下的 PuTTY 都提供了如何处理模糊宽度字体的设定（关键字是“模糊”或“ambiguous”），但鉴于这些软件的字体选择策略，选择“宽”容易导致显示问题，所以我的建议是保留缺省的“窄”设定。</p>
+<p>对于图形界面的 Vim，ambiwidth 选项同时也决定了显示这些模糊宽度字符是使用 guifont 选项还是 guifontwide 的设定。在这种情况下，把 ambiwidth 设成 double 才比较有意义：</p>
+<p><img src="/images/《Vim实用技巧必知必会》学习笔记/设置了guifontwide之后，两种ambiwidth设置的对比.png" alt="设置了guifontwide之后，两种ambiwidth设置的对比"></p>
+<p>修改 ambiwidth 主要影响的是一行的长度，而 Vim 具有根据行长来进行断行的功能。下面，我们先来看一下什么是行。</p>
+<h3 id="11-4-行"><a href="#11-4-行" class="headerlink" title="11.4 行"></a>11.4 行</h3><p>从 Vim 和 Unix 的角度看，一个文本文件由多行构成，每一行都以一个行结束符（EOL）结束。根据传统习惯，这个 EOL 在存盘时使用的字符是 LF，编码值是 10（U+000A）。</p>
+<p>这只是 Unix 格式。常用的还有 DOS 格式（也包括了 Windows），以及老的 Mac 格式。</p>
+<p>在 DOS 格式里，行尾就不只使用 LF 这一个字符了，在 LF 前面会多一个 CR，编码值为 13（U+000D）。这个用法的来源是以前的打字机，CR 表示机架归位（carriage return），LF 表示换行（line feed）。在使用 CR LF 作为行结束符的系统里，CR 只负责光标回到第一列，而 LF 负责光标向下一行。</p>
+<p>老的 Mac 则使用单个 CR 字符作为行结束符，但苹果从 Mac OS X（2001 年）开始就使用了 Unix 风格的行结束符。所以，目前我们遇到的文本文件，应当都使用 LF 或 CR LF 作为行结束符了。这也是 Vim 的 fileformats 选项的意义：它的默认值通常是 unix,dos（Unix 环境下）或 dos,unix（Windows 环境下），即会自动检测 Unix 和 DOS 行尾；如果检测不到，则以第一个风格设置作为默认值。</p>
+<p>fileencodings 有一个对应的文件相关的 fileencoding 选项，跟它一样，fileformats 也对应有一个文件相关的 fileformat 选项，表示当前文件的行尾风格。需要注意的是，如果一个文件里既有 LF 行尾、又有 CR LF 行尾的话，Vim 会把文件当成 Unix 格式，于是文件里会出现最后一个字符显示成“^M”（通常为蓝色，表示是控制字符，跟正常文本不同）的情况。如果你想保留这种行尾，那不需要做任何事情。但绝大多数情况下，你会希望把行尾统一成 Unix 风格或 DOS 风格。此时，你可以使用下面两种方法之一：</p>
+<ul>
+<li>使用 :e ++ff=dos 命令强制以 DOS 行尾加载文件；此时文件的行尾格式是 dos。</li>
+<li>使用 :%s/\r$// 命令删除行尾多余的 CR 字符；此时文件的行尾格式保持 unix 不变。</li>
+</ul>
+<p>此外，再说明一下，Unix/Vim 的传统是任何一行都以行结束符终结，包括最后一行。使用 Vim 编辑的文本文件，最后一个字符通常是 LF（除非使用 Mac 行尾风格，则结尾是 CR）。Windows 上大部分文本编辑器则允许最后一行不以行结束符结束；这样的文件在Vim 打开时，Vim 默认会给出一个“<code>[noeol]</code>”的提示。在存盘时，Vim 则会自动在最后添加一个行结束符。</p>
+<p>除了 Vim，很多 Unix 工具都会有类似的要求。比如，用于文件比对的命令行工具 diff，它在文件比对时如果输出下面的信息，就是表示文件之一没有用行尾结束符来结束：</p>
+<blockquote>
+<p>\ No newline at end of file</p>
+</blockquote>
+<h3 id="11-5-断行"><a href="#11-5-断行" class="headerlink" title="11.5 断行"></a>11.5 断行</h3><p>中文文本文件的行文习惯，通常是在一段之中不空行，一段结束了再换行。文本编辑器需要做的，是在行长超过屏幕宽度时自动折行。Vim 虽然也能在这种情况下自动折行，但 Vim 的更惯常用法是欧洲字母文字和源代码的做法，行长有一定的限制（根据惯例，常用值是 72、80、120），到了指定的行长则应当进行断行，用一个空行来明确表示分段。这也是 Markdown 格式里的标准做法：单个换行符仅相当于空格而已。（这个额外插入的空格就是中文一段之中不换行的原因。）</p>
+<p>Vim 有一个文本宽度的选项 textwidth，表示插入文字时的最大行宽度。这个选项的全局默认值为 0，表示不进行限制，但 Vim 脚本可能会设置它，你也可以自己在 vimrc 等地方对其进行设置。我自己的设置是文件相关的，如：</p>
+<pre class="line-numbers language-vim" data-language="vim"><code class="language-vim">au FileType changelog <span class="token keyword">setlocal</span> <span class="token builtin">textwidth</span><span class="token operator">=</span><span class="token number">76</span><span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>这个设置，加上对行进行格式化的命令 gq，可以让你方便地对（英文）文本进行整理。gq 命令跟 c、d 等命令一样，可以先在可视模式下选定文本，也可以在命令之后跟动作键。对于源代码，它的妙处在于它知道什么是注释，什么是列表：</p>
+<p><img src="/images/《Vim实用技巧必知必会》学习笔记/设置行宽为64、使用数字列表，然后格式化注释.gif" alt="设置行宽为64、使用数字列表，然后格式化注释"></p>
+<p>如果对这些功能有兴趣的话，请查看相关的帮助： <a target="_blank" rel="noopener" href="https://yianwillis.github.io/vimcdoc/doc/change.html#gq">:help gq</a> 和 <a target="_blank" rel="noopener" href="https://yianwillis.github.io/vimcdoc/doc/change.html#fo-table">:help fo-table</a>。我这儿特别要指出的是：</p>
+<ul>
+<li>要能够在无空格的中文之中断行，我们需要有 :set formatoptions+=m</li>
+<li>选项 ambiwidth 会影响行宽的判断，如左右弯引号的宽度算 1 还算 2</li>
+<li>在 Vim 8.2.0901 之前，Vim 断行时不考虑中文标点符号的规则；要使用 gq 对中文文本断行，最好升级到这个版本或更高版本</li>
+</ul>
+<h3 id="11-6-编辑二进制文件"><a href="#11-6-编辑二进制文件" class="headerlink" title="11.6 编辑二进制文件"></a>11.6 编辑二进制文件</h3><p>Vim 有个 binary 选项和一个 -b 命令行参数。当你通过 -b 命令行参数，或 :e ++binary … 命令来打开文件时，binary 选项会自动被设置（用户不应该手动设置该选项）。这个选项保证了，Vim 在读取和存储文件时，不会做会影响文件内容的转换和修改。</p>
+<p>不过，即使有这个选项，二进制文件打开后仍然是一堆乱码，这当然是正常的。你除了可以在里面搜索文本之外，还可以利用 Vim 的 Tools（工具）菜单下的“Convert to HEX”（转换成十六进制）和“Convert Back”（转换回）两项，来对二进制文件进行编辑。下面的两张图显示了打开二进制文件后的样子和使用了“Convert to HEX”后的样子：</p>
+<p><img src="/images/《Vim实用技巧必知必会》学习笔记/用二进制模式打开一个PNG文件.png" alt="用二进制模式打开一个PNG文件"></p>
+<p><img src="/images/《Vim实用技巧必知必会》学习笔记/转换成HEX格式后的结果.png" alt="转换成HEX格式后的结果"></p>
+<p>不管你是要检查文件中的具体字节内容，还是要修改某个字节，HEX 格式都更方便一些。当然，如果你要把修改写回硬盘的话，一定要先使用“Tools &gt; Convert Back”。</p>
+<p>要是你使用的不是图形界面，菜单里的这两个命令可以用 :%!xxd 和 :%!xxd -r 来手工替代。</p>
 
                 
             </div>
@@ -1825,7 +1906,7 @@ vnoremap <span class="token operator">&lt;</span>Leader<span class="token operat
             <br>
             
             &nbsp;<i class="fas fa-chart-area"></i>&nbsp;站点总字数:&nbsp;<span
-                class="white-color">763.4k</span>&nbsp;字
+                class="white-color">767.5k</span>&nbsp;字
             
             
             
