@@ -434,14 +434,14 @@
                 
                 <div class="info-break-policy">
                     <i class="far fa-file-word fa-fw"></i>文章字数:&nbsp;&nbsp;
-                    19.7k
+                    25.1k
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-clock fa-fw"></i>阅读时长:&nbsp;&nbsp;
-                    72 分
+                    92 分
                 </div>
                 
 
@@ -1141,6 +1141,216 @@ inoremap <span class="token operator">&lt;</span><span class="token keyword">sil
 <p>如果要删除“<code>/* */</code>”注释，那就复杂多了。首先，匹配内容可以跨行；其次，有跟 HTML 标签类似的问题，需要使用最短匹配。我们需要使用的命令是 <code>:%s!/\*\_.\{-}\*/!!g</code> 。</p>
 <p>由于一行里可以有多个“<code>/* */</code>”注释，我们在替换命令的尾部还加上了 g 标志，允许一行里进行多次替换。</p>
 <p>假设我们目前的编码规范规定，所有的函数名应该首字母大写（简单起见，我们假设所有的类名已经是首字母大写了，因而构造函数自动符合该要求，不会发生冲突；但其他很多函数名称仍然是小写字母开头），那么 Vim 的替换命令是：<code>:%s/\&lt;\(_*\)\([a-z]\w*\)\ze(/\1\u\2/g</code> 。</p>
+<h2 id="08｜基本编程支持：规避、解决编程时的常见问题"><a href="#08｜基本编程支持：规避、解决编程时的常见问题" class="headerlink" title="08｜基本编程支持：规避、解决编程时的常见问题"></a>08｜基本编程支持：规避、解决编程时的常见问题</h2><h3 id="8-1-文件类型和关联设定"><a href="#8-1-文件类型和关联设定" class="headerlink" title="8.1 文件类型和关联设定"></a>8.1 文件类型和关联设定</h3><p>程序源代码通常由文件组成，每个文件都有一个关联的文件类型。这个文件类型决定了Vim 对其进行处理的一些基本设定，可能包括：</p>
+<ul>
+<li>如何对文件进行高亮</li>
+<li>制表符（tab）的宽度（空格数）</li>
+<li>是否在键入 <code>&lt;Tab&gt;</code> 时扩展为空格字符</li>
+<li>每次缩进的空格数（是的，可以和制表符宽度不同）</li>
+<li>采用何种自动缩进方法</li>
+<li>其他可适用的选项</li>
+</ul>
+<p><strong>文件高亮</strong>通常需要一套相当复杂的规则，我们今天就只把它当成一个既成事实了，不讨论这些规则的细节。其他各项在 Vim 里一般以选项的形式出现。这些选项都是文件本地（local）选项，即可以在一个文件里修改其数值而不影响其他文件。对于这样的选项，可以用 :setlocal 和 :setglobal 命令分别访问本地值和全局值。一般的 :set 命令在读取数值时（如 :set tabstop?）返回本地值，在写入数值时（如 :set tabstop=4）同时设置本地值和全局值。</p>
+<p><strong>制表符宽度</strong>对应的选项是 tabstop。这在不同的语言里可能有不同的惯例，自然不必多说。它的缺省值是 8，但在不同的文件里可以不一样。不同的文件类型也可能会自动设定不同的数值。</p>
+<p>是否 <code>扩展 &lt;Tab&gt; 为空格</code> 由 expandtab 选项控制。我们前面看到过，但没有讲过，Vim 选项有些是用等号赋值的，也有些不用等号，而只用选项名称或选项名称前面加 no，表示否定。这些就是布尔类型选项，expandtab 也是其中之一。如果打开了 expandtab 选项，那输入中的 tab 会被转变成空格；如果关闭的话，则 tab 字符会被保留。</p>
+<p>让事情变得更复杂的是，Vim 还有个 softtabstop 选项，软制表符宽度。一旦设置了这个选项为非零值，再键入 <code>&lt;Tab&gt;</code> 和 <code>&lt;BS&gt;</code>（退格键），你就感觉像设置了这个宽度的 tabstop 一样，有相应数量的缩进或取消缩进，但实际插入的字符仍然受 expandtab 和 tabstop 两个选项控制。在设置软制表符宽度时，一种最常用的用法是同时设置 expandtab，这样，编辑时你感觉像使用了这个宽度的制表符一样，但你输入的内容里实际被保存的仍然是空格字符。</p>
+<p>这些还不是 Vim 真正使用的“缩进”值。以 C 语言为例，当 Vim 看到你输入“{”和回车键时，会自动产生一个缩进，而这个缩进值跟 tabstop 和 softtabstop 都无关，是一个独立的选项 shiftwidth。</p>
+<p>最后，Vim 还有很多精细的选项来控制如何进行缩进。默认情况下，Vim 没有特殊缩进，回车键回到行首。一般而言，使用选项 autoindent 可以使 Vim 至少记住上一行的缩进位置；而对于特定语言，Vim 可以设置更合适的选项，达到更佳的缩进效果——如对类 C 语言 Vim 会设置 cindent 选项，达到最优的缩进效果。我们下面还会提到，Vim 支持对类 C 语言的缩进有一些精调选项，你也可以自己进一步进行调整。</p>
+<h3 id="8-2-文件类型判断"><a href="#8-2-文件类型判断" class="headerlink" title="8.2 文件类型判断"></a>8.2 文件类型判断</h3><p>Vim 的文件类型判断是在 filetype.vim 中执行的。我们可以用下面的命令来打开这个文件：</p>
+<pre class="line-numbers language-vim" data-language="vim"><code class="language-vim"><span class="token punctuation">:</span><span class="token keyword">e</span> $VIMRUNTIME<span class="token operator">/</span><span class="token keyword">filetype</span><span class="token operator">.</span><span class="token keyword">vim</span><span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>其中最主要的逻辑仍然是通过后缀来进行判断，如：</p>
+<pre class="line-numbers language-vim" data-language="vim"><code class="language-vim"><span class="token comment">" C++</span>
+au BufNewFile<span class="token punctuation">,</span>BufRead <span class="token operator">*</span><span class="token operator">.</span>cxx<span class="token punctuation">,</span><span class="token operator">*</span><span class="token operator">.</span><span class="token keyword">c</span><span class="token operator">+</span><span class="token operator">+</span><span class="token punctuation">,</span><span class="token operator">*</span><span class="token operator">.</span><span class="token builtin">hh</span><span class="token punctuation">,</span><span class="token operator">*</span><span class="token operator">.</span>hxx<span class="token punctuation">,</span><span class="token operator">*</span><span class="token operator">.</span>hpp<span class="token punctuation">,</span><span class="token operator">*</span><span class="token operator">.</span>ipp<span class="token punctuation">,</span><span class="token operator">*</span><span class="token operator">.</span>moc<span class="token punctuation">,</span><span class="token operator">*</span><span class="token operator">.</span>tcc<span class="token punctuation">,</span><span class="token operator">*</span><span class="token operator">.</span>inl <span class="token keyword">setf</span> cpp<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre>
+<p>其中 au 是 autocmd 的缩写，代表 Vim 在发生某事件时触发某一动作。上面说的就是在创建（BufNewFile）或读入（BufRead）跟指定文件名模式匹配的文件时，把文件类型设为 C++（setf cpp， setf 是 setfiletype 的缩写）。</p>
+<p>但在后缀不足以唯一判断时，Vim 可以进一步执行代码，如：</p>
+<pre class="line-numbers language-vim" data-language="vim"><code class="language-vim">au BufNewFile<span class="token punctuation">,</span>BufRead <span class="token operator">*</span><span class="token operator">.</span><span class="token keyword">h</span>     <span class="token keyword">call</span> dist#<span class="token builtin">ft</span>#<span class="token function">FTheader</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>上面函数的定义在文件 $VIMRUNTIME/autoload/dist/ft.vim 里：</p>
+<pre class="line-numbers language-vim" data-language="vim"><code class="language-vim">func dist#<span class="token builtin">ft</span>#<span class="token function">FTheader</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+  <span class="token keyword">if</span> <span class="token function">match</span><span class="token punctuation">(</span><span class="token function">getline</span><span class="token punctuation">(</span><span class="token number">1</span><span class="token punctuation">,</span> <span class="token function">min</span><span class="token punctuation">(</span><span class="token punctuation">[</span><span class="token function">line</span><span class="token punctuation">(</span><span class="token string">"$"</span><span class="token punctuation">)</span><span class="token punctuation">,</span> <span class="token number">200</span><span class="token punctuation">]</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">,</span> <span class="token string">'^@\(interface\|end\|class\)'</span><span class="token punctuation">)</span> <span class="token operator">&gt;</span> <span class="token operator">-</span><span class="token number">1</span>
+    <span class="token keyword">if</span> <span class="token function">exists</span><span class="token punctuation">(</span><span class="token string">"g:c_syntax_for_h"</span><span class="token punctuation">)</span>
+      <span class="token keyword">setf</span> objc
+    <span class="token keyword">else</span>
+      <span class="token keyword">setf</span> objcpp
+    <span class="token keyword">endif</span>
+  <span class="token keyword">elseif</span> <span class="token function">exists</span><span class="token punctuation">(</span><span class="token string">"g:c_syntax_for_h"</span><span class="token punctuation">)</span>
+    <span class="token keyword">setf</span> <span class="token keyword">c</span>
+  <span class="token keyword">elseif</span> <span class="token function">exists</span><span class="token punctuation">(</span><span class="token string">"g:ch_syntax_for_h"</span><span class="token punctuation">)</span>
+    <span class="token keyword">setf</span> <span class="token builtin">ch</span>
+  <span class="token keyword">else</span>
+    <span class="token keyword">setf</span> cpp
+  <span class="token keyword">endif</span>
+endfunc<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>它的大概意思是，如果在头 200 行里找到某行以 @interface 等内容开始，那就认为这是 Objective-C/C++，否则认为是 C/C++。具体是 C 还是 C++，则由全局变量 g:c_syntax_for_h 控制（我们忽略 Ch 这种小众情况）。</p>
+<p>上面讲的是 Vim 的缺省行为。我们当然也可以定制 Vim 的行为。按照惯例，一般把定制放在用户 Vim 配置目录里的 filetype.vim 里。我的定制如下所示：</p>
+<pre class="line-numbers language-vim" data-language="vim"><code class="language-vim"><span class="token keyword">if</span> <span class="token function">exists</span><span class="token punctuation">(</span><span class="token string">"did_load_filetypes"</span><span class="token punctuation">)</span>
+  <span class="token keyword">finish</span>
+<span class="token keyword">endif</span>
+
+<span class="token keyword">function</span><span class="token operator">!</span> s<span class="token punctuation">:</span><span class="token function">CheckCPP</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+  <span class="token keyword">if</span> <span class="token function">expand</span><span class="token punctuation">(</span><span class="token string">'%:t'</span><span class="token punctuation">)</span> <span class="token operator">!~</span> <span class="token string">'\.'</span>
+    <span class="token keyword">setfiletype</span> cpp
+  <span class="token keyword">endif</span>
+<span class="token keyword">endfunction</span>
+
+augroup filetypedetect
+  au<span class="token operator">!</span> BufRead<span class="token punctuation">,</span>BufNewFile <span class="token operator">*</span><span class="token operator">.</span>asm      <span class="token keyword">setfiletype</span> masm
+  au<span class="token operator">!</span> BufRead proxy<span class="token operator">.</span>pac             <span class="token keyword">setfiletype</span> javascript
+  au<span class="token operator">!</span> BufRead <span class="token operator">*</span><span class="token operator">/</span><span class="token keyword">c</span><span class="token operator">+</span><span class="token operator">+</span><span class="token operator">/</span><span class="token operator">*</span>               <span class="token keyword">call</span> s<span class="token punctuation">:</span><span class="token function">CheckCPP</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+  au<span class="token operator">!</span> BufRead <span class="token operator">*</span><span class="token operator">/</span><span class="token builtin">include</span><span class="token operator">/</span><span class="token operator">*</span>           <span class="token keyword">call</span> s<span class="token punctuation">:</span><span class="token function">CheckCPP</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+augroup END<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>上面这段代码主要做了以下事情：</p>
+<ul>
+<li>当读入或创建后缀为“.asm”的文件时，设置文件类型为微软宏汇编（默认为 GNU 的汇编格式）。</li>
+<li>当读入名字为“proxy.pac”的文件时，把内容当成 JavaScript 解释。</li>
+<li>当读入路径含“c++”或“include”的文件时，调用脚本内部函数 CheckCPP，检查文件名（% 代表文件名，:t 代表尾部，即去掉路径部分）是否不含“.”，是的话当成 C++ 文件类型。这是为了处理像“memory”这样的无后缀 C++ 头文件。</li>
+<li>随后 Vim 会继续载入自带的 filetype.vim；如果文件类型还未确定的话，则继续使用 Vim 自带的规则进行判断。</li>
+</ul>
+<h3 id="8-3-文件类型选项"><a href="#8-3-文件类型选项" class="headerlink" title="8.3 文件类型选项"></a>8.3 文件类型选项</h3><p>一旦确定了文件类型，Vim 会从运行支持文件目录下载入同名的文件。以 Python 为例：</p>
+<ul>
+<li>syntax/python.vim 包含了如何对 Python 进行语法加亮的设置</li>
+<li>indent/python.vim 包含了如何对 Python 代码进行缩进的设置（如在用户输入 if 时进行缩进等）</li>
+<li>ftplugin/python.vim 是文件类型插件，包含了其他跟文件类型相关的设置</li>
+</ul>
+<p>文件类型插件中包含我们上面提到的制表符宽度方面的设定，具体来说，是下面这几行：</p>
+<pre class="line-numbers language-vim" data-language="vim"><code class="language-vim"><span class="token keyword">if</span> <span class="token operator">!</span><span class="token function">exists</span><span class="token punctuation">(</span><span class="token string">"g:python_recommended_style"</span><span class="token punctuation">)</span> <span class="token operator">||</span> g<span class="token punctuation">:</span>python_recommended_style <span class="token operator">!=</span> <span class="token number">0</span>
+  <span class="token comment">" As suggested by PEP8.</span>
+  <span class="token keyword">setlocal</span> <span class="token builtin">expandtab</span> <span class="token builtin">shiftwidth</span><span class="token operator">=</span><span class="token number">4</span> <span class="token builtin">softtabstop</span><span class="token operator">=</span><span class="token number">4</span> <span class="token builtin">tabstop</span><span class="token operator">=</span><span class="token number">8</span>
+<span class="token keyword">endif</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span></span></code></pre>
+<p>默认情况下，该文件使用 <a target="_blank" rel="noopener" href="https://www.python.org/dev/peps/pep-0008/">PEP 8</a> 推荐的设置：</p>
+<ul>
+<li>把用户输入的制表符扩展成空格</li>
+<li>缩进和软制表符宽度设为 4</li>
+<li>如果文件中包含制表符的话，仍按宽度为 8 来解释</li>
+</ul>
+<p>缩进和软制表符宽度设成 4 估计不需要解释，这应该是最常用的缩进值了。使用空格而不是制表符的最大好处是，在无论何种环境下，展示效果都可以完全一致，不会在 diff 时或制表符宽度不符合预期时代码就乱了。至于“硬”制表符宽度仍然是 8，则是为了确保显示文件的兼容性，尤其是在终端里 cat 文件时和在浏览器中浏览源代码时；这两种情况下，制表符宽度一般都是 8。</p>
+<p>跟 Python 不同，很多其他文件类型没有推荐的风格设定，这时就应该用户自己进行设定了。我推荐在 vimrc 配置文件里进行设置，因为比较集中、容易管理。如：</p>
+<pre class="line-numbers language-vim" data-language="vim"><code class="language-vim">au FileType <span class="token keyword">c</span><span class="token punctuation">,</span>cpp<span class="token punctuation">,</span>objc  <span class="token keyword">setlocal</span> <span class="token builtin">expandtab</span> <span class="token builtin">shiftwidth</span><span class="token operator">=</span><span class="token number">4</span> <span class="token builtin">softtabstop</span><span class="token operator">=</span><span class="token number">4</span> <span class="token builtin">tabstop</span><span class="token operator">=</span><span class="token number">4</span> <span class="token builtin">cinoptions</span><span class="token operator">=</span><span class="token punctuation">:</span><span class="token number">0</span><span class="token punctuation">,</span>g0<span class="token punctuation">,</span><span class="token punctuation">(</span><span class="token number">0</span><span class="token punctuation">,</span>w1
+au FileType json        <span class="token keyword">setlocal</span> <span class="token builtin">expandtab</span> <span class="token builtin">shiftwidth</span><span class="token operator">=</span><span class="token number">2</span> <span class="token builtin">softtabstop</span><span class="token operator">=</span><span class="token number">2</span>
+au FileType <span class="token keyword">vim</span>         <span class="token keyword">setlocal</span> <span class="token builtin">expandtab</span> <span class="token builtin">shiftwidth</span><span class="token operator">=</span><span class="token number">2</span> <span class="token builtin">softtabstop</span><span class="token operator">=</span><span class="token number">2</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span></span></code></pre>
+<p>上面设置了几种不同文件类型的编辑选项。大部分我们都已经知道了，下面这个则是新的：</p>
+<ul>
+<li>cinoptions 可以精调 C 风格缩进的方式；上面 :0 表示 switch 下面的 case 语句不进行额外缩进，g0 代表作用域声明（public:、private: 等）不额外缩进，(0 和 w1 配合代表没结束的圆括号里的内容折行时不额外缩进。</li>
+</ul>
+<p>我们也可以根据文件类型以外的条件来进行设定，如下面设定是要把 /usr/include 目录下的文件按 <a target="_blank" rel="noopener" href="https://www.gnu.org/prep/standards/">GNU 编码风格</a>来解释：</p>
+<pre class="line-numbers language-vim" data-language="vim"><code class="language-vim"><span class="token keyword">function</span><span class="token operator">!</span> <span class="token function">GnuIndent</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+  <span class="token keyword">setlocal</span> <span class="token builtin">cinoptions</span><span class="token operator">=</span><span class="token operator">&gt;</span><span class="token number">4</span><span class="token punctuation">,</span><span class="token keyword">n</span><span class="token operator">-</span><span class="token number">2</span><span class="token punctuation">,</span><span class="token punctuation">{</span><span class="token number">2</span><span class="token punctuation">,</span>^<span class="token operator">-</span><span class="token number">2</span><span class="token punctuation">,</span><span class="token punctuation">:</span><span class="token number">2</span><span class="token punctuation">,</span><span class="token operator">=</span><span class="token number">2</span><span class="token punctuation">,</span>g0<span class="token punctuation">,</span>h2<span class="token punctuation">,</span>p5<span class="token punctuation">,</span>t0<span class="token punctuation">,</span><span class="token operator">+</span><span class="token number">2</span><span class="token punctuation">,</span><span class="token punctuation">(</span><span class="token number">0</span><span class="token punctuation">,</span>u0<span class="token punctuation">,</span>w1<span class="token punctuation">,</span>m1
+  <span class="token keyword">setlocal</span> <span class="token builtin">shiftwidth</span><span class="token operator">=</span><span class="token number">2</span>
+  <span class="token keyword">setlocal</span> <span class="token builtin">tabstop</span><span class="token operator">=</span><span class="token number">8</span>
+<span class="token keyword">endfunction</span>
+
+au BufRead <span class="token operator">/</span>usr<span class="token operator">/</span><span class="token builtin">include</span><span class="token operator">/</span><span class="token operator">*</span>  <span class="token keyword">call</span> <span class="token function">GnuIndent</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p><img src="/images/《Vim实用技巧必知必会》学习笔记/GNU风格的CPP代码（注意大括号的缩进风格和高亮的tab宽度）.png" alt="GNU风格的CPP代码（注意大括号的缩进风格和高亮的tab宽度）"></p>
+<p>当然，除了设定选项，我们也可以做其他事情，比如下面的代码是在 Vim 帮助文件中，将 q 设定为关闭窗口的按键，映射中的 <buffer> 表示该映射只对这个缓冲区有效。</buffer></p>
+<pre class="line-numbers language-vim" data-language="vim"><code class="language-vim">au FileType <span class="token keyword">help</span> nnoremap <span class="token operator">&lt;</span><span class="token keyword">buffer</span><span class="token operator">&gt;</span> <span class="token keyword">q</span> <span class="token operator">&lt;</span>C<span class="token operator">-</span>W<span class="token operator">&gt;</span><span class="token keyword">c</span><span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<h3 id="8-4-Tags-支持"><a href="#8-4-Tags-支持" class="headerlink" title="8.4 Tags 支持"></a>8.4 Tags 支持</h3><p>Vim 对一种叫 tags 的文本索引格式有特殊支持。事实上，Vim 自己的帮助文件都是用 tags 来索引的。我们用过了 Vim 帮助，也就用过了 tags 文件。下面展示了 $VIMRUNTIME/doc/tags 文件中的一部分：</p>
+<pre class="line-numbers language-text" data-language="text"><code class="language-text">?       pattern.txt     /*?*
+?&lt;CR&gt;   pattern.txt     /*?&lt;CR&gt;*
+@       repeat.txt      /*@*
+@/      change.txt      /*@\/*
+@:      repeat.txt      /*@:*
+@=      change.txt      /*@=*
+@@      repeat.txt      /*@@*
+@r      eval.txt        /*@r*
+A       insert.txt      /*A*
+ACL     editing.txt     /*ACL*
+ANSI-C  develop.txt     /*ANSI-C*<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>我们可以清楚地看到，其中内容分为三列：第一列是关键字，第二列是文件名，第三列是在目标文件中的匹配文本。当你在 Vim 的帮助文件中使用双击或 <code>&lt;C-]&gt;</code> 等命令跳转时， Vim 就会在 tags 文件中搜索，寻找到匹配项的时候就跳转到指定的文件，并利用匹配文本跳转到指定的位置。</p>
+<p>注意我们有不止一个 tags 文件。单单从 Vim 帮助的角度，个人 Vim 配置目录下的 doc目录里有一个 tags 文件；每当你装了一个新的带帮助文件的 Vim 插件时，你都需要到这个 doc 目录下运行 helptags . 来重新生成索引。每个 Vim 软件包的 doc 目录下也同样需要有 tags 文件，不过包管理器能够在安装、更新时自动帮我们在 doc 目录下生成 tags文件。Vim 在你使用 :help 命令查帮助时，会自动在你的所有运行时目录（可以使用 :set runtimepath? 查看）下的 doc/tags 里查找第一个匹配项。</p>
+<h3 id="8-5-生成-tags-文件的工具"><a href="#8-5-生成-tags-文件的工具" class="headerlink" title="8.5 生成 tags 文件的工具"></a>8.5 生成 tags 文件的工具</h3><p>我们需要使用下列两个工具之一：</p>
+<ul>
+<li><a target="_blank" rel="noopener" href="http://ctags.sourceforge.net/">Exubertant Ctags</a></li>
+<li><a target="_blank" rel="noopener" href="https://ctags.io/">Universal Ctags</a></li>
+</ul>
+<p>Exuberant Ctags 是已经存在了好多年的老牌工具。Universal Ctags 还比较新。推荐 Universal Ctags，是因为虽然 Exuberant Ctags 和 Universal Ctags 都支持超过 40 种的常见编程语言，但 Exuberant Ctags 的最后一个版本 5.8，发布于 2009 年，之后就一直没有更新了。Universal Ctags 是基于 Exuberant Ctags 代码的改进版本，并把开发移到了 GitHub 上，项目一直处于活跃状态。想偷懒的话，可以直接使用 Exuberant Ctags；如果愿意折腾一下，或者明确遇到 Exuberant Ctags 的问题，则可以试试 Universal Ctags。</p>
+<h3 id="8-6-生成-tags-文件的命令"><a href="#8-6-生成-tags-文件的命令" class="headerlink" title="8.6 生成 tags 文件的命令"></a>8.6 生成 tags 文件的命令</h3><p>要生成 tags 文件时，你可以简单地进入到一个目录下，然后执行下面的语句对该目录及子目录下的程序源文件生成一个 tags 文件：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">ctags -R <span class="token builtin class-name">.</span><span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>但根据场景和语言不同，你可能需要使用更多的选项。比如，对于 C++，我一般使用：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">ctags --fields<span class="token operator">=</span>+iaS --extra<span class="token operator">=</span>+q -R <span class="token builtin class-name">.</span><span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>如果是对系统的头文件生成 tags 文件——可以用来查找函数的原型信息——那我们一般还需要加上 <code>--c-kinds=+p</code> 选项。为了一次性地对系统头文件简单地生成 tags 文件，我<br>还专门写了个脚本 <a target="_blank" rel="noopener" href="https://github.com/adah1972/gen_systags">gen_systags</a> 来自动化这项工作。</p>
+<h3 id="8-7-使用-tags-文件"><a href="#8-7-使用-tags-文件" class="headerlink" title="8.7 使用 tags 文件"></a>8.7 使用 tags 文件</h3><p>如果当前目录下或当前文件所在目录下存在 tags 文件，Vim 会自动使用这个文件，不需要你做额外的设定。你所需要做的就是在待搜索的关键字上（也可以在可视模式下选中需要的关键字）使用正常模式命令 <c-]>，或者按 g（g 可理解成 go）键加鼠标单击。你愿意的话，也可以手工输入命令 :tag 后面跟空格和待搜索的符号加回车键。这样 Vim 即会跳转到该符号的定义或声明位置。</c-]></p>
+<p><img src="/images/《Vim实用技巧必知必会》学习笔记/标签跳转示例.gif" alt="标签跳转示例"></p>
+<p>如果待搜索的符号找不到，Vim 会报错“E426: tag not found”。如果存在一个或多个匹配项，Vim 会跳转到第一个匹配的位置。下面我列举一下其他相关的常用命令：</p>
+<ul>
+<li>:tnext（缩写 :tn）跳转到下一个标签匹配位置</li>
+<li>:tNext（缩写 :tN）或 :tprevious（缩写 :tp）跳转到上一个标签匹配位置</li>
+<li>:tfirst 或 :trewind 跳转到第一个标签匹配位置</li>
+<li>:tlast 跳转到最后一个标签匹配位置</li>
+<li>:tselect 名称（:tselect 可缩写为 :ts）跟 :tag 类似，但会列举可能的匹配项，让你自己选择（而非跳转到第一个匹配位置）</li>
+<li>g] 跟 <code>&lt;C-]&gt;</code> 类似，但跟 :tselect 一样会给出一个列表而非直接跳转</li>
+<li>:tjump 名称（:tjump 可缩写为 :tj）跟 :tselect 类似，但在只有一个匹配项的时候会直接跳转到匹配位置</li>
+<li><code>g&lt;C-]&gt;</code> 跟 g] 类似，但跟 :tjump 一样在只有一个匹配项时会直接跳转到匹配位置</li>
+<li>:stselect 名称（:stselect 可缩写为 :sts）跟 :tselect 类似，但结果会打开到一个新分割的窗口中</li>
+<li>:stjump 名称（:stjump 可缩写为 :stj）跟 :tjump 类似，但结果会打开到一个新分割的窗口中</li>
+</ul>
+<p>我们的标签跳转分为 :tag、:tselect 和 :tjump 三种不同方法，正常模式和可视模式的命令 <code>&lt;C-]</code> 也同样有后两种方法的变体，对应的命令分别是 g] 和 <code>g&lt;C-]&gt;</code>。这三个命令前面也都可以额外加上 <code>&lt;C-W&gt;</code>，表示结果打开到新窗口中而非当前窗口。</p>
+<p><img src="/images/《Vim实用技巧必知必会》学习笔记/展示在新窗口中选择并打开printf的声明.gif" alt="展示在新窗口中选择并打开printf的声明"></p>
+<p>Vim 默认只在当前目录下和文件所在目录下寻找 tags 文件。对于含多层目录的项目，这个设定就不合适了。解决方法是使用 Vim 的选项 tags。一个小技巧是根据项目的可能深度，检查上层存在的 tags 文件：</p>
+<pre class="line-numbers language-vim" data-language="vim"><code class="language-vim"><span class="token comment">" 加入记录系统头文件的标签文件和上层的 tags 文件</span>
+<span class="token keyword">set</span> <span class="token keyword">tags</span><span class="token operator">=</span><span class="token operator">.</span><span class="token operator">/</span><span class="token keyword">tags</span><span class="token punctuation">,</span><span class="token operator">.</span><span class="token operator">.</span><span class="token operator">/</span><span class="token keyword">tags</span><span class="token punctuation">,</span><span class="token operator">.</span><span class="token operator">.</span><span class="token operator">/</span><span class="token operator">.</span><span class="token operator">.</span><span class="token operator">/</span><span class="token keyword">tags</span><span class="token punctuation">,</span><span class="token keyword">tags</span><span class="token punctuation">,</span><span class="token operator">/</span>usr<span class="token operator">/</span>local<span class="token operator">/</span>etc<span class="token operator">/</span>systags<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre>
+<h3 id="8-8-Tagbar-插件"><a href="#8-8-Tagbar-插件" class="headerlink" title="8.8 Tagbar 插件"></a>8.8 Tagbar 插件</h3><p>Vim 的插件 tagbar 就可以利用 Ctags 来提取符号，生成源代码的结构图。只要 Ctags 能支持这种语言，插件就能“识别” 这种语言，来生成结构图；识别的好坏程度也视 Ctags 对其的支持程度而定。下面是一个示例：</p>
+<p><img src="/images/《Vim实用技巧必知必会》学习笔记/Tagbar示例.png" alt="Tagbar示例"></p>
+<p>跟之前类似，假设使用 minpac 的话，我们需要在 vimrc 中“Other plugins”那行下面加入下面的语句，并运行 :PackUpdate 来安装一下：</p>
+<pre class="line-numbers language-vim" data-language="vim"><code class="language-vim"><span class="token keyword">call</span> minpac#<span class="token function">add</span><span class="token punctuation">(</span><span class="token string">'majutsushi/tagbar'</span><span class="token punctuation">)</span><span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>我给它映射了快捷键 <code>&lt;F9&gt;</code>，可以快速打开和关闭 Tagbar 的窗口：</p>
+<pre class="line-numbers language-vim" data-language="vim"><code class="language-vim"><span class="token comment">" 开关 Tagbar 插件的键映射</span>
+nnoremap <span class="token operator">&lt;</span>F9<span class="token operator">&gt;</span> <span class="token punctuation">:</span>TagbarToggle<span class="token operator">&lt;</span>CR<span class="token operator">&gt;</span>
+inoremap <span class="token operator">&lt;</span>F9<span class="token operator">&gt;</span> <span class="token operator">&lt;</span>C<span class="token operator">-</span>O<span class="token operator">&gt;</span><span class="token punctuation">:</span>TagbarToggle<span class="token operator">&lt;</span>CR<span class="token operator">&gt;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span></span></code></pre>
+<h3 id="8-9-Quickfix-窗口"><a href="#8-9-Quickfix-窗口" class="headerlink" title="8.9 Quickfix 窗口"></a>8.9 Quickfix 窗口</h3><p>Vim 里有一种特殊类型的窗口，被称作 quickfix（快速修复）。这个窗口中会展示外部命令的结果，并可以通过这个窗口中的内容直接跳转到特定文件的特定位置。这个设计最初是用来加速“编辑 - 编译 - 编辑”这个循环的，但它的实际用处并不只是用来编译程序。</p>
+<p>我们先来看一下 Vim 的 :make 命令。如果你的代码可以简单执行 make 来编译的话（也就是说，你已经写了或者生成了合适的 Makefile），你可以尝试直接在 Vim 里执行 :make。你会看到正常的执行过程。唯一不一样的地方是，如果编译失败了，Vim 会自动跳转到第一个出错的位置！</p>
+<p><img src="/images/《Vim实用技巧必知必会》学习笔记/演示make失败时的行为.gif" alt="演示make失败时的行为"></p>
+<p>如果使用 :copen 命令，我们就可以打开 quickfix 窗口。在里面我们可以看到完整的出错信息，并能通过颜色看出 Vim 解析了文件名和行号。我们在带文件名的行上双击即可跳转到对应位置。另外，我们在 quickfix 窗口中也有跟之前类似的“next”类命令：</p>
+<ul>
+<li>:cnext（缩写 :cn）跳转到下一个出错位置</li>
+<li>:cNext（缩写 :cN）或 :cprevious（缩写 :cp）跳转到上一个出错位置</li>
+<li>:cfirst 或 :crewind 跳转到第一个出错位置</li>
+<li>:clast 跳转到最后一个出错位置</li>
+</ul>
+<p>为了方便记忆，我对它们都映射了相似的快捷键。</p>
+<pre class="line-numbers language-vim" data-language="vim"><code class="language-vim"><span class="token comment">" 用于 quickfix、标签和文件跳转的键映射</span>
+nmap <span class="token operator">&lt;</span>F11<span class="token operator">&gt;</span> <span class="token punctuation">:</span><span class="token keyword">cn</span><span class="token operator">&lt;</span>CR<span class="token operator">&gt;</span>
+nmap <span class="token operator">&lt;</span>F12<span class="token operator">&gt;</span> <span class="token punctuation">:</span><span class="token keyword">cp</span><span class="token operator">&lt;</span>CR<span class="token operator">&gt;</span>
+nmap <span class="token operator">&lt;</span>M<span class="token operator">-</span>F11<span class="token operator">&gt;</span> <span class="token punctuation">:</span><span class="token keyword">copen</span><span class="token operator">&lt;</span>CR<span class="token operator">&gt;</span>
+nmap <span class="token operator">&lt;</span>M<span class="token operator">-</span>F12<span class="token operator">&gt;</span> <span class="token punctuation">:</span><span class="token keyword">cclose</span><span class="token operator">&lt;</span>CR<span class="token operator">&gt;</span>
+nmap <span class="token operator">&lt;</span>C<span class="token operator">-</span>F11<span class="token operator">&gt;</span> <span class="token punctuation">:</span><span class="token keyword">tn</span><span class="token operator">&lt;</span>CR<span class="token operator">&gt;</span>
+nmap <span class="token operator">&lt;</span>C<span class="token operator">-</span>F12<span class="token operator">&gt;</span> <span class="token punctuation">:</span><span class="token keyword">tp</span><span class="token operator">&lt;</span>CR<span class="token operator">&gt;</span>
+nmap <span class="token operator">&lt;</span>S<span class="token operator">-</span>F11<span class="token operator">&gt;</span> <span class="token punctuation">:</span><span class="token keyword">n</span><span class="token operator">&lt;</span>CR<span class="token operator">&gt;</span>
+nmap <span class="token operator">&lt;</span>S<span class="token operator">-</span>F12<span class="token operator">&gt;</span> <span class="token punctuation">:</span><span class="token keyword">prev</span><span class="token operator">&lt;</span>CR<span class="token operator">&gt;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<h3 id="8-10-make-命令的其他细节"><a href="#8-10-make-命令的其他细节" class="headerlink" title="8.10 :make 命令的其他细节"></a>8.10 :make 命令的其他细节</h3><p>Vim 里的 :make 命令缺省会执行 make 命令，并且这是可以通过选项 makeprg 来进行配置的。比如，如果你希望启用四路并发编译，你就可以设置 <code>:set makeprg=make\ -j4</code>。你也可以使用 GNU Make 之外的构建工具，但需要注意的是，如果发现 Vim 不能识别你使用的构建工具产生的错误信息，你可能需要利用 errorformat（<a target="_blank" rel="noopener" href="https://yianwillis.github.io/vimcdoc/doc/quickfix.html#errorformat">:helperrorformat</a>）选项来告诉 Vim 如何处理错误信息。</p>
+<h3 id="8-11-grep-命令"><a href="#8-11-grep-命令" class="headerlink" title="8.11 :grep 命令"></a>8.11 :grep 命令</h3><p>跟 :make 命令相似，Vim 会调用一个合适的外部程序（可通过 grepprg 选项来进行配置）来进行搜索，并从结果中找到文件名、行号等信息。注意：在 Windows 上如果 Vim 没找到 grep 的话，它会调用 Windows 自带的 findstr 命令行工具；为了获得跟其他平台相同的体验和跟 Vim 本身相似的正则表达式，我强烈推荐你在 Windows 上也安装 grep 工具。我们上一讲讲到的搜索模式，大部分在 grep 里可以原封不动地使用，尤其是对 <code>\?</code>、<code>+</code>、<code>\&lt;</code> 和 <code>\&gt;</code> 的解释。考虑到 vi 源自 Bill Joy，grep 源自 Ken Thompson，两者的老祖宗都是 ed，这自然也不是件令人意外的事。</p>
+<p>如果使用 grep 命令的话，我们的命令大致如下所示：</p>
+<pre class="line-numbers language-vim" data-language="vim"><code class="language-vim"><span class="token punctuation">:</span><span class="token keyword">grep</span> <span class="token string">'要查找的符号'</span> 文件名列表<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>当然，grep 支持的复杂参数我们都可以用上。比如，下面的命令可以在所有的子目录里查找用到了 printf 的 .c 和 .h 文件：</p>
+<pre class="line-numbers language-vim" data-language="vim"><code class="language-vim"><span class="token punctuation">:</span><span class="token keyword">grep</span> <span class="token operator">-</span>R <span class="token operator">-</span><span class="token operator">-</span><span class="token builtin">include</span><span class="token operator">=</span><span class="token string">'*.c'</span> <span class="token operator">-</span><span class="token operator">-</span><span class="token builtin">include</span><span class="token operator">=</span><span class="token string">'*.h'</span> <span class="token string">'\&lt;printf\&gt;'</span> <span class="token operator">.</span><span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p><strong>小提示</strong>：在查看搜索结果时，适时使用 zz（或 zt、zb）重定位当前行在屏幕上的位置，可能可以更清晰地查看前后的相关代码。</p>
+<h3 id="8-12-异步支持"><a href="#8-12-异步支持" class="headerlink" title="8.12 异步支持"></a>8.12 异步支持</h3><p>上面这些命令，都有一个缺点：在执行过程中你干不了其他事情。幸好，在 Vim 8 支持异步任务之后，这个问题也得到了解决。我们利用一个插件，就可以获得类似在一些集成开发环境中的体验，在构建过程中仍然可以继续做其他事情。</p>
+<p>我们首先需要安装一个插件 asyncrun.vim。跟前面类似，假设我们使用 minpac 的话，我们需要在 vimrc 中的合适位置加入下面这行：</p>
+<pre class="line-numbers language-vim" data-language="vim"><code class="language-vim"><span class="token keyword">call</span> minpac#<span class="token function">add</span><span class="token punctuation">(</span><span class="token string">'skywind3000/asyncrun.vim'</span><span class="token punctuation">)</span><span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>我们还需要一个跟 :make 相似的命令。我使用下面的命令定义（今天我们重点看使用，定义的细节就不讨论了）：</p>
+<pre class="line-numbers language-vim" data-language="vim"><code class="language-vim"><span class="token comment">" 和 asyncrun 一起用的异步 make 命令</span>
+command<span class="token operator">!</span> <span class="token operator">-</span>bang <span class="token operator">-</span>nargs<span class="token operator">=</span><span class="token operator">*</span> <span class="token operator">-</span><span class="token builtin">complete</span><span class="token operator">=</span><span class="token keyword">file</span> Make AsyncRun <span class="token operator">-</span>program<span class="token operator">=</span><span class="token keyword">make</span> @ <span class="token operator">&lt;</span><span class="token keyword">args</span><span class="token operator">&gt;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre>
+<p>这个命令同样会使用 makeprg 选项。不过，还有个问题是默认情况下屏幕上看不到执行过程的信息。我们可以让 asyncrun 在执行命令时立即打开 quickfix 窗口：</p>
+<pre class="line-numbers language-vim" data-language="vim"><code class="language-vim"><span class="token comment">" 异步运行命令时打开 quickfix 窗口，高度为 10 行</span>
+<span class="token keyword">let</span> g<span class="token punctuation">:</span>asyncrun_open <span class="token operator">=</span> <span class="token number">10</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre>
+<p>对于 C/C++ 程序员来讲，启动和停止构建应该是一个很频繁的操作吧。所以，我也给它分配了一个快捷键：</p>
+<pre class="line-numbers language-vim" data-language="vim"><code class="language-vim"><span class="token comment">" 映射按键来快速启停构建</span>
+nnoremap <span class="token operator">&lt;</span>F5<span class="token operator">&gt;</span>  <span class="token punctuation">:</span><span class="token keyword">if</span> g<span class="token punctuation">:</span>asyncrun_status <span class="token operator">!=</span> <span class="token string">'running'</span><span class="token operator">&lt;</span>bar<span class="token operator">&gt;</span>
+                 \<span class="token keyword">if</span> &amp;<span class="token builtin">modifiable</span><span class="token operator">&lt;</span>bar<span class="token operator">&gt;</span>
+                   \<span class="token keyword">update</span><span class="token operator">&lt;</span>bar<span class="token operator">&gt;</span>
+                 \<span class="token keyword">endif</span><span class="token operator">&lt;</span>bar<span class="token operator">&gt;</span>
+                 \exec <span class="token string">'Make'</span><span class="token operator">&lt;</span>bar<span class="token operator">&gt;</span>
+               \<span class="token keyword">else</span><span class="token operator">&lt;</span>bar<span class="token operator">&gt;</span>
+                 \AsyncStop<span class="token operator">&lt;</span>bar<span class="token operator">&gt;</span>
+               \<span class="token keyword">endif</span><span class="token operator">&lt;</span>CR<span class="token operator">&gt;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>上面的代码通过判断异步任务状态和窗口是否可修改，还会自动执行保存文件和终止构建等操作。</p>
+<p><img src="/images/《Vim实用技巧必知必会》学习笔记/演示异步启动构建和使用快捷键跳转.gif" alt="演示异步启动构建和使用快捷键跳转"></p>
+<h3 id="8-13-查看文档"><a href="#8-13-查看文档" class="headerlink" title="8.13 查看文档"></a>8.13 查看文档</h3><p>Vim 里快捷键 K 可以用来查看光标下关键字的相关文档。它的行为是由选项 keywordprg（<a target="_blank" rel="noopener" href="https://yianwillis.github.io/vimcdoc/doc/options.html#'keywordprg'">:help ‘keywordprg’</a>）控制的。这个选项的缺省值是 man，表示查看 Unix 的 man 手册，很多文件类型插件会对当前缓冲区设置一个更合适的值，如 Vim 脚本就会直接把行为改成调用 :help 命令。</p>
+<p>查看 man 手册的默认行为通常只在终端工作良好，而在图形界面 Vim 里会出现显示问题。我推荐使用 Vim 内置的 man 插件，并把全局的 keywordprg 设成 :Man：</p>
+<pre class="line-numbers language-vim" data-language="vim"><code class="language-vim"><span class="token comment">" 启用 man 插件</span>
+<span class="token keyword">source</span> $VIMRUNTIME<span class="token operator">/</span>ftplugin<span class="token operator">/</span>man<span class="token operator">.</span><span class="token keyword">vim</span>
+
+<span class="token keyword">set</span> <span class="token builtin">keywordprg</span><span class="token operator">=</span><span class="token punctuation">:</span>Man<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span></span></code></pre>
+<p>这样，我们在使用 K 命令时，将在 Vim 里直接打开 man 手册，效果如下所示：</p>
+<p><img src="/images/《Vim实用技巧必知必会》学习笔记/使用K在Vim里查看man手册.png" alt="使用K在Vim里查看man手册"></p>
 
                 
             </div>
@@ -1530,7 +1740,7 @@ inoremap <span class="token operator">&lt;</span><span class="token keyword">sil
             <br>
             
             &nbsp;<i class="fas fa-chart-area"></i>&nbsp;站点总字数:&nbsp;<span
-                class="white-color">754k</span>&nbsp;字
+                class="white-color">759.4k</span>&nbsp;字
             
             
             
