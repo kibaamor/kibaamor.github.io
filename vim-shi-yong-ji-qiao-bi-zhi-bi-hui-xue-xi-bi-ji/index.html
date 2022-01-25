@@ -434,14 +434,14 @@
                 
                 <div class="info-break-policy">
                     <i class="far fa-file-word fa-fw"></i>文章字数:&nbsp;&nbsp;
-                    55.4k
+                    59k
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-clock fa-fw"></i>阅读时长:&nbsp;&nbsp;
-                    203 分
+                    217 分
                 </div>
                 
 
@@ -2225,6 +2225,180 @@ EOF
       \<span class="token string">'python'</span><span class="token punctuation">:</span> <span class="token punctuation">[</span><span class="token string">'pylint'</span><span class="token punctuation">]</span><span class="token punctuation">,</span>
       \<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span></span></code></pre>
 <p>别忘了这种情况下，你需要自己用 pip 安装 pylint。这不像 python-mode 的情况，所有工具都已经打包在那一个套件里面了。</p>
+<h2 id="20-拓展4-插件样例分析：自己动手改进插件"><a href="#20-拓展4-插件样例分析：自己动手改进插件" class="headerlink" title="20 拓展4 | 插件样例分析：自己动手改进插件"></a>20 拓展4 | 插件样例分析：自己动手改进插件</h2><p>虽说插件和其他 Vim 脚本之间的界限也并非泾渭分明，但我们一般把满足以下条件的 Vim 脚本称为插件：</p>
+<ul>
+<li>功能独立，不依赖特殊的个性化配置</li>
+<li>存在加载时即会执行的代码，一般放在 plugin 目录下（也有放在 ftplugin、ftdetect 等其他目录下的情况）</li>
+</ul>
+<h3 id="20-1-ycmconf"><a href="#20-1-ycmconf" class="headerlink" title="20.1 ycmconf"></a>20.1 ycmconf</h3><p>我们要看的第一个脚本，是在讲 YCM 时引入的 ycmconf。这是一个非常简单的插件，我们就拿它开始我们今天的课程。</p>
+<p>如果你之前按我说的步骤安装的话，现在应该可以在 Vim 配置目录下的 pack/minpac/start/ycmconf 里找到它。你也可以自己用 Git 签出：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token function">git</span> clone https://github.com/adah1972/ycmconf.git<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>除去一些文本说明文件，这个插件里只有两个真正的脚本文件：</p>
+<ul>
+<li>plugin/ycmconf.vim</li>
+<li>ycm_extra_conf.py</li>
+</ul>
+<p>plugin 目录是 Vim 里主要放置无条件执行的脚本的地方，即“插件”的主体。打开 plugin/ycmconf.vim，我们看到里面只有一行注释加一行代码：</p>
+<pre class="line-numbers language-vim" data-language="vim"><code class="language-vim"><span class="token comment">" Set the global extra configuration</span>
+<span class="token keyword">let</span> g<span class="token punctuation">:</span>ycm_global_ycm_extra_conf<span class="token operator">=</span><span class="token function">expand</span><span class="token punctuation">(</span><span class="token string">'&lt;sfile&gt;:p:h:h'</span><span class="token punctuation">)</span> <span class="token operator">.</span> <span class="token string">'/ycm_extra_conf.py'</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre>
+<p>这个差不多是个最简单的插件了吧。Vim 脚本里只做了一件事，设置全局变量 g:ycm_global_ycm_extra_conf 给 YCM 用。关于脚本中的 expand 函数，我们稍微展开一下：</p>
+<ul>
+<li>expand 是用来展开文件名的。参数字符串里如果有 %，就代表当前编辑的文件名；如果有 <sfile>，代表当前执行的源代码文件（其他可展开的名字请参见 <a target="_blank" rel="noopener" href="https://yianwillis.github.io/vimcdoc/doc/eval.html#expand(">:help expand()</a>)）。</sfile></li>
+<li>:p 用来告诉 expand，我们需要得到完整的路径。比如，在我的机器上，这样展开的结果是 /Users/yongwei/.vim/pack/minpac/start/ycmconf/plugin/ycmconf.vim 。</li>
+<li>:h 用来告诉 expand，我们需要头部，即去掉路径的最后部分。我会得到 /Users/yongwei/.vim/pack/minpac/start/ycmconf/plugin 。</li>
+<li>第二次使用 :h，我们再次去掉路径的最后部分，即 plugin。我会得到 /Users/yongwei/.vim/pack/minpac/start/ycmconf 。</li>
+</ul>
+<p>随后，我们拿这个路径跟 ‘/ycm_extra_conf.py’ 进行拼接，就得到了 YCM 可以看到的 ycm_extra_conf.py 文件的路径。</p>
+<p>这个插件的主体功能在 ycm_extra_conf.py 里。鉴于这是 Python 的代码，而不是 Vim 脚本，我就不再讲解了。你如果有兴趣的话，可以自己看一下。文件虽然总共要好几百行，但注释比较多，逻辑其实不复杂；如果你懂 Python，一定可以理解里面的内容。</p>
+<h3 id="20-2-cscope-maps-vim"><a href="#20-2-cscope-maps-vim" class="headerlink" title="20.2 cscope_maps.vim"></a>20.2 cscope_maps.vim</h3><p><a target="_blank" rel="noopener" href="https://time.geekbang.org/column/article/277058">拓展 2</a> 里我给出了一个自己改过的 cscope_maps.vim，我们现在就来看看它的原始版本，然后看一下怎么修改它的行为。</p>
+<p>原始版本在 <a target="_blank" rel="noopener" href="http://cscope.sourceforge.net/cscope_maps.vim">Cscope 的网站</a>上。可以看到，这也是一个比较简单的 Vim 脚本，应当直接放到 plugin 目录下。虽然文件总共有一百多行，倒有一大半是注释；实际代码行只有三十几行。我们可以细细地分析一下：</p>
+<p>最外围，是一个条件语句，确保这个插件的内容仅在 Vim 支持 Cscope 时得到执行：</p>
+<pre class="line-numbers language-vim" data-language="vim"><code class="language-vim"><span class="token keyword">if</span> <span class="token function">has</span><span class="token punctuation">(</span><span class="token string">"cscope"</span><span class="token punctuation">)</span>
+    …
+<span class="token keyword">endif</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span></span></code></pre>
+<p>在条件语句里，有三行是设置 Vim 选项的：</p>
+<pre class="line-numbers language-vim" data-language="vim"><code class="language-vim"><span class="token keyword">set</span> <span class="token builtin">cscopetag</span>
+<span class="token keyword">set</span> <span class="token builtin">csto</span><span class="token operator">=</span><span class="token number">0</span>
+<span class="token keyword">set</span> <span class="token builtin">cscopeverbose</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span></span></code></pre>
+<ul>
+<li>设置 cscopetag 使得我们在使用原先 tags 相关的命令时会同时查找 Cscope 数据库</li>
+<li>设置 csto 为 0 是让 Vim 先查找 Cscope 数据库，找不到才查找 tags</li>
+<li>设置 cscopeverbose 是让 Vim 在之后添加 Cscope 数据库时，告诉你结果成功与否</li>
+</ul>
+<p>设置最后这个选项是在下面的语句之后：</p>
+<pre class="line-numbers language-vim" data-language="vim"><code class="language-vim"><span class="token keyword">if</span> <span class="token function">filereadable</span><span class="token punctuation">(</span><span class="token string">"cscope.out"</span><span class="token punctuation">)</span>
+    cs add cscope<span class="token operator">.</span>out
+<span class="token keyword">elseif</span> $CSCOPE_DB <span class="token operator">!=</span> <span class="token string">""</span>
+    cs add $CSCOPE_DB
+<span class="token keyword">endif</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>也就是说，Vim 会在启动时悄无声息地试图加载当前目录下的 cscope.out 数据库或环境变量 CSCOPE_DB 指定的数据库，并且不会报告结果。</p>
+<p>剩下的代码就全部是……键映射了。我们就看其中的一个，其余的都大同小异：</p>
+<pre class="line-numbers language-vim" data-language="vim"><code class="language-vim">nmap <span class="token operator">&lt;</span>C<span class="token operator">-</span>\<span class="token operator">&gt;</span>s <span class="token punctuation">:</span>cs <span class="token keyword">find</span> s <span class="token operator">&lt;</span>C<span class="token operator">-</span>R<span class="token operator">&gt;=</span><span class="token function">expand</span><span class="token punctuation">(</span><span class="token string">"&lt;cword&gt;"</span><span class="token punctuation">)</span><span class="token operator">&lt;</span>CR<span class="token operator">&gt;</span><span class="token operator">&lt;</span>CR<span class="token operator">&gt;</span><span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>这个键映射把 <code>&lt;C-\&gt;s</code> 映射成了一个 :cs find s … 命令。值得注意的是命令的后半截：</p>
+<ul>
+<li>脚本里使用 <code>&lt;C-R&gt;=…&lt;CR&gt;</code> 来执行一个 Vim 表达式，并把结果填到命令里。</li>
+<li>我们又一次见到了 expand 函数。这一次，要展开的是 <code>&lt;cword&gt;</code>，即当前光标下的单词。</li>
+<li>注意结尾两个 <code>&lt;CR&gt;</code> 里第一个是给 <code>&lt;C-R&gt;=</code> 的，第二个才是执行命令的回车键。</li>
+</ul>
+<p>让我有意见的是下面这样的键映射：</p>
+<pre class="line-numbers language-vim" data-language="vim"><code class="language-vim">nmap <span class="token operator">&lt;</span>C<span class="token operator">-</span>@<span class="token operator">&gt;</span>s <span class="token punctuation">:</span><span class="token builtin">scs</span> <span class="token keyword">find</span> s <span class="token operator">&lt;</span>C<span class="token operator">-</span>R<span class="token operator">&gt;=</span><span class="token function">expand</span><span class="token punctuation">(</span><span class="token string">"&lt;cword&gt;"</span><span class="token punctuation">)</span><span class="token operator">&lt;</span>CR<span class="token operator">&gt;</span><span class="token operator">&lt;</span>CR<span class="token operator">&gt;</span><span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>这儿用 <code>&lt;C-@&gt;</code> 代表 Ctrl- 空格，而这个组合键在很多系统上不可用。既然已经使用了 Ctrl-\ 作为 Cscope 的专用起始键，我觉得继续用 Shift-\ 就好。由于 | 在 Vim 里用来分隔多个语句，这儿我们要换个写法，改成：</p>
+<pre class="line-numbers language-vim" data-language="vim"><code class="language-vim">nmap <span class="token operator">&lt;</span>bar<span class="token operator">&gt;</span>s <span class="token punctuation">:</span><span class="token builtin">scs</span> <span class="token keyword">find</span> s <span class="token operator">&lt;</span>C<span class="token operator">-</span>R<span class="token operator">&gt;=</span><span class="token function">expand</span><span class="token punctuation">(</span><span class="token string">"&lt;cword&gt;"</span><span class="token punctuation">)</span><span class="token operator">&lt;</span>CR<span class="token operator">&gt;</span><span class="token operator">&lt;</span>CR<span class="token operator">&gt;</span><span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>我的完整修改过程，可以查看：<a target="_blank" rel="noopener" href="https://github.com/adah1972/cscope_maps.vim/commits/master">https://github.com/adah1972/cscope_maps.vim/commits/master</a></p>
+<h3 id="20-3-EchoFunc"><a href="#20-3-EchoFunc" class="headerlink" title="20.3 EchoFunc"></a>20.3 EchoFunc</h3><p>事实上，大部分行为良好的插件会允许用户通过一些全局变量来定制键映射之类的设定。不过，对于没有提供这种定制性的插件，我们自己找到代码里的键映射语句，手工修改一下，也是一种可能发生的常见情况。比如，<a target="_blank" rel="noopener" href="https://github.com/mbbill/echofunc">EchoFunc</a> 里查看下一个和上一个函数的按键分别可以用全局变量 g:EchoFuncKeyNext 和 g:EchoFuncKeyPrev 来修改。一般来说，插件的文档里会进行说明，你也可以在插件里通过搜索 exists 函数来找到插件提供出来的定制点。</p>
+<p>以 EchoFunc 为例，它虽然简单到没有提供帮助文档，但插件的主文件（after/plugin/echofunc.vim）开头有大段的注释。同时，它有大量的 exists 的函数调用，来检查用户是否已经定义了某一全局变量来定制行为：</p>
+<pre class="line-numbers language-vim" data-language="vim"><code class="language-vim"><span class="token keyword">if</span> <span class="token operator">!</span><span class="token function">exists</span><span class="token punctuation">(</span><span class="token string">"g:EchoFuncMaxBalloonDeclarations"</span><span class="token punctuation">)</span>
+    <span class="token keyword">let</span> g<span class="token punctuation">:</span>EchoFuncMaxBalloonDeclarations<span class="token operator">=</span><span class="token number">20</span>
+<span class="token keyword">endif</span>
+
+<span class="token keyword">if</span> <span class="token operator">!</span><span class="token function">exists</span><span class="token punctuation">(</span><span class="token string">"g:EchoFuncKeyNext"</span><span class="token punctuation">)</span>
+    <span class="token keyword">if</span> has <span class="token punctuation">(</span><span class="token string">"mac"</span><span class="token punctuation">)</span>
+        <span class="token keyword">let</span> g<span class="token punctuation">:</span>EchoFuncKeyNext<span class="token operator">=</span><span class="token string">'≠'</span>
+    <span class="token keyword">else</span>
+        <span class="token keyword">let</span> g<span class="token punctuation">:</span>EchoFuncKeyNext<span class="token operator">=</span><span class="token string">'&lt;M-=&gt;'</span>
+    <span class="token keyword">endif</span>
+<span class="token keyword">endif</span>
+
+<span class="token keyword">if</span> <span class="token operator">!</span><span class="token function">exists</span><span class="token punctuation">(</span><span class="token string">"g:EchoFuncKeyPrev"</span><span class="token punctuation">)</span>
+    <span class="token keyword">if</span> has <span class="token punctuation">(</span><span class="token string">"mac"</span><span class="token punctuation">)</span>
+        <span class="token keyword">let</span> g<span class="token punctuation">:</span>EchoFuncKeyPrev<span class="token operator">=</span><span class="token string">'±'</span>
+    <span class="token keyword">else</span>
+        <span class="token keyword">let</span> g<span class="token punctuation">:</span>EchoFuncKeyPrev<span class="token operator">=</span><span class="token string">'&lt;M--&gt;'</span>
+    <span class="token keyword">endif</span>
+<span class="token keyword">endif</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>在我这儿给出的三个全局变量的相关定义里，第一个是对起泡提示的数量限制，第二个是下一个函数的键定义，第三个是上一个函数的键定义。在后两个键定义里，还分平台（Mac 或非 Mac）进行了不同的设置。这些都是非常直接了当的。</p>
+<p>如果我们在 EchoFuncKeyNext 上面按下 * 来搜索这个变量的使用，我们就会发现它们是在函数 EchoFuncStart 里被真正使用的：</p>
+<pre class="line-numbers language-vim" data-language="vim"><code class="language-vim"><span class="token keyword">if</span> <span class="token function">maparg</span><span class="token punctuation">(</span>g<span class="token punctuation">:</span>EchoFuncKeyNext<span class="token punctuation">,</span> <span class="token string">"i"</span><span class="token punctuation">)</span> <span class="token operator">==</span> <span class="token string">''</span> <span class="token operator">&amp;&amp;</span> <span class="token function">maparg</span><span class="token punctuation">(</span>g<span class="token punctuation">:</span>EchoFuncKeyPrev<span class="token punctuation">,</span> <span class="token string">"i"</span><span class="token punctuation">)</span> <span class="token operator">==</span> <span class="token string">''</span>
+    exec <span class="token string">'inoremap &lt;silent&gt; &lt;buffer&gt; '</span> <span class="token operator">.</span> g<span class="token punctuation">:</span>EchoFuncKeyNext <span class="token operator">.</span> <span class="token string">' &lt;c-r&gt;=EchoFuncN()&lt;cr&gt;'</span>
+    exec <span class="token string">'inoremap &lt;silent&gt; &lt;buffer&gt; '</span> <span class="token operator">.</span> g<span class="token punctuation">:</span>EchoFuncKeyPrev <span class="token operator">.</span> <span class="token string">' &lt;c-r&gt;=EchoFuncP()&lt;cr&gt;'</span>
+<span class="token keyword">endif</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span></span></code></pre>
+<p>这儿的代码说的是：</p>
+<ul>
+<li>如果 g:EchoFuncKeyNext 和 g:EchoFuncKeyPrev 描述的键映射（<a target="_blank" rel="noopener" href="https://yianwillis.github.io/vimcdoc/doc/eval.html#maparg(">:help maparg()</a>)）在插入模式（”i”）没有被占用（== ‘’）的话，那我们就执行（exec）针对当前缓冲区（<code>&lt;buffer&gt;</code>）的插入模式键映射（inoremap），让其安静地（<code>&lt;silent&gt;</code>）执行（<code>&lt;c-r&gt;=</code>）函数中的语句。</li>
+</ul>
+<p>注意，在键映射中使用 <code>&lt;C-R&gt;=</code> 来执行语句是一种常用技巧。这种情况下，我们常常不是要获得函数返回的结果（所以这些函数通常返回 ‘’），而只是需要执行一些指定的代码，产生需要的“副作用”。在这儿，我们需要的副作用就是选择函数列表里的下一项和上一项了。</p>
+<p>EchoFunc 算是一个中等规模的 Vim 插件，也有好几百行代码了，我们没有必要全部讲一遍。它的初始化过程比较有特点，我们看一下：</p>
+<pre class="line-numbers language-vim" data-language="vim"><code class="language-vim">augroup EchoFunc
+    <span class="token builtin">autocmd</span> BufRead<span class="token punctuation">,</span>BufNewFile <span class="token operator">*</span> <span class="token keyword">call</span> s<span class="token punctuation">:</span><span class="token function">EchoFuncInitialize</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+augroup END<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span></span></code></pre>
+<p>也就是说，在读入文件后，或创建新文件后，才调用 s:EchoFuncInitialize() 进行初始化。</p>
+<p>那 s:EchoFuncInitialize() 究竟做了些什么呢？看下面：</p>
+<pre class="line-numbers language-vim" data-language="vim"><code class="language-vim"><span class="token keyword">function</span><span class="token operator">!</span> s<span class="token punctuation">:</span><span class="token function">EchoFuncInitialize</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+    augroup EchoFunc
+        <span class="token builtin">autocmd</span><span class="token operator">!</span>
+        <span class="token builtin">autocmd</span> InsertLeave <span class="token operator">*</span> <span class="token keyword">call</span> <span class="token function">EchoFuncRestoreSettings</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+        <span class="token builtin">autocmd</span> BufRead<span class="token punctuation">,</span>BufNewFile <span class="token operator">*</span> <span class="token keyword">call</span> <span class="token function">CheckedEchoFuncStart</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+        <span class="token keyword">if</span> <span class="token function">has</span><span class="token punctuation">(</span><span class="token string">'gui_running'</span><span class="token punctuation">)</span>
+            menu    &amp;Tools<span class="token operator">.</span>Echo\ F&amp;unction<span class="token operator">.</span>Echo\ F&amp;unction\ Start   <span class="token punctuation">:</span><span class="token keyword">call</span> <span class="token function">EchoFuncStart</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token operator">&lt;</span>CR<span class="token operator">&gt;</span>
+            menu    &amp;Tools<span class="token operator">.</span>Echo\ F&amp;unction<span class="token operator">.</span>Echo\ Function\ Sto&amp;<span class="token keyword">p</span>    <span class="token punctuation">:</span><span class="token keyword">call</span> <span class="token function">EchoFuncStop</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token operator">&lt;</span>CR<span class="token operator">&gt;</span>
+        <span class="token keyword">endif</span>
+
+        <span class="token keyword">if</span> <span class="token function">has</span><span class="token punctuation">(</span><span class="token string">"balloon_eval"</span><span class="token punctuation">)</span>
+            <span class="token builtin">autocmd</span> BufRead<span class="token punctuation">,</span>BufNewFile <span class="token operator">*</span> <span class="token keyword">call</span> <span class="token function">CheckedBalloonDeclarationStart</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+            <span class="token keyword">if</span> <span class="token function">has</span><span class="token punctuation">(</span><span class="token string">'gui_running'</span><span class="token punctuation">)</span>
+                menu    &amp;Tools<span class="token operator">.</span>Echo\ Function<span class="token operator">.</span>&amp;Balloon\ Declaration\ Start  <span class="token punctuation">:</span><span class="token keyword">call</span> <span class="token function">BalloonDeclarationStart</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token operator">&lt;</span>CR<span class="token operator">&gt;</span>
+                menu    &amp;Tools<span class="token operator">.</span>Echo\ Function<span class="token operator">.</span>Balloon\ Declaration\ &amp;Stop   <span class="token punctuation">:</span><span class="token keyword">call</span> <span class="token function">BalloonDeclarationStop</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token operator">&lt;</span>CR<span class="token operator">&gt;</span>
+            <span class="token keyword">endif</span>
+        <span class="token keyword">endif</span>
+    augroup END
+
+    <span class="token keyword">call</span> <span class="token function">CheckedEchoFuncStart</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+    <span class="token keyword">if</span> <span class="token function">has</span><span class="token punctuation">(</span><span class="token string">"balloon_eval"</span><span class="token punctuation">)</span>
+        <span class="token keyword">call</span> <span class="token function">CheckedBalloonDeclarationStart</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+    <span class="token keyword">endif</span>
+<span class="token keyword">endfunction</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>我下面概要解说一下：</p>
+<ul>
+<li>在 EchoFunc 自动命令组里，执行 autocmd!，清空已有的自动命令，即刚才的 call s:EchoFuncInitialize() 语句。</li>
+<li>在 InsertLeave，离开插入模式事件里，调用 EchoFuncRestoreSettings 函数，停止函数回显。</li>
+<li>在读入文件或创建新文件时，检查是否需要启用函数回显。</li>
+<li>在图形界面下创建启停函数回显的菜单项。</li>
+<li>如果 Vim 支持气泡显示，在读入文件或创建新文件时，检查是否需要启用气泡函数声明提示，并在图形界面下创建启停气泡函数声明提示的菜单项。</li>
+<li>对当前文件，检查是否需要启用函数回显和起泡函数声明提示。</li>
+</ul>
+<p>最后，如果你好奇为什么 EchoFunc 选择使用 after/plugin 目录而不是 plugin 目录，在它的 Git 日志里是有说明的：</p>
+<blockquote>
+<p>1) fix key “(” “)” mapping conflict with other plugins:</p>
+<p>first, move plugin folder into after/ folder, so that echofunc will be load after most plugins have been loaded</p>
+<p>Second, if during initialization time, if it find “(” or “)” key have been mapped, it will try to append <plug>EchofuncXX function to it.</plug></p>
+</blockquote>
+<p>因为它用到 ( 和 ) 作为键映射，容易和其他插件冲突，因此它会最后加载，并尽量把自己键映射补充进去。</p>
+<h3 id="20-4-arm-syntax-vim"><a href="#20-4-arm-syntax-vim" class="headerlink" title="20.4 arm-syntax-vim"></a>20.4 arm-syntax-vim</h3><p>今天最后一个插件样例，是我最近的一个实际需求。由于我写的代码需要最终跑在 ARM 平台上，我偶尔需要检查一下产生的 ARM 汇编代码。在 Vim 的默认配置下，产生的汇编代码效果不太理想，如下图所示：</p>
+<p><img src="/images/《Vim实用技巧必知必会》学习笔记/使用asm语法类型显示的ARM汇编.png" alt="使用asm语法类型显示的ARM汇编"></p>
+<p>这里最糟糕的地方是，stmfd 那行里的 {r4, lr} 居然显示成了注释？是可忍，孰不可忍！</p>
+<p>还好，我用不着从头开始自己搞。网上略加搜索，我就找到了 <a target="_blank" rel="noopener" href="http://service.qbjavawa.top/time/ARM9/arm-syntax-vim">ARM9/arm-syntax-vim</a> 这个 Vim 脚本，可以获得好得多的效果，如下所示：</p>
+<p><img src="/images/《Vim实用技巧必知必会》学习笔记/使用arm语法类型显示的ARM汇编.png" alt="使用arm语法类型显示的ARM汇编.png"></p>
+<p>不过，这个脚本还是缺了点东西，它只包含了语法文件，不能把 GCC 产生的 .s 文件识别为它支持的 arm、armv4 和 armv5 格式。我要做的就是添加文件类型识别，让 Vim 把 ARM 的汇编文件识别成合适的 ARM 格式。</p>
+<p>在 <a target="_blank" rel="noopener" href="https://time.geekbang.org/column/article/271208">第 8 讲</a> 讨论文件类型判断时，我已经说过，在 Vim 里后缀不是判断文件类型的唯一依据。既然我懒到不愿意在汇编文件里加帮助识别的文本，我当然也懒得去改汇编文件的后缀了。GCC 产生的汇编代码里的一些特定标识，也使得我利用文本判断变得相当容易：取决于不同的环境，汇编中一般会出现 .arch arm 和 .cpu arm 这样的明确行。</p>
+<p>要让 Vim 进行文件类型判断，标准做法是在 ftdetect 目录下加入判断脚本。既然我们知道后缀是 .s，在这个文件中我会写入：</p>
+<pre class="line-numbers language-vim" data-language="vim"><code class="language-vim">au BufRead <span class="token operator">*</span><span class="token operator">.</span><span class="token punctuation">[</span>sS<span class="token punctuation">]</span> <span class="token keyword">call</span> arm#<span class="token builtin">ft</span>#<span class="token function">FTarm</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>为了加快 Vim 的启动速度，真正检测需要的代码一般推荐放到 autoload 目录下。这是 Vim 的专门机制，允许脚本“按需”加载，仅在用到函数的时候，才载入函数的定义（<a target="_blank" rel="noopener" href="https://yianwillis.github.io/vimcdoc/doc/eval.html#autoload">:help autoload</a>）。在上面的写法下面，当 Vim 读入后缀为 .s 或 .S 的文件时， Vim 会自动在 autoload/arm 目录下载入 ft.vim，然后调用其中的 FTarm 函数。</p>
+<p>下面我们来看一下 ft.vim 文件。这个文件不大，完整内容展示如下：</p>
+<pre class="line-numbers language-vim" data-language="vim"><code class="language-vim"><span class="token keyword">let</span> s<span class="token punctuation">:</span>cpo_save <span class="token operator">=</span> &amp;<span class="token builtin">cpo</span>
+<span class="token keyword">set</span> <span class="token builtin">cpo</span>&amp;<span class="token keyword">vim</span>
+
+<span class="token keyword">function</span><span class="token operator">!</span> arm#<span class="token builtin">ft</span>#<span class="token function">FTarm</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+  <span class="token keyword">let</span> head <span class="token operator">=</span> <span class="token string">' '</span><span class="token operator">.</span><span class="token function">getline</span><span class="token punctuation">(</span><span class="token number">1</span><span class="token punctuation">)</span><span class="token operator">.</span><span class="token string">' '</span><span class="token operator">.</span><span class="token function">getline</span><span class="token punctuation">(</span><span class="token number">2</span><span class="token punctuation">)</span><span class="token operator">.</span><span class="token string">' '</span><span class="token operator">.</span><span class="token function">getline</span><span class="token punctuation">(</span><span class="token number">3</span><span class="token punctuation">)</span><span class="token operator">.</span><span class="token string">' '</span><span class="token operator">.</span><span class="token function">getline</span><span class="token punctuation">(</span><span class="token number">4</span><span class="token punctuation">)</span><span class="token operator">.</span>
+  \<span class="token string">' '</span><span class="token operator">.</span><span class="token function">getline</span><span class="token punctuation">(</span><span class="token number">5</span><span class="token punctuation">)</span><span class="token operator">.</span><span class="token string">' '</span>
+  <span class="token comment">" Can't use setf, as we need to overrule the default filetype setting</span>
+  <span class="token keyword">if</span> <span class="token function">matchstr</span><span class="token punctuation">(</span>head<span class="token punctuation">,</span> <span class="token string">'\s\.arch\s\+armv4'</span><span class="token punctuation">)</span> <span class="token operator">!=</span> <span class="token string">''</span>
+    <span class="token keyword">set</span> <span class="token keyword">filetype</span><span class="token operator">=</span>armv4
+  <span class="token keyword">elseif</span> <span class="token function">matchstr</span><span class="token punctuation">(</span>head<span class="token punctuation">,</span> <span class="token string">'\s\.arch\s\+armv5'</span><span class="token punctuation">)</span> <span class="token operator">!=</span> <span class="token string">''</span>
+    <span class="token keyword">set</span> <span class="token keyword">filetype</span><span class="token operator">=</span>armv5
+  <span class="token keyword">elseif</span> <span class="token function">matchstr</span><span class="token punctuation">(</span>head<span class="token punctuation">,</span> <span class="token string">'\s\.arch\s\+arm'</span><span class="token punctuation">)</span> <span class="token operator">!=</span> <span class="token string">''</span>
+    <span class="token keyword">set</span> <span class="token keyword">filetype</span><span class="token operator">=</span>arm
+  <span class="token keyword">elseif</span> <span class="token function">matchstr</span><span class="token punctuation">(</span>head<span class="token punctuation">,</span> <span class="token string">'\s\.cpu\s\+arm'</span><span class="token punctuation">)</span> <span class="token operator">!=</span> <span class="token string">''</span>
+    <span class="token keyword">set</span> <span class="token keyword">filetype</span><span class="token operator">=</span>arm
+  <span class="token keyword">endif</span>
+<span class="token keyword">endfunction</span>
+
+<span class="token keyword">let</span> &amp;<span class="token builtin">cpo</span> <span class="token operator">=</span> s<span class="token punctuation">:</span>cpo_save
+<span class="token keyword">unlet</span> s<span class="token punctuation">:</span>cpo_save<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>开头和结尾的四行属于 Vim 脚本的标准模板写法：进入脚本时保存兼容性选项（<a target="_blank" rel="noopener" href="https://yianwillis.github.io/vimcdoc/doc/options.html#'cpoptions'">:help ‘cpoptions’</a>）的当前值，然后恢复其为默认值，免得其他地方的设置影响对脚本的解释；退出时则恢复原来保存的兼容性选项值。</p>
+<p>中间主体部分就一个函数，做的事情也很简单，就是把文件的头五行内容拼到一起，然后看能不能找到满足条件的“.arch”和“.cpu”语句。找到的话，就设置合适的文件类型；找不到，就不做处理，留给其他的 Vim 脚本来继续判断。</p>
+<p>这儿唯一比较特别点的地方是，一般设置文件类型推荐使用 :setfiletype 命令，它会避免重复设置，在一次 Vim 的自动事件触发过程中只执行一次。对于我们当前的目的，这是不够的：因为在我们的代码执行之前，当前缓冲区一般已经被系统的自动命令设置过类型了。具体来说，是运行支持文件里的 autoload/dist/ft.vim 里的 dist#ft#FTasm 函数。</p>
+<p>所以，我们这儿需要强行覆盖已经设置的文件类型，用 set filetype=… 就可以做到。要注意，仅在你很有信心你设置的类型正确时才可以这么做，否则，你可能会干扰其他插件的结果。</p>
+<p>这样，我就做到了在用 Vim 打开 GCC 产生的 ARM 汇编文件时，能自动检测并应用合适的 arm 语法。完整的代码可从 <a target="_blank" rel="noopener" href="http://service.qbjavawa.top/time/adah1972/arm-syntax-vim">adah1972/arm-syntax-vim</a> 下载。</p>
 
                 
             </div>
@@ -2614,7 +2788,7 @@ EOF
             <br>
             
             &nbsp;<i class="fas fa-chart-area"></i>&nbsp;站点总字数:&nbsp;<span
-                class="white-color">789.8k</span>&nbsp;字
+                class="white-color">793.3k</span>&nbsp;字
             
             
             
