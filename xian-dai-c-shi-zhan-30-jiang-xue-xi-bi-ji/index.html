@@ -1163,6 +1163,293 @@ foo(shape&amp;&amp;)<span aria-hidden="true" class="line-numbers-rows"><span></s
 <li><p>Herb Sutter, “GotW #88: A candidate for the ‘most important const’”. <a target="_blank" rel="noopener" href="https://herbsutter.com/2008/01/01/gotw-88-a-candidate-for-the-mostimportant-const/">https://herbsutter.com/2008/01/01/gotw-88-a-candidate-for-the-mostimportant-const/</a></p>
 </li>
 </ol>
+<h3 id="04-容器汇编-I：比较简单的若干容器"><a href="#04-容器汇编-I：比较简单的若干容器" class="headerlink" title="04 | 容器汇编 I：比较简单的若干容器"></a>04 | 容器汇编 I：比较简单的若干容器</h3><h4 id="4-1-string"><a href="#4-1-string" class="headerlink" title="4.1 string"></a>4.1 string</h4><p>在 string 的情况下，由于考虑到和 C 字符串的兼容，end 指向代表字符串结尾的 \0 字符。</p>
+<p>string 的内存布局大致如下图所示：</p>
+<p><img src="/images/《现代C++实战30讲》学习笔记/string的内存布局.png" alt="string的内存布局"></p>
+<p>一些策略：</p>
+<ul>
+<li>如果不修改字符串的内容，使用 const string&amp; 或 C++17 的 string_view 作为参数类型。后者是最理想的情况，因为即使在只有 C 字符串的情况，也不会引发不必要的内存复制。</li>
+<li>如果需要在函数内修改字符串内容、但不影响调用者的该字符串，使用 string 作为参数类型（自动拷贝）。</li>
+<li>如果需要改变调用者的字符串内容，使用 string&amp; 作为参数类型（通常不推荐）。</li>
+</ul>
+<h4 id="4-2-vector"><a href="#4-2-vector" class="headerlink" title="4.2 vector"></a>4.2 vector</h4><p><img src="/images/《现代C++实战30讲》学习笔记/vector的内存布局.png" alt="vector的内存布局"></p>
+<p>vector 通常保证强异常安全性，如果元素类型没有提供一个<strong>保证不抛异常的移动构造函数</strong>，vector 通常会使用拷贝构造函数。因此，对于拷贝代价较高的自定义元素类型，我们应当定义移动构造函数，并标其为 noexcept，或只在容器中放置对象的智能指针。这就是为什么我之前需要在 smart_ptr 的实现中标上 noexcept 的原因。</p>
+<p>下面的代码可以演示这一行为：</p>
+<pre class="line-numbers language-cpp" data-language="cpp"><code class="language-cpp"><span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;iostream&gt;</span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;vector&gt;</span></span>
+<span class="token keyword">using</span> <span class="token keyword">namespace</span> std<span class="token punctuation">;</span>
+
+<span class="token keyword">class</span> <span class="token class-name">Obj1</span> <span class="token punctuation">{</span>
+<span class="token keyword">public</span><span class="token operator">:</span>
+    <span class="token function">Obj1</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+    <span class="token punctuation">{</span>
+        cout <span class="token operator">&lt;&lt;</span> <span class="token string">"Obj1()\n"</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+    <span class="token function">Obj1</span><span class="token punctuation">(</span><span class="token keyword">const</span> Obj1<span class="token operator">&amp;</span><span class="token punctuation">)</span>
+    <span class="token punctuation">{</span>
+        cout <span class="token operator">&lt;&lt;</span> <span class="token string">"Obj1(const Obj1&amp;)\n"</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+    <span class="token function">Obj1</span><span class="token punctuation">(</span>Obj1<span class="token operator">&amp;&amp;</span><span class="token punctuation">)</span>
+    <span class="token punctuation">{</span>
+        cout <span class="token operator">&lt;&lt;</span> <span class="token string">"Obj1(Obj1&amp;&amp;)\n"</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+<span class="token punctuation">}</span><span class="token punctuation">;</span>
+
+<span class="token keyword">class</span> <span class="token class-name">Obj2</span> <span class="token punctuation">{</span>
+<span class="token keyword">public</span><span class="token operator">:</span>
+    <span class="token function">Obj2</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+    <span class="token punctuation">{</span>
+        cout <span class="token operator">&lt;&lt;</span> <span class="token string">"Obj2()\n"</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+    <span class="token function">Obj2</span><span class="token punctuation">(</span><span class="token keyword">const</span> Obj2<span class="token operator">&amp;</span><span class="token punctuation">)</span>
+    <span class="token punctuation">{</span>
+        cout <span class="token operator">&lt;&lt;</span> <span class="token string">"Obj2(const Obj2&amp;)\n"</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+    <span class="token function">Obj2</span><span class="token punctuation">(</span>Obj2<span class="token operator">&amp;&amp;</span><span class="token punctuation">)</span> <span class="token keyword">noexcept</span>
+    <span class="token punctuation">{</span>
+        cout <span class="token operator">&lt;&lt;</span> <span class="token string">"Obj2(Obj2&amp;&amp;)\n"</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+<span class="token punctuation">}</span><span class="token punctuation">;</span>
+
+<span class="token keyword">int</span> <span class="token function">main</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    vector<span class="token operator">&lt;</span>Obj1<span class="token operator">&gt;</span> v1<span class="token punctuation">;</span>
+    v1<span class="token punctuation">.</span><span class="token function">reserve</span><span class="token punctuation">(</span><span class="token number">2</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    v1<span class="token punctuation">.</span><span class="token function">emplace_back</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    v1<span class="token punctuation">.</span><span class="token function">emplace_back</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    v1<span class="token punctuation">.</span><span class="token function">emplace_back</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+    vector<span class="token operator">&lt;</span>Obj2<span class="token operator">&gt;</span> v2<span class="token punctuation">;</span>
+    v2<span class="token punctuation">.</span><span class="token function">reserve</span><span class="token punctuation">(</span><span class="token number">2</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    v2<span class="token punctuation">.</span><span class="token function">emplace_back</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    v2<span class="token punctuation">.</span><span class="token function">emplace_back</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    v2<span class="token punctuation">.</span><span class="token function">emplace_back</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>我们可以立即得到下面的输出：</p>
+<pre class="line-numbers language-text" data-language="text"><code class="language-text">Obj1()
+Obj1()
+Obj1()
+Obj1(const Obj1&amp;)
+Obj1(const Obj1&amp;)
+Obj2()
+Obj2()
+Obj2()
+Obj2(Obj2&amp;&amp;)
+Obj2(Obj2&amp;&amp;)<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>Obj1 和 Obj2 的定义只差了一个 noexcept，但这个小小的差异就导致了 vector 是否会移动对象。这点非常重要。</p>
+<p>C++11 开始提供的 emplace… 系列函数是为了提升容器的性能而设计的。你可以试试把 v1.emplace_back() 改成 v1.push_back(Obj1())。对于 vector 里的内容，结果是一样的；但使用 push_back 会额外生成临时对象，多一次拷贝构造和一次析构。</p>
+<h4 id="4-3-deque"><a href="#4-3-deque" class="headerlink" title="4.3 deque"></a>4.3 deque</h4><p>deque 的内存布局一般是这样的：</p>
+<p><img src="/images/《现代C++实战30讲》学习笔记/deque的内存布局.png" alt="deque的内存布局"></p>
+<h4 id="4-4-list"><a href="#4-4-list" class="headerlink" title="4.4 list"></a>4.4 list</h4><p>list 的内存布局一般是下图这个样子：</p>
+<p><img src="/images/《现代C++实战30讲》学习笔记/list的内存布局.png" alt="list的内存布局"></p>
+<p>某些标准算法在 list 上会导致问题，list 提供了成员函数作为替代，包括下面几个：</p>
+<ul>
+<li>merge</li>
+<li>remove</li>
+<li>remove_if</li>
+<li>reverse</li>
+<li>sort</li>
+<li>unique</li>
+</ul>
+<h4 id="4-5-forward-list"><a href="#4-5-forward-list" class="headerlink" title="4.5 forward_list"></a>4.5 forward_list</h4><p>从 C++11 开始，前向列表 forward_list 成了标准的一部分。</p>
+<p>它的内存布局：</p>
+<p><img src="/images/《现代C++实战30讲》学习笔记/forward_list的内存布局.png" alt="forward_list的内存布局"></p>
+<h4 id="4-6-queue"><a href="#4-6-queue" class="headerlink" title="4.6 queue"></a>4.6 queue</h4><p>queue 缺省用 deque 来实现。</p>
+<p>从概念上讲，它的结构可如下所示：</p>
+<p><img src="/images/《现代C++实战30讲》学习笔记/queue概念上的结构.png" alt="queue概念上的结构"></p>
+<h4 id="4-7-stack"><a href="#4-7-stack" class="headerlink" title="4.7 stack"></a>4.7 stack</h4><p>queue 缺省也是用 deque 来实现。</p>
+<p>一般图形表示法会把 stack 表示成一个竖起的 vector：</p>
+<p><img src="/images/《现代C++实战30讲》学习笔记/stack概念上的结构.png" alt="stack概念上的结构.png"></p>
+<h4 id="4-8-参考资料"><a href="#4-8-参考资料" class="headerlink" title="4.8 参考资料"></a>4.8 参考资料</h4><ol>
+<li><p>cppreference.com, “Containers library”. <a target="_blank" rel="noopener" href="https://en.cppreference.com/w/cpp/container">https://en.cppreference.com/w/cpp/container</a></p>
+<p> a. cppreference.com, “容器库”. <a target="_blank" rel="noopener" href="https://zh.cppreference.com/w/cpp/container">https://zh.cppreference.com/w/cpp/container</a></p>
+</li>
+<li><p>QuantStack, xeus-cling. <a target="_blank" rel="noopener" href="https://github.com/QuantStack/xeus-cling">https://github.com/QuantStack/xeus-cling</a></p>
+</li>
+<li><p>吴咏炜, output_container. <a target="_blank" rel="noopener" href="https://github.com/adah1972/output_container/blob/master/output_container.h">https://github.com/adah1972/output_container/blob/master/output_container.h</a></p>
+</li>
+</ol>
+<h3 id="05-容器汇编-II：需要函数对象的容器"><a href="#05-容器汇编-II：需要函数对象的容器" class="headerlink" title="05 | 容器汇编 II：需要函数对象的容器"></a>05 | 容器汇编 II：需要函数对象的容器</h3><h4 id="5-1-函数对象及其特化"><a href="#5-1-函数对象及其特化" class="headerlink" title="5.1 函数对象及其特化"></a>5.1 函数对象及其特化</h4><p>在讲容器之前，我们需要首先来讨论一下两个重要的函数对象，less 和 hash。</p>
+<p>在标准库里，通用的 less 大致是这样定义的：</p>
+<pre class="line-numbers language-cpp" data-language="cpp"><code class="language-cpp"><span class="token keyword">template</span> <span class="token operator">&lt;</span><span class="token keyword">class</span> <span class="token class-name">T</span><span class="token operator">&gt;</span>
+<span class="token keyword">struct</span> <span class="token class-name">less</span> <span class="token operator">:</span> <span class="token base-clause"><span class="token class-name">binary_function</span><span class="token operator">&lt;</span><span class="token class-name">T</span><span class="token punctuation">,</span> <span class="token class-name">T</span><span class="token punctuation">,</span> <span class="token keyword">bool</span><span class="token operator">&gt;</span></span> <span class="token punctuation">{</span>
+    <span class="token keyword">bool</span> <span class="token keyword">operator</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">(</span><span class="token keyword">const</span> T<span class="token operator">&amp;</span> x<span class="token punctuation">,</span> <span class="token keyword">const</span> T<span class="token operator">&amp;</span> y<span class="token punctuation">)</span> <span class="token keyword">const</span>
+    <span class="token punctuation">{</span>
+        <span class="token keyword">return</span> x <span class="token operator">&lt;</span> y<span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+<span class="token punctuation">}</span><span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>也就是说，less 是一个函数对象，并且是个二元函数，执行对任意类型的值的比较，返回布尔类型。作为函数对象，它定义了函数调用运算符（operator()），并且缺省行为是对指定类型的对象进行 &lt; 的比较操作。</p>
+<p>在需要大小比较的场合，C++ 通常默认会使用 less，包括我们今天会讲到的若干容器和排序算法 sort。如果我们需要产生相反的顺序的话，则可以使用 greater，大于关系。</p>
+<p>计算哈希值的函数对象 hash 的目的是把一个某种类型的值转换成一个无符号整数哈希值，类型为 size_t。它没有一个可用的默认实现。对于常用的类型，系统提供了需要的特化 [2]，类似于：</p>
+<pre class="line-numbers language-cpp" data-language="cpp"><code class="language-cpp"><span class="token keyword">template</span> <span class="token operator">&lt;</span><span class="token keyword">class</span> <span class="token class-name">T</span><span class="token operator">&gt;</span>
+<span class="token keyword">struct</span> <span class="token class-name">hash</span><span class="token punctuation">;</span>
+
+<span class="token keyword">template</span> <span class="token operator">&lt;</span><span class="token operator">&gt;</span>
+<span class="token keyword">struct</span> <span class="token class-name">hash</span><span class="token operator">&lt;</span><span class="token keyword">int</span><span class="token operator">&gt;</span> <span class="token operator">:</span> <span class="token keyword">public</span> unary_function<span class="token operator">&lt;</span><span class="token keyword">int</span><span class="token punctuation">,</span> size_t<span class="token operator">&gt;</span> <span class="token punctuation">{</span>
+    size_t <span class="token keyword">operator</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">(</span><span class="token keyword">int</span> v<span class="token punctuation">)</span> <span class="token keyword">const</span> <span class="token keyword">noexcept</span>
+    <span class="token punctuation">{</span>
+        <span class="token keyword">return</span> <span class="token keyword">static_cast</span><span class="token operator">&lt;</span>size_t<span class="token operator">&gt;</span><span class="token punctuation">(</span>v<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+<span class="token punctuation">}</span><span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>要点是，对于每个类，类的作者都可以提供 hash 的特化，使得对于不同的对象值，函数调用运算符都能得到尽可能均匀分布的不同数值。</p>
+<p>用下面这个例子来加深一下理解：</p>
+<pre class="line-numbers language-cpp" data-language="cpp"><code class="language-cpp"><span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;algorithm&gt;</span> <span class="token comment">// std::sort</span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;functional&gt;</span> <span class="token comment">// std::less/greater/hash</span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;iostream&gt;</span> <span class="token comment">// std::cout/endl</span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;string&gt;</span> <span class="token comment">// std::string</span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;vector&gt;</span> <span class="token comment">// std::vector</span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">"output_container.h"</span></span>
+<span class="token keyword">using</span> <span class="token keyword">namespace</span> std<span class="token punctuation">;</span>
+
+<span class="token keyword">int</span> <span class="token function">main</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token comment">// 初始数组</span>
+    vector<span class="token operator">&lt;</span><span class="token keyword">int</span><span class="token operator">&gt;</span> v <span class="token punctuation">{</span> <span class="token number">13</span><span class="token punctuation">,</span> <span class="token number">6</span><span class="token punctuation">,</span> <span class="token number">4</span><span class="token punctuation">,</span> <span class="token number">11</span><span class="token punctuation">,</span> <span class="token number">29</span> <span class="token punctuation">}</span><span class="token punctuation">;</span>
+    cout <span class="token operator">&lt;&lt;</span> v <span class="token operator">&lt;&lt;</span> endl<span class="token punctuation">;</span>
+    <span class="token comment">// 从小到大排序</span>
+    <span class="token function">sort</span><span class="token punctuation">(</span>v<span class="token punctuation">.</span><span class="token function">begin</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">,</span> v<span class="token punctuation">.</span><span class="token function">end</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    cout <span class="token operator">&lt;&lt;</span> v <span class="token operator">&lt;&lt;</span> endl<span class="token punctuation">;</span>
+    <span class="token comment">// 从大到小排序</span>
+    <span class="token function">sort</span><span class="token punctuation">(</span>v<span class="token punctuation">.</span><span class="token function">begin</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">,</span> v<span class="token punctuation">.</span><span class="token function">end</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">,</span> greater<span class="token operator">&lt;</span><span class="token keyword">int</span><span class="token operator">&gt;</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    cout <span class="token operator">&lt;&lt;</span> v <span class="token operator">&lt;&lt;</span> endl<span class="token punctuation">;</span>
+    cout <span class="token operator">&lt;&lt;</span> hex<span class="token punctuation">;</span>
+    <span class="token keyword">auto</span> hp <span class="token operator">=</span> hash<span class="token operator">&lt;</span><span class="token keyword">int</span><span class="token operator">*</span><span class="token operator">&gt;</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    cout <span class="token operator">&lt;&lt;</span> <span class="token string">"hash(nullptr) = "</span>
+         <span class="token operator">&lt;&lt;</span> <span class="token function">hp</span><span class="token punctuation">(</span><span class="token keyword">nullptr</span><span class="token punctuation">)</span> <span class="token operator">&lt;&lt;</span> endl<span class="token punctuation">;</span>
+    cout <span class="token operator">&lt;&lt;</span> <span class="token string">"hash(v.data()) = "</span>
+         <span class="token operator">&lt;&lt;</span> <span class="token function">hp</span><span class="token punctuation">(</span>v<span class="token punctuation">.</span><span class="token function">data</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token operator">&lt;&lt;</span> endl<span class="token punctuation">;</span>
+    cout <span class="token operator">&lt;&lt;</span> <span class="token string">"v.data() = "</span>
+         <span class="token operator">&lt;&lt;</span> <span class="token keyword">static_cast</span><span class="token operator">&lt;</span><span class="token keyword">void</span><span class="token operator">*</span><span class="token operator">&gt;</span><span class="token punctuation">(</span>v<span class="token punctuation">.</span><span class="token function">data</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span>
+         <span class="token operator">&lt;&lt;</span> endl<span class="token punctuation">;</span>
+    <span class="token keyword">auto</span> hs <span class="token operator">=</span> hash<span class="token operator">&lt;</span>string<span class="token operator">&gt;</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    cout <span class="token operator">&lt;&lt;</span> <span class="token string">"hash(\"hello\") = "</span>
+         <span class="token operator">&lt;&lt;</span> <span class="token function">hs</span><span class="token punctuation">(</span><span class="token function">string</span><span class="token punctuation">(</span><span class="token string">"hello"</span><span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token operator">&lt;&lt;</span> endl<span class="token punctuation">;</span>
+    cout <span class="token operator">&lt;&lt;</span> <span class="token string">"hash(\"hellp\") = "</span>
+         <span class="token operator">&lt;&lt;</span> <span class="token function">hs</span><span class="token punctuation">(</span><span class="token function">string</span><span class="token punctuation">(</span><span class="token string">"hellp"</span><span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token operator">&lt;&lt;</span> endl<span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>在 MSVC 下的某次运行结果如下所示：</p>
+<pre class="line-numbers language-text" data-language="text"><code class="language-text">{ 13, 6, 4, 11, 29 }
+{ 4, 6, 11, 13, 29 }
+{ 29, 13, 11, 6, 4 }
+hash(nullptr) = a8c7f832281a39c5
+hash(v.data()) = 7a0bdfd7df0923d2
+v.data() = 000001EFFB10EAE0
+hash("hello") = a430d84680aabd0b
+hash("hellp") = a430e54680aad322<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>可以看到，在这个实现里，空指针的哈希值是一个非零的数值，指针的哈希值也和指针的数值不一样。要注意不同的实现处理的方式会不一样。事实上，我的测试结果是 GCC、Clang 和 MSVC 对常见类型的哈希方式都各有不同。</p>
+<p>在上面的例子里，我们同时可以看到，这两个函数对象的值不重要。我们甚至可以认为，每个 less（或 greater 或 hash）对象都是等价的。关键在于其类型。以 sort 为例，第三个参数的类型确定了其排序行为。</p>
+<p>对于容器也是如此，函数对象的类型确定了容器的行为。</p>
+<h4 id="5-2-priority-queue"><a href="#5-2-priority-queue" class="headerlink" title="5.2 priority_queue"></a>5.2 priority_queue</h4><p>priority_queue 也是一个容器适配器。上一讲没有和其他容器适配器一起讲的原因就在于它用到了比较函数对象（默认是 less）。在使用缺省的 less 作为其 Compare 模板参数时，最大的数值会出现在容器的“顶部”。如果需要最小的数值出现在容器顶部，则可以传递 greater 作为其 Compare 模板参数。</p>
+<h4 id="5-3-关联容器"><a href="#5-3-关联容器" class="headerlink" title="5.3 关联容器"></a>5.3 关联容器</h4><p>关联容器有 set（集合）、map（映射）、multiset（多重集）和 multimap（多重映射）。跳出 C++ 的语境，map（映射）的更常见的名字是关联数组和字典 [3]，而在 JSON里直接被称为对象（object）。在 C++ 外这些容器常常是无序的；在 C++ 里关联容器则被认为是有序的。</p>
+<p>关联容器都有 find、lower_bound、upper_bound 等查找函数，结果是一个迭代器：</p>
+<ul>
+<li>find(k) 可以找到任何一个等价于查找键 k 的元素（!(x &lt; k || k &lt; x)）</li>
+<li>lower_bound(k) 找到第一个不小于查找键 k 的元素（!(x &lt; k)）</li>
+<li>upper_bound(k) 找到第一个大于查找键 k 的元素（k &lt; x）</li>
+</ul>
+<p>如果你需要在 multimap 里精确查找满足某个键的区间的话，建议使用 equal_range，可以一次性取得上下界（半开半闭）。</p>
+<p>对于自定义类型，我推荐尽量使用标准的 less 实现，通过重载 &lt;（及其他标准比较运算符）对该类型的对象进行排序。存储在关联容器中的键一般应满足严格弱序关系（strict weak ordering；[4]），即：</p>
+<ul>
+<li>对于任何该类型的对象 x：!(x &lt; x)（非自反）</li>
+<li>对于任何该类型的对象 x 和 y：如果 x &lt; y，则 !(y &lt; x)（非对称）</li>
+<li>对于任何该类型的对象 x、y 和 z：如果 x &lt; y 并且 y &lt; z，则 x &lt; z（传递性）</li>
+<li>对于任何该类型的对象 x、y 和 z：如果 x 和 y 不可比（!(x &lt; y) 并且 !(y &lt; x)）并且 y 和 z 不可比，则 x 和 z 不可比（不可比的传递性）</li>
+</ul>
+<h4 id="5-4-无序关联容器"><a href="#5-4-无序关联容器" class="headerlink" title="5.4 无序关联容器"></a>5.4 无序关联容器</h4><p>从 C++11 开始，每一个关联容器都有一个对应的无序关联容器，它们是：</p>
+<ul>
+<li>unordered_set</li>
+<li>unordered_map</li>
+<li>unordered_multiset</li>
+<li>unordered_multimap</li>
+</ul>
+<p>一个示例：</p>
+<pre class="line-numbers language-cpp" data-language="cpp"><code class="language-cpp"><span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;complex&gt;</span> <span class="token comment">// std::complex</span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;iostream&gt;</span> <span class="token comment">// std::cout/endl</span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;unordered_map&gt;</span> <span class="token comment">// std::unordered_map</span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;unordered_set&gt;</span> <span class="token comment">// std::unordered_set</span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">"output_container.h"</span></span>
+<span class="token keyword">using</span> <span class="token keyword">namespace</span> std<span class="token punctuation">;</span>
+
+<span class="token keyword">namespace</span> std <span class="token punctuation">{</span>
+<span class="token keyword">template</span> <span class="token operator">&lt;</span><span class="token keyword">typename</span> <span class="token class-name">T</span><span class="token operator">&gt;</span>
+<span class="token keyword">struct</span> <span class="token class-name">hash</span><span class="token operator">&lt;</span>complex<span class="token operator">&lt;</span>T<span class="token operator">&gt;&gt;</span> <span class="token punctuation">{</span>
+    size_t <span class="token keyword">operator</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">(</span><span class="token keyword">const</span> complex<span class="token operator">&lt;</span>T<span class="token operator">&gt;</span><span class="token operator">&amp;</span> v<span class="token punctuation">)</span> <span class="token keyword">const</span> <span class="token keyword">noexcept</span>
+    <span class="token punctuation">{</span>
+        hash<span class="token operator">&lt;</span>T<span class="token operator">&gt;</span> h<span class="token punctuation">;</span>
+        <span class="token keyword">return</span> <span class="token function">h</span><span class="token punctuation">(</span>v<span class="token punctuation">.</span><span class="token function">real</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token operator">+</span> <span class="token function">h</span><span class="token punctuation">(</span>v<span class="token punctuation">.</span><span class="token function">imag</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+<span class="token punctuation">}</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span> <span class="token comment">// namespace std</span>
+
+<span class="token keyword">int</span> <span class="token function">main</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    unordered_set<span class="token operator">&lt;</span><span class="token keyword">int</span><span class="token operator">&gt;</span> s <span class="token punctuation">{</span>
+        <span class="token number">1</span><span class="token punctuation">,</span> <span class="token number">1</span><span class="token punctuation">,</span> <span class="token number">2</span><span class="token punctuation">,</span> <span class="token number">3</span><span class="token punctuation">,</span> <span class="token number">5</span><span class="token punctuation">,</span> <span class="token number">8</span><span class="token punctuation">,</span> <span class="token number">13</span><span class="token punctuation">,</span> <span class="token number">21</span>
+    <span class="token punctuation">}</span><span class="token punctuation">;</span>
+    cout <span class="token operator">&lt;&lt;</span> s <span class="token operator">&lt;&lt;</span> endl<span class="token punctuation">;</span>
+    unordered_map<span class="token operator">&lt;</span>complex<span class="token operator">&lt;</span><span class="token keyword">double</span><span class="token operator">&gt;</span><span class="token punctuation">,</span> <span class="token keyword">double</span><span class="token operator">&gt;</span> umc <span class="token punctuation">{</span>
+        <span class="token punctuation">{</span> <span class="token punctuation">{</span> <span class="token number">1.0</span><span class="token punctuation">,</span> <span class="token number">1.0</span> <span class="token punctuation">}</span><span class="token punctuation">,</span> <span class="token number">1.4142</span> <span class="token punctuation">}</span><span class="token punctuation">,</span>
+        <span class="token punctuation">{</span> <span class="token punctuation">{</span> <span class="token number">3.0</span><span class="token punctuation">,</span> <span class="token number">4.0</span> <span class="token punctuation">}</span><span class="token punctuation">,</span> <span class="token number">5.0</span> <span class="token punctuation">}</span>
+    <span class="token punctuation">}</span><span class="token punctuation">;</span>
+    cout <span class="token operator">&lt;&lt;</span> umc <span class="token operator">&lt;&lt;</span> endl<span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>输出可能是（顺序不能保证）：</p>
+<pre class="line-numbers language-text" data-language="text"><code class="language-text">{ 21, 5, 8, 3, 13, 2, 1 }
+{ (3,4) =&gt; 5, (1,1) =&gt; 1.4142 }<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre>
+<p>请注意我们在 std 名空间中添加了特化，这是少数用户可以向 std 名空间添加内容的情况之一。正常情况下，向 std 名空间添加声明或定义是禁止的，属于未定义行为。</p>
+<h4 id="5-5-array"><a href="#5-5-array" class="headerlink" title="5.5 array"></a>5.5 array</h4><p>C 数组在 C++ 里继续存在，主要是为了保留和 C 的向后兼容性。C 数组本身和 C++ 的容器相差是非常大的：</p>
+<ul>
+<li>C 数组没有 begin 和 end 成员函数（虽然可以使用全局的 begin 和 end 函数）</li>
+<li>C 数组没有 size 成员函数（得用一些模板技巧来获取其长度）</li>
+<li>C 数组作为参数有退化行为，传递给另外一个函数后那个函数不再能获得 C 数组的长度和结束位置</li>
+</ul>
+<p>在 C 的年代，大家有时候会定义这样一个宏来获得数组的长度：</p>
+<pre class="line-numbers language-cpp" data-language="cpp"><code class="language-cpp"><span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">define</span> <span class="token expression"><span class="token function">ARRAY_LEN</span><span class="token punctuation">(</span>a<span class="token punctuation">)</span> <span class="token punctuation">(</span><span class="token keyword">sizeof</span><span class="token punctuation">(</span>a<span class="token punctuation">)</span> <span class="token operator">/</span> <span class="token keyword">sizeof</span><span class="token punctuation">(</span><span class="token punctuation">(</span>a<span class="token punctuation">)</span><span class="token punctuation">[</span><span class="token number">0</span><span class="token punctuation">]</span><span class="token punctuation">)</span><span class="token punctuation">)</span></span></span><span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>如果在一个函数内部对数组参数使用这个宏，结果肯定是错的。现在 GCC 会友好地发出警告：</p>
+<pre class="line-numbers language-cpp" data-language="cpp"><code class="language-cpp"><span class="token keyword">void</span> <span class="token function">test</span><span class="token punctuation">(</span><span class="token keyword">int</span> a<span class="token punctuation">[</span><span class="token number">8</span><span class="token punctuation">]</span><span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    cout <span class="token operator">&lt;&lt;</span> <span class="token function">ARRAY_LEN</span><span class="token punctuation">(</span>a<span class="token punctuation">)</span> <span class="token operator">&lt;&lt;</span> endl<span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span></span></code></pre>
+<blockquote>
+<p>warning: sizeof on array function parameter will return size of ‘int *’ instead of ‘int [8]’ [-Wsizeof-array-argument]</p>
+<p>cout &lt;&lt; ARRAY_LEN(a) &lt;&lt; endl;</p>
+</blockquote>
+<p>C++17 直接提供了一个 size 方法，可以用于提供数组长度，并且在数组退化成指针的情况下会直接失败：</p>
+<pre class="line-numbers language-cpp" data-language="cpp"><code class="language-cpp"><span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;iostream&gt;</span> <span class="token comment">// std::cout/endl</span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;iterator&gt;</span> <span class="token comment">// std::size</span></span>
+
+<span class="token keyword">void</span> <span class="token function">test</span><span class="token punctuation">(</span><span class="token keyword">int</span> arr<span class="token punctuation">[</span><span class="token punctuation">]</span><span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token comment">// 不能编译</span>
+    <span class="token comment">// std::cout &lt;&lt; std::size(arr)</span>
+    <span class="token comment">// &lt;&lt; std::endl;</span>
+<span class="token punctuation">}</span>
+<span class="token keyword">int</span> <span class="token function">main</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword">int</span> arr<span class="token punctuation">[</span><span class="token punctuation">]</span> <span class="token operator">=</span> <span class="token punctuation">{</span> <span class="token number">1</span><span class="token punctuation">,</span> <span class="token number">2</span><span class="token punctuation">,</span> <span class="token number">3</span><span class="token punctuation">,</span> <span class="token number">4</span><span class="token punctuation">,</span> <span class="token number">5</span> <span class="token punctuation">}</span><span class="token punctuation">;</span>
+    std<span class="token operator">::</span>cout <span class="token operator">&lt;&lt;</span> <span class="token string">"The array length is "</span>
+              <span class="token operator">&lt;&lt;</span> std<span class="token operator">::</span><span class="token function">size</span><span class="token punctuation">(</span>arr<span class="token punctuation">)</span>
+              <span class="token operator">&lt;&lt;</span> std<span class="token operator">::</span>endl<span class="token punctuation">;</span>
+    <span class="token function">test</span><span class="token punctuation">(</span>arr<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>此外，C 数组也没有良好的复制行为。</p>
+<p>array 可以避免 C 数组的种种怪异行径。</p>
+<h4 id="5-6-参考资料"><a href="#5-6-参考资料" class="headerlink" title="5.6 参考资料"></a>5.6 参考资料</h4><ol>
+<li><p>cppreference.com, “Containers library”. <a target="_blank" rel="noopener" href="https://en.cppreference.com/w/cpp/container">https://en.cppreference.com/w/cpp/container</a></p>
+<p> a. cppreference.com, “容器库”. <a target="_blank" rel="noopener" href="https://zh.cppreference.com/w/cpp/container">https://zh.cppreference.com/w/cpp/container</a></p>
+</li>
+<li><p>cppreference.com, “Explicit (full) template specialization”. <a target="_blank" rel="noopener" href="https://en.cppreference.com/w/cpp/language/template_specialization">https://en.cppreference.com/w/cpp/language/template_specialization</a></p>
+<p> a. cppreference.com, “显式（全）模板特化”. <a target="_blank" rel="noopener" href="https://zh.cppreference.com/w/cpp/language/template_specialization">https://zh.cppreference.com/w/cpp/language/template_specialization</a></p>
+</li>
+<li><p>Wikipedia, “Associative array”. <a target="_blank" rel="noopener" href="https://en.wikipedia.org/wiki/Associative_array">https://en.wikipedia.org/wiki/Associative_array</a></p>
+<p> a. 维基百科, “关联数组”. <a target="_blank" rel="noopener" href="https://zh.wikipedia.org/zh-cn/关联数组">https://zh.wikipedia.org/zh-cn/关联数组</a></p>
+</li>
+<li><p>Wikipedia, “Weak ordering”. <a target="_blank" rel="noopener" href="https://en.wikipedia.org/wiki/Weak_ordering">https://en.wikipedia.org/wiki/Weak_ordering</a></p>
+</li>
+<li><p>Wikipedia, “Hash table”. <a target="_blank" rel="noopener" href="https://en.wikipedia.org/wiki/Hash_table">https://en.wikipedia.org/wiki/Hash_table</a></p>
+<p> a. 维基百科, “哈希表”. <a target="_blank" rel="noopener" href="https://zh.wikipedia.org/zh-cn/哈希表">https://zh.wikipedia.org/zh-cn/哈希表</a></p>
+</li>
+</ol>
 
                 
             </div>
