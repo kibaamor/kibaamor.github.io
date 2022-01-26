@@ -1450,6 +1450,365 @@ hash("hellp") = a430e54680aad322<span aria-hidden="true" class="line-numbers-row
 <p> a. 维基百科, “哈希表”. <a target="_blank" rel="noopener" href="https://zh.wikipedia.org/zh-cn/哈希表">https://zh.wikipedia.org/zh-cn/哈希表</a></p>
 </li>
 </ol>
+<h3 id="06-异常：用还是不用，这是个问题"><a href="#06-异常：用还是不用，这是个问题" class="headerlink" title="06 | 异常：用还是不用，这是个问题"></a>06 | 异常：用还是不用，这是个问题</h3><p>首先，开宗明义，如果你不知道到底该不该用异常的话，那答案就是该用。如果你需要避免使用异常，原因必须是你有明确的需要避免使用异常的理由。</p>
+<h4 id="6-1-没有异常的世界"><a href="#6-1-没有异常的世界" class="headerlink" title="6.1 没有异常的世界"></a>6.1 没有异常的世界</h4><p>我们先来看看没有异常的世界是什么样子的。最典型的情况就是 C 了。</p>
+<p>假设我们要做一些矩阵的操作，定义了下面这个矩阵的数据结构：</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">typedef</span> <span class="token keyword">struct</span> <span class="token punctuation">{</span>
+    <span class="token keyword">float</span><span class="token operator">*</span> data<span class="token punctuation">;</span>
+    size_t nrows<span class="token punctuation">;</span>
+    size_t ncols<span class="token punctuation">;</span>
+<span class="token punctuation">}</span> matrix<span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>我们至少需要有初始化和清理的代码：</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">enum</span> <span class="token class-name">matrix_err_code</span> <span class="token punctuation">{</span>
+    MATRIX_SUCCESS<span class="token punctuation">,</span>
+    MATRIX_ERR_MEMORY_INSUFFICIENT<span class="token punctuation">,</span>
+    <span class="token comment">//…</span>
+<span class="token punctuation">}</span><span class="token punctuation">;</span>
+<span class="token keyword">int</span> <span class="token function">matrix_alloc</span><span class="token punctuation">(</span>matrix<span class="token operator">*</span> ptr<span class="token punctuation">,</span> size_t nrows<span class="token punctuation">,</span> size_t ncols<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    size_t size <span class="token operator">=</span> nrows <span class="token operator">*</span> ncols <span class="token operator">*</span> <span class="token keyword">sizeof</span><span class="token punctuation">(</span><span class="token keyword">float</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">float</span><span class="token operator">*</span> data <span class="token operator">=</span> <span class="token function">malloc</span><span class="token punctuation">(</span>size<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">if</span> <span class="token punctuation">(</span>data <span class="token operator">==</span> <span class="token constant">NULL</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+        <span class="token keyword">return</span> MATRIX_ERR_MEMORY_INSUFFICIENT<span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+    ptr<span class="token operator">-&gt;</span>data <span class="token operator">=</span> data<span class="token punctuation">;</span>
+    ptr<span class="token operator">-&gt;</span>nrows <span class="token operator">=</span> nrows<span class="token punctuation">;</span>
+    ptr<span class="token operator">-&gt;</span>ncols <span class="token operator">=</span> ncols<span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+<span class="token keyword">void</span> <span class="token function">matrix_dealloc</span><span class="token punctuation">(</span>matrix<span class="token operator">*</span> ptr<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword">if</span> <span class="token punctuation">(</span>ptr<span class="token operator">-&gt;</span>data <span class="token operator">==</span> <span class="token constant">NULL</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+        <span class="token keyword">return</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+    <span class="token function">free</span><span class="token punctuation">(</span>ptr<span class="token operator">-&gt;</span>data<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    ptr<span class="token operator">-&gt;</span>data <span class="token operator">=</span> <span class="token constant">NULL</span><span class="token punctuation">;</span>
+    ptr<span class="token operator">-&gt;</span>nrows <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span>
+    ptr<span class="token operator">-&gt;</span>ncols <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>然后，我们做一下矩阵乘法吧。函数定义大概会是这个样子：</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">int</span> <span class="token function">matrix_multiply</span><span class="token punctuation">(</span>matrix<span class="token operator">*</span> result<span class="token punctuation">,</span> <span class="token keyword">const</span> matrix<span class="token operator">*</span> lhs<span class="token punctuation">,</span> <span class="token keyword">const</span> matrix<span class="token operator">*</span> rhs<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword">int</span> errcode<span class="token punctuation">;</span>
+    <span class="token keyword">if</span> <span class="token punctuation">(</span>lhs<span class="token operator">-&gt;</span>ncols <span class="token operator">!=</span> rhs<span class="token operator">-&gt;</span>nrows<span class="token punctuation">)</span> <span class="token punctuation">{</span>
+        <span class="token keyword">return</span> MATRIX_ERR_MISMATCHED_MATRIX_SIZE<span class="token punctuation">;</span>
+        <span class="token comment">// 呃，得把这个错误码添到 enum matrix_err_code 里</span>
+    <span class="token punctuation">}</span>
+    errcode <span class="token operator">=</span> <span class="token function">matrix_alloc</span><span class="token punctuation">(</span>result<span class="token punctuation">,</span> lhs<span class="token operator">-&gt;</span>nrows<span class="token punctuation">,</span> rhs<span class="token operator">-&gt;</span>ncols<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">if</span> <span class="token punctuation">(</span>errcode <span class="token operator">!=</span> MATRIX_SUCCESS<span class="token punctuation">)</span> <span class="token punctuation">{</span>
+        <span class="token keyword">return</span> errcode<span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+    <span class="token comment">// 进行矩阵乘法运算</span>
+    <span class="token keyword">return</span> MATRIX_SUCCESS<span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>调用代码：</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c">matrix c<span class="token punctuation">;</span>
+
+<span class="token function">memset</span><span class="token punctuation">(</span>c<span class="token punctuation">,</span> <span class="token number">0</span><span class="token punctuation">,</span> <span class="token keyword">sizeof</span><span class="token punctuation">(</span>matrix<span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+errcode <span class="token operator">=</span> <span class="token function">matrix_multiply</span><span class="token punctuation">(</span>c<span class="token punctuation">,</span> a<span class="token punctuation">,</span> b<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token keyword">if</span> <span class="token punctuation">(</span>errcode <span class="token operator">!=</span> MATRIX_SUCCESS<span class="token punctuation">)</span> <span class="token punctuation">{</span>
+    <span class="token keyword">goto</span> error_exit<span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+<span class="token comment">// 使用乘法的结果做其他处理</span>
+
+error_exit<span class="token operator">:</span>
+    <span class="token function">matrix_dealloc</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>c<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">return</span> errcode<span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>可以看到，我们有大量需要判断错误的代码，零散分布在代码各处。</p>
+<p>可这是 C 啊。我们用 C++、不用异常可以吗？</p>
+<p>当然可以，但你会发现结果好不了多少。毕竟，C++ 的构造函数是不能返回错误码的，所以你根本不能用构造函数来做可能出错的事情。你不得不定义一个只能清零的构造函数，再使用一个 init 函数来做真正的构造操作。C++ 虽然支持运算符重载，可你也不能使用，因为你没法返回一个新矩阵……</p>
+<h4 id="6-2-使用异常"><a href="#6-2-使用异常" class="headerlink" title="6.2 使用异常"></a>6.2 使用异常</h4><p>如果使用异常的话，我们就可以在构造函数里做真正的初始化工作了。假设我们的矩阵类有下列的数据成员：</p>
+<pre class="line-numbers language-cpp" data-language="cpp"><code class="language-cpp"><span class="token keyword">class</span> <span class="token class-name">matrix</span> <span class="token punctuation">{</span>
+    <span class="token comment">//…</span>
+<span class="token keyword">private</span><span class="token operator">:</span>
+    <span class="token keyword">float</span><span class="token operator">*</span> data_<span class="token punctuation">;</span>
+    size_t nrows_<span class="token punctuation">;</span>
+    size_t ncols_<span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>构造函数和析构函数我们可以这样写：</p>
+<pre class="line-numbers language-cpp" data-language="cpp"><code class="language-cpp">matrix<span class="token operator">::</span><span class="token function">matrix</span><span class="token punctuation">(</span>size_t nrows<span class="token punctuation">,</span> size_t ncols<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    data_ <span class="token operator">=</span> <span class="token keyword">new</span> <span class="token keyword">float</span><span class="token punctuation">[</span>nrows <span class="token operator">*</span> ncols<span class="token punctuation">]</span><span class="token punctuation">;</span>
+    nrows_ <span class="token operator">=</span> nrows<span class="token punctuation">;</span>
+    ncols_ <span class="token operator">=</span> ncols<span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+
+<span class="token class-name">matrix</span><span class="token operator">::</span><span class="token operator">~</span><span class="token function">matrix</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword">delete</span><span class="token punctuation">[</span><span class="token punctuation">]</span> data_<span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>乘法函数可以这样写：</p>
+<pre class="line-numbers language-cpp" data-language="cpp"><code class="language-cpp"><span class="token keyword">class</span> <span class="token class-name">matrix</span> <span class="token punctuation">{</span>
+    <span class="token comment">//…</span>
+    <span class="token keyword">friend</span> matrix <span class="token keyword">operator</span><span class="token operator">*</span><span class="token punctuation">(</span><span class="token keyword">const</span> matrix<span class="token operator">&amp;</span><span class="token punctuation">,</span> <span class="token keyword">const</span> matrix<span class="token operator">&amp;</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span class="token punctuation">;</span>
+
+matrix <span class="token keyword">operator</span><span class="token operator">*</span><span class="token punctuation">(</span><span class="token keyword">const</span> matrix<span class="token operator">&amp;</span> lhs<span class="token punctuation">,</span> <span class="token keyword">const</span> matrix<span class="token operator">&amp;</span> rhs<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword">if</span> <span class="token punctuation">(</span>lhs<span class="token punctuation">.</span>ncols <span class="token operator">!=</span> rhs<span class="token punctuation">.</span>nrows<span class="token punctuation">)</span> <span class="token punctuation">{</span>
+        <span class="token keyword">throw</span> std<span class="token operator">::</span><span class="token function">runtime_error</span><span class="token punctuation">(</span><span class="token string">"matrix sizes mismatch"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+
+    matrix <span class="token function">result</span><span class="token punctuation">(</span>lhs<span class="token punctuation">.</span>nrows<span class="token punctuation">,</span> rhs<span class="token punctuation">.</span>ncols<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token comment">// 进行矩阵乘法运算</span>
+
+    <span class="token keyword">return</span> result<span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>使用乘法的代码则更是简单：</p>
+<pre class="line-numbers language-cpp" data-language="cpp"><code class="language-cpp">matrix c <span class="token operator">=</span> a <span class="token operator">*</span> b<span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>你可能已经非常疑惑了：错误处理在哪儿呢？只有一个 throw，跟前面的 C 代码能等价吗？</p>
+<p>异常处理并不意味着需要写显式的 try 和 catch。<strong>异常安全的代码，可以没有任何 try 和 catch</strong>。</p>
+<p>如果你不确定什么是“异常安全”，我们先来温习一下概念：异常安全是指当异常发生时，既不会发生资源泄漏，系统也不会处于一个不一致的状态。</p>
+<p>我们看看可能会出现错误 / 异常的地方：</p>
+<ul>
+<li>首先是内存分配。如果 new 出错，按照 C++ 的规则，一般会得到异常 bad_alloc，对象的构造也就失败了。这种情况下，在 catch 捕捉到这个异常之前，所有的栈上对象会全部被析构，资源全部被自动清理。</li>
+<li>如果是矩阵的长宽不合适不能做乘法呢？我们同样会得到一个异常，这样，在使用乘法的地方，对象 c 根本不会被构造出来。</li>
+<li>如果在乘法函数里内存分配失败呢？一样，result 对象根本没有构造出来，也就没有 c 对象了。还是一切正常。</li>
+<li>如果 a、b 是本地变量，然后乘法失败了呢？析构函数会自动释放其空间，我们同样不会有任何资源泄漏。</li>
+</ul>
+<p>总而言之，只要我们适当地组织好代码、利用好 RAII，实现矩阵的代码和使用矩阵的代码都可以更短、更清晰。我们可以统一在外层某个地方处理异常——通常会记日志、或在界面上向用户报告错误了。</p>
+<h4 id="6-3-避免异常的风格指南？"><a href="#6-3-避免异常的风格指南？" class="headerlink" title="6.3 避免异常的风格指南？"></a>6.3 避免异常的风格指南？</h4><p>但大名鼎鼎的 Google 的 C++ 风格指南不是说要避免异常吗 [1]？这又是怎么回事呢？</p>
+<p>答案实际已经在 Google 的文档里了：</p>
+<blockquote>
+<p>Given that Google’s existing code is not exception-tolerant, the costs of using<br>exceptions are somewhat greater than the costs in a new project. The conversion<br>process would be slow and error-prone. We don’t believe that the available<br>alternatives to exceptions, such as error codes and assertions, introduce a<br>significant burden.</p>
+<p>Our advice against using exceptions is not predicated on philosophical or moral<br>grounds, but practical ones. Because we’d like to use our open-source projects<br>at Google and it’s difficult to do so if those projects use exceptions, we need to<br>advise against exceptions in Google open-source projects as well. Things would<br>probably be different if we had to do it all over again from scratch.</p>
+</blockquote>
+<p>我来翻译一下（我的加重）：</p>
+<blockquote>
+<p>鉴于 Google 的现有代码不能承受异常，<strong>使用异常的代价要比在全新的项目中使用异常</strong><br><strong>大一些。</strong> 转换 [代码来使用异常的] 过程会缓慢而容易出错。我们不认为可代替异常的方<br>法，如错误码或断言，会带来明显的负担。</p>
+<p>我们反对异常的建议并非出于哲学或道德的立场，而是出于实际考虑。因为我们希望在<br>Google 使用我们的开源项目，而如果这些项目使用异常的话就会对我们的使用带来困<br>难，我们也需要反对在 Google 的开源项目中使用异常。<strong>如果我们从头再来一次的话，</strong><br><strong>事情可能就会不一样了。</strong></p>
+</blockquote>
+<p>这个如果还比较官方、委婉的话，Reddit 上还能找到一个更个人化的表述 [2]：</p>
+<blockquote>
+<p>I use [sic] to work at Google, and Craig Silverstein, who wrote the first draft of<br>the style guideline, said that he regretted the ban on exceptions, but he had no<br>choice; when he wrote it, it wasn’t only that the compiler they had at the time<br>did a very bad job on exceptions, but that they already had a huge volume of<br>non-exception-safe code.</p>
+</blockquote>
+<p>我的翻译（同样，我的加重）：</p>
+<blockquote>
+<p>我过去在 Google 工作，写了风格指南初稿的 Craig Silverstein 说过 <strong>他对禁用异常感到</strong><br><strong>遗憾</strong> ，但他当时别无选择。在他写风格指南的时候，不仅<strong>他们使用的编译器在异常上工</strong><br><strong>作得很糟糕，而且他们已经有了一大堆异常不安全的代码了。</strong></p>
+</blockquote>
+<p>当然，除了历史原因以外，也有出于性能等其他原因禁用异常的。美国国防部的联合攻击战斗机（JSF）项目的 C++ 编码规范就禁用异常，因为工具链不能保证抛出异常时的实时性能。不过在那种项目里，被禁用的 C++ 特性就多了，比如动态内存分配都不能使用。</p>
+<p>一些游戏项目为了追求高性能，也禁用异常。这个实际上也有一定的历史原因，因为今天的主流 C++ 编译器，在异常关闭和开启时应该已经能够产生性能差不多的代码（在异常未抛出时）。代价是产生的二进制文件大小的增加，因为异常产生的位置决定了需要如何做栈展开，这些数据需要存储在表里。典型情况，使用异常和不使用异常比，二进制文件大小会有约百分之十到二十的上升。LLVM 项目的编码规范里就明确指出这是不使用 RTTI 和异常的原因 [3]：</p>
+<blockquote>
+<p>In an effort to reduce code and executable size, LLVM does not use RTTI (e.g. dynamic_cast&lt;&gt;;) or exceptions.</p>
+</blockquote>
+<h4 id="6-4-异常的问题"><a href="#6-4-异常的问题" class="headerlink" title="6.4 异常的问题"></a>6.4 异常的问题</h4><p>异常当然不是一个完美的特性，否则也不会招来这些批评和禁用了。对它的批评主要有两条：</p>
+<ul>
+<li>异常违反了“你不用就不需要付出代价”的 C++ 原则。只要开启了异常，即使不使用异常你编译出的二进制代码通常也会膨胀。</li>
+<li>异常比较隐蔽，不容易看出来哪些地方会发生异常和发生什么异常。</li>
+</ul>
+<p>对于第一条，开发者没有什么可做的。事实上，这也算是 C++ 实现的一个折中了。目前的主流异常实现中，都倾向于牺牲可执行文件大小、提高主流程（happy path）的性能。只要程序不抛异常，C++ 代码的性能比起完全不做错误检查的代码，都只有几个百分点的性能损失 [4]。除了非常有限的一些场景，可执行文件大小通常不会是个问题。</p>
+<p>第二条可以算作是一个真正有效的批评。和 Java 不同，C++ 里不会对异常规约进行编译时的检查。从 C++17 开始，C++ 甚至完全禁止了以往的动态异常规约，你不再能在函数声明里写你可能会抛出某某异常。你唯一能声明的，就是某函数不会抛出异常—— noexcept、noexcept(true) 或 throw()。这也是 C++ 的运行时唯一会检查的东西了。如果一个函数声明了不会抛出异常、结果却抛出了异常，C++ 运行时会调用 std::terminate 来终止应用程序。不管是程序员的声明，还是编译器的检查，都不会告诉你哪些函数会抛出哪些异常。</p>
+<p>当然，不声明异常是有理由的。特别是在泛型编程的代码里，几乎不可能预知会发生些什么异常。我个人对避免异常带来的问题有几点建议：</p>
+<ol>
+<li>写异常安全的代码，尤其在模板里。可能的话，提供强异常安全保证 [5]，在任何第三方代码发生异常的情况下，不改变对象的内容，也不产生任何资源泄漏。</li>
+<li>如果你的代码可能抛出异常的话，在文档里明确声明可能发生的异常类型和发生条件。确保使用你的代码的人，能在不检查你的实现的情况，了解需要准备处理哪些异常。</li>
+<li>对于肯定不会抛出异常的代码，将其标为 noexcept。注意类的特殊成员（构造函数、析构函数、赋值函数等）会自动成为 noexcept，如果它们调用的代码都是 noexcept 的话。所以，像 swap 这样的成员函数应当尽可能标成 noexcept。</li>
+</ol>
+<h4 id="6-5-使用异常的理由"><a href="#6-5-使用异常的理由" class="headerlink" title="6.5 使用异常的理由"></a>6.5 使用异常的理由</h4><p>虽然后面我们会描述到一些不使用异常、也不使用错误返回码的错误处理方式，但异常是渗透在 C++ 中的标准错误处理方式。标准库的错误处理方式就是异常。其中不仅包括运行时错误，甚至包括一些逻辑错误。比如，在说容器的时候，有一个我没提的地方是，在能使用 [] 运算符的地方，C++ 的标准容器也提供了 at 成员函数，能够在下标不存在的时候抛出异常，作为一种额外的帮助调试的手段。</p>
+<p>C++ 的标准容器在大部分情况下提供了强异常保证，即，一旦异常发生，现场会恢复到调用函数之前的状态，容器的内容不会发生改变，也没有任何资源泄漏。前面提到过， vector 会在元素类型没有提供保证不抛异常的移动构造函数的情况下，在移动元素时会使用拷贝构造函数。这是因为一旦某个操作发生了异常，被移动的元素已经被破坏，处于只能析构的状态，异常安全性就不能得到保证了。</p>
+<p>只要你使用了标准容器，不管你自己用不用异常，你都得处理标准容器可能引发的异常——至少有 bad_alloc，除非你明确知道你的目标运行环境不会产生这个异常。这对普通配置的 Linux 环境而言，倒确实是对的……这也算是 Google 这么规定的一个底气吧。</p>
+<p>虽然对于运行时错误，开发者并没有什么选择余地；但对于代码中的逻辑错误，开发者则是可以选择不同的处理方式的：你可以使用异常，也可以使用 assert，在调试环境中报告错误并中断程序运行。由于测试通常不能覆盖所有的代码和分支，assert 在发布模式下一般被禁用，两者并不是完全的替代关系。在允许异常的情况下，使用异常可以获得在调试和发布模式下都良好、一致的效果。</p>
+<p>标准 C++ 可能会产生哪些异常，可以查看参考资料 [6]。</p>
+<h4 id="6-6-参考资料"><a href="#6-6-参考资料" class="headerlink" title="6.6 参考资料"></a>6.6 参考资料</h4><ol>
+<li><p>Google, “Google C++ style guide”. <a target="_blank" rel="noopener" href="https://google.github.io/styleguide/cppguide.html#Exceptions">https://google.github.io/styleguide/cppguide.html#Exceptions</a></p>
+</li>
+<li><p>Reddit, Discussion on “Examples of C++ projects which embrace exceptions?”. <a target="_blank" rel="noopener" href="https://www.reddit.com/r/cpp/comments/4wkkge/examples_of_c_projects_which_embrace_exceptions/">https://www.reddit.com/r/cpp/comments/4wkkge/examples_of_c_projects_which_embrace_exceptions/</a></p>
+</li>
+<li><p>LLVM Project, “LLVM coding standards”. <a target="_blank" rel="noopener" href="https://llvm.org/docs/CodingStandards.html#do-not-use-rtti-or-exceptions">https://llvm.org/docs/CodingStandards.html#do-not-use-rtti-or-exceptions</a></p>
+</li>
+<li><p>Standard C++ Foundation, “FAQ—exceptions and error handling”. <a target="_blank" rel="noopener" href="https://isocpp.org/wiki/faq/exceptions">https://isocpp.org/wiki/faq/exceptions</a></p>
+</li>
+<li><p>cppreference.com, “Exceptions”. <a target="_blank" rel="noopener" href="https://en.cppreference.com/w/cpp/language/exceptions">https://en.cppreference.com/w/cpp/language/exceptions</a></p>
+<p> a. cppreference.com, “异常”. <a target="_blank" rel="noopener" href="https://zh.cppreference.com/w/cpp/language/exceptions">https://zh.cppreference.com/w/cpp/language/exceptions</a></p>
+</li>
+<li><p>cppreference.com, “std::exception”. <a target="_blank" rel="noopener" href="https://en.cppreference.com/w/cpp/error/exception">https://en.cppreference.com/w/cpp/error/exception</a></p>
+<p> a. cppreference.com, “std::exception”. <a target="_blank" rel="noopener" href="https://zh.cppreference.com/w/cpp/error/exception">https://zh.cppreference.com/w/cpp/error/exception</a></p>
+</li>
+</ol>
+<h3 id="07-迭代器和好用的新for循环"><a href="#07-迭代器和好用的新for循环" class="headerlink" title="07 | 迭代器和好用的新for循环"></a>07 | 迭代器和好用的新for循环</h3><h4 id="7-1-什么是迭代器？"><a href="#7-1-什么是迭代器？" class="headerlink" title="7.1 什么是迭代器？"></a>7.1 什么是迭代器？</h4><p>迭代器是一个很通用的概念，并不是一个特定的类型。它实际上是一组对类型的要求（[1]）。它的最基本要求就是从一个端点出发，下一步、下一步地到达另一个端点。</p>
+<p>我在用 output_container.h 输出容器内容的时候，实际上就对容器的 begin 和 end 成员函数返回的对象类型提出了要求。假设前者返回的类型是 I，后者返回的类型是 S，这些要求是：</p>
+<ul>
+<li>I 对象支持 <code>*</code> 操作，解引用取得容器内的某个对象。</li>
+<li>I 对象支持 ++，指向下一个对象。</li>
+<li>I 对象可以和 I 或 S 对象进行相等比较，判断是否遍历到了特定位置（在 S 的情况下是是否结束了遍历）。</li>
+</ul>
+<p>注意在 C++17 之前，begin 和 end 返回的类型 I 和 S 必须是相同的。从 C++17 开始，I 和 S 可以是不同的类型。</p>
+<p>上面的类型 I，多多少少就是一个满足输入迭代器（input iterator）的类型了。不过， output_container.h 只使用了前置 ++，但输入迭代器要求前置和后置 ++ 都得到支持。</p>
+<p>输入迭代器不要求对同一迭代器可以多次使用 <code>*</code> 运算符，也不要求可以保存迭代器来重新遍历对象，换句话说，只要求可以单次访问。如果取消这些限制、允许多次访问的话，那迭代器同时满足了前向迭代器（forward iterator）。</p>
+<p>一个前向迭代器的类型，如果同时支持 —（前置及后置），回到前一个对象，那它就是个双向迭代器（bidirectional iterator）。也就是说，可以正向遍历，也可以反向遍历。</p>
+<p>一个双向迭代器，如果额外支持在整数类型上的 +、-、+=、-=，跳跃式地移动迭代器；支持 []，数组式的下标访问；支持迭代器的大小比较（之前只要求相等比较）；那它就是个随机访问迭代器（random-access iterator）。</p>
+<p>一个随机访问迭代器 i 和一个整数 n，在 <code>*i</code> 可解引用且 i + n 是合法迭代器的前提下，如果额外还满足 <code>*(addressdof(*i) + n)</code> 等价于 <code>*(i + n)</code>，即保证迭代器指向的对象在内存里是连续存放的，那它（在 C++20 里）就是个连续迭代器（contiguous iterator）。</p>
+<p>以上这些迭代器只考虑了读取。如果一个类型像输入迭代器，但 <code>*i</code> 只能作为左值来写而不能读，那它就是个输出迭代器（output iterator）。</p>
+<p>而比输入迭代器和输出迭代器更底层的概念，就是迭代器了。基本要求是：</p>
+<ul>
+<li>对象可以被拷贝构造、拷贝赋值和析构。</li>
+<li>对象支持 * 运算符。</li>
+<li>对象支持前置 ++ 运算符。</li>
+</ul>
+<p>迭代器类型的关系可从下图中全部看到：</p>
+<p><img src="/images/《现代C++实战30讲》学习笔记/迭代器类型的关系.png" alt="迭代器类型的关系"></p>
+<p>迭代器通常是对象。但需要注意的是，指针可以满足上面所有的迭代器要求，因而也是迭代器。这应该并不让人惊讶，因为本来迭代器就是根据指针的特性，对其进行抽象的结果。事实上，vector 的迭代器，在很多实现里就直接是使用指针的。</p>
+<h4 id="7-2-常用迭代器"><a href="#7-2-常用迭代器" class="headerlink" title="7.2 常用迭代器"></a>7.2 常用迭代器</h4><p>最常用的迭代器就是容器的 iterator 类型了。一般而言，iterator 可写入，const_iterator 类型不可写入，但这些迭代器都被定义为输入迭代器或其派生类型：</p>
+<ul>
+<li>vector::iterator 和 array::iterator 可以满足到连续迭代器。</li>
+<li>deque::iterator 可以满足到随机访问迭代器（记得它的内存只有部分连续）。</li>
+<li>list::iterator 可以满足到双向迭代器（链表不能快速跳转）。</li>
+<li>forward_list::iterator 可以满足到前向迭代器（单向链表不能反向遍历）。</li>
+</ul>
+<p>很常见的一个输出迭代器是 back_inserter 返回的类型 back_inserter_iterator 了；用它我们可以很方便地在容器的尾部进行插入操作。另外一个常见的输出迭代器是 ostream_iterator，方便我们把容器内容“拷贝”到一个输出流。</p>
+<h4 id="7-3-使用输入行迭代器"><a href="#7-3-使用输入行迭代器" class="headerlink" title="7.3 使用输入行迭代器"></a>7.3 使用输入行迭代器</h4><p>下面我们来看一下一个我写的输入迭代器。它的功能本身很简单，就是把一个输入流（istream）的内容一行行读进来。配上 C++11 引入的基于范围的 for 循环的语法，我们可以把遍历输入流的代码以一种自然、非过程式的方式写出来，如下所示：</p>
+<pre class="line-numbers language-cpp" data-language="cpp"><code class="language-cpp"><span class="token keyword">for</span> <span class="token punctuation">(</span><span class="token keyword">const</span> string<span class="token operator">&amp;</span> line <span class="token operator">:</span> <span class="token function">istream_line_reader</span><span class="token punctuation">(</span>is<span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+    <span class="token comment">// 示例循环体中仅进行简单输出</span>
+    cout <span class="token operator">&lt;&lt;</span> line <span class="token operator">&lt;&lt;</span> endl<span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span></span></code></pre>
+<p>我们可以对比一下以传统的方式写的 C++ 代码，其中需要照顾不少细节：</p>
+<pre class="line-numbers language-cpp" data-language="cpp"><code class="language-cpp">string line<span class="token punctuation">;</span>
+<span class="token keyword">for</span> <span class="token punctuation">(</span><span class="token punctuation">;</span><span class="token punctuation">;</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+    <span class="token function">getline</span><span class="token punctuation">(</span>is<span class="token punctuation">,</span> line<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token operator">!</span>is<span class="token punctuation">)</span> <span class="token punctuation">{</span>
+        <span class="token keyword">break</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+    cout <span class="token operator">&lt;&lt;</span> line <span class="token operator">&lt;&lt;</span> endl<span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>我们后面会分析一下这个输入迭代器。在此之前，我先解说一下基于范围的 for 循环这个语法。虽然这可以说是个语法糖，但它对提高代码的可读性真的非常重要。如果不用这个语法糖的话，简洁性上的优势就小多了。我们直接把这个循环改写成等价的普通 for 循环的样子。</p>
+<pre class="line-numbers language-cpp" data-language="cpp"><code class="language-cpp"><span class="token punctuation">{</span>
+    <span class="token keyword">auto</span><span class="token operator">&amp;&amp;</span> r <span class="token operator">=</span> <span class="token function">istream_line_reader</span><span class="token punctuation">(</span>is<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">auto</span> it <span class="token operator">=</span> r<span class="token punctuation">.</span><span class="token function">begin</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">auto</span> end <span class="token operator">=</span> r<span class="token punctuation">.</span><span class="token function">end</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">for</span> <span class="token punctuation">(</span><span class="token punctuation">;</span> it <span class="token operator">!=</span> end<span class="token punctuation">;</span> <span class="token operator">++</span>it<span class="token punctuation">)</span> <span class="token punctuation">{</span>
+        <span class="token keyword">const</span> string<span class="token operator">&amp;</span> line <span class="token operator">=</span> <span class="token operator">*</span>it<span class="token punctuation">;</span>
+        cout <span class="token operator">&lt;&lt;</span> line <span class="token operator">&lt;&lt;</span> endl<span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>可以看到，它做的事情也不复杂，就是：</p>
+<ul>
+<li>获取冒号后边的范围表达式的结果，并隐式产生一个引用，在整个循环期间都有效。注意根据生命期延长规则，表达式结果如果是临时对象的话，这个对象要在循环结束后才被销毁。</li>
+<li>自动生成遍历这个范围的迭代器。</li>
+<li>循环内自动生成根据冒号左边的声明和 *it 来进行初始化的语句。</li>
+<li>下面就是完全正常的循环体。</li>
+</ul>
+<p>生成迭代器这一步有可能是——但不一定是——调用 r 的 begin 和 end 成员函数。具体规则是：</p>
+<ul>
+<li>对于 C 数组（必须是没有退化为指针的情况），编译器会自动生成指向数组头尾的指针（相当于自动应用可用于数组的 std::begin 和 std::end 函数）。</li>
+<li>对于有 begin 和 end 成员的对象，编译器会调用其 begin 和 end 成员函数（我们目前的情况）。</li>
+<li>否则，编译器会尝试在 r 对象所在的名空间寻找可以用于 r 的 begin 和 end 函数，并</li>
+<li>调用 begin(r) 和 end(r)；找不到的话则失败报错。</li>
+</ul>
+<h4 id="7-4-定义输入行迭代器"><a href="#7-4-定义输入行迭代器" class="headerlink" title="7.4 定义输入行迭代器"></a>7.4 定义输入行迭代器</h4><p>C++ 里有些固定的类型要求规范。对于一个迭代器，我们需要定义下面的类型：</p>
+<pre class="line-numbers language-cpp" data-language="cpp"><code class="language-cpp"><span class="token keyword">class</span> <span class="token class-name">istream_line_reader</span> <span class="token punctuation">{</span>
+<span class="token keyword">public</span><span class="token operator">:</span>
+    <span class="token keyword">class</span> <span class="token class-name">iterator</span> <span class="token punctuation">{</span> <span class="token comment">// 实现 InputIterator</span>
+    <span class="token keyword">public</span><span class="token operator">:</span>
+        <span class="token keyword">typedef</span> ptrdiff_t difference_type<span class="token punctuation">;</span>
+        <span class="token keyword">typedef</span> string value_type<span class="token punctuation">;</span>
+        <span class="token keyword">typedef</span> <span class="token keyword">const</span> value_type<span class="token operator">*</span> pointer<span class="token punctuation">;</span>
+        <span class="token keyword">typedef</span> <span class="token keyword">const</span> value_type<span class="token operator">&amp;</span> reference<span class="token punctuation">;</span>
+        <span class="token keyword">typedef</span> input_iterator_tag iterator_category<span class="token punctuation">;</span>
+        <span class="token comment">// …</span>
+    <span class="token punctuation">}</span><span class="token punctuation">;</span>
+    <span class="token comment">// …</span>
+<span class="token punctuation">}</span><span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>仿照一般的容器，我们把迭代器定义为 istream_line_reader 的嵌套类。它里面的这五个类型是必须定义的（其他泛型 C++ 代码可能会用到这五个类型；之前标准库定义了一个可以继承的类模板 std::iterator 来产生这些类型定义，但这个类目前已经被废弃[2]）。其中：</p>
+<ul>
+<li>difference_type 是代表迭代器之间距离的类型，定义为 ptrdiff_t 只是种标准做法（指针间差值的类型），对这个类型没什么特别作用。</li>
+<li>value_type 是迭代器指向的对象的值类型，我们使用 string，表示迭代器指向的是字符串。</li>
+<li>pointer 是迭代器指向的对象的指针类型，这儿就平淡无奇地定义为 value_type 的常指针了（我们可不希望别人来更改指针指向的内容）。类似的，reference 是 value_type 的常引用。</li>
+<li>iterator_category 被定义为 input_iterator_tag，标识这个迭代器的类型是</li>
+<li>input iterator（输入迭代器）。</li>
+</ul>
+<p>作为一个真的只能读一次的输入迭代器，有个特殊的麻烦（前向迭代器或其衍生类型没有）：到底应该让 <code>*</code> 负责读取还是 ++ 负责读取。我们这儿采用常见、也较为简单的做法，让 ++ 负责读取，<code>*</code> 负责返回读取的内容（这个做法会有些副作用，但按我们目前的用法则没有问题）。这样的话，这个 iterator 类需要有一个数据成员指向输入流，一个数据成员来存放读取的结果。根据这个思路，我们定义这个类的基本成员函数和数据成员：</p>
+<pre class="line-numbers language-cpp" data-language="cpp"><code class="language-cpp"><span class="token keyword">class</span> <span class="token class-name">istream_line_reader</span> <span class="token punctuation">{</span>
+<span class="token keyword">public</span><span class="token operator">:</span>
+    <span class="token keyword">class</span> <span class="token class-name">iterator</span> <span class="token punctuation">{</span>
+        <span class="token comment">//…</span>
+        <span class="token function">iterator</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token keyword">noexcept</span>
+            <span class="token operator">:</span> <span class="token function">stream_</span><span class="token punctuation">(</span><span class="token keyword">nullptr</span><span class="token punctuation">)</span>
+        <span class="token punctuation">{</span>
+        <span class="token punctuation">}</span>
+        <span class="token keyword">explicit</span> <span class="token function">iterator</span><span class="token punctuation">(</span>istream<span class="token operator">&amp;</span> is<span class="token punctuation">)</span>
+            <span class="token operator">:</span> <span class="token function">stream_</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>is<span class="token punctuation">)</span>
+        <span class="token punctuation">{</span>
+            <span class="token operator">++</span><span class="token operator">*</span><span class="token keyword">this</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+        reference <span class="token keyword">operator</span><span class="token operator">*</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token keyword">const</span> <span class="token keyword">noexcept</span>
+        <span class="token punctuation">{</span>
+            <span class="token keyword">return</span> line_<span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+        pointer <span class="token keyword">operator</span><span class="token operator">-&gt;</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token keyword">const</span> <span class="token keyword">noexcept</span>
+        <span class="token punctuation">{</span>
+            <span class="token keyword">return</span> <span class="token operator">&amp;</span>line_<span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+        iterator<span class="token operator">&amp;</span> <span class="token keyword">operator</span><span class="token operator">++</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+        <span class="token punctuation">{</span>
+            <span class="token function">getline</span><span class="token punctuation">(</span><span class="token operator">*</span>stream_<span class="token punctuation">,</span> line_<span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token operator">!</span><span class="token operator">*</span>stream_<span class="token punctuation">)</span> <span class="token punctuation">{</span>
+                stream_ <span class="token operator">=</span> <span class="token keyword">nullptr</span><span class="token punctuation">;</span>
+            <span class="token punctuation">}</span>
+            <span class="token keyword">return</span> <span class="token operator">*</span><span class="token keyword">this</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+        iterator <span class="token keyword">operator</span><span class="token operator">++</span><span class="token punctuation">(</span><span class="token keyword">int</span><span class="token punctuation">)</span>
+        <span class="token punctuation">{</span>
+            iterator <span class="token function">temp</span><span class="token punctuation">(</span><span class="token operator">*</span><span class="token keyword">this</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token operator">++</span><span class="token operator">*</span><span class="token keyword">this</span><span class="token punctuation">;</span>
+            <span class="token keyword">return</span> temp<span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+
+    <span class="token keyword">private</span><span class="token operator">:</span>
+        istream<span class="token operator">*</span> stream_<span class="token punctuation">;</span>
+        string line_<span class="token punctuation">;</span>
+    <span class="token punctuation">}</span><span class="token punctuation">;</span>
+    <span class="token comment">//…</span>
+<span class="token punctuation">}</span><span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>我们定义了默认构造函数，将 <code>stream_</code> 清空；相应的，在带参数的构造函数里，我们根据传入的输入流来设置 <code>stream_</code>。我们也定义了 <code>*</code> 和 -&gt; 运算符来取得迭代器指向的文本行的引用和指针，并用 ++ 来读取输入流的内容（后置 ++ 则以惯常方式使用前置 ++ 和拷贝构造来实现）。唯一“特别”点的地方，是我们在构造函数里调用了 ++，确保在构造后调用 <code>*</code> 运算符时可以读取内容，符合日常先使用 <code>*</code>、再使用 ++ 的习惯。一旦文件读取到尾部（或出错），则 <code>stream_</code> 被清空，回到默认构造的情况。</p>
+<p>对于迭代器之间的比较，我们则主要考虑文件有没有读到尾部的情况，简单定义为：</p>
+<pre class="line-numbers language-cpp" data-language="cpp"><code class="language-cpp"><span class="token keyword">bool</span> <span class="token keyword">operator</span><span class="token operator">==</span><span class="token punctuation">(</span><span class="token keyword">const</span> iterator<span class="token operator">&amp;</span> rhs<span class="token punctuation">)</span> <span class="token keyword">const</span> <span class="token keyword">noexcept</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword">return</span> stream_ <span class="token operator">==</span> rhs<span class="token punctuation">.</span>stream_<span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+<span class="token keyword">bool</span> <span class="token keyword">operator</span><span class="token operator">!=</span><span class="token punctuation">(</span><span class="token keyword">const</span> iterator<span class="token operator">&amp;</span> rhs<span class="token punctuation">)</span> <span class="token keyword">const</span> <span class="token keyword">noexcept</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword">return</span> <span class="token operator">!</span><span class="token keyword">operator</span><span class="token operator">==</span><span class="token punctuation">(</span>rhs<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>有了这个 iterator 的定义后，istream_line_reader 的定义就简单得很了：</p>
+<pre class="line-numbers language-cpp" data-language="cpp"><code class="language-cpp"><span class="token keyword">class</span> <span class="token class-name">istream_line_reader</span> <span class="token punctuation">{</span>
+<span class="token keyword">public</span><span class="token operator">:</span>
+    <span class="token keyword">class</span> <span class="token class-name">iterator</span> <span class="token punctuation">{</span>
+        <span class="token comment">//…</span>
+    <span class="token punctuation">}</span><span class="token punctuation">;</span>
+    <span class="token function">istream_line_reader</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token keyword">noexcept</span>
+        <span class="token operator">:</span> <span class="token function">stream_</span><span class="token punctuation">(</span><span class="token keyword">nullptr</span><span class="token punctuation">)</span>
+    <span class="token punctuation">{</span>
+    <span class="token punctuation">}</span>
+    <span class="token keyword">explicit</span> <span class="token function">istream_line_reader</span><span class="token punctuation">(</span>istream<span class="token operator">&amp;</span> is<span class="token punctuation">)</span> <span class="token keyword">noexcept</span>
+        <span class="token operator">:</span> <span class="token function">stream_</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>is<span class="token punctuation">)</span>
+    <span class="token punctuation">{</span>
+    <span class="token punctuation">}</span>
+    iterator <span class="token function">begin</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+    <span class="token punctuation">{</span>
+        <span class="token keyword">return</span> <span class="token function">iterator</span><span class="token punctuation">(</span><span class="token operator">*</span>stream_<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+    iterator <span class="token function">end</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token keyword">const</span> <span class="token keyword">noexcept</span>
+    <span class="token punctuation">{</span>
+        <span class="token keyword">return</span> <span class="token function">iterator</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+
+<span class="token keyword">private</span><span class="token operator">:</span>
+    istream<span class="token operator">*</span> stream_<span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>也就是说，构造函数只是简单地把输入流的指针赋给 stream_ 成员变量。begin 成员函数则负责构造一个真正有意义的迭代器；end 成员函数则只是返回一个默认构造的迭代器而已。</p>
+<p>以上就是一个完整的基于输入流的行迭代器了。这个行输入模板的设计动机和性能测试结果可参见参考资料 [3] 和 [4]；完整的工程可用代码，请参见参考资料 [5]。该项目中还提供了利用 C 文件接口的 file_line_reader 和基于内存映射文件的 mmap_line_reader。</p>
+<h4 id="7-5-参考资料"><a href="#7-5-参考资料" class="headerlink" title="7.5 参考资料"></a>7.5 参考资料</h4><ol>
+<li><p>cppreference.com, “Iterator library”. <a target="_blank" rel="noopener" href="https://en.cppreference.com/w/cpp/iterator">https://en.cppreference.com/w/cpp/iterator</a></p>
+<p> a. cppreference.com, “迭代器库”. <a target="_blank" rel="noopener" href="https://zh.cppreference.com/w/cpp/iterator">https://zh.cppreference.com/w/cpp/iterator</a></p>
+</li>
+<li><p>Jonathan Boccara, “std::iterator is deprecated: why, what it was, and what to use instead”. <a target="_blank" rel="noopener" href="https://www.fluentcpp.com/2018/05/08/std-iterator-deprecated/">https://www.fluentcpp.com/2018/05/08/std-iterator-deprecated/</a></p>
+</li>
+<li><p>吴咏炜, “Python yield and C++ coroutines”. <a target="_blank" rel="noopener" href="https://yongweiwu.wordpress.com/2016/08/16/python-yield-and-cpluspluscoroutines/">https://yongweiwu.wordpress.com/2016/08/16/python-yield-and-cpluspluscoroutines/</a></p>
+</li>
+<li><p>吴咏炜, “Performance of my line readers”. <a target="_blank" rel="noopener" href="https://yongweiwu.wordpress.com/2016/11/12/performance-of-my-line-readers/">https://yongweiwu.wordpress.com/2016/11/12/performance-of-my-line-readers/</a></p>
+</li>
+<li><p>吴咏炜, nvwa. <a target="_blank" rel="noopener" href="https://github.com/adah1972/nvwa/">https://github.com/adah1972/nvwa/</a></p>
+</li>
+</ol>
 
                 
             </div>
