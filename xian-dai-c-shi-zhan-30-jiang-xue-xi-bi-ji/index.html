@@ -431,7 +431,7 @@
                 
                 <div class="post-date info-break-policy">
                     <i class="far fa-calendar-check fa-fw"></i>更新日期:&nbsp;&nbsp;
-                    2022-01-26
+                    2022-01-27
                 </div>
                 
 
@@ -2056,6 +2056,430 @@ cout <span class="token operator">&lt;&lt;</span> bitset<span class="token opera
 <li>Wikipedia, “Mars Climate Orbiter”. <a target="_blank" rel="noopener" href="https://en.wikipedia.org/wiki/Mars_Climate_Orbiter">https://en.wikipedia.org/wiki/Mars_Climate_Orbiter</a></li>
 <li>cppreference.com, “User-defined literals”. <a target="_blank" rel="noopener" href="https://en.cppreference.com/w/cpp/language/user_literal">https://en.cppreference.com/w/cpp/language/user_literal</a></li>
 <li>cppreference.com, “Non-static member functions”, section “Special member functions”. <a target="_blank" rel="noopener" href="https://en.cppreference.com/w/cpp/language/member_functions">https://en.cppreference.com/w/cpp/language/member_functions</a></li>
+</ol>
+<h2 id="02丨提高篇"><a href="#02丨提高篇" class="headerlink" title="02丨提高篇"></a>02丨提高篇</h2><h3 id="10-到底应不应该返回对象？"><a href="#10-到底应不应该返回对象？" class="headerlink" title="10 | 到底应不应该返回对象？"></a>10 | 到底应不应该返回对象？</h3><h4 id="10-1-F-20"><a href="#10-1-F-20" class="headerlink" title="10.1 F.20"></a>10.1 F.20</h4><p>《C++ 核心指南》的 F.20 这一条款是这么说的 [1]：</p>
+<blockquote>
+<p>F.20: For “out” output values, prefer return values to output parameters</p>
+</blockquote>
+<p>翻译一下：</p>
+<blockquote>
+<p>在函数输出数值时，尽量使用返回值而非输出参数</p>
+</blockquote>
+<h4 id="10-2-如何返回一个对象？"><a href="#10-2-如何返回一个对象？" class="headerlink" title="10.2 如何返回一个对象？"></a>10.2 如何返回一个对象？</h4><p>一个用来返回的对象，通常应当是<strong>可移动构造 / 赋值</strong>的，一般也同时是<strong>可拷贝构造 / 赋值</strong>的。如果这样一个对象同时又<strong>可以默认构造</strong>，我们就称其为一个<strong>半正则（semiregular）</strong>的对象。如果可能的话，我们应当尽量让我们的类满足半正则这个要求。</p>
+<p>半正则意味着我们的 matrix 类提供下面的成员函数：</p>
+<pre class="line-numbers language-cpp" data-language="cpp"><code class="language-cpp"><span class="token keyword">class</span> <span class="token class-name">matrix</span> <span class="token punctuation">{</span>
+<span class="token keyword">public</span><span class="token operator">:</span>
+    <span class="token comment">// 普通构造</span>
+    <span class="token function">matrix</span><span class="token punctuation">(</span>size_t rows<span class="token punctuation">,</span> size_t cols<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token comment">// 半正则要求的构造</span>
+    <span class="token function">matrix</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token function">matrix</span><span class="token punctuation">(</span><span class="token keyword">const</span> matrix<span class="token operator">&amp;</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token function">matrix</span><span class="token punctuation">(</span>matrix<span class="token operator">&amp;&amp;</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token comment">// 半正则要求的赋值</span>
+    matrix<span class="token operator">&amp;</span> <span class="token keyword">operator</span><span class="token operator">=</span><span class="token punctuation">(</span><span class="token keyword">const</span> matrix<span class="token operator">&amp;</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    matrix<span class="token operator">&amp;</span> <span class="token keyword">operator</span><span class="token operator">=</span><span class="token punctuation">(</span>matrix<span class="token operator">&amp;&amp;</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>我们先看一下在没有返回值优化的情况下 C++ 是怎样返回对象的。以矩阵乘法为例，代码应该像下面这样：</p>
+<pre class="line-numbers language-cpp" data-language="cpp"><code class="language-cpp">matrix <span class="token keyword">operator</span><span class="token operator">*</span><span class="token punctuation">(</span><span class="token keyword">const</span> matrix<span class="token operator">&amp;</span> lhs<span class="token punctuation">,</span> <span class="token keyword">const</span> matrix<span class="token operator">&amp;</span> rhs<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword">if</span> <span class="token punctuation">(</span>lhs<span class="token punctuation">.</span><span class="token function">cols</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token operator">!=</span> rhs<span class="token punctuation">.</span><span class="token function">rows</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+        <span class="token keyword">throw</span> <span class="token function">runtime_error</span><span class="token punctuation">(</span><span class="token string">"sizes mismatch"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+    matrix <span class="token function">result</span><span class="token punctuation">(</span>lhs<span class="token punctuation">.</span><span class="token function">rows</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">,</span> rhs<span class="token punctuation">.</span><span class="token function">cols</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token comment">// 具体计算过程</span>
+    <span class="token keyword">return</span> result<span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>在 <strong>[第 3 讲]</strong> 里说过的，返回非引用类型的表达式结果是个纯右值（prvalue）。在执行 auto r = … 的时候，编译器会认为我们实际是在构造 matrix r(…)，而“…”部分是一个纯右值。因此编译器会首先试图匹配 matrix(matrix&amp;&amp;)，在没有时则试图匹配 matrix(const matrix&amp;)；也就是说，有移动支持时使用移动，没有移动支持时则拷贝。</p>
+<h4 id="10-3-返回值优化（拷贝消除）"><a href="#10-3-返回值优化（拷贝消除）" class="headerlink" title="10.3 返回值优化（拷贝消除）"></a>10.3 返回值优化（拷贝消除）</h4><p>我们再来看一个能显示生命期过程的对象的例子：</p>
+<pre class="line-numbers language-cpp" data-language="cpp"><code class="language-cpp"><span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;iostream&gt;</span></span>
+<span class="token keyword">using</span> <span class="token keyword">namespace</span> std<span class="token punctuation">;</span>
+
+<span class="token comment">// Can copy and move</span>
+<span class="token keyword">class</span> <span class="token class-name">A</span> <span class="token punctuation">{</span>
+<span class="token keyword">public</span><span class="token operator">:</span>
+    <span class="token function">A</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{</span> cout <span class="token operator">&lt;&lt;</span> <span class="token string">"Create A\n"</span><span class="token punctuation">;</span> <span class="token punctuation">}</span>
+    <span class="token operator">~</span><span class="token function">A</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{</span> cout <span class="token operator">&lt;&lt;</span> <span class="token string">"Destroy A\n"</span><span class="token punctuation">;</span> <span class="token punctuation">}</span>
+    <span class="token function">A</span><span class="token punctuation">(</span><span class="token keyword">const</span> A<span class="token operator">&amp;</span><span class="token punctuation">)</span> <span class="token punctuation">{</span> cout <span class="token operator">&lt;&lt;</span> <span class="token string">"Copy A\n"</span><span class="token punctuation">;</span> <span class="token punctuation">}</span>
+    <span class="token function">A</span><span class="token punctuation">(</span>A<span class="token operator">&amp;&amp;</span><span class="token punctuation">)</span> <span class="token punctuation">{</span> cout <span class="token operator">&lt;&lt;</span> <span class="token string">"Move A\n"</span><span class="token punctuation">;</span> <span class="token punctuation">}</span>
+<span class="token punctuation">}</span><span class="token punctuation">;</span>
+
+A <span class="token function">getA_unnamed</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword">return</span> <span class="token function">A</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+
+<span class="token keyword">int</span> <span class="token function">main</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword">auto</span> a <span class="token operator">=</span> <span class="token function">getA_unnamed</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>如果你认为执行结果里应当有一行“Copy A”或“Move A”的话，你就忽视了返回值优化的威力了。即使完全关闭优化，三种主流编译器（GCC、Clang 和 MSVC）都只输出两行：</p>
+<pre class="line-numbers language-text" data-language="text"><code class="language-text">Create A
+Destroy A<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre>
+<p>我们把代码稍稍改一下：</p>
+<pre class="line-numbers language-cpp" data-language="cpp"><code class="language-cpp">A <span class="token function">getA_named</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    A a<span class="token punctuation">;</span>
+    <span class="token keyword">return</span> a<span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+
+<span class="token keyword">int</span> <span class="token function">main</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword">auto</span> a <span class="token operator">=</span> <span class="token function">getA_named</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>这回结果有了一点点小变化。虽然 GCC 和 Clang 的结果完全不变，但 MSVC 在非优化编译的情况下产生了不同的输出（优化编译——使用命令行参数 /O1、/O2 或 /Ox——则不变）：</p>
+<pre class="line-numbers language-text" data-language="text"><code class="language-text">Create A
+Move A
+Destroy A
+Destroy A<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span></span></code></pre>
+<p>也就是说，返回内容被移动构造了。</p>
+<p>我们继续变形一下：</p>
+<pre class="line-numbers language-cpp" data-language="cpp"><code class="language-cpp"><span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;stdlib.h&gt;</span></span>
+
+A <span class="token function">getA_duang</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    A a1<span class="token punctuation">;</span>
+    A a2<span class="token punctuation">;</span>
+    <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token function">rand</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token operator">&gt;</span> <span class="token number">42</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+        <span class="token keyword">return</span> a1<span class="token punctuation">;</span>
+    <span class="token punctuation">}</span> <span class="token keyword">else</span> <span class="token punctuation">{</span>
+        <span class="token keyword">return</span> a2<span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+<span class="token punctuation">}</span>
+
+<span class="token keyword">int</span> <span class="token function">main</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword">auto</span> a <span class="token operator">=</span> <span class="token function">getA_duang</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>这回所有的编译器都被难倒了，输出是：</p>
+<pre class="line-numbers language-text" data-language="text"><code class="language-text">Create A
+Create A
+Move A
+Destroy A
+Destroy A
+Destroy A<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>关于返回值优化的实验我们就做到这里。下一步，我们试验一下把移动构造函数删除：</p>
+<pre class="line-numbers language-text" data-language="text"><code class="language-text">A(A&amp;&amp;) = delete;<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>我们可以立即看到“Copy A”出现在了结果输出中，说明目前结果变成拷贝构造了。</p>
+<p>如果再进一步，把拷贝构造函数也删除呢？是不是上面的 getA_unnamed、getA_named 和 getA_duang 都不能工作了？</p>
+<p>在 C++14 及之前确实是这样的。但从 C++17 开始，对于类似于 getA_unnamed 这样的情况，即使对象不可拷贝、不可移动，这个对象仍然是可以被返回的！C++17 要求对于这种情况，对象必须被直接构造在目标位置上，不经过任何拷贝或移动的步骤 [3]。</p>
+<h4 id="10-4-回到-F-20"><a href="#10-4-回到-F-20" class="headerlink" title="10.4 回到 F.20"></a>10.4 回到 F.20</h4><p>理解了 C++ 里的对返回值的处理和返回值优化之后，我们再回过头看一下 F.20 里陈述的理由的话，应该就显得很自然了：</p>
+<blockquote>
+<p>A return value is self-documenting, whereas a &amp; could be either in-out or outonly and is liable to be misused.</p>
+<p>返回值是可以自我描述的；而 &amp; 参数既可能是输入输出，也可能是仅输出，且很容易被误用。</p>
+</blockquote>
+<p>我想我对返回对象的可读性，已经给出了充足的例子。对于其是否有性能影响这一问题，也给出了充分的说明。</p>
+<p>我们最后看一下 F.20 里描述的例外情况：</p>
+<ul>
+<li>“对于非值类型，比如返回值可能是子对象的情况，使用 unique_ptr 或 shared_ptr 来返回对象。”也就是面向对象、工厂方法这样的情况，像 <strong>[第 1 讲]</strong> 里给出的 create_shape 应该这样改造。</li>
+<li>“对于移动代价很高的对象，考虑将其分配在堆上，然后返回一个句柄（如 unique_ptr），或传递一个非 const 的目标对象的引用来填充（用作输出参数）。”也就是说不方便移动的，那就只能使用一个 RAII 对象来管理生命周期，或者老办法输出参数了。</li>
+<li>“要在一个内层循环里在多次函数调用中重用一个自带容量的对象：将其当作输入 / 输出参数并将其按引用传递。”这也是个需要继续使用老办法的情况。</li>
+</ul>
+<h4 id="10-5-参考资料"><a href="#10-5-参考资料" class="headerlink" title="10.5 参考资料"></a>10.5 参考资料</h4><ol>
+<li>Bjarne Stroustrup and Herb Sutter (editors), “C++ core guidelines”, item F.20. <a target="_blank" rel="noopener" href="https://isocpp.github.io/CppCoreGuidelines/CppCoreGuidelines#Rf-out">https://isocpp.github.io/CppCoreGuidelines/CppCoreGuidelines#Rf-out</a> (非官方中文版可参见 <a target="_blank" rel="noopener" href="https://github.com/lynnboy/CppCoreGuidelines-zh-CN">https://github.com/lynnboy/CppCoreGuidelines-zh-CN</a>)</li>
+<li>Conrad Sanderson and Ryan Curtin, Armadillo. <a target="_blank" rel="noopener" href="http://arma.sourceforge.net/">http://arma.sourceforge.net/</a></li>
+<li>cppreference.com, “Copy elision”. <a target="_blank" rel="noopener" href="https://en.cppreference.com/w/cpp/language/copy_elision">https://en.cppreference.com/w/cpp/language/copy_elision</a></li>
+</ol>
+<h3 id="11-Unicode：进入多文字支持的世界"><a href="#11-Unicode：进入多文字支持的世界" class="headerlink" title="11 | Unicode：进入多文字支持的世界"></a>11 | Unicode：进入多文字支持的世界</h3><h4 id="11-1-一些历史"><a href="#11-1-一些历史" class="headerlink" title="11.1 一些历史"></a>11.1 一些历史</h4><p>ASCII [1] 是一种创立于 1963 年的 7 位编码，用 0 到 127 之间的数值来代表最常用的字符，包含了控制字符（很多在今天已不再使用）、数字、大小写拉丁字母、空格和基本标点。它在编码上具有简单性，字母和数字的编码位置非常容易记忆。时至今日，ASCII 可以看作是字符编码的基础，主要的编码方式都保持着与 ASCII 的兼容性。</p>
+<p><img src="/images/《现代C++实战30讲》学习笔记/ASCII表.png" alt="ASCII表"></p>
+<p>ASCII 里只有基本的拉丁字母，它既没有带变音符的拉丁字母（如 é 和 ä ），也不支持像希腊字母（如 α、β、γ）、西里尔字母（如 Пушкин）这样的其他欧洲文字（也难怪，毕竟它是 American Standard Code for Information Interchange）。很多其他编码方式纷纷应运而生，包括 ISO 646 系列、ISO/IEC 8859 系列等等；大部分编码方式都是头 128 个字符与 ASCII 兼容，后 128 个字符是自己的扩展，总共最多是 256 个字符。每次只有一套方式可以生效，称之为一个代码页（code page）。这种做法，只能适用于文字相近、且字符数不多的国家。比如，下图表示了 ISO-8859-1（也称作 Latin-1）和后面的 Windows 扩展代码页 1252（下图中绿框部分为 Windows 的扩展），就只能适用于西欧国家。</p>
+<p><img src="/images/《现代C++实战30讲》学习笔记/CP1252.png" alt="CP1252"></p>
+<p>最早的中文字符集标准是 1980 年的国标 GB2312 [3]，其中收录了 6763 个常用汉字和 682 个其他符号。我们平时会用到编码 GB2312，其实更正确的名字是 EUC-CN [4]，它是一种与 ASCII 兼容的编码方式。它用单字节表示 ASCII 字符而用双字节表示 GB2312 中的字符；由于 GB2312 中本身也含有 ASCII 中包含的字符，在使用中逐渐就形成了“半角”和“全角”的区别。</p>
+<p>国标字符集后面又有扩展，这个扩展后的字符集就是 GBK [5]，是中文版 Windows 使用的标准编码方式。GB2312 和 GBK 所占用的编码位置可以参看下面的图（由 John M. Długosz 为 Wikipedia 绘制）：</p>
+<p><img src="/images/《现代C++实战30讲》学习笔记/GBK编码的第一字节和第二字节分布.png" alt="GBK编码的第一字节和第二字节分布"></p>
+<p>图中 GBK/1 和 GBK/2 为 GB2312 中已经定义的区域，其他的则是后面添加的字符，总共定义了两万多个编码点，支持了绝大部分现代汉语中还在使用的字。</p>
+<p>Unicode [6] 作为一种统一编码的努力，诞生于八十年代末九十年代初，标准的第一版出版于 1991—1992 年。由于最初发明者的目标放得太低，只期望对活跃使用中的现代文字进行编码，他们认为 16 比特的“宽 ASCII”就够用了。这就导致了早期采纳 Unicode 的组织，特别是微软，在其操作系统和工具链中广泛采用了 16 比特的编码方式。在今天，微软的系统中宽字符类型 wchar_t 仍然是 16 位的，操作系统底层接口大量使用 16 位字符编码的 API，说到 Unicode 编码时仍然指的是 16 位的编码 UTF-16（这一不太正确的名字，跟中文 GBK 编码居然可以被叫做 ANSI 相比，实在是小巫见大巫了）。在微软以外的世界， Unicode 本身不作编码名称用，并且最主流的编码方式并不是 UTF-16，而是和 ASCII 全兼容的 UTF-8。</p>
+<p>早期 Unicode 组织的另一个决定是不同语言里的同一个字符使用同一个编码点，来减少总编码点的数量。中日韩三国使用的汉字就这么被统一了：像“将”、“径”、“网”等字，每个字在 Unicode 中只占一个编码点。这对网页的字体选择也造成了不少麻烦，时至今日我们仍然可以看到这个问题 [10]。不过这和我们的主题无关，就不再多费笔墨了。</p>
+<h4 id="11-2-Unicode-简介"><a href="#11-2-Unicode-简介" class="headerlink" title="11.2 Unicode 简介"></a>11.2 Unicode 简介</h4><p>Unicode 在今天已经大大超出了最初的目标。到 Unicode 12.1 为止，Unicode 已经包含了 137,994 个字符，囊括所有主要语言（使用中的和已经不再使用的），并包含了表情符号、数学符号等各种特殊字符。仍然要指出一下，Unicode 字符是根据含义来区分的，而非根据字形。除了前面提到过中日韩汉字没有分开，像斜体（italics）、小大写字母（small caps）等排版效果在 Unicode 里也没有独立的对应。不过，因为 Unicode 里包含了很多数学、物理等自然科学中使用的特殊符号，某些情况下你也可以找到对应的符号，可以用在聊天中耍酷，如 𝒷𝒶𝒹（但不适合严肃的排版）。</p>
+<p>Unicode 的编码点是从 0x0 到 0x10FFFF，一共 1,114,112 个位置。一般用“U+”后面跟 16 进制的数值来表示一个 Unicode 字符，如 U+0020 表示空格，U+6C49 表示“汉”，U+1F600 表示“😀”，等等（不足四位的一般写四位）。</p>
+<p>Unicode 字符的常见编码方式有：</p>
+<ul>
+<li>UTF-32 [7]：32 比特，是编码点的直接映射。</li>
+<li>UTF-16 [8]：对于从 U+0000 到 U+FFFF 的字符，使用 16 比特的直接映射；对于大于 U+FFFF 的字符，使用 32 比特的特殊映射关系——在 Unicode 的 16 比特编码点中 0xD800–0xDFFF 是一段空隙，使得这种变长编码成为可能。在一个 UTF-16 的序列中，如果看到内容是 0xD800–0xDBFF，那这就是 32 比特编码的前 16 比特；如果看到内容是 0xDC00–0xDFFF，那这是 32 比特编码的后 16 比特；如果内容在 0xD800–0xDFFF 之外，那就是一个 16 比特的映射。</li>
+<li>UTF-8 [9]：1 到 4 字节的变长编码。在一个合法的 UTF-8 的序列中，如果看到一个字节的最高位是 0，那就是一个单字节的 Unicode 字符；如果一个字节的最高两比特是 10，那这是一个 Unicode 字符在编码后的后续字节；否则，这就是一个 Unicode 字符在编码后的首字节，且最高位开始连续 1 的个数表示了这个字符按 UTF-8 的方式编码有几个字节。</li>
+</ul>
+<p>在上面三种编码方式里，只有 UTF-8 完全保持了和 ASCII 的兼容性，目前得到了最广泛的使用。在我们下面讲具体编码方式之前，我们先看一下上面提到的三个字符在这三种方式下的编码结果：</p>
+<ul>
+<li>UTF-32：U+0020 映射为 0x00000020，U+6C49 映射为 0x00006C49，U+1F600 映射为 0x0001F600。</li>
+<li>UTF-16：U+0020 映射为 0x0020，U+6C49 映射为 0x6C49，而 U+1F600 会映射为 0xD83D DE00。</li>
+<li>UTF-8：U+0020 映射为 0x20，U+6C49 映射为 0xE6 B1 89，而 U+1F600 会映射为 0xF0 9F 98 80。</li>
+</ul>
+<p>Unicode 有好几种（上面还不是全部）不同的编码方式，上面的 16 比特和 32 比特编码方式还有小头党和大头党之争（“汉”按字节读取时是 6C 49 呢，还是 49 6C？）；同时，任何一种编码方式还需要跟传统的编码方式容易区分。因此，Unicode 文本文件通常有一个使用 BOM（byte order mark）字符的约定，即字符 U+FEFF [11]。由于 Unicode 不使用 U+FFFE，在文件开头加一个 BOM 即可区分各种不同编码：</p>
+<ul>
+<li>如果文件开头是 0x00 00 FE FF，那这是大头在前的 UTF-32 编码；</li>
+<li>否则如果文件开头是 0xFF FE 00 00，那这是小头在前的 UTF-32 编码；</li>
+<li>否则如果文件开头是 0xFE FF，那这是大头在前的 UTF-16 编码；</li>
+<li>否则如果文件开头是 0xFF FE，那这是小头在前的 UTF-16 编码（注意，这条规则和第二条的顺序不能相反）；</li>
+<li>否则如果文件开头是 0xEF BB BF，那这是 UTF-8 编码；</li>
+<li>否则，编码方式使用其他算法来确定。</li>
+</ul>
+<p>在 UTF-8 编码下使用 BOM 字符并非必需，尤其在 Unix 上。但 Windows 上通常会使用 BOM 字符，以方便区分 UTF-8 和传统编码。</p>
+<h4 id="11-3-C-中的-Unicode-字符类型"><a href="#11-3-C-中的-Unicode-字符类型" class="headerlink" title="11.3 C++ 中的 Unicode 字符类型"></a>11.3 C++ 中的 Unicode 字符类型</h4><p>C++98 中有 char 和 wchar_t 两种不同的字符类型，其中 char 的长度是单字节，而 wchar_t 的长度不确定。在 Windows 上它是双字节，只能代表 UTF-16，而在 Unix 上一般是四字节，可以代表 UTF-32。为了解决这种混乱，目前我们有了下面的改进：</p>
+<ul>
+<li>C++11 引入了 char16_t 和 char32_t 两个独立的字符类型（不是类型别名），分别代表 UTF-16 和 UTF-32。</li>
+<li>C++20 将引入 char8_t 类型，进一步区分了可能使用传统编码的窄字符类型和 UTF-8 字符类型。</li>
+<li>除了 string 和 wstring，我们也相应地有了 u16string、u32string（和将来的 u8string）。</li>
+<li>除了传统的窄字符 / 字符串字面量（如 “hi”）和宽字符 / 字符串字面量（如 L”hi”），引入了新的 UTF-8、UTF-16 和 UTF-32 字面量，分别形如 u8”hi”、u”hi” 和 U”hi”。</li>
+<li>为了确保非 ASCII 字符在源代码中可以简单地输入，引入了新的 Unicode 换码序列。比如，我们前面说到的三个字符可以这样表达成一个 UTF-32 字符串字面量：U”\u6C49\U0001F600”。要生成 UTF-16 或 UTF-8 字符串字面量只需要更改前缀即可。</li>
+</ul>
+<p>使用这些新的字符（串）类型，我们可以用下面的代码表达出 UTF-32 和其他两种 UTF 编码间是如何转换的：</p>
+<pre class="line-numbers language-cpp" data-language="cpp"><code class="language-cpp"><span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;iomanip&gt;</span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;iostream&gt;</span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;stdexcept&gt;</span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;string&gt;</span></span>
+<span class="token keyword">using</span> <span class="token keyword">namespace</span> std<span class="token punctuation">;</span>
+
+<span class="token keyword">const</span> <span class="token keyword">char32_t</span> unicode_max <span class="token operator">=</span> <span class="token number">0x10FFFF</span><span class="token punctuation">;</span>
+
+<span class="token keyword">void</span> <span class="token function">to_utf_16</span><span class="token punctuation">(</span><span class="token keyword">char32_t</span> ch<span class="token punctuation">,</span> u16string<span class="token operator">&amp;</span> result<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword">if</span> <span class="token punctuation">(</span>ch <span class="token operator">&gt;</span> unicode_max<span class="token punctuation">)</span> <span class="token punctuation">{</span>
+        <span class="token keyword">throw</span> <span class="token function">runtime_error</span><span class="token punctuation">(</span><span class="token string">"invalid code point"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+    <span class="token keyword">if</span> <span class="token punctuation">(</span>ch <span class="token operator">&lt;</span> <span class="token number">0x10000</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+        result <span class="token operator">+=</span> <span class="token keyword">char16_t</span><span class="token punctuation">(</span>ch<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span> <span class="token keyword">else</span> <span class="token punctuation">{</span>
+        <span class="token keyword">char16_t</span> first <span class="token operator">=</span> <span class="token number">0xD800</span> <span class="token operator">|</span> <span class="token punctuation">(</span><span class="token punctuation">(</span>ch <span class="token operator">-</span> <span class="token number">0x10000</span><span class="token punctuation">)</span> <span class="token operator">&gt;&gt;</span> <span class="token number">10</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token keyword">char16_t</span> second <span class="token operator">=</span> <span class="token number">0xDC00</span> <span class="token operator">|</span> <span class="token punctuation">(</span>ch <span class="token operator">&amp;</span> <span class="token number">0x3FF</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        result <span class="token operator">+=</span> first<span class="token punctuation">;</span>
+        result <span class="token operator">+=</span> second<span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+<span class="token punctuation">}</span>
+<span class="token keyword">void</span> <span class="token function">to_utf_8</span><span class="token punctuation">(</span><span class="token keyword">char32_t</span> ch<span class="token punctuation">,</span> string<span class="token operator">&amp;</span> result<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword">if</span> <span class="token punctuation">(</span>ch <span class="token operator">&gt;</span> unicode_max<span class="token punctuation">)</span> <span class="token punctuation">{</span>
+        <span class="token keyword">throw</span> <span class="token function">runtime_error</span><span class="token punctuation">(</span><span class="token string">"invalid code point"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+    <span class="token keyword">if</span> <span class="token punctuation">(</span>ch <span class="token operator">&lt;</span> <span class="token number">0x80</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+        result <span class="token operator">+=</span> ch<span class="token punctuation">;</span>
+    <span class="token punctuation">}</span> <span class="token keyword">else</span> <span class="token keyword">if</span> <span class="token punctuation">(</span>ch <span class="token operator">&lt;</span> <span class="token number">0x800</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+        result <span class="token operator">+=</span> <span class="token number">0xC0</span> <span class="token operator">|</span> <span class="token punctuation">(</span>ch <span class="token operator">&gt;&gt;</span> <span class="token number">6</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        result <span class="token operator">+=</span> <span class="token number">0x80</span> <span class="token operator">|</span> <span class="token punctuation">(</span>ch <span class="token operator">&amp;</span> <span class="token number">0x3F</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span> <span class="token keyword">else</span> <span class="token keyword">if</span> <span class="token punctuation">(</span>ch <span class="token operator">&lt;</span> <span class="token number">0x10000</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+        result <span class="token operator">+=</span> <span class="token number">0xE0</span> <span class="token operator">|</span> <span class="token punctuation">(</span>ch <span class="token operator">&gt;&gt;</span> <span class="token number">12</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        result <span class="token operator">+=</span> <span class="token number">0x80</span> <span class="token operator">|</span> <span class="token punctuation">(</span><span class="token punctuation">(</span>ch <span class="token operator">&gt;&gt;</span> <span class="token number">6</span><span class="token punctuation">)</span> <span class="token operator">&amp;</span> <span class="token number">0x3F</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        result <span class="token operator">+=</span> <span class="token number">0x80</span> <span class="token operator">|</span> <span class="token punctuation">(</span>ch <span class="token operator">&amp;</span> <span class="token number">0x3F</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span> <span class="token keyword">else</span> <span class="token punctuation">{</span>
+        result <span class="token operator">+=</span> <span class="token number">0xF0</span> <span class="token operator">|</span> <span class="token punctuation">(</span>ch <span class="token operator">&gt;&gt;</span> <span class="token number">18</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        result <span class="token operator">+=</span> <span class="token number">0x80</span> <span class="token operator">|</span> <span class="token punctuation">(</span><span class="token punctuation">(</span>ch <span class="token operator">&gt;&gt;</span> <span class="token number">12</span><span class="token punctuation">)</span> <span class="token operator">&amp;</span> <span class="token number">0x3F</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        result <span class="token operator">+=</span> <span class="token number">0x80</span> <span class="token operator">|</span> <span class="token punctuation">(</span><span class="token punctuation">(</span>ch <span class="token operator">&gt;&gt;</span> <span class="token number">6</span><span class="token punctuation">)</span> <span class="token operator">&amp;</span> <span class="token number">0x3F</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        result <span class="token operator">+=</span> <span class="token number">0x80</span> <span class="token operator">|</span> <span class="token punctuation">(</span>ch <span class="token operator">&amp;</span> <span class="token number">0x3F</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+<span class="token punctuation">}</span>
+<span class="token keyword">int</span> <span class="token function">main</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword">char32_t</span> str<span class="token punctuation">[</span><span class="token punctuation">]</span> <span class="token operator">=</span> U<span class="token string">" \u6C49\U0001F600"</span><span class="token punctuation">;</span>
+    u16string u16str<span class="token punctuation">;</span>
+    string u8str<span class="token punctuation">;</span>
+
+    <span class="token keyword">for</span> <span class="token punctuation">(</span><span class="token keyword">auto</span> ch <span class="token operator">:</span> str<span class="token punctuation">)</span> <span class="token punctuation">{</span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span>ch <span class="token operator">==</span> <span class="token number">0</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+            <span class="token keyword">break</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+        <span class="token function">to_utf_16</span><span class="token punctuation">(</span>ch<span class="token punctuation">,</span> u16str<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token function">to_utf_8</span><span class="token punctuation">(</span>ch<span class="token punctuation">,</span> u8str<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+
+    cout <span class="token operator">&lt;&lt;</span> hex <span class="token operator">&lt;&lt;</span> <span class="token function">setfill</span><span class="token punctuation">(</span><span class="token string">'0'</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+    <span class="token keyword">for</span> <span class="token punctuation">(</span><span class="token keyword">char16_t</span> ch <span class="token operator">:</span> u16str<span class="token punctuation">)</span> <span class="token punctuation">{</span>
+        cout <span class="token operator">&lt;&lt;</span> <span class="token function">setw</span><span class="token punctuation">(</span><span class="token number">4</span><span class="token punctuation">)</span> <span class="token operator">&lt;&lt;</span> <span class="token keyword">unsigned</span><span class="token punctuation">(</span>ch<span class="token punctuation">)</span> <span class="token operator">&lt;&lt;</span> <span class="token string">' '</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+    cout <span class="token operator">&lt;&lt;</span> endl<span class="token punctuation">;</span>
+
+    <span class="token keyword">for</span> <span class="token punctuation">(</span><span class="token keyword">unsigned</span> <span class="token keyword">char</span> ch <span class="token operator">:</span> u8str<span class="token punctuation">)</span> <span class="token punctuation">{</span>
+        cout <span class="token operator">&lt;&lt;</span> <span class="token function">setw</span><span class="token punctuation">(</span><span class="token number">2</span><span class="token punctuation">)</span> <span class="token operator">&lt;&lt;</span> <span class="token keyword">unsigned</span><span class="token punctuation">(</span>ch<span class="token punctuation">)</span> <span class="token operator">&lt;&lt;</span> <span class="token string">' '</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+    cout <span class="token operator">&lt;&lt;</span> endl<span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>输出结果是：</p>
+<pre class="line-numbers language-text" data-language="text"><code class="language-text">0020 6c49 d83d de00
+20 e6 b1 89 f0 9f 98 80<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre>
+<h4 id="11-4-平台区别"><a href="#11-4-平台区别" class="headerlink" title="11.4 平台区别"></a>11.4 平台区别</h4><p>下面我们看一下在两个主流的平台上一般是如何处理 Unicode 编码问题的。</p>
+<ol>
+<li><p>Unix</p>
+<p> 现代 Unix 系统，包括 Linux 和 macOS 在内，已经全面转向了 UTF-8。这样的系统中一般直接使用 char[] 和 string 来代表 UTF-8 字符串，包括输入、输出和文件名，非常简单。不过，由于一个字符单位不能代表一个完整的 Unicode 字符，在需要真正进行文字处理的场合转换到 UTF-32 往往会更简单。在以前及需要和 C 兼容的场合，会使用 wchar_t、uint32_t 或某个等价的类型别名；在新的纯 C++ 代码里，就没有理由不使用 char32_t 和 u32string 了。</p>
+<p> Unix 下输出宽字符串需要使用 wcout（这点和 Windows 相同），并且需要进行区域设置，通常使用 setlocale(LC_ALL, “en_US.UTF-8”); 即足够。由于没有什么额外好处，Unix 平台下一般只用 cout，不用 wcout。</p>
+</li>
+<li><p>Windows</p>
+<p> Windows 由于历史原因和保留向后兼容性的需要（Windows 为了向后兼容性已经到了大规模放弃优雅的程度了），一直用 char 表示传统编码（如，英文 Windows 上是 Windows-1252，简体中文 Windows 上是 GBK），用 wchar_t 表示 UTF-16。由于传统编码一次只有一种、且需要重启才能生效，要得到好的多语言支持，在和操作系统交互时必须使用 UTF-16。</p>
+<p> 对于纯 Windows 编程，全面使用宽字符（串）是最简单的处理方式。当然，源代码和文本很少用 UTF-16 存储，通常还是 UTF-8（除非是纯 ASCII，否则需要加入 BOM 字符来和传统编码相区分）。这时可能会有一个小小的令人惊讶的地方：微软的编译器会把源代码里窄字符串字面量中的非 ASCII 字符转换成传统编码。换句话说，同样的源代码在不同编码的 Windows 下编译可能会产生不同的结果！如果你希望保留 UTF-8 序列的话，就应该使用 UTF-8 字面量（并在将来使用 char8_t 字符类型）。</p>
+ <pre class="line-numbers language-cpp" data-language="cpp"><code class="language-cpp"><span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;stdio.h&gt;</span></span>
+
+<span class="token keyword">template</span> <span class="token operator">&lt;</span><span class="token keyword">typename</span> <span class="token class-name">T</span><span class="token operator">&gt;</span>
+<span class="token keyword">void</span> <span class="token function">dump</span><span class="token punctuation">(</span><span class="token keyword">const</span> T<span class="token operator">&amp;</span> str<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword">for</span> <span class="token punctuation">(</span><span class="token keyword">char</span> ch <span class="token operator">:</span> str<span class="token punctuation">)</span> <span class="token punctuation">{</span>
+        <span class="token function">printf</span><span class="token punctuation">(</span><span class="token string">"%.2x "</span><span class="token punctuation">,</span> <span class="token keyword">static_cast</span><span class="token operator">&lt;</span><span class="token keyword">unsigned</span> <span class="token keyword">char</span><span class="token operator">&gt;</span><span class="token punctuation">(</span>ch<span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+    <span class="token function">putchar</span><span class="token punctuation">(</span><span class="token string">'\n'</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+
+<span class="token keyword">int</span> <span class="token function">main</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword">char</span> str<span class="token punctuation">[</span><span class="token punctuation">]</span> <span class="token operator">=</span> <span class="token string">"你好"</span><span class="token punctuation">;</span>
+    <span class="token keyword">char</span> u8str<span class="token punctuation">[</span><span class="token punctuation">]</span> <span class="token operator">=</span> u8<span class="token string">"你好"</span><span class="token punctuation">;</span>
+    <span class="token function">dump</span><span class="token punctuation">(</span>str<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token function">dump</span><span class="token punctuation">(</span>u8str<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p> 下面展示的是以上代码在 Windows 下系统传统编码设置为简体中文时的编译、运行结果：</p>
+ <pre class="line-numbers language-text" data-language="text"><code class="language-text">c4 e3 ba c3 00
+e4 bd a0 e5 a5 bd 00<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre>
+<p> Windows 下的 wcout 主要用在配合宽字符的输出，此外没什么大用处。原因一样，只有进行了正确的区域设置，才能输出含非 ASCII 字符的宽字符串。如果要输出中文，得写 setlocale(LC_ALL, “Chinese_China.936”);，这显然就让“统一码”输出失去意义了。</p>
+<p> 由于窄字符在大部分 Windows 系统上只支持传统编码，要打开一个当前编码不支持的文件名称，就必需使用宽字符的文件名。微软的 fstream 系列类及其 open 成员函数都支持 const wchar_t* 类型的文件名，这是 C++ 标准里所没有的。</p>
+</li>
+</ol>
+<h4 id="11-5-统一化处理"><a href="#11-5-统一化处理" class="headerlink" title="11.5 统一化处理"></a>11.5 统一化处理</h4><p>要想写出跨平台的处理字符串的代码，我们一般考虑两种方式之一：</p>
+<ul>
+<li>源代码级兼容，但内码不同</li>
+<li>源代码和内码都完全兼容</li>
+</ul>
+<p>微软推荐的方式一般是前者。做 Windows 开发的人很多都知道 tchar.h 和 _T 宏，它们就起着类似的作用（虽然目的不同）。根据预定义宏的不同，系统会在同一套代码下选择不同的编码方式及对应的函数。拿一个最小的例子来说：</p>
+<pre class="line-numbers language-cpp" data-language="cpp"><code class="language-cpp"><span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;stdio.h&gt;</span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;tchar.h&gt;</span></span>
+
+<span class="token keyword">int</span> <span class="token function">_tmain</span><span class="token punctuation">(</span><span class="token keyword">int</span> argc<span class="token punctuation">,</span> TCHAR<span class="token operator">*</span> argv<span class="token punctuation">[</span><span class="token punctuation">]</span><span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token function">_putts</span><span class="token punctuation">(</span><span class="token function">_T</span><span class="token punctuation">(</span><span class="token string">"Hello world!\n"</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>如果用缺省的命令行参数进行编译，上面的代码相当于：</p>
+<pre class="line-numbers language-cpp" data-language="cpp"><code class="language-cpp"><span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;stdio.h&gt;</span></span>
+
+<span class="token keyword">int</span> <span class="token function">main</span><span class="token punctuation">(</span><span class="token keyword">int</span> argc<span class="token punctuation">,</span> <span class="token keyword">char</span><span class="token operator">*</span> argv<span class="token punctuation">[</span><span class="token punctuation">]</span><span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token function">puts</span><span class="token punctuation">(</span><span class="token string">"Hello world!\n"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>而如果在命令行上加上了 /D_UNICODE，那代码则相当于：</p>
+<pre class="line-numbers language-cpp" data-language="cpp"><code class="language-cpp"><span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;stdio.h&gt;</span></span>
+
+<span class="token keyword">int</span> <span class="token function">wmain</span><span class="token punctuation">(</span><span class="token keyword">int</span> argc<span class="token punctuation">,</span> <span class="token keyword">wchar_t</span><span class="token operator">*</span> argv<span class="token punctuation">[</span><span class="token punctuation">]</span><span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token function">_putws</span><span class="token punctuation">(</span>L<span class="token string">"Hello world!\n"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>当然，这个代码还是只能在 Windows 上用，并且仍然不漂亮（所有的字符和字符串字面量都得套上 _T）。后者无解，前者则可以找到替代方案（甚至自己写也不复杂）。C++ REST SDK 中就提供了类似的封装，可以跨平台地开发网络应用。但可以说，这种方式是一种主要照顾 Windows 的开发方式。</p>
+<p>相应的，对 Unix 开发者而言更自然的方式是全面使用 UTF-8，仅在跟操作系统、文件系统打交道时把字符串转换成需要的编码。利用临时对象的生命周期，我们可以像下面这样写帮助函数和宏。</p>
+<p>utf8_to_native.hpp：</p>
+<pre class="line-numbers language-cpp" data-language="cpp"><code class="language-cpp"><span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">ifndef</span> <span class="token expression">UTF8_TO_NATIVE_HPP</span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">define</span> <span class="token expression">UTF8_TO_NATIVE_HPP</span></span>
+
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;string&gt;</span></span>
+
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">if</span> <span class="token expression"><span class="token function">defined</span><span class="token punctuation">(</span>_WIN32<span class="token punctuation">)</span> <span class="token operator">||</span> <span class="token function">defined</span><span class="token punctuation">(</span>_UNICODE<span class="token punctuation">)</span></span></span>
+
+std<span class="token operator">::</span>wstring <span class="token function">utf8_to_wstring</span><span class="token punctuation">(</span><span class="token keyword">const</span> <span class="token keyword">char</span><span class="token operator">*</span> str<span class="token punctuation">)</span><span class="token punctuation">;</span>
+std<span class="token operator">::</span>wstring <span class="token function">utf8_to_wstring</span><span class="token punctuation">(</span><span class="token keyword">const</span> std<span class="token operator">::</span>string<span class="token operator">&amp;</span> str<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">define</span> <span class="token expression"><span class="token function">NATIVE_STR</span><span class="token punctuation">(</span>s<span class="token punctuation">)</span> <span class="token function">utf8_to_wstring</span><span class="token punctuation">(</span>s<span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">c_str</span><span class="token punctuation">(</span><span class="token punctuation">)</span></span></span>
+
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">else</span></span>
+
+<span class="token keyword">inline</span> <span class="token keyword">const</span> <span class="token keyword">char</span><span class="token operator">*</span> <span class="token function">to_c_str</span><span class="token punctuation">(</span><span class="token keyword">const</span> <span class="token keyword">char</span><span class="token operator">*</span> str<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword">return</span> str<span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+<span class="token keyword">inline</span> <span class="token keyword">const</span> <span class="token keyword">char</span><span class="token operator">*</span> <span class="token function">to_c_str</span><span class="token punctuation">(</span><span class="token keyword">const</span> std<span class="token operator">::</span>string<span class="token operator">&amp;</span> str<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword">return</span> str<span class="token punctuation">.</span><span class="token function">c_str</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">define</span> <span class="token expression"><span class="token function">NATIVE_STR</span><span class="token punctuation">(</span>s<span class="token punctuation">)</span> <span class="token function">to_c_str</span><span class="token punctuation">(</span>s<span class="token punctuation">)</span></span></span>
+
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">endif</span></span>
+
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">endif</span> <span class="token comment">// UTF8_TO_NATIVE_HPP</span></span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>utf8_to_native.cpp：</p>
+<pre class="line-numbers language-cpp" data-language="cpp"><code class="language-cpp"><span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">"utf8_to_native.hpp"</span></span>
+
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">if</span> <span class="token expression"><span class="token function">defined</span><span class="token punctuation">(</span>_WIN32<span class="token punctuation">)</span> <span class="token operator">||</span> <span class="token function">defined</span><span class="token punctuation">(</span>_UNICODE<span class="token punctuation">)</span></span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;windows.h&gt;</span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;system_error&gt;</span></span>
+
+<span class="token keyword">namespace</span> <span class="token punctuation">{</span>
+<span class="token keyword">void</span> <span class="token function">throw_system_error</span><span class="token punctuation">(</span><span class="token keyword">const</span> <span class="token keyword">char</span><span class="token operator">*</span> reason<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    std<span class="token operator">::</span>string <span class="token function">msg</span><span class="token punctuation">(</span>reason<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    msg <span class="token operator">+=</span> <span class="token string">" failed"</span><span class="token punctuation">;</span>
+    std<span class="token operator">::</span>error_code <span class="token function">ec</span><span class="token punctuation">(</span><span class="token function">GetLastError</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">,</span> std<span class="token operator">::</span><span class="token function">system_category</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">throw</span> std<span class="token operator">::</span><span class="token function">system_error</span><span class="token punctuation">(</span>ec<span class="token punctuation">,</span> msg<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+<span class="token punctuation">}</span> <span class="token comment">/* unnamed namespace */</span>
+
+std<span class="token operator">::</span>wstring <span class="token function">utf8_to_wstring</span><span class="token punctuation">(</span><span class="token keyword">const</span> <span class="token keyword">char</span><span class="token operator">*</span> str<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword">int</span> len <span class="token operator">=</span> <span class="token function">MultiByteToWideChar</span><span class="token punctuation">(</span>CP_UTF8<span class="token punctuation">,</span> <span class="token number">0</span><span class="token punctuation">,</span> str<span class="token punctuation">,</span> <span class="token operator">-</span><span class="token number">1</span><span class="token punctuation">,</span> <span class="token keyword">nullptr</span><span class="token punctuation">,</span> <span class="token number">0</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">if</span> <span class="token punctuation">(</span>len <span class="token operator">==</span> <span class="token number">0</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+        <span class="token function">throw_system_error</span><span class="token punctuation">(</span><span class="token string">"utf8_to_wstring"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+    std<span class="token operator">::</span>wstring <span class="token function">result</span><span class="token punctuation">(</span>len <span class="token operator">-</span> <span class="token number">1</span><span class="token punctuation">,</span> L<span class="token string">'\0'</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token function">MultiByteToWideChar</span><span class="token punctuation">(</span>CP_UTF8<span class="token punctuation">,</span> <span class="token number">0</span><span class="token punctuation">,</span> str<span class="token punctuation">,</span> <span class="token operator">-</span><span class="token number">1</span><span class="token punctuation">,</span> result<span class="token punctuation">.</span><span class="token function">data</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">,</span> len<span class="token punctuation">)</span> <span class="token operator">==</span> <span class="token number">0</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+        <span class="token function">throw_system_error</span><span class="token punctuation">(</span><span class="token string">"utf8_to_wstring"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+    <span class="token keyword">return</span> result<span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+std<span class="token operator">::</span>wstring <span class="token function">utf8_to_wstring</span><span class="token punctuation">(</span><span class="token keyword">const</span> std<span class="token operator">::</span>string<span class="token operator">&amp;</span> str<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword">return</span> <span class="token function">utf8_to_wstring</span><span class="token punctuation">(</span>str<span class="token punctuation">.</span><span class="token function">c_str</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">endif</span></span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>在头文件里，定义了在 Windows 下会做 UTF-8 到 UTF-16 的转换；在其他环境下则不真正做转换，而是不管提供的是字符指针还是 string 都会转换成字符指针。在 Windows 下每次调用 NATIVE_STR 会生成一个临时对象，当前语句执行结束后这个临时对象会自动销毁。</p>
+<p>使用该功能的代码是这样的：</p>
+<pre class="line-numbers language-cpp" data-language="cpp"><code class="language-cpp"><span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;fstream&gt;</span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">"utf8_to_native.hpp"</span></span>
+
+<span class="token keyword">int</span> <span class="token function">main</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword">using</span> <span class="token keyword">namespace</span> std<span class="token punctuation">;</span>
+    <span class="token keyword">const</span> <span class="token keyword">char</span> filename<span class="token punctuation">[</span><span class="token punctuation">]</span> <span class="token operator">=</span> u8<span class="token string">"测试.txt"</span><span class="token punctuation">;</span>
+    ifstream <span class="token function">ifs</span><span class="token punctuation">(</span><span class="token function">NATIVE_STR</span><span class="token punctuation">(</span>filename<span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token comment">// 对 ifs 进行操作</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>上面这样的代码可以同时适用于现代 Unix 和现代 Windows（任何语言设置下），用来读取名为“测试.txt”的文件。</p>
+<h4 id="11-6-编程支持"><a href="#11-6-编程支持" class="headerlink" title="11.6 编程支持"></a>11.6 编程支持</h4><p>快速介绍一下其他的一些支持 Unicode 及其转换的 API。</p>
+<ol>
+<li><p>Windows API</p>
+<p> 上一节的代码在 Windows 下用到了 MultiByteToWideChar [12]，从某个编码转到 UTF-16。Windows 也提供了反向的 WideCharToMultiByte [13]，从 UTF-16 转到某个编码。从上面可以看到，C 接口用起来并不方便，可以考虑自己封装一下。</p>
+</li>
+<li><p>iconv</p>
+<p> Unix 下最常用的底层编码转换接口是 iconv [14]，提供 iconv_open、iconv_close 和 iconv 三个函数。这同样是 C 接口，实践中应该封装一下。</p>
+</li>
+<li><p>ICU4C</p>
+<p> ICU [15] 是一个完整的 Unicode 支持库，提供大量的方法，ICU4C 是其 C/C++ 的版本。ICU 有专门的字符串类型，内码是 UTF-16，但可以直接用于 IO streams 的输出。下面的程序应该在所有平台上都有同样的输出（但在 Windows 上要求当前系统传统编码能支持待输出的字符）：</p>
+ <pre class="line-numbers language-cpp" data-language="cpp"><code class="language-cpp"><span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;iostream&gt;</span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;string&gt;</span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;unicode/unistr.h&gt;</span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;unicode/ustream.h&gt;</span></span>
+
+<span class="token keyword">using</span> <span class="token keyword">namespace</span> std<span class="token punctuation">;</span>
+<span class="token keyword">using</span> icu<span class="token operator">::</span>UnicodeString<span class="token punctuation">;</span>
+
+<span class="token keyword">int</span> <span class="token function">main</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword">auto</span> str <span class="token operator">=</span> <span class="token class-name">UnicodeString</span><span class="token operator">::</span><span class="token function">fromUTF8</span><span class="token punctuation">(</span>u8<span class="token string">"你好"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    cout <span class="token operator">&lt;&lt;</span> str <span class="token operator">&lt;&lt;</span> endl<span class="token punctuation">;</span>
+    string u8str<span class="token punctuation">;</span>
+    str<span class="token punctuation">.</span><span class="token function">toUTF8String</span><span class="token punctuation">(</span>u8str<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    cout <span class="token operator">&lt;&lt;</span> <span class="token string">"In UTF-8 it is "</span> <span class="token operator">&lt;&lt;</span> u8str<span class="token punctuation">.</span><span class="token function">size</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token operator">&lt;&lt;</span> <span class="token string">" bytes"</span> <span class="token operator">&lt;&lt;</span> endl<span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre></li>
+<li><p>codecvt</p>
+<p> C++11 曾经引入了一个头文件 <codecvt> [16] 用作 UTF 编码间的转换，但很遗憾，那个头文件目前已因为存在安全性和易用性问题被宣告放弃（deprecated）[17]。<locale> 中有另外一个 codecvt 模板 [18]，本身接口不那么好用，而且到 C++20 还会发生变化，这儿也不详细介绍了。有兴趣的话可以直接看参考资料。</locale></codecvt></p>
+</li>
+</ol>
+<h4 id="11-7-参考资料"><a href="#11-7-参考资料" class="headerlink" title="11.7 参考资料"></a>11.7 参考资料</h4><ol>
+<li>Wikipedia, “ASCII”. <a target="_blank" rel="noopener" href="https://en.wikipedia.org/wiki/ASCII">https://en.wikipedia.org/wiki/ASCII</a></li>
+<li>Wikipedia, “EBCDIC”. <a target="_blank" rel="noopener" href="https://en.wikipedia.org/wiki/EBCDIC">https://en.wikipedia.org/wiki/EBCDIC</a></li>
+<li>Wikipedia, “GB 2312”. <a target="_blank" rel="noopener" href="https://en.wikipedia.org/wiki/GB_2312">https://en.wikipedia.org/wiki/GB_2312</a></li>
+<li>Wikipedia, “EUC-CN”. <a target="_blank" rel="noopener" href="https://en.wikipedia.org/wiki/Extended_Unix_Code#EUC-CN">https://en.wikipedia.org/wiki/Extended_Unix_Code#EUC-CN</a></li>
+<li>Wikipedia, “GBK”. <a target="_blank" rel="noopener" href="https://en.wikipedia.org/wiki/GBK_(character_encoding)">https://en.wikipedia.org/wiki/GBK_(character_encoding)</a></li>
+<li>Wikipedia, “Unicode”. <a target="_blank" rel="noopener" href="https://en.wikipedia.org/wiki/Unicode">https://en.wikipedia.org/wiki/Unicode</a></li>
+<li>Wikipedia, “UTF-32”. <a target="_blank" rel="noopener" href="https://en.wikipedia.org/wiki/UTF-32">https://en.wikipedia.org/wiki/UTF-32</a></li>
+<li>Wikipedia, “UTF-16”. <a target="_blank" rel="noopener" href="https://en.wikipedia.org/wiki/UTF-16">https://en.wikipedia.org/wiki/UTF-16</a></li>
+<li>Wikipedia, “UTF-8”. <a target="_blank" rel="noopener" href="https://en.wikipedia.org/wiki/UTF-8">https://en.wikipedia.org/wiki/UTF-8</a></li>
+<li>吴咏炜, “Specify LANG in a UTF-8 web page”. <a target="_blank" rel="noopener" href="http://wyw.dcweb.cn/lang_utf8.htm">http://wyw.dcweb.cn/lang_utf8.htm</a></li>
+<li>Wikipedia, “Byte order mark”. <a target="_blank" rel="noopener" href="https://en.wikipedia.org/wiki/Byte_order_mark">https://en.wikipedia.org/wiki/Byte_order_mark</a></li>
+<li>Microsoft, “MultiByteToWideChar function”.<a target="_blank" rel="noopener" href="https://docs.microsoft.com/en-us/windows/win32/api/stringapiset/nfstringapiset-multibytetowidechar">https://docs.microsoft.com/en-us/windows/win32/api/stringapiset/nfstringapiset-multibytetowidechar</a></li>
+<li>Microsoft, “WideCharToMultiByte function”.<a target="_blank" rel="noopener" href="https://docs.microsoft.com/en-us/windows/win32/api/stringapiset/nfstringapiset-widechartomultibyte">https://docs.microsoft.com/en-us/windows/win32/api/stringapiset/nfstringapiset-widechartomultibyte</a></li>
+<li>Wikipedia, “iconv”. <a target="_blank" rel="noopener" href="https://en.wikipedia.org/wiki/Iconv">https://en.wikipedia.org/wiki/Iconv</a></li>
+<li>ICU Technical Committee, ICU—International Components for Unicode. <a target="_blank" rel="noopener" href="http://site.icu-project.org/">http://site.icu-project.org/</a></li>
+<li>cppreference.com, “Standard library header <codecvt>”. <a target="_blank" rel="noopener" href="https://en.cppreference.com/w/cpp/header/codecvt">https://en.cppreference.com/w/cpp/header/codecvt</a></codecvt></li>
+<li>Alisdair Meredith, “Deprecating <codecvt>”. <a target="_blank" rel="noopener" href="http://www.openstd.org/jtc1/sc22/wg21/docs/papers/2017/p0618r0.html">http://www.openstd.org/jtc1/sc22/wg21/docs/papers/2017/p0618r0.html</a></codecvt></li>
+<li>cppreference.com, “std::codecvt”. <a target="_blank" rel="noopener" href="https://en.cppreference.com/w/cpp/locale/codecvt">https://en.cppreference.com/w/cpp/locale/codecvt</a></li>
 </ol>
 
                 
