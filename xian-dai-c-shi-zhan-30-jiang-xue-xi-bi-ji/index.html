@@ -6650,6 +6650,214 @@ future<span class="token operator">&lt;</span><span class="token keyword">int</s
 <li>Oliver Kowalke, Boost.Coroutine2. <a target="_blank" rel="noopener" href="https://www.boost.org/doc/libs/release/libs/coroutine2/doc/html/index.html">https://www.boost.org/doc/libs/release/libs/coroutine2/doc/html/index.html</a></li>
 <li>Dawid Pilarski, “Coroutines introduction”. <a target="_blank" rel="noopener" href="https://blog.panicsoftware.com/coroutines-introduction/">https://blog.panicsoftware.com/coroutines-introduction/</a></li>
 </ol>
+<h2 id="06丨加餐"><a href="#06丨加餐" class="headerlink" title="06丨加餐"></a>06丨加餐</h2><h3 id="加餐-部分课后思考题答案合集"><a href="#加餐-部分课后思考题答案合集" class="headerlink" title="加餐 | 部分课后思考题答案合集"></a>加餐 | 部分课后思考题答案合集</h3><p>本专栏部分课后思考题的答案，给你作为参考。</p>
+<ol>
+<li><p>你觉得智能指针应该满足什么样的线程安全性？</p>
+<p> 答：（不是真正的回答，只是描述一下标准中的智能指针的线程安全性。）</p>
+<ol>
+<li>多个不同线程同时访问不同的智能指针（不管是否指向同一个对象）是安全的。</li>
+<li>多个不同线程同时读取同一个智能指针是安全的。</li>
+<li>多个不同线程在同一个智能指针上执行原子操作（atomic_load 等）是安全的。</li>
+<li>多个不同线程根据同一个智能指针创建新的智能指针（增加引用计数）是安全的。</li>
+<li><p>只会有一个线程最后会（在引用计数表示已经无引用时）调用删除函数去销毁存储的对象。</p>
+<p>其他操作潜在是不安全的，特别是在不同的线程对同一个智能指针执行 reset 等修改操作。</p>
+</li>
+</ol>
+</li>
+<li><p>为什么 smart_ptr::operator= 对左值和右值都有效，而且不需要对等号两边是否引用同一对象进行判断？</p>
+<p> 答：我们使用值类型而非引用类型作为形参，这样实参永远会被移动（右值的情况）或复制（左值的情况），不可能和 *this 引用同一个对象。</p>
+</li>
+<li><p>为什么 stack（或 queue）的 pop 函数返回类型为 void，而不是直接返回容器的 top（或 front）成员？</p>
+<p> 答：这是 C++98 里、还没有移动语义时的设计。如果 pop 返回元素，而元素拷贝时发生异常的话，那这个元素就丢失了。因而容器设计成有分离的 top（或 front）和 pop 成员函数，分别执行访问和弹出的操作。</p>
+<p> 有一种可能的设计是把接口改成 void pop(T&amp;)，这增加了 T 必须支持默认构造和赋值的要求，在单线程为主的年代没有明显的好处，反而带来了对 T 的额外要求。</p>
+</li>
+<li><p>为什么大部分容器都提供了 begin、end 等方法？</p>
+<p> 答：容器提供了 begin 和 end 方法，就意味着是可以迭代（遍历）的。大部分容器都可以从头到尾遍历，因而也就需要提供这两个方法。</p>
+</li>
+<li><p>为什么容器没有继承一个公用的基类？</p>
+<p> 答：C++ 不是面向对象的语言，尤其在标准容器的设计上主要使用值语义，使用公共基类完全没有用处。</p>
+</li>
+<li><p>为什么说 UTF-32 处理会比较简单？</p>
+<p> 答：UTF-32 下，一个字符就是一个基本的处理单位，一般不会出现一个字符跨多个处理单位的情况（UTF-8 和 UTF-16 下会发生）。</p>
+</li>
+<li><p>你知道什么情况下 UTF-32 也并不那么简单吗？</p>
+<p> 答：Unicode 下有所谓的修饰字符，用来修饰前一个字符。按 Unicode 的处理规则，这些字符应该和基本字符一起处理（如断行之类）。所以 UTF-32 下也不可以在任意单位处粗暴断开处理。</p>
+</li>
+<li><p>哪种 UTF 编码方式空间存储效率比较高？</p>
+<p> 答：视存储的内容而定。比如，如果内容以 ASCII 为主（如源代码），那 UTF-8 效率最高。如果内容以一般的中文文本为主，那 UTF-16 效率最高。</p>
+</li>
+<li><p>想一想，你如何可以实现一个惰性的过滤器？</p>
+ <pre class="line-numbers language-cpp" data-language="cpp"><code class="language-cpp"><span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;iterator&gt;</span></span>
+<span class="token keyword">using</span> <span class="token keyword">namespace</span> std<span class="token punctuation">;</span>
+<span class="token keyword">template</span> <span class="token operator">&lt;</span><span class="token keyword">typename</span> <span class="token class-name">I</span><span class="token punctuation">,</span> <span class="token keyword">typename</span> <span class="token class-name">F</span><span class="token operator">&gt;</span>
+<span class="token keyword">class</span> <span class="token class-name">filter_view</span> <span class="token punctuation">{</span>
+<span class="token keyword">public</span><span class="token operator">:</span>
+    <span class="token keyword">class</span> <span class="token class-name">iterator</span> <span class="token punctuation">{</span>
+    <span class="token keyword">public</span><span class="token operator">:</span>
+        <span class="token keyword">typedef</span> ptrdiff_tdifference_type<span class="token punctuation">;</span>
+        <span class="token keyword">typedef</span> <span class="token keyword">typename</span> <span class="token class-name">iterator_traits</span><span class="token operator">&lt;</span>I<span class="token operator">&gt;</span><span class="token operator">::</span>value_type value_type<span class="token punctuation">;</span>
+        <span class="token keyword">typedef</span> <span class="token keyword">typename</span> <span class="token class-name">iterator_traits</span><span class="token operator">&lt;</span>I<span class="token operator">&gt;</span><span class="token operator">::</span>pointer pointer<span class="token punctuation">;</span>
+        <span class="token keyword">typedef</span> <span class="token keyword">typename</span> <span class="token class-name">iterator_traits</span><span class="token operator">&lt;</span>I<span class="token operator">&gt;</span><span class="token operator">::</span>reference reference<span class="token punctuation">;</span>
+        <span class="token keyword">typedef</span> forward_iterator_tag iterator_category<span class="token punctuation">;</span>
+
+        <span class="token function">iterator</span><span class="token punctuation">(</span>I current<span class="token punctuation">,</span> I end<span class="token punctuation">,</span> F cond<span class="token punctuation">)</span>
+            <span class="token operator">:</span> <span class="token function">current_</span><span class="token punctuation">(</span>current<span class="token punctuation">)</span>
+            <span class="token punctuation">,</span> <span class="token function">end_</span><span class="token punctuation">(</span>end<span class="token punctuation">)</span>
+            <span class="token punctuation">,</span> <span class="token function">cond_</span><span class="token punctuation">(</span>cond<span class="token punctuation">)</span>
+        <span class="token punctuation">{</span>
+            <span class="token keyword">if</span> <span class="token punctuation">(</span>current_ <span class="token operator">!=</span> end_ <span class="token operator">&amp;&amp;</span> <span class="token operator">!</span><span class="token function">cond_</span><span class="token punctuation">(</span><span class="token operator">*</span>current_<span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+                <span class="token operator">++</span><span class="token operator">*</span><span class="token keyword">this</span><span class="token punctuation">;</span>
+            <span class="token punctuation">}</span>
+        <span class="token punctuation">}</span>
+        iterator<span class="token operator">&amp;</span> <span class="token keyword">operator</span><span class="token operator">++</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+        <span class="token punctuation">{</span>
+            <span class="token keyword">while</span> <span class="token punctuation">(</span>current_ <span class="token operator">!=</span> end_<span class="token punctuation">)</span> <span class="token punctuation">{</span>
+                <span class="token operator">++</span>current_<span class="token punctuation">;</span>
+                <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token function">cond_</span><span class="token punctuation">(</span><span class="token operator">*</span>current_<span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+                    <span class="token keyword">break</span><span class="token punctuation">;</span>
+                <span class="token punctuation">}</span>
+            <span class="token punctuation">}</span>
+            <span class="token keyword">return</span> <span class="token operator">*</span><span class="token keyword">this</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+        iterator <span class="token keyword">operator</span><span class="token operator">++</span><span class="token punctuation">(</span><span class="token keyword">int</span><span class="token punctuation">)</span>
+        <span class="token punctuation">{</span>
+            <span class="token keyword">auto</span> temp <span class="token operator">=</span> <span class="token operator">*</span><span class="token keyword">this</span><span class="token punctuation">;</span>
+            <span class="token operator">++</span><span class="token operator">*</span><span class="token keyword">this</span><span class="token punctuation">;</span>
+            <span class="token keyword">return</span> temp<span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+        reference <span class="token keyword">operator</span><span class="token operator">*</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token keyword">const</span>
+        <span class="token punctuation">{</span>
+            <span class="token keyword">return</span> <span class="token operator">*</span>current_<span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+        pointer <span class="token keyword">operator</span><span class="token operator">-&gt;</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token keyword">const</span>
+        <span class="token punctuation">{</span>
+            <span class="token keyword">return</span> <span class="token operator">&amp;</span><span class="token operator">*</span>current_<span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+        <span class="token keyword">bool</span> <span class="token keyword">operator</span><span class="token operator">==</span><span class="token punctuation">(</span><span class="token keyword">const</span> iterator<span class="token operator">&amp;</span> rhs<span class="token punctuation">)</span>
+        <span class="token punctuation">{</span>
+            <span class="token keyword">return</span> current_ <span class="token operator">==</span> rhs<span class="token punctuation">.</span>current_<span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+        <span class="token keyword">bool</span> <span class="token keyword">operator</span><span class="token operator">!=</span><span class="token punctuation">(</span><span class="token keyword">const</span> iterator<span class="token operator">&amp;</span> rhs<span class="token punctuation">)</span>
+        <span class="token punctuation">{</span>
+            <span class="token keyword">return</span> <span class="token operator">!</span><span class="token keyword">operator</span><span class="token operator">==</span><span class="token punctuation">(</span>rhs<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+
+    <span class="token keyword">private</span><span class="token operator">:</span>
+        I current_<span class="token punctuation">;</span>
+        I end_<span class="token punctuation">;</span>
+        F cond_<span class="token punctuation">;</span>
+    <span class="token punctuation">}</span><span class="token punctuation">;</span>
+
+    <span class="token function">filter_view</span><span class="token punctuation">(</span>I begin<span class="token punctuation">,</span> I end<span class="token punctuation">,</span> F cond<span class="token punctuation">)</span>
+        <span class="token operator">:</span> <span class="token function">begin_</span><span class="token punctuation">(</span>begin<span class="token punctuation">)</span>
+        <span class="token punctuation">,</span> <span class="token function">end_</span><span class="token punctuation">(</span>end<span class="token punctuation">)</span>
+        <span class="token punctuation">,</span> <span class="token function">cond_</span><span class="token punctuation">(</span>cond<span class="token punctuation">)</span>
+    <span class="token punctuation">{</span>
+    <span class="token punctuation">}</span>
+    iterator <span class="token function">begin</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token keyword">const</span>
+    <span class="token punctuation">{</span>
+        <span class="token keyword">return</span> <span class="token function">iterator</span><span class="token punctuation">(</span>begin_<span class="token punctuation">,</span> end_<span class="token punctuation">,</span> cond_<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+    iterator <span class="token function">end</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token keyword">const</span>
+    <span class="token punctuation">{</span>
+        <span class="token keyword">return</span> <span class="token function">iterator</span><span class="token punctuation">(</span>end_<span class="token punctuation">,</span> end_<span class="token punctuation">,</span> cond_<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+
+<span class="token keyword">private</span><span class="token operator">:</span>
+    I begin_<span class="token punctuation">;</span>
+    I end_<span class="token punctuation">;</span>
+    F cond_<span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre></li>
+<li><p>我展示了 compose 带一个或更多参数的情况。你觉得 compose 不带任何参数该如何定义？它有意义吗？</p>
+<pre class="line-numbers language-cpp" data-language="cpp"><code class="language-cpp"><span class="token keyword">inline</span> <span class="token keyword">auto</span> <span class="token function">compose</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword">return</span> <span class="token punctuation">[</span><span class="token punctuation">]</span><span class="token punctuation">(</span><span class="token keyword">auto</span><span class="token operator">&amp;&amp;</span> x<span class="token punctuation">)</span> <span class="token operator">-&gt;</span> <span class="token keyword">decltype</span><span class="token punctuation">(</span><span class="token keyword">auto</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+        <span class="token keyword">return</span> std<span class="token operator">::</span>forward<span class="token operator">&lt;</span><span class="token keyword">decltype</span><span class="token punctuation">(</span>x<span class="token punctuation">)</span><span class="token operator">&gt;</span><span class="token punctuation">(</span>x<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>这个函数把参数原封不动地传回。它的意义相当于加法里的 0，乘法里的 1。</p>
+<p>在普通的加法里，你可能不太需要 0；但在一个做加法的地方，如果别人想告诉你不要做任何操作，传给你一个 0 是最简单的做法。</p>
+</li>
+<li><p>有没有可能不用 index_sequence 来初始化 bit_count？如果行，应该如何实现？</p>
+<p>答：似乎没有通用的办法，因为目前 constexpr 要求在构造时直接初始化对象的内容。</p>
+<p>但是，到了 C++20，允许 constexpr 对象里存在平凡默认构造的成员之后，就可以使用下面的写法了：</p>
+<pre class="line-numbers language-cpp" data-language="cpp"><code class="language-cpp"><span class="token keyword">template</span> <span class="token operator">&lt;</span>size_t N<span class="token operator">&gt;</span>
+<span class="token keyword">struct</span> <span class="token class-name">bit_count_t</span> <span class="token punctuation">{</span>
+    <span class="token keyword">constexpr</span> <span class="token function">bit_count_t</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+    <span class="token punctuation">{</span>
+        <span class="token keyword">for</span> <span class="token punctuation">(</span><span class="token keyword">auto</span> i <span class="token operator">=</span> <span class="token number">0U</span><span class="token punctuation">;</span> i <span class="token operator">&lt;</span> N<span class="token punctuation">;</span> <span class="token operator">++</span>i<span class="token punctuation">)</span> <span class="token punctuation">{</span>
+            count<span class="token punctuation">[</span>i<span class="token punctuation">]</span> <span class="token operator">=</span> <span class="token function">count_bits</span><span class="token punctuation">(</span>i<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+    <span class="token punctuation">}</span>
+    <span class="token keyword">unsigned</span> <span class="token keyword">char</span> count<span class="token punctuation">[</span>N<span class="token punctuation">]</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span class="token punctuation">;</span>
+<span class="token keyword">constexpr</span> bit_count_t<span class="token operator">&lt;</span><span class="token number">256</span><span class="token operator">&gt;</span> bit_count<span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>当前已经发布的编译器中，我测下来只有 Clang 能（在 C++17 模式下）编译通过此代码。GCC 10 能在使用命令行选项 -std=c++2a 时编译通过此代码。</p>
+</li>
+<li><p>作为一个挑战，你能自行实现出 make_integer_sequence 吗？</p>
+<p>答 1：</p>
+<pre class="line-numbers language-cpp" data-language="cpp"><code class="language-cpp"><span class="token keyword">template</span> <span class="token operator">&lt;</span><span class="token keyword">class</span> <span class="token class-name">T</span><span class="token punctuation">,</span> T<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span> Ints<span class="token operator">&gt;</span>
+<span class="token keyword">struct</span> <span class="token class-name">integer_sequence</span> <span class="token punctuation">{</span>
+<span class="token punctuation">}</span><span class="token punctuation">;</span>
+
+<span class="token keyword">template</span> <span class="token operator">&lt;</span><span class="token keyword">class</span> <span class="token class-name">T</span><span class="token operator">&gt;</span>
+<span class="token keyword">struct</span> <span class="token class-name">integer_sequence_ns</span> <span class="token punctuation">{</span>
+    <span class="token keyword">template</span> <span class="token operator">&lt;</span>T N<span class="token punctuation">,</span> T<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span> Ints<span class="token operator">&gt;</span>
+    <span class="token keyword">struct</span> <span class="token class-name">integer_sequence_helper</span> <span class="token punctuation">{</span>
+        <span class="token keyword">using</span> type <span class="token operator">=</span> <span class="token keyword">typename</span> <span class="token class-name">integer_sequence_helper</span><span class="token operator">&lt;</span>N <span class="token operator">-</span> <span class="token number">1</span><span class="token punctuation">,</span> N <span class="token operator">-</span> <span class="token number">1</span><span class="token punctuation">,</span> Ints<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token operator">&gt;</span><span class="token operator">::</span>type<span class="token punctuation">;</span>
+    <span class="token punctuation">}</span><span class="token punctuation">;</span>
+    <span class="token keyword">template</span> <span class="token operator">&lt;</span>T<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span> Ints<span class="token operator">&gt;</span>
+    <span class="token keyword">struct</span> <span class="token class-name">integer_sequence_helper</span><span class="token operator">&lt;</span><span class="token number">0</span><span class="token punctuation">,</span> Ints<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token operator">&gt;</span> <span class="token punctuation">{</span>
+        <span class="token keyword">using</span> type <span class="token operator">=</span> integer_sequence<span class="token operator">&lt;</span>T<span class="token punctuation">,</span> Ints<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token operator">&gt;</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span class="token punctuation">;</span>
+
+<span class="token keyword">template</span> <span class="token operator">&lt;</span><span class="token keyword">class</span> <span class="token class-name">T</span><span class="token punctuation">,</span> T N<span class="token operator">&gt;</span>
+<span class="token keyword">using</span> make_integer_sequence <span class="token operator">=</span>
+    <span class="token keyword">typename</span> <span class="token class-name">integer_sequence_ns</span><span class="token operator">&lt;</span>T<span class="token operator">&gt;</span><span class="token operator">::</span>
+        <span class="token keyword">template</span> integer_sequence_helper<span class="token operator">&lt;</span>N<span class="token operator">&gt;</span><span class="token operator">::</span>type<span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>如果一开始写成 <code>template &lt;class T, T N, T... Ints&gt; struct integer_sequence_helper</code> 的话，就会遇到错误“non-type template argument specializes a template parameter with dependent type ‘T’”（非类型的模板实参特化了一个使用依赖类型的‘T’的模板形参）。这是目前的 C++ 标准所不允许的写法，改写成嵌套类形式可以绕过这个问题。</p>
+<p>答 2：</p>
+<pre class="line-numbers language-cpp" data-language="cpp"><code class="language-cpp"><span class="token keyword">template</span> <span class="token operator">&lt;</span><span class="token keyword">class</span> <span class="token class-name">T</span><span class="token punctuation">,</span> T<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span> Ints<span class="token operator">&gt;</span>
+<span class="token keyword">struct</span> <span class="token class-name">integer_sequence</span> <span class="token punctuation">{</span>
+<span class="token punctuation">}</span><span class="token punctuation">;</span>
+
+<span class="token keyword">template</span> <span class="token operator">&lt;</span><span class="token keyword">class</span> <span class="token class-name">T</span><span class="token punctuation">,</span> T N<span class="token punctuation">,</span> T<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span> Is<span class="token operator">&gt;</span>
+<span class="token keyword">auto</span> <span class="token function">make_integer_sequence_impl</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword">if</span> <span class="token keyword">constexpr</span> <span class="token punctuation">(</span>N <span class="token operator">==</span> <span class="token number">0</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+        <span class="token keyword">return</span> integer_sequence<span class="token operator">&lt;</span>T<span class="token punctuation">,</span> Is<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token operator">&gt;</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span> <span class="token keyword">else</span> <span class="token punctuation">{</span>
+        <span class="token keyword">return</span> make_integer_sequence_impl<span class="token operator">&lt;</span>T<span class="token punctuation">,</span> N <span class="token operator">-</span> <span class="token number">1</span><span class="token punctuation">,</span> N <span class="token operator">-</span> <span class="token number">1</span><span class="token punctuation">,</span> Is<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token operator">&gt;</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+<span class="token punctuation">}</span>
+
+<span class="token keyword">template</span> <span class="token operator">&lt;</span><span class="token keyword">class</span> <span class="token class-name">T</span><span class="token punctuation">,</span> T N<span class="token operator">&gt;</span>
+<span class="token keyword">using</span> make_integer_sequence <span class="token operator">=</span> <span class="token keyword">decltype</span><span class="token punctuation">(</span>make_integer_sequence_impl<span class="token operator">&lt;</span>T<span class="token punctuation">,</span> N<span class="token operator">&gt;</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>这又是一个 constexpr 能简化表达的例子。</p>
+</li>
+<li><p>你觉得 C++ REST SDK 的接口好用吗？如果好用，原因是什么？如果不好用，你有什么样的改进意见？</p>
+<p>答：举几个可能的改进点。</p>
+<p>C++ REST SDK 的 uri::decode 接口设计有不少问题：</p>
+<ul>
+<li>最严重的，不能对 query string 的等号左边的部分进行 decode；只能先 split_query 再 decode，此时等号左边已经在 map 里，不能修改——要修改需要建一个新的 map。</li>
+<li>目前的实现对“+”不能重新还原成空格。</li>
+</ul>
+<p>换个说法，目前的接口能正确处理“<code>/search?q=query%20string</code>”这样的请求，但不能正确处理“<code>/search?%71=query+string</code>”这样的请求。</p>
+<p>应当有一个 split_query_and_decode 接口，同时执行分割和解码。</p>
+<p>另外，json 的接口也还是不够好用，最主要是没有使用初始化列表的构造。构造复杂的 JSON 结构有点啰嗦了。</p>
+<p>fstream::open_ostream 缺省行为跟 std::ofstream 不一样应该是个 bug。应当要么修正接口（接口缺省参数里带上 trunc），要么修正实现（跟 std::ofstream 一样把 out 当成 out|trunc）。</p>
+</li>
+<li><p>“概念”可以为开发具体带来哪些好处？反过来，负面的影响又可能会是什么？</p>
+<p>答：对于代码严谨、具有形式化思维的人，“概念”是个福音，它不仅可以大量消除 SFINAE 的使用，还能以较为精确和形式化的形式在代码里写出对类型的要求，使得代码变得清晰、易读。</p>
+<p>但反过来说，“概念”比鸭子类型更严格。在代码加上概念约束后，相关代码很可能需要修改才能满足概念的要求，即使之前在实际使用中可能已经完全没有问题。从迭代器的角度，实际使用中最小功能集是构造、可复制、<code>*</code>、前置 ++、与 sentinel 类型对象的 !=（单一形式）。而为了满足迭代器概念，则要额外确保满足以下各点：</p>
+<ul>
+<li>可默认初始化</li>
+<li>在 iterator 类型和 sentinel 类型之间，需要定义完整的四个 == 和 != 运算符</li>
+<li>定义迭代器的标准内部类型，如 difference_type 等</li>
+</ul>
+</li>
+</ol>
 
                 
             </div>
