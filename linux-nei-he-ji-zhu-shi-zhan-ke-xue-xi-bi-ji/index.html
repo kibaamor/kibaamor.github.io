@@ -704,6 +704,7 @@ vm.dirty_ratio = 20<span aria-hidden="true" class="line-numbers-rows"><span></sp
 <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ <span class="token function">grep</span> <span class="token string">"nr_dirty_"</span> /proc/vmstat
 nr_dirty_threshold <span class="token number">366998</span>
 nr_dirty_background_threshold <span class="token number">183275</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span></span></code></pre>
+<!----fix markdown render issues---->
 <h4 id="3-3-系统-NUMA-策略配置不当引起的-load-飙高"><a href="#3-3-系统-NUMA-策略配置不当引起的-load-飙高" class="headerlink" title="3.3 系统 NUMA 策略配置不当引起的 load 飙高"></a>3.3 系统 NUMA 策略配置不当引起的 load 飙高</h4><p>比如说，我们在生产环境上就曾经遇到这样的问题：系统中还有一半左右的 free 内存，但还是频频触发 direct reclaim，导致业务抖动得比较厉害。后来经过排查发现是由于设置了 zone_reclaim_mode，这是 NUMA 策略的一种。</p>
 <p>设置 zone_reclaim_mode 的目的是为了增加业务的 NUMA 亲和性，但是在实际生产环境中很少会有对 NUMA 特别敏感的业务，这也是为什么内核将该配置从默认配置 1 修改为了默认配置 0: <strong>mm: disable zone_reclaim_mode by default</strong> ，配置为 0 之后，就避免了在其他 node 有空闲内存时，不去使用这些空闲内存而是去回收当前 node 的 Page Cache，也就是说，通过减少内存回收发生的可能性从而避免它引发的业务延迟。</p>
 <p>那么如何来有效地衡量业务延迟问题是否由 zone reclaim 引起的呢？它引起的延迟究竟有多大呢？大致的思路就是利用 linux 的 tracepoint 来做这种量化分析，这是性能开销相对较小的一个方案。</p>
@@ -962,6 +963,7 @@ AnonPages:       <span class="token number">1060684</span> kB
 <span class="token punctuation">..</span>.
 Shmem:              <span class="token number">8724</span> kB
 <span class="token punctuation">..</span>.<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<!----fix markdown render issues---->
 <h3 id="07-案例篇-如何预防内存泄漏导致的系统假死？"><a href="#07-案例篇-如何预防内存泄漏导致的系统假死？" class="headerlink" title="07 案例篇 | 如何预防内存泄漏导致的系统假死？"></a>07 案例篇 | 如何预防内存泄漏导致的系统假死？</h3><h4 id="7-1-什么样的内存泄漏是有危害的？"><a href="#7-1-什么样的内存泄漏是有危害的？" class="headerlink" title="7.1 什么样的内存泄漏是有危害的？"></a>7.1 什么样的内存泄漏是有危害的？</h4><p>下面是一个内存泄漏的简单示例程序。</p>
 <pre class="line-numbers language-c" data-language="c"><code class="language-c">
 <span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;stdlib.h&gt;</span></span>
@@ -1080,6 +1082,7 @@ tmpfs            16G  15G   1G   <span class="token number">94</span>% /run
 <p>tmpfs 是属于文件系统的一种。对于文件系统，我们都可以通过 df 来查看它的使用情况。所以呢，我们也可以通过 df 来看是不是 tmpfs 占用的内存较多，结果发现确实是它消耗了很多内存。这个问题就变得很清晰了，我们只要去分析 tmpfs 中存储的是什么文件就可以了。</p>
 <p>我们在生产环境上还遇到过这样一个问题：systemd 不停地往 tmpfs 中写入日志但是没有去及时清理，而 tmpfs 配置的初始值又太大，这就导致 systemd 产生的日志量越来越多，最终可用内存越来越少。<br>针对这个问题，解决方案就是限制 systemd 所使用的 tmpfs 的大小，在日志量达到 tmpfs 大小限制时，自动地清理掉临时日志，或者定期清理掉这部分日志，这都可以通过 systemd 的配置文件来做到。tmpfs 的大小可以通过如下命令（比如调整为 2G）调整：</p>
 <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token function">mount</span> -o remount,size<span class="token operator">=</span>2G /run<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<!----fix markdown render issues---->
 <h4 id="8-1-OOM-杀进程的危害"><a href="#8-1-OOM-杀进程的危害" class="headerlink" title="8.1 OOM 杀进程的危害"></a>8.1 OOM 杀进程的危害</h4><p>OOM 杀进程的逻辑大致如下图所示：</p>
 <p><img src="/images/《Linux内核技术实战课》学习笔记/OOM杀进程的逻辑.jpg" alt="OOM杀进程的逻辑"></p>
 <p>OOM killer 在杀进程的时候，会把系统中可以被杀掉的进程扫描一遍，根据进程占用的内存以及配置的 oom_score_adj 来计算出进程最终的得分，然后把得分（oom_score）最大的进程给杀掉，如果得分最大的进程有多个，那就把先扫描到的那个给杀掉。</p>
@@ -1448,6 +1451,7 @@ TX: bytes packets errors dropped carrier collsns
 <p>也就是说，只有在 tcp_moderate_rcvbuf 为 1，并且应用程序没有通过 SO_RCVBUF 来配置缓冲区大小的情况下，TCP 接收缓冲区才会动态调节。</p>
 <p>同样地，与 TCP 发送缓冲区类似，SO_RCVBUF 设置的值最大也不能超过 net.core.rmem_max。通常情况下，我们也需要设置 net.core.rmem_max 的值大于等于 net.ipv4.tcp_rmem 的 max：</p>
 <pre class="line-numbers language-text" data-language="text"><code class="language-text">net.core.rmem_max = 16777216<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<!----fix markdown render issues---->
 <h4 id="12-3-总结"><a href="#12-3-总结" class="headerlink" title="12.3 总结"></a>12.3 总结</h4><p><img src="/images/《Linux内核技术实战课》学习笔记/TCP发收包相关配置总结.jpg" alt="TCP发收包相关配置总结"></p>
 <h3 id="13-案例篇-TCP拥塞控制是如何导致业务性能抖动的？"><a href="#13-案例篇-TCP拥塞控制是如何导致业务性能抖动的？" class="headerlink" title="13 案例篇 | TCP拥塞控制是如何导致业务性能抖动的？"></a>13 案例篇 | TCP拥塞控制是如何导致业务性能抖动的？</h3><h4 id="13-1-TCP-拥塞控制是如何对业务网络性能产生影响的-？"><a href="#13-1-TCP-拥塞控制是如何对业务网络性能产生影响的-？" class="headerlink" title="13.1 TCP 拥塞控制是如何对业务网络性能产生影响的 ？"></a>13.1 TCP 拥塞控制是如何对业务网络性能产生影响的 ？</h4><p>我们先来看下 TCP 拥塞控制的大致原理。</p>
 <p><img src="/images/《Linux内核技术实战课》学习笔记/TCP拥塞控制.jpg" alt="TCP拥塞控制"></p>
@@ -1582,6 +1586,7 @@ ESTAB       <span class="token number">0</span>      <span class="token number">
 <span class="token operator">&lt;</span>idle<span class="token operator">&gt;</span>-0     <span class="token punctuation">[</span>007<span class="token punctuation">]</span> <span class="token punctuation">..</span>s. <span class="token number">265119.290232</span>: tcp_retransmit_skb: <span class="token assign-left variable">sport</span><span class="token operator">=</span><span class="token number">22</span> <span class="token assign-left variable">dport</span><span class="token operator">=</span><span class="token number">62264</span> <span class="token assign-left variable">saddr</span><span class="token operator">=</span><span class="token number">172.23</span>.245.8 <span class="token assign-left variable">daddr</span><span class="token operator">=</span><span class="token number">172.30</span>.18.225 <span class="token assign-left variable">saddrv6</span><span class="token operator">=</span>::ffff:172.23.245.8 <span class="token assign-left variable">daddrv6</span><span class="token operator">=</span>::ffff:172.30.18.225 <span class="token assign-left variable">state</span><span class="token operator">=</span>TCP_ESTABLISHED<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre>
 <p>追踪结束后呢，你需要将这个 Tracepoint 给关闭：</p>
 <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token builtin class-name">echo</span> <span class="token number">0</span> <span class="token operator">&gt;</span> tcp/tcp_retransmit_skb/enable<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<!----fix markdown render issues---->
 <h3 id="16-套路篇-如何分析常见的TCP问题？"><a href="#16-套路篇-如何分析常见的TCP问题？" class="headerlink" title="16 套路篇 | 如何分析常见的TCP问题？"></a>16 套路篇 | 如何分析常见的TCP问题？</h3><h4 id="16-1-在-Linux-上检查网络的常用工具"><a href="#16-1-在-Linux-上检查网络的常用工具" class="headerlink" title="16.1 在 Linux 上检查网络的常用工具"></a>16.1 在 Linux 上检查网络的常用工具</h4><p>当服务器产生问题，而我们又不清楚问题和什么有关时，就需要运行一些工具来检查系统的整体状况。其中，dstat 是我们常用的一种检查工具：</p>
 <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ dstat
 --total-cpu-usage-- -dsk/total- -net/total- ---paging-- ---system--
@@ -1829,6 +1834,7 @@ usr sys idl wai hiq siq<span class="token operator">|</span> <span class="token 
    <span class="token number">16</span> ksoftirqd/1       <span class="token number">0</span>
    <span class="token number">21</span> ksoftirqd/2       <span class="token number">0</span>
    <span class="token number">26</span> ksoftirqd/3       <span class="token number">0</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<!----fix markdown render issues---->
 <h4 id="19-2-softirq-是如何影响业务的？"><a href="#19-2-softirq-是如何影响业务的？" class="headerlink" title="19.2 softirq 是如何影响业务的？"></a>19.2 softirq 是如何影响业务的？</h4><p>在我们对硬中断和软中断进行观察后发现，使能 RPS 后增加了很多 CAL（Function Call Interrupts）硬中断。CAL 是通过软件触发硬中断的一种方式，可以指定 CPU 以及需要执行的中断处理程序。它也常被用来进行 CPU 间通信（IPI），当一个 CPU 需要其他 CPU 来执行特定中断处理程序时，就可以通过 CAL 中断来进行。</p>
 <p>如果你对 RPS 的机制有所了解的话，应该清楚 RPS 就是通过 CAL 这种方式来让其他 CPU 去接收网络包的。为了验证这一点，我们可以通过 mpstat 这个命令来观察各个 CPU 利用率情况。</p>
 <p>使能 RPS 之前的 CPU 利用率如下所示：</p>
@@ -1856,6 +1862,7 @@ Average:       <span class="token number">3</span>   <span class="token number">
 <h3 id="20-分析篇-如何分析CPU利用率飙高问题-？"><a href="#20-分析篇-如何分析CPU利用率飙高问题-？" class="headerlink" title="20 分析篇 | 如何分析CPU利用率飙高问题 ？"></a>20 分析篇 | 如何分析CPU利用率飙高问题 ？</h3><h4 id="20-1-如何拓展你分析问题的边界？"><a href="#20-1-如何拓展你分析问题的边界？" class="headerlink" title="20.1 如何拓展你分析问题的边界？"></a>20.1 如何拓展你分析问题的边界？</h4><p>我常用来追踪应用逻辑的工具之一就是 strace。strace 可以用来分析应用和内核的“边界”——系统调用。借助 strace，我们不仅能够了解应用执行的逻辑，还可以了解内核逻辑。那么，作为应用开发者的你，就可以借助这个工具来拓展你分析应用问题的边界。</p>
 <p>strace 可以跟踪进程的系统调用、特定的系统调用以及系统调用的执行时间。很多时候，我们通过系统调用的执行时间，就能判断出业务延迟发生在哪里。比如我们想要跟踪一个多线程程序的系统调用情况，那就可以这样使用 strace：</p>
 <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token function">strace</span> -T -tt -ff -p pid -o strace.out<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<!----fix markdown render issues---->
 <h4 id="20-2-了解工具的原理，不要局限于如何使用它"><a href="#20-2-了解工具的原理，不要局限于如何使用它" class="headerlink" title="20.2 了解工具的原理，不要局限于如何使用它"></a>20.2 了解工具的原理，不要局限于如何使用它</h4><p>strace 工具的原理如下图所示（我们以上面的那个命令为例来说明）：</p>
 <p><img src="/images/《Linux内核技术实战课》学习笔记/strace基本原理.jpg" alt="strace基本原理"></p>
 <p>我们从图中可以看到，对于正在运行的进程而言，strace 可以 attach 到目标进程上，这是通过 ptrace 这个系统调用实现的（gdb 工具也是如此）。ptrace 的 PTRACE_SYSCALL 会去追踪目标进程的系统调用；目标进程被追踪后，每次进入 syscall，都会产生 SIGTRAP 信号并暂停执行；追踪者通过目标进程触发的 SIGTRAP 信号，就可以知道目标进程进入了系统调用，然后追踪者会去处理该系统调用，我们用 strace 命令观察到的信息输出就是该处理的结果；追踪者处理完该系统调用后，就会恢复目标进程的执行。被恢复的目标进程会一直执行下去，直到下一个系统调用。</p>
