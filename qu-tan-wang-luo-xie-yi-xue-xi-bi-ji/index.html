@@ -438,14 +438,14 @@
                 
                 <div class="info-break-policy">
                     <i class="far fa-file-word fa-fw"></i>文章字数:&nbsp;&nbsp;
-                    130.9k
+                    143k
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-clock fa-fw"></i>阅读时长:&nbsp;&nbsp;
-                    469 分
+                    512 分
                 </div>
                 
 
@@ -3501,7 +3501,348 @@ service PurchaseOrder {
 <li>GRPC 是一种二进制，性能好，跨语言，还灵活，同时可以进行服务治理的多快好省的 RPC 框架，唯一不足就是还是要写协议文件。</li>
 <li>GRPC 序列化使用 Protocol Buffers，网络传输使用 HTTP 2.0，服务治理可以使用基于 Envoy 的 Service Mesh。</li>
 </ul>
-<h2 id="网络协议知识串讲"><a href="#网络协议知识串讲" class="headerlink" title="网络协议知识串讲"></a>网络协议知识串讲</h2><h2 id="答疑与加餐"><a href="#答疑与加餐" class="headerlink" title="答疑与加餐"></a>答疑与加餐</h2>
+<h2 id="网络协议知识串讲"><a href="#网络协议知识串讲" class="headerlink" title="网络协议知识串讲"></a>网络协议知识串讲</h2><h3 id="第37讲-知识串讲：用双十一的故事串起碎片的网络协议（上）"><a href="#第37讲-知识串讲：用双十一的故事串起碎片的网络协议（上）" class="headerlink" title="第37讲 | 知识串讲：用双十一的故事串起碎片的网络协议（上）"></a>第37讲 | 知识串讲：用双十一的故事串起碎片的网络协议（上）</h3><p>基本的网络知识我们都讲完了，还记得最初举的那个“双十一”下单的例子吗？这一节开始，我们详细地讲解这个过程，用这个过程串起我们讲过的网络协议。</p>
+<p>我把这个过程分为十个阶段，从云平台中搭建一个电商开始，到 BGP 路由广播，再到 DNS 域名解析，从客户看商品图片，到最终下单的整个过程，每一步我都会详细讲解。这节我们先来看前三个阶段。</p>
+<h4 id="37-1-部署一个高可用高并发的电商平台"><a href="#37-1-部署一个高可用高并发的电商平台" class="headerlink" title="37.1 部署一个高可用高并发的电商平台"></a>37.1 部署一个高可用高并发的电商平台</h4><p>首先，咱们要有个电商平台。假设我们已经有了一个特别大的电商平台，这个平台应该部署在哪里呢？假设我们用公有云，一般公有云会有多个位置，比如在华东、华北、华南都有。毕竟咱们的电商是要服务全国的，当然到处都要部署了。我们把主站点放在华东。</p>
+<p><img src="/images/《趣谈网络协议》学习笔记/部署一个高可用高并发的电商平台一.jpg" alt="部署一个高可用高并发的电商平台一"></p>
+<p>为了每个点都能“雨露均沾”，也为了高可用性，往往需要有多个机房，形成多个可用区（Available Zone）。由于咱们的应用是分布在两个可用区的，所以假如任何一个可用区挂了，都不会受影响。</p>
+<p>我们来回想<a target="_blank" rel="noopener" href="https://time.geekbang.org/column/article/10098">数据中心</a>那一节，每个可用区里有一片一片的机柜，每个机柜上有一排一排的服务器，每个机柜都有一个接入交换机，有一个汇聚交换机将多个机柜连在一起。</p>
+<p>这些服务器里面部署的都是计算节点，每台上面都有 Open vSwitch 创建的虚拟交换机，将来在这台机器上创建的虚拟机，都会连到 Open vSwitch 上。</p>
+<p><img src="/images/《趣谈网络协议》学习笔记/部署一个高可用高并发的电商平台二.jpg" alt="部署一个高可用高并发的电商平台二"></p>
+<p>接下来，你<strong>在云计算的界面上创建一个 VPC（Virtual Private Cloud，虚拟私有网络）</strong>，指定一个 IP 段，这样以后你部署的所有应用都会在这个虚拟网络里，使用你分配的这个 IP 段。为了不同的 VPC 相互隔离，每个 VPC 都会被分配一个 VXLAN 的 ID。尽管不同用户的虚拟机有可能在同一个物理机上，但是不同的 VPC 二层压根儿是不通的。</p>
+<p>由于有两个可用区，在这个 VPC 里面，要为每一个可用区分配一个 Subnet，也就是在大的网段里分配两个小的网段。当两个可用区里面网段不同的时候，就可以配置路由策略，访问另外一个可用区，走某一条路由了。</p>
+<p>接下来，应该<strong>创建数据库持久化层</strong>。大部分云平台都会提供 PaaS 服务，也就是说，不需要你自己搭建数据库，而是采用直接提供数据库的服务，并且单机房的主备切换都是默认做好的，数据库也是部署在虚拟机里面的，只不过从界面上，你看不到数据库所在的虚拟机而已。</p>
+<p>云平台会给每个 Subnet 的数据库实例分配一个域名。创建数据库实例的时候，需要你指定可用区和 Subnet，这样创建出来的数据库实例可以通过这个 Subnet 的私网 IP 进行访问。</p>
+<p>为了分库分表实现高并发的读写，在创建的多个数据库实例之上，会<strong>创建一个分布式数据库的实例</strong>，也需要指定可用区和 Subnet，还会为分布式数据库分配一个私网 IP 和域名。</p>
+<p>对于数据库这种高可用性比较高的，需要进行跨机房高可用，因而两个可用区都要部署一套，但是只有一个是主，另外一个是备，云平台往往会提供数据库同步工具，将应用写入主的数据同步给备数据库集群。</p>
+<p>接下来是<strong>创建缓存集群</strong>。云平台也会提供 PaaS 服务，也需要每个可用区和 Subnet 创建一套，缓存的数据在内存中，由于读写性能要求高，一般不要求跨可用区读写。</p>
+<p>再往上层就是<strong>部署咱们自己写的程序</strong>了。基础服务层、组合服务层、Controller 层，以及 Nginx 层、API 网关等等，这些都是部署在虚拟机里面的。它们之间通过 RPC 相互调用，需要到注册中心进行注册。</p>
+<p>它们之间的网络通信是虚拟机和虚拟机之间的。如果是同一台物理机，则那台物理机上的 OVS 就能转发过去；如果是不同的物理机，这台物理机的 OVS 和另一台物理机的 OVS 中间有一个 VXLAN 的隧道，将请求转发过去。</p>
+<p>再往外就是<strong>负载均衡</strong>了，负载均衡也是云平台提供的 PaaS 服务，也是属于某个 VPC 的，部署在虚拟机里面的，但是负载均衡有个外网的 IP，这个外网的 IP 地址就是在网关节点的外网网口上的。在网关节点上，会有 NAT 规则，将外网 IP 地址转换为 VPC 里面的私网 IP 地址，通过这些私网 IP 地址访问到虚拟机上的负载均衡节点，然后通过负载均衡节点转发到 API 网关的节点。</p>
+<p>网关节点的外网网口是带公网 IP 地址的，里面有一个虚拟网关转发模块，还会有一个 OVS，将私网 IP 地址放到 VXLAN 隧道里面，转发到虚拟机上，从而实现外网和虚拟机网络之间的互通。</p>
+<p>不同的可用区之间，通过核心交换机连在一起，核心交换机之外是边界路由器。</p>
+<p>在华北、华东、华南同样也部署了一整套，每个地区都创建了 VPC，这就需要有一种机制将 VPC 连接到一起。云平台一般会提供硬件的 VPC 互连的方式，当然也可以使用软件互连的方式，也就是使用 VPN 网关，通过 IPsec VPN 将不同地区的不同 VPC 通过 VPN 连接起来。</p>
+<p>对于不同地区和不同运营商的用户，我们希望他能够就近访问到网站，而且当一个点出了故障之后，我们希望能够在不同的地区之间切换，这就需要有智能 DNS，这个也是云平台提供的。</p>
+<p>对于一些静态资源，可以保持在对象存储里面，通过 CDN 下发到边缘节点，这样客户端就能尽快加载出来。</p>
+<h4 id="37-2-大声告诉全世界，可以到我这里买东西"><a href="#37-2-大声告诉全世界，可以到我这里买东西" class="headerlink" title="37.2 大声告诉全世界，可以到我这里买东西"></a>37.2 大声告诉全世界，可以到我这里买东西</h4><p>当电商应用搭建完毕之后，接下来需要将如何访问到这个电商网站广播给全网。</p>
+<p>刚才那张图画的是一个可用区的情况，对于多个可用区的情况，我们可以隐去计算节点的情况，将外网访问区域放大。</p>
+<p><img src="/images/《趣谈网络协议》学习笔记/高可用高并发的电商平台云架构.jpg" alt="高可用高并发的电商平台云架构"></p>
+<p>外网 IP 是放在虚拟网关的外网网口上的，这个 IP 如何让全世界知道呢？当然是通过 BGP 路由协议了。</p>
+<p>每个可用区都有自己的汇聚交换机，如果机器数目比较多，可以直接用核心交换机，每个 Region 也有自己的核心交换区域。</p>
+<p>在核心交换外面是安全设备，然后就是边界路由器。边界路由器会和多个运营商连接，从而每个运营商都能够访问到这个网站。边界路由器可以通过 BGP 协议，将自己数据中心里面的外网 IP 向外广播，也就是告诉全世界，如果要访问这些外网 IP，都来我这里。</p>
+<p>每个运营商也有很多的路由器、很多的点，于是就可以将如何到达这些 IP 地址的路由信息，广播到全国乃至全世界。</p>
+<h4 id="37-3-打开手机来上网，域名解析得地址"><a href="#37-3-打开手机来上网，域名解析得地址" class="headerlink" title="37.3 打开手机来上网，域名解析得地址"></a>37.3 打开手机来上网，域名解析得地址</h4><p>这个时候，不但你的这个网站的 IP 地址全世界都知道了，你打的广告可能大家也都看到了，于是有客户下载 App 来买东西了。</p>
+<p><img src="/images/《趣谈网络协议》学习笔记/手机访问高可用高并发的电商平台.jpg" alt="手机访问高可用高并发的电商平台"></p>
+<p>客户的手机开机以后，在附近寻找基站 eNodeB，发送请求，申请上网。基站将请求发给 MME，MME 对手机进行认证和鉴权，还会请求 HSS 看有没有钱，看看是在哪里上网。</p>
+<p>当 MME 通过了手机的认证之后，开始建立隧道，建设的数据通路分两段路，其实是两个隧道。一段是从 eNodeB 到 SGW，第二段是从 SGW 到 PGW，在 PGW 之外，就是互联网。</p>
+<p>PGW 会为手机分配一个 IP 地址，手机上网都是带着这个 IP 地址的。</p>
+<p>当在手机上面打开一个 App 的时候，首先要做的事情就是解析这个网站的域名。</p>
+<p>在手机运营商所在的互联网区域里，有一个本地的 DNS，手机会向这个 DNS 请求解析 DNS。当这个 DNS 本地有缓存，则直接返回；如果没有缓存，本地 DNS 才需要递归地从根 DNS 服务器，查到.com 的顶级域名服务器，最终查到权威 DNS 服务器。</p>
+<p>如果你使用云平台的时候，配置了智能 DNS 和全局负载均衡，在权威 DNS 服务中，一般是通过配置 CNAME 的方式，我们可以起一个别名，例如 vip.yourcomany.com ，然后告诉本地 DNS 服务器，让它请求 GSLB 解析这个域名，GSLB 就可以在解析这个域名的过程中，通过自己的策略实现负载均衡。</p>
+<p>GSLB 通过查看请求它的本地 DNS 服务器所在的运营商和地址，就知道用户所在的运营商和地址，然后将距离用户位置比较近的 Region 里面，三个负载均衡 SLB 的公网 IP 地址，返回给本地 DNS 服务器。本地 DNS 解析器将结果缓存后，返回给客户端。</p>
+<p>对于手机 App 来说，可以绕过刚才的传统 DNS 解析机制，直接只要 HTTPDNS 服务，通过直接调用 HTTPDNS 服务器，得到这三个 SLB 的公网 IP 地址。</p>
+<p>看，经过了如此复杂的过程，咱们的万里长征还没迈出第一步，刚刚得到 IP 地址，包还没发呢？话说手机 App 拿到了公网 IP 地址，接下来应该做什么呢？</p>
+<h3 id="第38讲-知识串讲：用双十一的故事串起碎片的网络协议（中）"><a href="#第38讲-知识串讲：用双十一的故事串起碎片的网络协议（中）" class="headerlink" title="第38讲 | 知识串讲：用双十一的故事串起碎片的网络协议（中）"></a>第38讲 | 知识串讲：用双十一的故事串起碎片的网络协议（中）</h3><p>上一节我们讲到，手机 App 经过了一个复杂的过程，终于拿到了电商网站的 SLB 的 IP 地址，是不是该下单了？</p>
+<p>别忙，俗话说的好，买东西要货比三家。大部分客户在购物之前要看很多商品图片，比来比去，最后好不容易才下决心，点了下单按钮。下单按钮一按，就要开始建立连接。建立连接这个过程也挺复杂的，最终还要经过层层封装，才构建出一个完整的网络包。今天我们就来看这个过程。</p>
+<h4 id="38-1-购物之前看图片，静态资源-CDN"><a href="#38-1-购物之前看图片，静态资源-CDN" class="headerlink" title="38.1 购物之前看图片，静态资源 CDN"></a>38.1 购物之前看图片，静态资源 CDN</h4><p>客户想要在购物网站买一件东西的时候，一般是先去详情页看看图片，是不是想买的那一款。</p>
+<p><img src="/images/《趣谈网络协议》学习笔记/手机访问高可用高并发的电商平台的静态资源.jpg" alt="手机访问高可用高并发的电商平台的静态资源"></p>
+<p>我们部署电商应用的时候，一般会把静态资源保存在两个地方，一个是接入层 nginx 后面的 varnish 缓存里面，一般是静态页面；对于比较大的、不经常更新的静态图片，会保存在对象存储里面。这两个地方的静态资源都会配置 CDN，将资源下发到边缘节点。</p>
+<p>配置了 CDN 之后，权威 DNS 服务器上，会为静态资源设置一个 CNAME 别名，指向另外一个域名 cdn.com ，返回给本地 DNS 服务器。</p>
+<p>当本地 DNS 服务器拿到这个新的域名时，需要继续解析这个新的域名。这个时候，再访问的时候就不是原来的权威 DNS 服务器了，而是 cdn.com 的权威 DNS 服务器。这是 CDN 自己的权威 DNS 服务器。</p>
+<p>在这个服务器上，还是会设置一个 CNAME，指向另外一个域名，也即 CDN 网络的全局负载均衡器。</p>
+<p>本地 DNS 服务器去请求 CDN 的全局负载均衡器解析域名，全局负载均衡器会为用户选择一台合适的缓存服务器提供服务，将 IP 返回给客户端，客户端去访问这个边缘节点，下载资源。缓存服务器响应用户请求，将用户所需内容传送到用户终端。</p>
+<p>如果这台缓存服务器上并没有用户想要的内容，那么这台服务器就要向它的上一级缓存服务器请求内容，直至追溯到网站的源服务器，将内容拉到本地。</p>
+<h4 id="38-2-看上宝贝点下单，双方开始建连接"><a href="#38-2-看上宝贝点下单，双方开始建连接" class="headerlink" title="38.2 看上宝贝点下单，双方开始建连接"></a>38.2 看上宝贝点下单，双方开始建连接</h4><p>当你浏览了很多图片，发现实在喜欢某个商品，于是决定下单购买。</p>
+<p>电商网站会对下单的情况提供 RESTful 的下单接口，而对于下单这种需要保密的操作，需要通过 HTTPS 协议进行请求。</p>
+<p>在所有这些操作之前，首先要做的事情是<strong>建立连接</strong>。</p>
+<p><img src="/images/《趣谈网络协议》学习笔记/手机与高可用高并发的电商平台建立连接.jpg" alt="手机与高可用高并发的电商平台建立连接"></p>
+<p>HTTPS 协议是基于 TCP 协议的，因而要先<strong>建立 TCP 的连接</strong>。在这个例子中，TCP 的连接是从手机上的 App 和负载均衡器 SLB 之间的。</p>
+<p>尽管中间要经过很多的路由器和交换机，但是 TCP 的连接是端到端的。TCP 这一层和更上层的 HTTPS 无法看到中间的包的过程。尽管建立连接的时候，所有的包都逃不过在这些路由器和交换机之间的转发，转发的细节我们放到那个下单请求的发送过程中详细解读，这里只看端到端的行为。</p>
+<p>对于 TCP 连接来讲，需要通过三次握手建立连接，为了维护这个连接，双方都需要在 TCP 层维护一个连接的状态机。</p>
+<p>一开始，客户端和服务端都处于 CLOSED 状态。服务端先是主动监听某个端口，处于 LISTEN 状态。然后客户端主动发起连接 SYN，之后处于 SYN-SENT 状态。服务端收到发起的连接，返回 SYN，并且 ACK 客户端的 SYN，之后处于 SYN-RCVD 状态。</p>
+<p>客户端收到服务端发送的 SYN 和 ACK 之后，发送 ACK 的 ACK，之后处于 ESTABLISHED 状态。这是因为，它一发一收成功了。服务端收到 ACK 的 ACK 之后，处于 ESTABLISHED 状态，因为它的一发一收也成功了。</p>
+<p>当 TCP 层的连接建立完毕之后，接下来轮到<strong>HTTPS 层建立连接</strong>了，在 HTTPS 的交换过程中，TCP 层始终处于 ESTABLISHED。</p>
+<p>对于 HTTPS，客户端会发送 Client Hello 消息到服务器，用明文传输 TLS 版本信息、加密套件候选列表、压缩算法候选列表等信息。另外，还会有一个随机数，在协商对称密钥的时候使用。</p>
+<p>然后，服务器会返回 Server Hello 消息，告诉客户端，服务器选择使用的协议版本、加密套件、压缩算法等。这也有一个随机数，用于后续的密钥协商。</p>
+<p>然后，服务器会给你一个服务器端的证书，然后说：“Server Hello Done，我这里就这些信息了。”</p>
+<p>客户端当然不相信这个证书，于是从自己信任的 CA 仓库中，拿 CA 的证书里面的公钥去解密电商网站的证书。如果能够成功，则说明电商网站是可信的。这个过程中，你可能会不断往上追溯 CA、CA 的 CA、CA 的 CA 的 CA，反正直到一个授信的 CA，就可以了。</p>
+<p>证书验证完毕之后，觉得这个服务端是可信的，于是客户端计算产生随机数字 Pre-master，发送 Client Key Exchange，用证书中的公钥加密，再发送给服务器，服务器可以通过私钥解密出来。</p>
+<p>接下来，无论是客户端还是服务器，都有了三个随机数，分别是：自己的、对端的，以及刚生成的 Pre-Master 随机数。通过这三个随机数，可以在客户端和服务器产生相同的对称密钥。</p>
+<p>有了对称密钥，客户端就可以说：“Change Cipher Spec，咱们以后都采用协商的通信密钥和加密算法进行加密通信了。”</p>
+<p>然后客户端发送一个 Encrypted Handshake Message，将已经商定好的参数等，采用协商密钥进行加密，发送给服务器用于数据与握手验证。</p>
+<p>同样，服务器也可以发送 Change Cipher Spec，说：“没问题，咱们以后都采用协商的通信密钥和加密算法进行加密通信了”，并且也发送 Encrypted Handshake Message 的消息试试。</p>
+<p>当双方握手结束之后，就可以通过对称密钥进行加密传输了。</p>
+<p>真正的下单请求封装成网络包的发送过程，我们先放一放，我们来接着讲这个网络包的故事。</p>
+<h4 id="38-3-发送下单请求网络包，西行需要出网关"><a href="#38-3-发送下单请求网络包，西行需要出网关" class="headerlink" title="38.3 发送下单请求网络包，西行需要出网关"></a>38.3 发送下单请求网络包，西行需要出网关</h4><p>当客户端和服务端之间建立了连接后，接下来就要发送下单请求的网络包了。</p>
+<p>在用户层发送的是 HTTP 的网络包，因为服务端提供的是 RESTful API，因而 HTTP 层发送的就是一个请求。</p>
+<pre class="line-numbers language-text" data-language="text"><code class="language-text">POST /purchaseOrder HTTP/1.1
+Host: www.geektime.com
+Content-Type: application/json; charset=utf-8
+Content-Length: nnn
+
+{
+ "order": {
+  "date": "2018-07-01",
+  "className": " 趣谈网络协议 ",
+  "Author": " 刘超 ",
+  "price": "68"
+ }
+}<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>HTTP 的报文大概分为三大部分。第一部分是<strong>请求行</strong>，第二部分是<strong>请求的首部</strong>，第三部分才是<strong>请求的正文实体</strong>。</p>
+<p>在请求行中，URL 就是 www.geektime.com/purchaseOrder ，版本为 HTTP 1.1。</p>
+<p>请求的类型叫作 POST，它需要主动告诉服务端一些信息，而非获取。需要告诉服务端什么呢？一般会放在正文里面。正文可以有各种各样的格式，常见的格式是 JSON。</p>
+<p>请求行下面就是我们的首部字段。首部是 key value，通过冒号分隔。</p>
+<p>Content-Type 是指正文的格式。例如，我们进行 POST 的请求，如果正文是 JSON，那么我们就应该将这个值设置为 JSON。</p>
+<p>接下来是正文，这里是一个 JSON 字符串，里面通过文本的形式描述了，要买一个课程，作者是谁，多少钱。</p>
+<p>这样，HTTP 请求的报文格式就拼凑好了。接下来浏览器或者移动 App 会把它交给下一层传输层。</p>
+<p>怎么交给传输层呢？也是用 Socket 进行程序设计。如果用的是浏览器，这些程序不需要你自己写，有人已经帮你写好了；如果在移动 APP 里面，一般会用一个 HTTP 的客户端工具来发送，并且帮你封装好。</p>
+<p>HTTP 协议是基于 TCP 协议的，所以它使用面向连接的方式发送请求，通过 Stream 二进制流的方式传给对方。当然，到了 TCP 层，它会把二进制流变成一个的报文段发送给服务器。</p>
+<p>在 TCP 头里面，会有源端口号和目标端口号，目标端口号一般是服务端监听的端口号，源端口号在手机端，往往是随机分配一个端口号。这个端口号在客户端和服务端用于区分请求和返回，发给那个应用。</p>
+<p>在 IP 头里面，都需要加上自己的地址（即源地址）和它想要去的地方（即目标地址）。当一个手机上线的时候，PGW 会给这个手机分配一个 IP 地址，这就是源地址，而目标地址则是云平台的负载均衡器的外网 IP 地址。</p>
+<p>在 IP 层，客户端需要查看目标地址和自己是否是在同一个局域网，计算是否是同一个网段，往往需要通过 CIDR 子网掩码来计算。</p>
+<p>对于这个下单场景，目标 IP 和源 IP 不会在同一个网段，因而需要发送到默认的网关。一般通过 DHCP 分配 IP 地址的时候，同时配置默认网关的 IP 地址。</p>
+<p>但是客户端不会直接使用默认网关的 IP 地址，而是发送 ARP 协议，来获取网关的 MAC 地址，然后将网关 MAC 作为目标 MAC，自己的 MAC 作为源 MAC，放入 MAC 头，发送出去。</p>
+<p>一个完整的网络包的格式是这样的。</p>
+<p><img src="/images/《趣谈网络协议》学习笔记/一个完整的网络包的格式.jpg" alt="一个完整的网络包的格式"></p>
+<p>真不容易啊，本来以为上篇就发送下单包了，结果到中篇这个包还没发送出去，只是封装了一个如此长的网络包。别着急，你可以自己先预想一下，接下来该做什么了？</p>
+<h3 id="第39讲-知识串讲：用双十一的故事串起碎片的网络协议（下）"><a href="#第39讲-知识串讲：用双十一的故事串起碎片的网络协议（下）" class="headerlink" title="第39讲 | 知识串讲：用双十一的故事串起碎片的网络协议（下）"></a>第39讲 | 知识串讲：用双十一的故事串起碎片的网络协议（下）</h3><p>上一节，我们封装了一个长长的网络包，“大炮”准备完毕，开始发送。</p>
+<p>发送的时候可以说是重重关隘，从手机到移动网络、互联网，还要经过多个运营商才能到达数据中心，到了数据中心就进入第二个复杂的过程，从网关到 VXLAN 隧道，到负载均衡，到 Controller 层、组合服务层、基础服务层，最终才下单入库。今天，我们就来看这最后一段过程。</p>
+<h4 id="39-1-一座座城池一道道关，流控拥塞与重传"><a href="#39-1-一座座城池一道道关，流控拥塞与重传" class="headerlink" title="39.1 一座座城池一道道关，流控拥塞与重传"></a>39.1 一座座城池一道道关，流控拥塞与重传</h4><p>网络包已经组合完毕，接下来我们来看，如何经过一道道城关，到达目标公网 IP。</p>
+<p>对于手机来讲，默认的网关在 PGW 上。在移动网络里面，从手机到 SGW，到 PGW 是有一条隧道的。在这条隧道里面，会将上面的这个包作为隧道的乘客协议放在里面，外面 SGW 和 PGW 在核心网机房的 IP 地址。网络包直到 PGW（PGW 是隧道的另一端）才将里面的包解出来，转发到外部网络。</p>
+<p>所以，从手机发送出来的时候，网络包的结构为：</p>
+<ul>
+<li>源 MAC：手机也即 UE 的 MAC；</li>
+<li>目标 MAC：网关 PGW 上面的隧道端点的 MAC；</li>
+<li>源 IP：UE 的 IP 地址；</li>
+<li>目标 IP：SLB 的公网 IP 地址。</li>
+</ul>
+<p>进入隧道之后，要封装外层的网络地址，因而网络包的格式为：</p>
+<ul>
+<li>外层源 MAC：E-NodeB 的 MAC；</li>
+<li>外层目标 MAC：SGW 的 MAC；</li>
+<li>外层源 IP：E-NodeB 的 IP；</li>
+<li>外层目标 IP：SGW 的 IP；</li>
+<li>内层源 MAC：手机也即 UE 的 MAC；</li>
+<li>内层目标 MAC：网关 PGW 上面的隧道端点的 MAC；</li>
+<li>内层源 IP：UE 的 IP 地址；</li>
+<li>内层目标 IP：SLB 的公网 IP 地址。</li>
+</ul>
+<p>当隧道在 SGW 的时候，切换了一个隧道，会从 SGW 到 PGW 的隧道，因而网络包的格式为：</p>
+<ul>
+<li>外层源 MAC：SGW 的 MAC；</li>
+<li>外层目标 MAC：PGW 的 MAC；</li>
+<li>外层源 IP：SGW 的 IP；</li>
+<li>外层目标 IP：PGW 的 IP；</li>
+<li>内层源 MAC：手机也即 UE 的 MAC；</li>
+<li>内层目标 MAC：网关 PGW 上面的隧道端点的 MAC；</li>
+<li>内层源 IP：UE 的 IP 地址；</li>
+<li>内层目标 IP：SLB 的公网 IP 地址。</li>
+</ul>
+<p>在 PGW 的隧道端点将包解出来，转发出去的时候，一般在 PGW 出外部网络的路由器上，会部署 NAT 服务，将手机的 IP 地址转换为公网 IP 地址，当请求返回的时候，再 NAT 回来。</p>
+<p>因而在 PGW 之后，相当于做了一次<a target="_blank" rel="noopener" href="https://time.geekbang.org/column/article/8590">欧洲十国游型</a>的转发，网络包的格式为：</p>
+<ul>
+<li>源 MAC：PGW 出口的 MAC；</li>
+<li>目标 MAC：NAT 网关的 MAC；</li>
+<li>源 IP：UE 的 IP 地址；</li>
+<li>目标 IP：SLB 的公网 IP 地址。</li>
+</ul>
+<p>在 NAT 网关，相当于做了一次<a target="_blank" rel="noopener" href="https://time.geekbang.org/column/article/8590">玄奘西游型</a>的转发，网络包的格式变成：</p>
+<ul>
+<li>源 MAC：NAT 网关的 MAC；</li>
+<li>目标 MAC：A2 路由器的 MAC；</li>
+<li>源 IP：UE 的公网 IP 地址；</li>
+<li>目标 IP：SLB 的公网 IP 地址。</li>
+</ul>
+<p><img src="/images/《趣谈网络协议》学习笔记/手机访问网站的过程中协议包头的变化.jpg" alt="手机访问网站的过程中协议包头的变化"></p>
+<p>出了 NAT 网关，就从核心网到达了互联网。在网络世界，每一个运营商的网络成为自治系统 AS。每个自治系统都有边界路由器，通过它和外面的世界建立联系。</p>
+<p>对于云平台来讲，它可以被称为 Multihomed AS，有多个连接连到其他的 AS，但是大多拒绝帮其他的 AS 传输包。例如一些大公司的网络。对于运营商来说，它可以被称为 Transit AS，有多个连接连到其他的 AS，并且可以帮助其他的 AS 传输包，比如主干网。</p>
+<p>如何从出口的运营商到达云平台的边界路由器？在路由器之间需要通过 BGP 协议实现，BGP 又分为两类，eBGP 和 iBGP。自治系统之间、边界路由器之间使用 eBGP 广播路由。内部网络也需要访问其他的自治系统。</p>
+<p>边界路由器如何将 BGP 学习到的路由导入到内部网络呢？通过运行 iBGP，使内部的路由器能够找到到达外网目的地最好的边界路由器。</p>
+<p>网站的 SLB 的公网 IP 地址早已经通过云平台的边界路由器，让全网都知道了。于是这个下单的网络包选择的下一跳是 A2，也即将 A2 的 MAC 地址放在目标 MAC 地址中。</p>
+<p>到达 A2 之后，从路由表中找到下一跳是路由器 C1，于是将目标 MAC 换成 C1 的 MAC 地址。到达 C1 之后，找到下一跳是 C2，将目标 MAC 地址设置为 C2 的 MAC。到达 C2 后，找到下一跳是云平台的边界路由器，于是将目标 MAC 设置为边界路由器的 MAC 地址。</p>
+<p>你会发现，这一路，都是只换 MAC，不换目标 IP 地址。这就是所谓下一跳的概念。</p>
+<p>在云平台的边界路由器，会将下单的包转发进来，经过核心交换，汇聚交换，到达外网网关节点上的 SLB 的公网 IP 地址。</p>
+<p>我们可以看到，手机到 SLB 的公网 IP，是一个端到端的连接，连接的过程发送了很多包。所有这些包，无论是 TCP 三次握手，还是 HTTPS 的密钥交换，都是要走如此复杂的过程到达 SLB 的，当然每个包走的路径不一定一致。</p>
+<p>网络包走在这个复杂的道路上，很可能一不小心就丢了，怎么办？这就需要借助 TCP 的机制重新发送。</p>
+<p>既然 TCP 要对包进行重传，就需要维护 Sequence Number，看哪些包到了，哪些没到，哪些需要重传，传输的速度应该控制到多少，这就是<strong>TCP 的滑动窗口协议</strong>。</p>
+<p><img src="/images/《趣谈网络协议》学习笔记/TCP的滑动窗口协议.jpg" alt="TCP的滑动窗口协议"></p>
+<p>整个 TCP 的发送，一开始会协商一个 Sequence Number，从这个 Sequence Number 开始，每个包都有编号。滑动窗口将接收方的网络包分成四个部分：</p>
+<ul>
+<li>已经接收，已经 ACK，已经交给应用层的包；</li>
+<li>已经接收，已经 ACK，未发送给应用层；</li>
+<li>已经接收，尚未发送 ACK；</li>
+<li>未接收，尚有空闲的缓存区域。</li>
+</ul>
+<p>对于 TCP 层来讲，每一个包都有 ACK。ACK 需要从 SLB 回复到手机端，将上面的那个过程反向来一遍，当然路径不一定一致，可见 ACK 也不是那么轻松的事情。</p>
+<p>如果发送方超过一定的时间没有收到 ACK，就会重新发送。只有 TCP 层 ACK 过的包，才会发给应用层，并且只会发送一份，对于下单的场景，应用层是 HTTP 层。</p>
+<p>你可能会问了，TCP 老是重复发送，会不会导致一个单下了两遍？是否要求服务端实现幂等？从 TCP 的机制来看，是不会的。只有收不到 ACK 的包才会重复发，发到接收端，在窗口里面只保存一份，所以在同一个 TCP 连接中，不用担心重传导致二次下单。</p>
+<p>但是 TCP 连接会因为某种原因断了，例如手机信号不好，这个时候手机把所有的动作重新做一遍，建立一个新的 TCP 连接，在 HTTP 层调用两次 RESTful API。这个时候可能会导致两遍下单的情况，因而 RESTful API 需要实现幂等。</p>
+<p>当 ACK 过的包发给应用层之后，TCP 层的缓存就空了出来，这会导致上面图中的大三角，也即接收方能够容纳的总缓存，整体顺时针滑动。小的三角形，也即接收方告知发送方的窗口总大小，也即还没有完全确认收到的缓存大小，如果把这些填满了，就不能再发了，因为没确认收到，所以一个都不能扔。</p>
+<h4 id="39-2-从数据中心进网关，公网-NAT-成私网"><a href="#39-2-从数据中心进网关，公网-NAT-成私网" class="headerlink" title="39.2 从数据中心进网关，公网 NAT 成私网"></a>39.2 从数据中心进网关，公网 NAT 成私网</h4><p>包从手机端经历千难万险，终于到了 SLB 的公网 IP 所在的公网网口。由于匹配上了 MAC 地址和 IP 地址，因而将网络包收了进来。</p>
+<p><img src="/images/《趣谈网络协议》学习笔记/数据包从数据中心进网关.jpg" alt="数据包从数据中心进网关"></p>
+<p>在虚拟网关节点的外网网口上，会有一个 NAT 规则，将公网 IP 地址转换为 VPC 里面的私网 IP 地址，这个私网 IP 地址就是 SLB 的 HAProxy 所在的虚拟机的私网 IP 地址。</p>
+<p>当然为了承载比较大的吞吐量，虚拟网关节点会有多个，物理网络会将流量分发到不同的虚拟网关节点。同样 HAProxy 也会是一个大的集群，虚拟网关会选择某个负载均衡节点，将某个请求分发给它，负载均衡之后是 Controller 层，也是部署在虚拟机里面的。</p>
+<p>当网络包里面的目标 IP 变成私有 IP 地址之后，虚拟路由会查找路由规则，将网络包从下方的私网网口发出来。这个时候包的格式为：</p>
+<ul>
+<li>源 MAC：网关 MAC；</li>
+<li>目标 MAC：HAProxy 虚拟机的 MAC；</li>
+<li>源 IP：UE 的公网 IP；</li>
+<li>目标 IP：HAProxy 虚拟机的私网 IP。</li>
+</ul>
+<h4 id="39-3-进入隧道打标签，RPC-远程调用下单"><a href="#39-3-进入隧道打标签，RPC-远程调用下单" class="headerlink" title="39.3 进入隧道打标签，RPC 远程调用下单"></a>39.3 进入隧道打标签，RPC 远程调用下单</h4><p>在虚拟路由节点上，也会有 OVS，将网络包封装在 VXLAN 隧道里面，VXLAN ID 就是给你的租户创建 VPC 的时候分配的。包的格式为：</p>
+<ul>
+<li>外层源 MAC：网关物理机 MAC；</li>
+<li>外层目标 MAC：物理机 A 的 MAC；</li>
+<li>外层源 IP：网关物理机 IP；</li>
+<li>外层目标 IP：物理机 A 的 IP；</li>
+<li>内层源 MAC：网关 MAC；</li>
+<li>内层目标 MAC：HAProxy 虚拟机的 MAC；</li>
+<li>内层源 IP：UE 的公网 IP；</li>
+<li>内层目标 IP：HAProxy 虚拟机的私网 IP。</li>
+</ul>
+<p>在物理机 A 上，OVS 会将包从 VXLAN 隧道里面解出来，发给 HAProxy 所在的虚拟机。HAProxy 所在的虚拟机发现 MAC 地址匹配，目标 IP 地址匹配，就根据 TCP 端口，将包发给 HAProxy 进程，因为 HAProxy 是在监听这个 TCP 端口的。因而 HAProxy 就是这个 TCP 连接的服务端，客户端是手机。对于 TCP 的连接状态、滑动窗口等，都是在 HAProxy 上维护的。</p>
+<p>在这里 HAProxy 是一个四层负载均衡，也即它只解析到 TCP 层，里面的 HTTP 协议它不关心，就将请求转发给后端的多个 Controller 层的一个。</p>
+<p>HAProxy 发出去的网络包就认为 HAProxy 是客户端了，看不到手机端了。网络包格式如下：</p>
+<ul>
+<li>源 MAC：HAProxy 所在虚拟机的 MAC；</li>
+<li>目标 MAC：Controller 层所在虚拟机的 MAC；</li>
+<li>源 IP：HAProxy 所在虚拟机的私网 IP；</li>
+<li>目标 IP：Controller 层所在虚拟机的私网 IP。</li>
+</ul>
+<p>当然这个包发出去之后，还是会被物理机上的 OVS 放入 VXLAN 隧道里面，网络包格式为：</p>
+<ul>
+<li>外层源 MAC：物理机 A 的 MAC；</li>
+<li>外层目标 MAC：物理机 B 的 MAC；</li>
+<li>外层源 IP：物理机 A 的 IP；</li>
+<li>外层目标 IP：物理机 B 的 IP；</li>
+<li>内层源 MAC：HAProxy 所在虚拟机的 MAC；</li>
+<li>内层目标 MAC：Controller 层所在虚拟机的 MAC；</li>
+<li>内层源 IP：HAProxy 所在虚拟机的私网 IP；</li>
+<li>内层目标 IP：Controller 层所在虚拟机的私网 IP。</li>
+</ul>
+<p>在物理机 B 上，OVS 会将包从 VXLAN 隧道里面解出来，发给 Controller 层所在的虚拟机。Controller 层所在的虚拟机发现 MAC 地址匹配，目标 IP 地址匹配，就根据 TCP 端口，将包发给 Controller 层的进程，因为它在监听这个 TCP 端口。</p>
+<p>在 HAProxy 和 Controller 层之间，维护一个 TCP 的连接。</p>
+<p>Controller 层收到包之后，它是关心 HTTP 里面是什么的，于是解开 HTTP 的包，发现是一个 POST 请求，内容是下单购买一个课程。</p>
+<h4 id="39-4-下单扣减库存优惠券，数据入库返回成功"><a href="#39-4-下单扣减库存优惠券，数据入库返回成功" class="headerlink" title="39.4 下单扣减库存优惠券，数据入库返回成功"></a>39.4 下单扣减库存优惠券，数据入库返回成功</h4><p>下单是一个复杂的过程，因而往往在组合服务层会有一个专门管理下单的服务，Controller 层会通过 RPC 调用这个组合服务层。</p>
+<p>假设我们使用的是 Dubbo，则 Controller 层需要读取注册中心，将下单服务的进程列表拿出来，选出一个来调用。</p>
+<p>Dubbo 中默认的 RPC 协议是 Hessian2。Hessian2 将下单的远程调用序列化为二进制进行传输。</p>
+<p>Netty 是一个非阻塞的基于事件的网络传输框架。Controller 层和下单服务之间，使用了 Netty 的网络传输框架。有了 Netty，就不用自己编写复杂的异步 Socket 程序了。Netty 使用的方式，就是咱们讲<a target="_blank" rel="noopener" href="https://time.geekbang.org/column/article/9293">Socket 编程</a>的时候，一个项目组支撑多个项目（IO 多路复用，从派人盯着到有事通知）这种方式。</p>
+<p>Netty 还是工作在 Socket 这一层的，发送的网络包还是基于 TCP 的。在 TCP 的下层，还是需要封装上 IP 头和 MAC 头。如果跨物理机通信，还是需要封装的外层的 VXLAN 隧道里面。当然底层的这些封装，Netty 都不感知，它只要做好它的异步通信即可。</p>
+<p>在 Netty 的服务端，也即下单服务中，收到请求后，先用 Hessian2 的格式进行解压缩。然后将请求分发到线程中进行处理，在线程中，会调用下单的业务逻辑。</p>
+<p>下单的业务逻辑比较复杂，往往要调用基础服务层里面的库存服务、优惠券服务等，将多个服务调用完毕，才算下单成功。下单服务调用库存服务和优惠券服务，也是通过 Dubbo 的框架，通过注册中心拿到库存服务和优惠券服务的列表，然后选一个调用。</p>
+<p>调用的时候，统一使用 Hessian2 进行序列化，使用 Netty 进行传输，底层如果跨物理机，仍然需要通过 VXLAN 的封装和解封装。</p>
+<p>咱们以库存为例子的时候，讲述过幂等的接口实现的问题。因为如果扣减库存，仅仅是谁调用谁减一。这样存在的问题是，如果扣减库存因为一次调用失败，而多次调用，这里指的不是 TCP 多次重试，而是应用层调用的多次重试，就会存在库存扣减多次的情况。</p>
+<p>这里常用的方法是，使用乐观锁（Compare and Set，简称 CAS）。CAS 要考虑三个方面，当前的库存数、预期原来的库存数和版本，以及新的库存数。在操作之前，查询出原来的库存数和版本，真正扣减库存的时候，判断如果当前库存的值与预期原值和版本相匹配，则将库存值更新为新值，否则不做任何操作。</p>
+<p>这是一种基于状态而非基于动作的设计，符合 RESTful 的架构设计原则。这样的设计有利于高并发场景。当多个线程尝试使用 CAS 同时更新同一个变量时，只有其中一个线程能更新变量的值，而其它线程都失败，失败的线程并不会被挂起，而是被告知这次竞争中失败，并可以再次尝试。</p>
+<p>最终，当下单更新到分布式数据库中之后，整个下单过程才算真正告一段落。</p>
+<p>好了，经过了十个过程，下单终于成功了，你是否对这个过程了如指掌了呢？如果发现对哪些细节比较模糊，可以回去看一下相应的章节，相信会有更加深入的理解。</p>
+<p>到此，我带着你用下单过程把网络协议的知识都复习了一遍。授人以鱼不如授人以渔。下一节，我将会带你来搭建一个网络实验环境，配合实验来说明理论。</p>
+<h3 id="第40讲-搭建一个网络实验环境：授人以鱼不如授人以渔"><a href="#第40讲-搭建一个网络实验环境：授人以鱼不如授人以渔" class="headerlink" title="第40讲 | 搭建一个网络实验环境：授人以鱼不如授人以渔"></a>第40讲 | 搭建一个网络实验环境：授人以鱼不如授人以渔</h3><h4 id="40-1-《TCP-IP-详解》实验环境搭建"><a href="#40-1-《TCP-IP-详解》实验环境搭建" class="headerlink" title="40.1 《TCP/IP 详解》实验环境搭建"></a>40.1 《TCP/IP 详解》实验环境搭建</h4><p>对于网络方面的书籍，我当然首推 Rechard Stevens 的《<a target="_blank" rel="noopener" href="https://book.douban.com/subject/1741925/">TCP/IP illustrated</a>》（《TCP/IP 详解》）。这本书把理论讲得深入浅出，还配有大量的上手实践和抓包，看到这些抓包，原来不理解的很多理论，一下子就能懂了。</p>
+<p>这本书里有个拓扑图，书上的很多实验都是基于这个图的，但是这个拓扑图还是挺复杂的。我这里先不说，一会儿详细讲。</p>
+<p>Rechard Stevens，因为工作中有这么一个环境，很方便做实验，最终才写出了这样一本书，而我们一般人学习网络，没有这个环境应该怎么办呢？</p>
+<p>时代不同了，咱们现在有更加强大的工具了。例如，这里这么多的机器，我们可以用 Docker 来实现，多个网络可以用 Open vSwitch 来实现。你甚至不需要一台物理机，只要一台 1 核 2G 的虚拟机，就能将这个环境搭建起来。</p>
+<p>搭建这个环境的时候，需要一些脚本。我把脚本都放在了<a target="_blank" rel="noopener" href="https://github.com/popsuper1982/tcpipillustrated">Github</a>里面，你可以自己取用。</p>
+<ol>
+<li><p>创建一个 Ubuntu 虚拟机</p>
+<p> 在你的笔记本电脑上，用 VirtualBox 创建就行。1 核 2G，随便一台电脑都能搭建起来。</p>
+<p> 首先，我们先下载一个 Ubuntu 的镜像。我是从<a target="_blank" rel="noopener" href="https://www.ubuntu.com/download/alternative-downloads">Ubuntu 官方网站</a>下载的。</p>
+<p> <img src="/images/《趣谈网络协议》学习笔记/创建一个Ubuntu虚拟机一.jpg" alt="创建一个Ubuntu虚拟机一"></p>
+<p> 然后，在 VirtualBox 里面安装 Ubuntu。安装过程网上一大堆教程，你可以自己去看，我这里就不详细说了。</p>
+<p> 这里我需要说明的是网络的配置。</p>
+<p> 对于这个虚拟机，我们创建两个网卡，一个是 Host-only，只有你的笔记本电脑上能够登录进去。这个网卡上的 IP 地址也只有在你的笔记本电脑上管用。这个网卡的配置比较稳定，用于在 SSH 上做操作。这样你的笔记本电脑就可以搬来搬去，在公司里安装一半，回家接着安装另一半都没问题。</p>
+<p> <img src="/images/《趣谈网络协议》学习笔记/创建一个Ubuntu虚拟机二.jpg" alt="创建一个Ubuntu虚拟机二"></p>
+<p> 这里有一个虚拟的网桥，这个网络可以在管理 &gt; 主机网络管理里面进行配置。</p>
+<p> <img src="/images/《趣谈网络协议》学习笔记/创建一个Ubuntu虚拟机三.jpg" alt="创建一个Ubuntu虚拟机三"></p>
+<p> 在这里可以虚拟网桥的的 IP 地址，同时启用一个 DHCP 服务器，为新创建的虚拟机配置 IP 地址。</p>
+<p> 另一个网卡配置为 NAT 网络，用于访问互联网。配置了 NAT 网络之后，只要你的笔记本电脑能上网，虚拟机就能上网。由于咱们在 Ubuntu 里面要安装一些东西，因而需要联网。</p>
+<p> 你可能会问了，这个配置复杂吗？一点儿都不复杂。咱们讲<a target="_blank" rel="noopener" href="https://time.geekbang.org/column/article/10742">虚拟机网络</a>的时候，讲过这个。</p>
+<p> <img src="/images/《趣谈网络协议》学习笔记/创建一个Ubuntu虚拟机四.jpg" alt="创建一个Ubuntu虚拟机四"></p>
+<p> 安装完了 Ubuntu 之后，需要对 Ubuntu 里面的网卡进行配置。对于 Ubuntu 来讲，网卡的配置在 /etc/network/interfaces 这个文件里面。在我的环境里，NAT 的网卡名称为 enp0s3，Host-only 的网卡的名称为 enp0s8，都可以配置为自动配置。</p>
+ <pre class="line-numbers language-text" data-language="text"><code class="language-text">auto lo
+iface lo inet loopback
+
+auto enp0s3
+iface enp0s3 inet dhcp
+
+auto enp0s8
+iface enp0s8 inet dhcp<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p> 这样，重启之后，IP 就配置好了。</p>
+</li>
+<li><p>安装 Docker 和 Open vSwitch</p>
+<p> 接下来，在 Ubuntu 里面，以 root 用户，安装 Docker 和 Open vSwitch。</p>
+<p> 你可以按照 Docker 的<a target="_blank" rel="noopener" href="https://docs.docker.com/install/linux/docker-ce/ubuntu/">官方安装文档</a>来做。我这里也贴一下我的安装过程。</p>
+ <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token function">apt-get</span> remove docker docker-engine docker.io
+<span class="token function">apt-get</span> -y update
+<span class="token function">apt-get</span> -y <span class="token function">install</span> apt-transport-https ca-certificates <span class="token function">curl</span> software-properties-common
+<span class="token function">curl</span> -fsSL https://download.docker.com/linux/ubuntu/gpg <span class="token operator">&gt;</span> gpg
+apt-key <span class="token function">add</span> gpg
+apt-key fingerprint 0EBFCD88
+add-apt-repository <span class="token string">"deb [arch=amd64] https://download.docker.com/linux/ubuntu <span class="token variable"><span class="token variable">$(</span>lsb_release -cs<span class="token variable">)</span></span> stable"</span>
+<span class="token function">apt-get</span> -y update
+<span class="token function">apt-cache</span> madison docker-ce
+<span class="token function">apt-get</span> -y <span class="token function">install</span> docker-ce<span class="token operator">=</span><span class="token number">18.06</span>.0~ce~3-0~ubuntu<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p> 之后，还需要安装 Open vSwitch 和 Bridge。</p>
+ <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token function">apt-get</span> -y <span class="token function">install</span> openvswitch-common openvswitch-dbg openvswitch-switch python-openvswitch openvswitch-ipsec openvswitch-pki openvswitch-vtep
+
+<span class="token function">apt-get</span> -y <span class="token function">install</span> bridge-utils
+
+<span class="token function">apt-get</span> -y <span class="token function">install</span> arping<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span></span></code></pre></li>
+<li><p>准备一个 Docker 的镜像</p>
+<p> <img src="/images/《趣谈网络协议》学习笔记/《TCPIP详解》实验环境网络结构.jpg" alt="《TCPIP详解》实验环境网络结构"></p>
+<p> 每个节点都是一个 Docker，对应要有一个 Docker 镜像。这个镜像我已经打好了，你可以直接使用。</p>
+ <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">docker pull hub.c.163.com/liuchao110119163/ubuntu:tcpip<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p> 当然你也可以自己打这个镜像。Dockerfile 就像这样：</p>
+ <pre class="line-numbers language-dockerfile" data-language="dockerfile"><code class="language-dockerfile">FROM hub.c.163.com/public/ubuntu:14.04
+RUN apt-get -y update &amp;&amp; apt-get install -y iproute2 iputils-arping net-tools tcpdump curl telnet iputils-tracepath traceroute
+RUN mv /usr/sbin/tcpdump /usr/bin/tcpdump
+ENTRYPOINT /usr/sbin/sshd -D<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span></span></code></pre></li>
+<li><p>启动整个环境</p>
+<p> 启动这个环境还是比较复杂的，我写成了一个脚本。在 Git 仓库里面，有一个文件 <a target="_blank" rel="noopener" href="http://setupenv.sh/">setupenv.sh</a> ，可以执行这个脚本，里面有两个参数，一个参数是 NAT 网卡的名字，一个是镜像的名称。</p>
+ <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token function">git</span> clone https://github.com/popsuper1982/tcpipillustrated.git
+<span class="token builtin class-name">cd</span> tcpipillustrated
+docker pull hub.c.163.com/liuchao110119163/ubuntu:tcpip
+<span class="token function">chmod</span> +x setupenv.sh
+./setupenv.sh enp0s3 hub.c.163.com/liuchao110119163/ubuntu:tcpip<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>这样，整个环境就搭建起来了，所有的容器之间都可以 ping 通，而且都可以上网。</p>
+</li>
+</ol>
+<p>不过，我写的这个脚本对一些人来说可能会有点儿复杂，我这里也解释一下。</p>
+<p>首先<strong>每一个节点，都启动一个容器</strong>。使用–privileged=true 方式，网络先不配置–net none。有两个二层网络，使用 ovs-vsctl 的 add-br 命令，创建两个网桥。</p>
+<p>pipework 是一个很好的命令行工具，可以将容器连接到两个二层网络上。</p>
+<p>但是我们上面那个图里有两个比较特殊的网络，一个是从 slip 到 bsdi 的 P2P 网络，需要创建一个 peer 的两个网卡，然后两个 Docker 的网络 namespace 里面各塞进去一个。</p>
+<p>有关操作 Docker 的网络 namespace 的方式，咱们在容器网络那一节讲过 ip netns 命令。</p>
+<p>这里需要注意的是，P2P 网络和下面的二层网络不是同一个网络。P2P 网络的 CIDR 是 140.252.13.64/27，而下面的二层网络的 CIDR 是 140.252.13.32/27。如果按照 /24，看起来是一个网络，但是 /27 就不是了。至于CIDR 的计算方法，你可以回去复习一下。</p>
+<p>另外需要<strong>配置从 sun 到 netb 的点对点网络</strong>，方法还是通过 peer 网卡和 ip netns 的方式。</p>
+<p>这里有个特殊的地方，对于 netb 来讲，不是一个普通的路由器，因为 netb 两边是同一个二层网络，所以需要配置 arp proxy。</p>
+<p>为了所有的节点之间互通，要配置一下路由策略，这里需要通过 ip route 命令。</p>
+<ul>
+<li>对于 slip 来讲，bsdi 左面 13.66 这个网口是网关。</li>
+<li>对于 bsdi 和 svr4 来讲，如果去外网，sun 下面的网口 13.33 是网关。</li>
+<li>对于 sun 来讲，上面的网口 1.29 属于上面的二层网络了，它如果去外网，gateway 下面的网口 1.4 就是外网网关。</li>
+<li>对于 aix，solaris，gemini 来讲，如果去外网，网关也是 gateway 下面的网口 1.4。如果去下面的二层网口，网关是 sun 上面的网口 1.29。</li>
+</ul>
+<p>配置完了这些，图中的所有的节点都能相互访问了，最后还要解决如何访问外网的问题。</p>
+<p>我们还是需要创建一个 peer 网卡对。一个放在 gateway 里面，一个放在 gateway 外面。外面的网卡去外网的网关。</p>
+<p>在虚拟机上面，还需要配置一个 iptables 的地址伪装规则 MASQUERADE，其实就是一个 SNAT。因为容器里面要访问外网，因为外网是不认的，所以源地址不能用容器的地址，需要 SNAT 成为虚拟机的地址出去，回来的时候再 NAT 回来。</p>
+<p>配置这个环境还是挺复杂的，要用到咱们学到的很多知识。如果没有学习前面那些知识，直接就做这个实验，你肯定会很晕。但是只学理论也不行，要把理论都学过一遍，再做一遍实验，这才是一个不断迭代、更新知识库的过程。</p>
+<p>有了这个环境，《TCP/IP 详解》里面的所有实验都能做了，而且我打的这个 Docker 镜像里面，tcpdump 等网络工具都安装了，你可以“为所欲为”了。</p>
+<h4 id="40-2-Open-vSwitch-的实验"><a href="#40-2-Open-vSwitch-的实验" class="headerlink" title="40.2 Open vSwitch 的实验"></a>40.2 Open vSwitch 的实验</h4><p>做了 TCP/IP 详解的实验之后，网络程序设计这部分，你就有了坚实的基础。但是涉及到数据中心内部的一些网络技术，什么 VLAN、VXLAN、STP 等偏运维方向的，学习还是会比较困难。好在我们有 Open vSwitch，也可以做大量的实验。</p>
+<p>Open vSwitch 门槛比较高，里面的概念也非常多，可谓千头万绪。不过，通过我这么多年研究的经验，可以告诉你，这里面有一个很好的线索，那就是 Open vSwitch 会将自己对于网络的配置保存在一个本地库里面。这个库的表结构之间的关系就像这样：</p>
+<p><img src="/images/《趣谈网络协议》学习笔记/OpenvSwitch配置库的表结构.jpg" alt="OpenvSwitch配置库的表结构"></p>
+<p>这个库其实是一个 JSON，如果把这个 JSON 打印出来，能够看到更加详细的特性。按照这些特性一一实验，可以逐渐把 Open vSwitch 各个特性都掌握。</p>
+<p><img src="/images/《趣谈网络协议》学习笔记/OpenvSwitch配置库对应的JSON.jpg" alt="OpenvSwitch配置库对应的JSON"></p>
+<p>这里面最重要的概念就是网桥。一个网桥会有流表控制网络包的处理过程，会有控制器下发流表，一个网桥上会有多个端口，可以对端口进行流控，一个端口可以设置 VLAN，一个端口可以包含多个网卡，可以做绑定，网卡可以设置成为 GRE 和 VXLAN。</p>
+<p>我写过一个 Open vSwitch 的实验教程，也放在了 Github 里面。这里面有这么几个比较重要的实验，你可以看一看。</p>
+<ul>
+<li>实验一：查看 Open vSwitch 的架构。我们在讲 Open vSwitch 的时候，提过 Open vSwitch 的架构，在这个实验中，我们可以查看 Open vSwitch 的各个模块以及启动的参数。</li>
+<li>实验五：配置使用 OpenFlow Controller，体验一把作为小区物业在监控室里面管控整个小区道路的样子。</li>
+<li>实验八：测试 Port 的 VLAN 功能。看一下 VLAN 隔离究竟是什么样的。</li>
+<li>实验十：QoS 功能。体验一把如果使用 HTB 进行网卡限流。</li>
+<li>实验十一：GRE 和 VXLAN 隧道功能，看虚拟网络如何进行租户隔离。</li>
+<li>实验十五：对 Flow Table 的操作，体验流表对网络包随心所欲的处理。</li>
+</ul>
+<p>好了，关于整个环境的搭建我就讲到这里了。</p>
+<h2 id="答疑与加餐"><a href="#答疑与加餐" class="headerlink" title="答疑与加餐"></a>答疑与加餐</h2>
                 
             </div>
             <hr/>
@@ -3898,7 +4239,7 @@ service PurchaseOrder {
             <br>
             
             &nbsp;<i class="fas fa-chart-area"></i>&nbsp;站点总字数:&nbsp;<span
-                class="white-color">1015.2k</span>&nbsp;字
+                class="white-color">1027.3k</span>&nbsp;字
             
             
             
