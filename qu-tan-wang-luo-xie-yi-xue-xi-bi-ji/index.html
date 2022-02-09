@@ -438,14 +438,14 @@
                 
                 <div class="info-break-policy">
                     <i class="far fa-file-word fa-fw"></i>文章字数:&nbsp;&nbsp;
-                    143k
+                    153.2k
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-clock fa-fw"></i>阅读时长:&nbsp;&nbsp;
-                    512 分
+                    549 分
                 </div>
                 
 
@@ -3842,7 +3842,459 @@ docker pull hub.c.163.com/liuchao110119163/ubuntu:tcpip
 <li>实验十五：对 Flow Table 的操作，体验流表对网络包随心所欲的处理。</li>
 </ul>
 <p>好了，关于整个环境的搭建我就讲到这里了。</p>
-<h2 id="答疑与加餐"><a href="#答疑与加餐" class="headerlink" title="答疑与加餐"></a>答疑与加餐</h2>
+<h2 id="答疑与加餐"><a href="#答疑与加餐" class="headerlink" title="答疑与加餐"></a>答疑与加餐</h2><h3 id="答疑解惑第一期"><a href="#答疑解惑第一期" class="headerlink" title="答疑解惑第一期"></a>答疑解惑第一期</h3><h4 id="《第-1-讲-为什么要学习网络协议？》"><a href="#《第-1-讲-为什么要学习网络协议？》" class="headerlink" title="《第 1 讲 | 为什么要学习网络协议？》"></a>《第 1 讲 | 为什么要学习网络协议？》</h4><ol>
+<li><p>课后思考题</p>
+<p> 当网络包到达一个城关的时候，可以通过路由表得到下一个城关的 IP 地址，直接通过 IP 地址找就可以了，为什么还要通过本地的 MAC 地址呢？</p>
+<p> <img src="/images/《趣谈网络协议》学习笔记/第1讲课后思考题.png" alt="第1讲课后思考题"></p>
+<p> 徐良红同学说的比较接近。在网络包里，有源 IP 地址和目标 IP 地址、源 MAC 地址和目标 MAC 地址。从路由表中取得下一跳的 IP 地址后，应该把这个地址放在哪里呢？如果放在目标 IP 地址里面，到了城关，谁知道最终的目标在哪里呢？所以要用 MAC 地址。</p>
+<p> 所谓的下一跳，看起来是 IP 地址，其实是要通过 ARP 得到 MAC 地址，将下一跳的 MAC 地址放在目标 MAC 地址里面。</p>
+</li>
+<li><p>留言问题</p>
+<ol>
+<li><p>MAC 地址可以修改吗？</p>
+<p> <img src="/images/《趣谈网络协议》学习笔记/MAC地址可以修改吗一.png" alt="MAC地址可以修改吗一"></p>
+<p> <img src="/images/《趣谈网络协议》学习笔记/MAC地址可以修改吗二.png" alt="MAC地址可以修改吗二"></p>
+<p> 我查了一下，MAC（Media Access Control，介质访问控制）地址，也叫硬件地址，长度是 48 比特（6 字节），由 16 进制的数字组成，分为前 24 位和后 24 位。</p>
+<p> 前 24 位叫作组织唯一标志符（Organizationally Unique Identifier，OUI），是由 IEEE 的注册管理机构给不同厂家分配的代码，用于区分不同的厂家。后 24 位是厂家自己分配的，称为扩展标识符。同一个厂家生产的网卡中 MAC 地址后 24 位是不同的。</p>
+<p> 也就是说，MAC 本来设计为唯一性的，但是后来设备越来越多，而且还有虚拟化的设备和网卡，有很多工具可以修改，就很难保证不冲突了。但是至少应该保持一个局域网内是唯一的。</p>
+<p> MAC 的设计，使得即便不能保证绝对唯一，但是能保证一个局域网内出现冲突的概率很小。这样，一台机器启动的时候，就能够在没有 IP 地址的情况下，先用 MAC 地址进行通信，获得 IP 地址。</p>
+<p> 好在 MAC 地址是工作在一个局域网中的，因而即便出现了冲突，网络工程师也能够在自己的范围内很快定位并解决这个问题。这就像我们生成 UUID 或者哈希值，大部分情况下是不会冲突的，但是如果碰巧出现冲突了，采取一定的机制解决冲突就好。</p>
+</li>
+<li><p>TCP 重试有没有可能导致重复下单？</p>
+<p> <img src="/images/《趣谈网络协议》学习笔记/TCP重试有没有可能导致重复下单.png" alt="TCP重试有没有可能导致重复下单"></p>
+<p> 答案是不会的。这个在<a target="_blank" rel="noopener" href="https://time.geekbang.org/column/article/8975">TCP</a>那一节有详细的讲解。因为 TCP 层收到了重复包之后，TCP 层自己会进行去重，发给应用层、HTTP 层。还是一个唯一的下单请求，所以不会重复下单。</p>
+<p> 那什么时候会导致重复下单呢？因为网络原因或者服务端错误，导致 TCP 连接断了，这样会重新发送应用层的请求，也即 HTTP 的请求会重新发送一遍。</p>
+<p> 如果服务端设计的是无状态的，它记不住上一次已经发送了一次请求。如果处理不好，就会导致重复下单，这就需要服务端除了实现无状态，还需要根据传过来的订单号实现幂等，同一个订单只处理一次。</p>
+<p> 还会有的现象是请求被黑客拦截，发送多次，这在 HTTPS 层可以有很多种机制，例如通过 Timestamp 和 Nonce 随机数联合起来，然后做一个不可逆的签名来保证。</p>
+</li>
+<li><p>TCP 报平安的包是原路返回吗？</p>
+<p> <img src="/images/《趣谈网络协议》学习笔记/TCP报平安的包是原路返回吗.png" alt="TCP报平安的包是原路返回吗"></p>
+<p> 谢谢语鬼同学的指正。这里的比喻不够严谨，容易让读者产生误会，这里的原路返回的意思是原样返回，也就是返回也是这个过程，不一定是完全一样的路径。</p>
+</li>
+<li><p>IP 地址和 MAC 地址的关系？</p>
+<p> <img src="/images/《趣谈网络协议》学习笔记/IP地址和MAC地址的关系.png" alt="IP地址和MAC地址的关系"></p>
+<p> 芒果同学的理解非常准确，讲<a target="_blank" rel="noopener" href="https://time.geekbang.org/column/article/7772">IP 和 MAC 的关系</a>的时候说了这个问题。IP 是有远程定位功能的，MAC 是没有远程定位功能的，只能通过本地 ARP 的方式找到。</p>
+<p> 我个人认为，即便有了 IPv6，也不会改变当前的网络分层模式，还是 IP 层解决远程定位问题，只不过改成 IPv6 了，到了本地，还是通过 MAC。</p>
+</li>
+<li><p>如果最后一跳的时候，IP 改变了怎么办？</p>
+<p> <img src="/images/《趣谈网络协议》学习笔记/如果最后一跳的时候，IP改变了怎么办.png" alt="如果最后一跳的时候，IP改变了怎么办"></p>
+<p> 对于 IP 层来讲，当包到达最后一跳的时候，原来的 IP 不存在了。比如网线拔掉了，或者服务器直接宕机了，则 ARP 就找不到了，所以这个包就会发送失败了。对于 IP 层的工作就结束了。</p>
+<p> 但是 IP 层之上还有 TCP 层，TCP 会重试的，包还是会重新发送，但是如果服务器没有启动起来，超过一定的次数，最终放弃。</p>
+<p> 如果服务器重启了，IP 还是原来的 IP 地址，这个时候 TCP 重新发送的一个包的时候，ARP 是能够得到这个地址的，因而会发到这台机器上来，但是机器上面没有启动服务端监听那个端口，于是会发送 ICMP 端口不可达。</p>
+<p> 如果服务器重启了，服务端也重新启动了，也在监听那个端口了，这个时候 TCP 的服务端由于是新的，Sequence Number 根本对不上，说明不是原来的连接，会发送 RST。</p>
+<p> 那有没有可能有特殊的场景 Sequence Number 也能对的上呢？按照 Sequence Number 的生成算法，是不可能的。</p>
+<p> 但是有一个非常特殊的方式，就是虚拟机的热迁移，从一台物理机迁移到另外一台物理机，IP 不变，MAC 不变，内存也拷贝过去，Sequence Number 在内存里面也保持住了，在迁移的过程中会丢失一两个包，但是从 TCP 来看，最终还是能够连接成功的。</p>
+</li>
+<li><p>TCP 层报平安，怎么确认浏览器收到呢？</p>
+<p> <img src="/images/《趣谈网络协议》学习笔记/TCP层报平安，怎么确认浏览器收到呢.png" alt="TCP层报平安，怎么确认浏览器收到呢"></p>
+<p> TCP 报平安，只能保证 TCP 层能够收到，不保证浏览器能够收到。但是可以想象，如果浏览器是你写的一个程序，你也是通过 socket 编程写的，你是通过 socket，建立一个 TCP 的连接，然后从这个连接里面读取数据，读取的数据就是 TCP 层确认收到的。</p>
+<p> 这个读取的动作是本地系统调用，大部分情况下不会失败的。如果读取失败呢，当然本地会报错，你的 socket 读取函数会返回错误，如果你是浏览器程序的实现者，你有两种选择，一个是将错误报告给用户，另一个是重新发送一次请求，获取结果显示给用户。</p>
+</li>
+<li><p>ARP 协议属于哪一层？</p>
+<p> <img src="/images/《趣谈网络协议》学习笔记/ARP协议属于哪一层.png" alt="ARP协议属于哪一层"></p>
+<p> ARP 属于哪个层，一直是有争议的。比如《TCP/IP 详解》把它放在了二层和三层之间，但是既然是协议，只要大家都遵守相同的格式、流程就可以了，在实际应用的时候，不会有歧义的，唯一有歧义的是参加各种考试，让你做选择题，ARP 属于哪一层？平时工作中咱不用纠结这个。</p>
+</li>
+</ol>
+</li>
+</ol>
+<h4 id="《第-2-讲-网络分层的真实含义是什么？》"><a href="#《第-2-讲-网络分层的真实含义是什么？》" class="headerlink" title="《第 2 讲 | 网络分层的真实含义是什么？》"></a>《第 2 讲 | 网络分层的真实含义是什么？》</h4><ol>
+<li><p>课后思考题</p>
+<p> 如果你也觉得总经理和员工的比喻不恰当，你有更恰当的比喻吗？</p>
+<p> <img src="/images/《趣谈网络协议》学习笔记/第2讲课后思考题一.png" alt="第2讲课后思考题一"></p>
+<p> <img src="/images/《趣谈网络协议》学习笔记/第2讲课后思考题二.png" alt="第2讲课后思考题二"></p>
+<p> 我觉得，寄快递和寄信这两个比喻都挺好的。关键是有了封装和解封装的过程。有的同学举了爬楼，或者公司各层之间的沟通，都无法体现封装和解封装的过程。</p>
+</li>
+<li><p>留言问题</p>
+<ol>
+<li><p>为什么要分层？</p>
+<p> <img src="/images/《趣谈网络协议》学习笔记/为什么要分层一.png" alt="为什么要分层一"></p>
+<p> 是的，仅仅用复杂性来解释分层，太过牵强了。</p>
+<p> <img src="/images/《趣谈网络协议》学习笔记/为什么要分层二.png" alt="为什么要分层二"></p>
+<p> 其实这是一个架构设计的通用问题，不仅仅是网络协议的问题。一旦涉及到复杂的逻辑，或者软件需求需要经常变动，一般都会通过分层来解决问题。</p>
+<p> 假如我们将所有的代码都写在一起，但是产品经理突然想调整一下界面，这背后的业务逻辑变不变，那要不要一起修改呢？所以会拆成两层，把 UI 层从业务逻辑中分离出来，调用 API 来进行组合。API 不变，仅仅界面变，是不是就不影响后台的代码了？</p>
+<p> 为什么要把一些原子的 API 放在基础服务层呢？将数据库、缓存、搜索引擎等，屏蔽到基础服务层以下，基础服务层之上的组合逻辑层、API 层都只能调用基础服务层的 API，不能直接访问数据库。</p>
+<p> 比如我们要将 Oracle 切换成 MySQL。MySQL 有一个库，分库分表成为 4 个库。难道所有的代码都要修改吗？当然只要把基础服务层屏蔽，提供一致的接口就可以了。</p>
+<p> 网络协议也是这样的。有的想基于 TCP，自己不操心就能够保证到达；有的想自己实现可靠通信，不基于 TCP，而使用 UDP。一旦分了层就好办了，定制化后要依赖于下一层的接口，只要实现自己的逻辑就可以了。如果 TCP 的实现将所有的逻辑耦合在了整个七层，不用 TCP 的可靠传输机制都没有办法。</p>
+</li>
+<li><p>层级之间真实的调用方式是什么样的？</p>
+<p> <img src="/images/《趣谈网络协议》学习笔记/层级之间真实的调用方式是什么样的.png" alt="层级之间真实的调用方式是什么样的"></p>
+<p> 如果文中是一个逻辑图，这个问题其实已经到实现层面上来了，需要看 TCP/IP 的协议栈代码了。这里首先推荐一本书《深入理解 Linux 网络技术内幕》。</p>
+<p> 其实下层的协议知道上层协议的，因为在每一层的包头里面，都会有上一层是哪个协议的标识，所以不是一个回调函数，每一层的处理函数都会在操作系统启动的时候，注册到内核的一个数据结构里面，但是到某一层的时候，是通过判断到底是哪一层的哪一个协议，然后去找相应的处理函数去调用。</p>
+<p> 调用的大致过程我这里再讲一下。由于 TCP 比较复杂，我们以 UDP 为例子，其实发送的包就是一个 sk_buff 结构。这个在<a target="_blank" rel="noopener" href="https://time.geekbang.org/column/article/9293">Socket</a>那一节讲过。</p>
+ <pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">int</span> <span class="token function">udp_send_skb</span><span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">sk_buff</span> <span class="token operator">*</span>skb<span class="token punctuation">,</span> <span class="token keyword">struct</span> <span class="token class-name">flowi4</span> <span class="token operator">*</span>fl4<span class="token punctuation">)</span><span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p> 接着，UDP 层会调用 IP 层的函数。</p>
+ <pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">int</span> <span class="token function">ip_send_skb</span><span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">net</span> <span class="token operator">*</span>net<span class="token punctuation">,</span> <span class="token keyword">struct</span> <span class="token class-name">sk_buff</span> <span class="token operator">*</span>skb<span class="token punctuation">)</span><span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p> 然后，IP 层通过路由判断，最终将包发给下一层。</p>
+ <pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">int</span> <span class="token function">ip_output</span><span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">net</span> <span class="token operator">*</span>net<span class="token punctuation">,</span> <span class="token keyword">struct</span> <span class="token class-name">sock</span> <span class="token operator">*</span>sk<span class="token punctuation">,</span> <span class="token keyword">struct</span> <span class="token class-name">sk_buff</span> <span class="token operator">*</span>skb<span class="token punctuation">)</span><span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p> 发送的时候，要进行 ARP。如果有 MAC，则调用二层的函数，neigh 其实就是邻居系统，是二层的意思。</p>
+ <pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">int</span> <span class="token function">neigh_output</span><span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">neighbour</span> <span class="token operator">*</span>n<span class="token punctuation">,</span> <span class="token keyword">struct</span> <span class="token class-name">sk_buff</span> <span class="token operator">*</span>skb<span class="token punctuation">)</span><span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p> 接收的时候，会调用这里的接收函数。</p>
+ <pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">int</span> <span class="token function">netif_receive_skb</span><span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">sk_buff</span> <span class="token operator">*</span>skb<span class="token punctuation">)</span><span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p> 这个函数会根据是 ARP 或者 IP 等，选择调用不同的函数。如果是 IP 协议的话，就调用这里的函数。</p>
+ <pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">int</span> <span class="token function">ip_rcv</span><span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">sk_buff</span> <span class="token operator">*</span>skb<span class="token punctuation">,</span> <span class="token keyword">struct</span> <span class="token class-name">net_device</span> <span class="token operator">*</span>dev<span class="token punctuation">,</span> <span class="token keyword">struct</span> <span class="token class-name">packet_type</span> <span class="token operator">*</span>pt<span class="token punctuation">,</span> <span class="token keyword">struct</span> <span class="token class-name">net_device</span> <span class="token operator">*</span>orig_dev<span class="token punctuation">)</span><span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p> 这里也有路由判断。如果是本地的，则继续往上提交这个结构。</p>
+ <pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">int</span> <span class="token function">ip_local_deliver</span><span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">sk_buff</span> <span class="token operator">*</span>skb<span class="token punctuation">)</span><span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p> 接着，还是根据 IP 头里面的协议号，来判断是什么协议，从而调用什么函数。下面这个是对 UDP 的调用。</p>
+ <pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">int</span> <span class="token function">udp_rcv</span><span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">sk_buff</span> <span class="token operator">*</span>skb<span class="token punctuation">)</span><span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre></li>
+<li><p>什么情况下会有下层没上层？</p>
+<p> <img src="/images/《趣谈网络协议》学习笔记/什么情况下会有下层没上层.png" alt="什么情况下会有下层没上层"></p>
+<p> 有时候我们自己写应用的时候，不一定是直接调用应用层协议的接口，例如 HTTP 等，而是自己写 Socket 编程，来约定应用层的协议。再如，ping 也是一个应用，但是它没有用传输层的协议，而是用了 ICMP 的协议。</p>
+</li>
+</ol>
+</li>
+</ol>
+<h3 id="答疑解惑第二期"><a href="#答疑解惑第二期" class="headerlink" title="答疑解惑第二期"></a>答疑解惑第二期</h3><h4 id="《第-3-讲-ifconfig：最熟悉又陌生的命令行》"><a href="#《第-3-讲-ifconfig：最熟悉又陌生的命令行》" class="headerlink" title="《第 3 讲 | ifconfig：最熟悉又陌生的命令行》"></a>《第 3 讲 | ifconfig：最熟悉又陌生的命令行》</h4><ol>
+<li><p>课后思考题</p>
+<p> 你知道 net-tools 和 iproute2 的“历史”故事吗？</p>
+<p> <img src="/images/《趣谈网络协议》学习笔记/net-tools和iproute2的历史.png" alt="net-tools和iproute2的历史"></p>
+<p> 这个问题的答案，盖同学已经写的比较全面了。具体的对比，我这里推荐一篇文章 <a target="_blank" rel="noopener" href="https://linoxide.com/linux-command/use-ip-command-linux/">https://linoxide.com/linux-command/use-ip-command-linux/</a> ，感兴趣的话可以看看。</p>
+</li>
+<li><p>留言问题</p>
+<ol>
+<li><p>A、B、C 类地址的有效地址范围是多少？</p>
+<p> <img src="/images/《趣谈网络协议》学习笔记/A、B、C类地址的有效地址范围是多少.png" alt="A、B、C类地址的有效地址范围是多少"></p>
+<p> 我在写的时候，没有考虑这么严谨，平时使用地址的时候，也是看个大概的范围。所以这里再回答一下。</p>
+<p> A 类 IP 的地址第一个字段范围是 0～127，但是由于全 0 和全 1 的地址用作特殊用途，实际可指派的范围是 1～126。所以我仔细查了一下，如果较真的话，你在答考试题的时候可以说，A 类地址范围和 A 类有效地址范围。</p>
+</li>
+<li><p>网络号、IP 地址、子网掩码和广播地址的先后关系是什么？</p>
+<p> <img src="/images/《趣谈网络协议》学习笔记/网络号、IP地址、子网掩码和广播地址的先后关系是什么.png" alt="网络号、IP地址、子网掩码和广播地址的先后关系是什么"></p>
+<p> 当在一个数据中心或者一个办公室规划一个网络的时候，首先是网络管理员规划网段，一般是根据将来要容纳的机器数量来规划，一旦定了，以后就不好变了。</p>
+<p> 假如你在一个小公司里，总共就没几台机器，对于私有地址，一般选择 192.168.0.0/24 就可以了。</p>
+<p> 这个时候先有的是网络号。192.168.0 就是网络号。有了网络号，子网掩码同时也就有了，就是前面都是网络号的是 1，其他的是 0，广播地址也有了，除了网络号之外都是 1。</p>
+<p> 当规划完网络的时候，一般这个网络里面的第一个、第二个地址被默认网关 DHCP 服务器占用，你自己创建的机器，只要和其他的不冲突就可以了，当然你也可以让 DHCP 服务自动配置。</p>
+<p> 规划网络原来都是网络管理员的事情。有了公有云之后，一般有个概念虚拟网络（VPC），鼠标一点就能创建一个网络，网络完全软件化了，任何人都可以做网络规划。</p>
+</li>
+<li><p>组播和广播的意义和原理是什么？</p>
+<p> <img src="/images/《趣谈网络协议》学习笔记/组播和广播的意义和原理是什么.png" alt="组播和广播的意义和原理是什么.png"></p>
+<p> C 类地址的主机号 8 位，去掉 0 和 255，就只有 254 个了。</p>
+<p> 在《TCP/IP 详解》这本书里面，有两章讲了广播、多播以及 IGMP。广播和组播分为两个层面，其中 MAC 层有广播和组播对应的地址，IP 层也有自己的广播地址和组播地址。</p>
+<p> 广播相对比较简单，MAC 层的广播为 ff:ff:ff:ff:ff:ff，IP 层指向子网的广播地址为主机号为全 1 且有特定子网号的地址。</p>
+<p> 组播复杂一些，MAC 层中，当地址中最高字节的最低位设置为 1 时，表示该地址是一个组播地址，用十六进制可表示为 01:00:00:00:00:00。IP 层中，组播地址为 D 类 IP 地址，当 IP 地址为组播地址的时候，有一个算法可以计算出对应的 MAC 层地址。</p>
+<p> 多播进程将目的 IP 地址指明为多播地址，设备驱动程序将它转换为相应的以太网地址，然后把数据发送出去。这些接收进程必须通知它们的 IP 层，它们想接收的发给定多播地址的数据报，并且设备驱动程序必须能够接收这些多播帧。这个过程就是“加入一个多播组”。</p>
+<p> 当多播跨越路由器的时候，需要通过 IGMP 协议告诉多播路由器，多播数据包应该如何转发。</p>
+</li>
+<li><p>MTU 1500 的具体含义是什么？</p>
+<p> <img src="/images/《趣谈网络协议》学习笔记/MTU1500的具体含义是什么.png" alt="MTU1500的具体含义是什么"></p>
+<p> MTU（Maximum Transmission Unit，最大传输单元）是二层的一个定义。以以太网为例，MTU 为 1500 个 Byte，前面有 6 个 Byte 的目标 MAC 地址，6 个 Byte 的源 MAC 地址，2 个 Byte 的类型，后面有 4 个 Byte 的 CRC 校验，共 1518 个 Byte。</p>
+<p> 在 IP 层，一个 IP 数据报在以太网中传输，如果它的长度大于该 MTU 值，就要进行分片传输。如果不允许分片 DF，就会发送 ICMP 包，这个在<a target="_blank" rel="noopener" href="https://time.geekbang.org/column/article/8445">ICMP</a>那一节讲过。</p>
+<p> 在 TCP 层有个 MSS（Maximum Segment Size，最大分段大小），它等于 MTU 减去 IP 头，再减去 TCP 头。即在不分片的情况下，TCP 里面放的最大内容。</p>
+<p> 在 HTTP 层看来，它的 body 没有限制，而且在应用层看来，下层的 TCP 是一个流，可以一直发送，但其实是会被分成一个个段的。</p>
+</li>
+</ol>
+</li>
+</ol>
+<h4 id="《第-4-讲-DHCP-与-PXE：IP-是怎么来的，又是怎么没的》"><a href="#《第-4-讲-DHCP-与-PXE：IP-是怎么来的，又是怎么没的》" class="headerlink" title="《第 4 讲 | DHCP 与 PXE：IP 是怎么来的，又是怎么没的》"></a>《第 4 讲 | DHCP 与 PXE：IP 是怎么来的，又是怎么没的》</h4><ol>
+<li><p>课后思考题</p>
+<p> PXE 协议可以用来安装操作系统，但是如果每次重启都安装操作系统，就会很麻烦。你知道如何使得第一次安装操作系统，后面就正常启动吗？</p>
+<p> <img src="/images/《趣谈网络协议》学习笔记/第4讲课后思考题一.png" alt="第4讲课后思考题一"></p>
+<p> 一般如果咱们手动安装一台电脑的时候，都是有启动顺序的，如果改为硬盘启动，就没有问题了。</p>
+<p> <img src="/images/《趣谈网络协议》学习笔记/第4讲课后思考题二.png" alt="第4讲课后思考题二"></p>
+<p> 好在服务器一般都提供 IPMI 接口，可以通过这个接口启动、重启、设置启动模式等等远程访问，这样就可以批量管理一大批机器。</p>
+<p> <img src="/images/《趣谈网络协议》学习笔记/第4讲课后思考题三.png" alt="第4讲课后思考题三"></p>
+<p> 这里提到 Cobbler，这是一个批量安装操作系统的工具。在 OpenStack 里面，还有一个 Ironic，也是用来管理裸机的。有兴趣的话可以研究一下。</p>
+</li>
+<li><p>留言问题</p>
+<ol>
+<li><p>在 DHCP 网络里面，手动配置 IP 地址会冲突吗?</p>
+<p> <img src="/images/《趣谈网络协议》学习笔记/在DHCP网络里面，手动配置IP地址会冲突吗.png" alt="在DHCP网络里面，手动配置IP地址会冲突吗一"></p>
+<p> <img src="/images/《趣谈网络协议》学习笔记/在DHCP网络里面，手动配置IP地址会冲突吗二.png" alt="在DHCP网络里面，手动配置IP地址会冲突吗二"></p>
+<p> 在一个 DHCP 网络里面，如果某一台机器手动配置了一个 IP 地址，并且在 DHCP 管理的网段里的话，DHCP 服务器是会将这个地址分配给其他机器的。一旦分配了，ARP 的时候，就会收到两个应答，IP 地址就冲突了。</p>
+<p> 当发生这种情况的时候，应该怎么办呢？DHCP 的过程虽然没有明确如何处理，但是 DHCP 的客户端和服务器都可以添加相应的机制来检测冲突。</p>
+<p> 如果由客户端来检测冲突，一般情况是，客户端在接受分配的 IP 之前，先发送一个 ARP，看是否有应答，有就说明冲突了，于是发送一个 DHCPDECLINE，放弃这个 IP 地址。</p>
+<p> 如果由服务器来检测冲突，DHCP 服务器会发送 ping，来看某个 IP 是否已经被使用。如果被使用了，它就不再将这个 IP 分配给其他的客户端了。</p>
+</li>
+<li><p>DHCP 的 Offer 和 ACK 应该是单播还是广播呢？</p>
+<p> <img src="/images/《趣谈网络协议》学习笔记/DHCP的Offer和ACK应该是单播还是广播呢一.png" alt="DHCP的Offer和ACK应该是单播还是广播呢一"></p>
+<p> <img src="/images/《趣谈网络协议》学习笔记/DHCP的Offer和ACK应该是单播还是广播呢二.png" alt="DHCP的Offer和ACK应该是单播还是广播呢二"></p>
+<p> 没心没肺 回答的很正确。</p>
+<p> 这个我们来看<a target="_blank" rel="noopener" href="http://www.faqs.org/rfcs/rfc2131.html">DHCP 的 RFC</a>，我截了个图放在这儿：</p>
+<p> <img src="/images/《趣谈网络协议》学习笔记/DHCP的RFC.jpg" alt="DHCP的RFC"></p>
+<p> 这里面说了几个问题。</p>
+<p> 正常情况下，一旦有了 IP 地址，DHCP Server 还是希望通过单播的方式发送 OFFER 和 ACK。但是不幸的是，有的客户端协议栈的实现，如果还没有配置 IP 地址，就使用单播。协议栈是不接收这个包的，因为 OFFER 和 ACK 的时候，IP 地址还没有配置到网卡上。</p>
+<p> 所以，一切取决于客户端的协议栈的能力，如果没配置好 IP，就不能接收单播的包，那就将 BROADCAST 设为 1，以广播的形式进行交互。</p>
+<p> 如果客户端的协议栈实现很厉害，即便是没有配置好 IP，仍然能够接受单播的包，那就将 BROADCAST 位设置为 0，就以单播的形式交互。</p>
+</li>
+<li><p>DHCP 如何解决内网安全问题?</p>
+<p> <img src="/images/《趣谈网络协议》学习笔记/DHCP如何解决内网安全问题.png" alt="DHCP如何解决内网安全问题"></p>
+<p> 其实 DHCP 协议的设计是基于内网互信的基础来设计的，而且是基于 UDP 协议。但是这里面的确是有风险的。例如一个普通用户无意地或者恶意地安装一台 DHCP 服务器，发放一些错误或者冲突的配置；再如，有恶意的用户发出很多的 DHCP 请求，让 DHCP 服务器给他分配大量的 IP。</p>
+<p> 对于第一种情况，DHCP 服务器和二层网络都是由网管管理的，可以在交换机配置只有来自某个 DHCP 服务器的包才是可信的，其他全部丢弃。如果有 SDN，或者在云中，非法的 DHCP 包根本就拦截到虚拟机或者物理机的出口。</p>
+<p> 对于第二种情况，一方面进行监控，对 DHCP 报文进行限速，并且异常的端口可以关闭，一方面还是 SDN 或者在云中，除了被 SDN 管控端登记过的 IP 和 MAC 地址，其他的地址是不允许出现在虚拟机和物理机出口的，也就无法模拟大量的客户端。</p>
+</li>
+</ol>
+</li>
+</ol>
+<h4 id="《第-5-讲-从物理层到-MAC-层：如何在宿舍里自己组网玩联机游戏？》"><a href="#《第-5-讲-从物理层到-MAC-层：如何在宿舍里自己组网玩联机游戏？》" class="headerlink" title="《第 5 讲 | 从物理层到 MAC 层：如何在宿舍里自己组网玩联机游戏？》"></a>《第 5 讲 | 从物理层到 MAC 层：如何在宿舍里自己组网玩联机游戏？》</h4><ol>
+<li><p>课后思考题</p>
+<ol>
+<li><p>在二层中我们讲了 ARP 协议，即已知 IP 地址求 MAC；还有一种 RARP 协议，即已知 MAC 求 IP 的，你知道它可以用来干什么吗？</p>
+<p> <img src="/images/《趣谈网络协议》学习笔记/第5讲课后思考题一.png" alt="第5讲课后思考题一"></p>
+</li>
+<li><p>如果一个局域网里面有多个交换机，ARP 广播的模式会出现什么问题呢？</p>
+<p> 盖还说出了环路的问题。</p>
+<p> <img src="/images/《趣谈网络协议》学习笔记/第5讲课后思考题二.png" alt="第5讲课后思考题二"></p>
+<p> 没心没肺不但说明了问题，而且说明了方案。</p>
+<p> <img src="/images/《趣谈网络协议》学习笔记/第5讲课后思考题三.png" alt="第5讲课后思考题三"></p>
+</li>
+</ol>
+</li>
+</ol>
+<h4 id="《第-6-讲-交换机与-VLAN：办公室太复杂，我要回学校》"><a href="#《第-6-讲-交换机与-VLAN：办公室太复杂，我要回学校》" class="headerlink" title="《第 6 讲 | 交换机与 VLAN：办公室太复杂，我要回学校》"></a>《第 6 讲 | 交换机与 VLAN：办公室太复杂，我要回学校》</h4><ol>
+<li><p>课后思考题</p>
+<p> STP 协议能够很好地解决环路问题，但是也有它的缺点，你能举几个例子吗？</p>
+<p> <img src="/images/《趣谈网络协议》学习笔记/第6讲课后思考题一.png" alt="第6讲课后思考题一"></p>
+<p> <img src="/images/《趣谈网络协议》学习笔记/第6讲课后思考题二.png" alt="第6讲课后思考题二"></p>
+<p> STP 的主要问题在于，当拓扑发生变化，新的配置消息要经过一定的时延才能传播到整个网络。</p>
+<p> 由于整个交换网络只有一棵生成树，在网络规模比较大的时候会导致较长的收敛时间，拓扑改变的影响面也较大，当链路被阻塞后将不承载任何流量，造成了极大带宽浪费。</p>
+</li>
+<li><p>留言问题</p>
+<ol>
+<li><p>每台交换机的武力值是什么样的？</p>
+<p> <img src="/images/《趣谈网络协议》学习笔记/每台交换机的武力值是什么样的一.png" alt="每台交换机的武力值是什么样的一"></p>
+<p> <img src="/images/《趣谈网络协议》学习笔记/每台交换机的武力值是什么样的二.png" alt="每台交换机的武力值是什么样的二"></p>
+<p> 当一台交换机加入或者离开网络的时候，都会造成网络拓扑变化，这个时候检测到拓扑变化的网桥会通知根网桥，根网桥会通知所有的网桥拓扑发生变化。</p>
+<p> 网桥的 ID 是由网桥优先级和网桥 MAC 地址组成的，网桥 ID 最小的将成为网络中的根桥。默认配置下，网桥优先级都一样，默认优先级是 32768。这个时候 MAC 地址最小的网桥成为根网桥。但是如果你想设置某台为根网桥，就配置更小的优先级即可。</p>
+<p> 在优先级向量里面，Root Bridge ID 就是根网桥的 ID，Bridge ID 是网桥的 ID，Port ID 就是一个网桥上有多个端口，端口的 ID。</p>
+<p> <img src="/images/《趣谈网络协议》学习笔记/每台交换机的武力值是什么样的三.png" alt="每台交换机的武力值是什么样的三"></p>
+<p> 按照 RFC 的定义，ROOT PATH COST 是和出口带宽相关的，具体的数据如下：</p>
+<p> <img src="/images/《趣谈网络协议》学习笔记/每台交换机的武力值是什么样的四.jpg" alt="每台交换机的武力值是什么样的四"></p>
+</li>
+<li><p>图中的 LAN 指的是什么？</p>
+<p> <img src="/images/《趣谈网络协议》学习笔记/图中的LAN指的是什么一.png" alt="图中的LAN指的是什么一.png"></p>
+<p> 在这一节中，这两张图引起了困惑。</p>
+<p> <img src="/images/《趣谈网络协议》学习笔记/图中的LAN指的是什么二.png" alt="图中的LAN指的是什么二"></p>
+<p> <img src="/images/《趣谈网络协议》学习笔记/图中的LAN指的是什么三.png" alt="图中的LAN指的是什么三"></p>
+<p> 本来是为了讲二层的原理，做了个抽象的图，结果引起了大家的疑问，所以这里需要重新阐述一下。</p>
+<p> 首先，这里的 LAN1、LAN2、LAN 3 的说法的确不准确，因为通过网桥或者交换机连接，它们还是属于一个 LAN，其实这是三个物理网络，通过网桥或者交换机连接起来，形成一个二层的 LAN。</p>
+<p> 对于一层，也即物理层的设备，主要使用集线器（Hub），这里我们就用 Hub 将物理层连接起来。</p>
+<p> 于是我新画了两个图。</p>
+<p> <img src="/images/《趣谈网络协议》学习笔记/图中的LAN指的是什么四.png" alt="图中的LAN指的是什么四"></p>
+<p> <img src="/images/《趣谈网络协议》学习笔记/图中的LAN指的是什么五.png" alt="图中的LAN指的是什么五"></p>
+<p> 在这里，我用 Hub 将不同的机器连接在一起，形成一个物理段，而非 LAN。</p>
+</li>
+<li><p>在 MAC 地址已经学习的情况下，ARP 会广播到没有 IP 的物理段吗？</p>
+<p> <img src="/images/《趣谈网络协议》学习笔记/在MAC地址已经学习的情况下，ARP会广播到没有IP的物理段吗一.png" alt="在MAC地址已经学习的情况下，ARP会广播到没有IP的物理段吗一"></p>
+<p> <img src="/images/《趣谈网络协议》学习笔记/在MAC地址已经学习的情况下，ARP会广播到没有IP的物理段吗二.png" alt="在MAC地址已经学习的情况下，ARP会广播到没有IP的物理段吗二"></p>
+<p> 首先谢谢这两位同学指出错误，这里 ARP 的目标地址是广播的，所以无论是否进行地址学习，都会广播，而对于某个 MAC 的访问，在没有地址学习的时候，是转发到所有的端口的，学习之后，只会转发到有这个 MAC 的端口。</p>
+</li>
+<li><p>802.1Q VLAN 和 Port-based VLAN 有什么区别？</p>
+<p> <img src="/images/《趣谈网络协议》学习笔记/802.1QVLAN和Port-basedVLAN有什么区别.png" alt="802.1QVLAN和Port-basedVLAN有什么区别"></p>
+<p> 所谓 Port-based VLAN，一般只在一台交换机上起作用，比如一台交换机，10 个口，1、3、5、7、9 属于 VLAN 10。1 发出的包，只有 3、5、7、9 能够收到，但是从这些口转发出去的包头中，并不带 VLAN ID。</p>
+<p> 而 802.1Q 的 VLAN，出了交换机也起作用，也就是说，一旦打上某个 VLAN，则出去的包都带这个 VLAN，也需要链路上的交换机能够识别这个 VLAN，进行转发。</p>
+</li>
+</ol>
+</li>
+</ol>
+<h3 id="答疑解惑第三期"><a href="#答疑解惑第三期" class="headerlink" title="答疑解惑第三期"></a>答疑解惑第三期</h3><h4 id="《第-7-讲-ICMP-与-ping：投石问路的侦察兵》"><a href="#《第-7-讲-ICMP-与-ping：投石问路的侦察兵》" class="headerlink" title="《第 7 讲 | ICMP 与 ping：投石问路的侦察兵》"></a>《第 7 讲 | ICMP 与 ping：投石问路的侦察兵》</h4><ol>
+<li><p>课后思考题</p>
+<p> 当发送的报文出问题的时候，会发送一个 ICMP 的差错报文来报告错误，但是如果 ICMP 的差错报文也出问题了呢？</p>
+<p> 我总结了一下，不会导致产生 ICMP 差错报文的有：</p>
+<ul>
+<li>ICMP 差错报文（ICMP 查询报文可能会产生 ICMP 差错报文）；</li>
+<li>目的地址是广播地址或多播地址的 IP 数据报；</li>
+<li>作为链路层广播的数据报；</li>
+<li>不是 IP 分片的第一片；</li>
+<li>源地址不是单个主机的数据报。这就是说，源地址不能为零地址、环回地址、广播地址或多播地址。</li>
+</ul>
+</li>
+<li><p>留言问题</p>
+<ol>
+<li><p>ping 使用的是什么网络编程接口？</p>
+<p> <img src="/images/《趣谈网络协议》学习笔记/ping使用的是什么网络编程接口.png" alt="ping使用的是什么网络编程接口"></p>
+<p> 咱们使用的网络编程接口是 Socket，对于 ping 来讲，使用的是 ICMP，创建 Socket 如下：</p>
+ <pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token function">socket</span><span class="token punctuation">(</span>AF_INET<span class="token punctuation">,</span> SOCK_RAW<span class="token punctuation">,</span> IPPROTO_ICMP<span class="token punctuation">)</span><span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p> SOCK_RAW 就是基于 IP 层协议建立通信机制。</p>
+<p> 如果是 TCP，则建立下面的 Socket：</p>
+ <pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token function">socket</span><span class="token punctuation">(</span>AF_INET<span class="token punctuation">,</span> SOCK_STREAM<span class="token punctuation">,</span> IPPROTO_TCP<span class="token punctuation">)</span><span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p> 如果是 UDP，则建立下面的 Socket：</p>
+ <pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token function">socket</span><span class="token punctuation">(</span>AF_INET<span class="token punctuation">,</span> SOCK_DGRAM<span class="token punctuation">,</span> IPPROTO_UDP<span class="token punctuation">)</span><span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre></li>
+<li><p>ICMP 差错报文是谁发送的呢？</p>
+<p> 我看留言里有很多人对这个问题有疑惑。ICMP 包是由内核返回的，在内核中，有一个函数用于发送 ICMP 的包。</p>
+ <pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">void</span> <span class="token function">icmp_send</span><span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">sk_buff</span> <span class="token operator">*</span>skb_in<span class="token punctuation">,</span> <span class="token keyword">int</span> type<span class="token punctuation">,</span> <span class="token keyword">int</span> code<span class="token punctuation">,</span> __be32 info<span class="token punctuation">)</span><span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p> 例如，目标不可达，会调用下面的函数。</p>
+ <pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token function">icmp_send</span><span class="token punctuation">(</span>skb<span class="token punctuation">,</span> ICMP_DEST_UNREACH<span class="token punctuation">,</span> ICMP_PROT_UNREACH<span class="token punctuation">,</span> <span class="token number">0</span><span class="token punctuation">)</span><span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p> 当 IP 大小超过 MTU 的时候，发送需要分片的 ICMP。</p>
+ <pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token function">ip_exceeds_mtu</span><span class="token punctuation">(</span>skb<span class="token punctuation">,</span> mtu<span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+    <span class="token function">icmp_send</span><span class="token punctuation">(</span>skb<span class="token punctuation">,</span> ICMP_DEST_UNREACH<span class="token punctuation">,</span> ICMP_FRAG_NEEDED<span class="token punctuation">,</span> <span class="token function">htonl</span><span class="token punctuation">(</span>mtu<span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">goto</span> drop<span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span></span></code></pre>
+<!----fix markdown render issues---->
+</li>
+</ol>
+</li>
+</ol>
+<h4 id="《第-8-讲-世界这么大，我想出网关：欧洲十国游与玄奘西行》"><a href="#《第-8-讲-世界这么大，我想出网关：欧洲十国游与玄奘西行》" class="headerlink" title="《第 8 讲 | 世界这么大，我想出网关：欧洲十国游与玄奘西行》"></a>《第 8 讲 | 世界这么大，我想出网关：欧洲十国游与玄奘西行》</h4><ol>
+<li><p>课后思考题</p>
+<p> 当在你家里要访问 163 网站的时候，你的包需要 NAT 成为公网 IP，返回的包又要 NAT 成你的私有 IP，返回包怎么知道这是你的请求呢？它怎么能这么智能的 NAT 成了你的 IP 而非别人的 IP 呢？</p>
+<p> 这是个比较复杂的事情。在讲云中网络安全里的 iptables 时，我们讲过 conntrack 功能，它记录了 SNAT 一去一回的对应关系。</p>
+<p> 如果编译内核时开启了连接跟踪选项，那么 Linux 系统就会为它收到的每个数据包维持一个连接状态，用于记录这条数据连接的状态。</p>
+<p> <img src="/images/《趣谈网络协议》学习笔记/包处理过程中的五个节点.jpg" alt="包处理过程中的五个节点"></p>
+<p> 根据咱们学过的 Netfilter 的流程图，我们知道，网络包有三种路径：</p>
+<ul>
+<li>发给我的，从 PREROUTING 到 INPUT，我就接收了；</li>
+<li>我发给别人的，从 OUTPUT 到 POSTROUTING，就发出去的；</li>
+<li><p>从我这里经过的，从 PREROUTING 到 FORWARD 到 POSTROUTING。</p>
+<p>如果要跟踪一个网络包，对于每一种路径，都需要设置两个记录点，相当于打两次卡，这样内核才知道这个包的状态。</p>
+<p>对于这三种路径，打卡的点是这样设置的：</p>
+</li>
+<li><p>发给我的，在 PREROUTING 调用 ipv4_conntrack_in，创建连接跟踪记录；在 INPUT 调用 ipv4_confirm，将这个连接跟踪记录挂在内核的连接跟踪表里面。为什么不一开始就挂在内核的连接跟踪表里面呢？因为有 filter 表，一旦把包过滤了，也就是丢弃了，那根本没必要记录这个连接了。</p>
+</li>
+<li>我发给别人的，在 OUTPUT 调用 ipv4_conntrack_local，创建连接跟踪记录，在 POSTROUTING 调用 ipv4_confirm，将这个连接跟踪记录挂在内核的连接跟踪表里面。</li>
+<li><p>从我这里经过的，在 PREROUTING 调用 ipv4_conntrack_in，创建连接跟踪记录，在 POSTROUTING 调用 ipv4_confirm，将这个连接跟踪记录挂在内核的连接跟踪表里面。</p>
+<p>网关主要做转发，这里主要说的是 NAT 网关，因而我们重点来看“从我这里经过的”这种场景，再加上要 NAT，因而将 NAT 的过程融入到连接跟踪的过程中来：</p>
+</li>
+<li><p>如果是 PREROUTING 的时候，先调用 ipv4_conntrack_in，创建连接跟踪记录；</p>
+</li>
+<li>如果是 PREROUTING 的时候，有 NAT 规则，则调用 nf_nat_ipv4_in 进行地址转换；</li>
+<li>如果是 POSTROUTING 的时候，有 NAT 规则，则调用 nf_nat_ipv4_out 进行地址转换；</li>
+<li><p>如果是 POSTROUTING 的时候，调用 ipv4_confirm，将这个连接跟踪记录挂在内核的连接跟踪表里面。</p>
+<p>接下来，我们来看，在这个过程中涉及到的数据结构：连接跟踪记录、连接跟踪表。</p>
+<p>在前面讲网络包处理的时候，我们说过，每个网络包都是一个 struct sk_buff，它有一个成员变量 _nfct 指向一个连接跟踪记录 struct nf_conn。当然当一个网络包刚刚进来的时候，是不会指向这么一个结构的，但是这个网络包肯定属于某个连接，因而会去连接跟踪表里面去查找，之后赋值给 sk_buff 的这个成员变量。没找到的话，就说明是一个新的连接，然后会重新创建一个。</p>
+<p>连接跟踪记录里面有几个重要的东西：</p>
+</li>
+<li><p>nf_conntrack 其实才是 _nfct 变量指向的地址，但是没有关系，学过 C++ 的话应该明白，对于结构体来讲，nf_conn 和 nf_conntrack 的起始地址是一样的；</p>
+</li>
+<li><p>tuplehash 虽然是数组，但是里面只有两个，IP_CT_DIR_ORIGINAL 为下标 0，表示连接的发起方向，IP_CT_DIR_REPLY 为下标 1，表示连接的回复方向。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">struct</span> <span class="token class-name">nf_conn</span> <span class="token punctuation">{</span>
+    <span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    <span class="token keyword">struct</span> <span class="token class-name">nf_conntrack</span> ct_general<span class="token punctuation">;</span>
+    <span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    <span class="token keyword">struct</span> <span class="token class-name">nf_conntrack_tuple_hash</span> tuplehash<span class="token punctuation">[</span>IP_CT_DIR_MAX<span class="token punctuation">]</span><span class="token punctuation">;</span>
+    <span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+    <span class="token keyword">unsigned</span> <span class="token keyword">long</span> status<span class="token punctuation">;</span>
+    <span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>在这里面，最重要的是 nf_conntrack_tuple_hash 的数组。nf_conn 是这个网络包对应的一去一回的连接追踪记录，但是这个记录是会放在一个统一的连接追踪表里面的。</p>
+<p>连接跟踪表 nf_conntrack_hash 是一个数组，数组中的每一项都是一个双向链表的头，每一项后面都挂着一个双向链表，链表中的每一项都是这个结构。</p>
+<p>这个结构的第一项是链表的链，nf_conntrack_tuple 是用来标识是否同一个连接。</p>
+<p>从上面可以看出来，连接跟踪表是一个典型的链式哈希表的实现。</p>
+<p>每当有一个网络包来了的时候，会将网络包中 sk_buff 中的数据提取出来，形成 nf_conntrack_tuple，并根据里面的内容计算哈希值。然后需要在哈希表中查找，如果找到，则说明这个连接出现过；如果没找到，则生成一个插入哈希表。</p>
+<p>通过 nf_conntrack_tuple 里面的内容，可以唯一地标识一个连接：</p>
+</li>
+<li><p>src：包含源 IP 地址；如果是 TCP 或者 UDP，包含源端口；如果是 ICMP，包含的是 ID；</p>
+</li>
+<li><p>dst：包含目标 IP 地址；如果是 TCP 或者 UDP，包含目标端口；如果是 ICMP，包含的是 type, code。</p>
+<p>有了这些数据结构，我们接下来看这一去一回的过程。</p>
+<p>当一个包发出去的时候，到达这个 NAT 网关的时候，首先经过 PREROUTING 的时候，先调用 ipv4_conntrack_in。这个时候进来的包 sk_buff 为： {源 IP：客户端 IP，源端口：客户端 port，目标 IP：服务端 IP，目标端口：服务端 port}，将这个转换为 nf_conntrack_tuple，然后经过哈希运算，在连接跟踪表里面查找，发现没有，说明这是一个新的连接。</p>
+<p>于是，创建一个新的连接跟踪记录 nf_conn，这里面有两个 nf_conntrack_tuple_hash：</p>
+</li>
+<li><p>一去：{源 IP：客户端 IP，源端口：客户端 port，目标 IP：服务端 IP，目标端口：服务端 port}；</p>
+</li>
+<li><p>一回：{源 IP：服务端 IP，源端口：服务端 port，目标 IP：客户端 IP，目标端口：客户端 port}。</p>
+<p>接下来经过 FORWARD 过程，假设包没有被 filter 掉，于是要转发出去，进入 POSTROUTING 的过程，有 NAT 规则，则调用 nf_nat_ipv4_out 进行地址转换。这个时候，源地址要变成 NAT 网关的 IP 地址，对于 masquerade 来讲，会自动选择一个公网 IP 地址和一个随机端口。</p>
+<p>为了让包回来的时候，能找到连接跟踪记录，需要修改两个 nf_conntrack_tuple_hash 中回来的那一项为：{源 IP：服务端 IP，源端口：服务端 port，目标 IP：NAT 网关 IP，目标端口：随机端口}。</p>
+<p>接下来要将网络包真正发出去的时候，除了要修改包里面的源 IP 和源端口之外，还需要将刚才的一去一回的两个 nf_conntrack_tuple_hash 放入连接跟踪表这个哈希表中。</p>
+<p>当网络包到达服务端，然后回复一个包的时候，这个包 sk_buff 为：{源 IP：服务端 IP，源端口：服务端 port，目标 IP：NAT 网关 IP，目标端口：随机端口}。</p>
+<p>将这个转换为 nf_conntrack_tuple 后，进行哈希运算，在连接跟踪表里面查找，是能找到相应的记录的，找到 nf_conntrack_tuple_hash 之后，Linux 会提供一个函数。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">static</span> <span class="token keyword">inline</span> <span class="token keyword">struct</span> <span class="token class-name">nf_conn</span> <span class="token operator">*</span>
+<span class="token function">nf_ct_tuplehash_to_ctrack</span><span class="token punctuation">(</span><span class="token keyword">const</span> <span class="token keyword">struct</span> <span class="token class-name">nf_conntrack_tuple_hash</span> <span class="token operator">*</span>hash<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword">return</span> <span class="token function">container_of</span><span class="token punctuation">(</span>hash<span class="token punctuation">,</span> <span class="token keyword">struct</span> <span class="token class-name">nf_conn</span><span class="token punctuation">,</span>
+        tuplehash<span class="token punctuation">[</span>hash<span class="token operator">-&gt;</span>tuple<span class="token punctuation">.</span>dst<span class="token punctuation">.</span>dir<span class="token punctuation">]</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>可以通过 nf_conntrack_tuple_hash 找到外面的连接跟踪记录 nf_conn，通过这个可以找到来方向的那个 nf_conntrack_tuple_hash，{源 IP：客户端 IP，源端口：客户端 port，目标 IP：服务端 IP，目标端口：服务端 port}，这样就能够找到客户端的 IP 和端口，从而可以 NAT 回去。</p>
+</li>
+</ul>
+</li>
+<li><p>留言问题</p>
+<ol>
+<li><p>NAT 能建立多少连接？</p>
+<p> <img src="/images/《趣谈网络协议》学习笔记/NAT能建立多少连接一.png" alt="NAT能建立多少连接一"></p>
+<p> SNAT 多用于内网访问外网的场景，鉴于 conntrack 是由{源 IP，源端口，目标 IP，目标端口}，hash 后确定的。</p>
+<p> 如果内网机器很多，但是访问的是不同的外网，也即目标 IP 和目标端口很多，这样内网可承载的数量就非常大，可不止 65535 个。</p>
+<p> 但是如果内网所有的机器，都一定要访问同一个目标 IP 和目标端口，这样源 IP 如果只有一个，这样的情况下，才受 65535 的端口数目限制，根据原理，一种方法就是多个源 IP，另外的方法就是多个 NAT 网关，来分摊不同的内网机器访问。</p>
+<p> 如果你使用的是公有云，65535 台机器，应该放在一个 VPC 里面，可以放在多个 VPC 里面，每个 VPC 都可以有自己的 NAT 网关。</p>
+<p> <img src="/images/《趣谈网络协议》学习笔记/NAT能建立多少连接二.png" alt="NAT能建立多少连接二"></p>
+<p> 其实 SNAT 的场景是内网访问外网，存在端口数量的问题，也是所有的机器都访问一个目标地址的情况。</p>
+<p> 如果是微信这种场景，应该是服务端在数据中心内部，无论多少长连接，作为服务端监听的都是少数几个端口，是 DNAT 的场景，是没有端口数目问题的，只有一台服务器能不能维护这么多连接，因而在 NAT 网关后面部署多个 nginx 来分摊连接即可。</p>
+</li>
+<li><p>公网 IP 和私网 IP 需要一一绑定吗？</p>
+<p> <img src="/images/《趣谈网络协议》学习笔记/公网IP和私网IP需要一一绑定吗.png" alt="公网IP和私网IP需要一一绑定吗"></p>
+<p> 公网 IP 是有限的，如果使用公有云，需要花钱去买。但是不是每一个虚拟机都要有一个公网 IP 的，只有需要对外提供服务的机器，也即接入层的那些 nginx 需要公网 IP，没有公网 IP，使用 SNAT，大家共享 SNAT 网关的公网 IP 地址，也是能够访问的外网的。</p>
+<p> 我看留言中的困惑点都在于，要区分内主动发起访问外，还是外主动发起访问内，是访问同一个服务端，还是访问一大批服务端。这里就很明白了。</p>
+</li>
+</ol>
+</li>
+</ol>
+<h4 id="《第-9-讲-路由协议：西出网关无故人，敢问路在何方》"><a href="#《第-9-讲-路由协议：西出网关无故人，敢问路在何方》" class="headerlink" title="《第 9 讲 | 路由协议：西出网关无故人，敢问路在何方》"></a>《第 9 讲 | 路由协议：西出网关无故人，敢问路在何方》</h4><ol>
+<li><p>课后思考题</p>
+<p> 路由协议要在路由器之间交换信息，这些信息的交换还需要走路由吗？不是死锁了吗？</p>
+<p> <img src="/images/《趣谈网络协议》学习笔记/第9讲课后思考题.png" alt="第9讲课后思考题"></p>
+<p> OSPF 是直接基于 IP 协议发送的，而且 OSPF 的包都是发给邻居的，也即只有一跳，不会中间经过路由设备。BGP 是基于 TCP 协议的，在 BGP peer 之间交换信息。</p>
+</li>
+<li><p>留言问题</p>
+<ol>
+<li><p>多线 BGP 机房是怎么回事儿？</p>
+<p> <img src="/images/《趣谈网络协议》学习笔记/多线BGP机房是怎么回事儿.png" alt="多线BGP机房是怎么回事儿"></p>
+<p> BGP 主要用于互联网 AS 自治系统之间的互联，BGP 的最主要功能在于<strong>控制路由的传播</strong>和<strong>选择最好的路由</strong>。各大运营商都具有 AS 号，全国各大网络运营商多数都是通过 BGP 协议与自身的 AS 来实现多线互联的。</p>
+<p> 使用此方案来实现多线路互联，IDC 需要在 CNNIC（中国互联网信息中心）或 APNIC（亚太网络信息中心）申请自己的 IP 地址段和 AS 号，然后通过 BGP 协议将此段 IP 地址广播到其它的网络运营商的网络中。</p>
+<p> 使用 BGP 协议互联后，网络运营商的所有骨干路由设备将会判断到 IDC 机房 IP 段的最佳路由，以保证不同网络运营商用户的高速访问。</p>
+</li>
+</ol>
+</li>
+</ol>
+<h4 id="《第-10-讲-UDP-协议：因性善而简单，难免碰到“城会玩”》"><a href="#《第-10-讲-UDP-协议：因性善而简单，难免碰到“城会玩”》" class="headerlink" title="《第 10 讲 | UDP 协议：因性善而简单，难免碰到“城会玩”》"></a>《第 10 讲 | UDP 协议：因性善而简单，难免碰到“城会玩”》</h4><ol>
+<li><p>课后思考题</p>
+<p> 都说 TCP 是面向连接的，在计算机看来，怎么样才算一个连接呢？</p>
+<p> 赵强强在留言中回答的是正确的。这是 TCP 的两端为了维护连接所保持的数据结构。</p>
+<p> <img src="/images/《趣谈网络协议》学习笔记/第10讲课后思考题一.png" alt="第10讲课后思考题一"></p>
+<p> <img src="/images/《趣谈网络协议》学习笔记/第10讲课后思考题二.png" alt="第10讲课后思考题二"></p>
+</li>
+</ol>
+<h4 id="《第-11-讲-TCP-协议（上）：因性恶而复杂，先恶后善反轻松》"><a href="#《第-11-讲-TCP-协议（上）：因性恶而复杂，先恶后善反轻松》" class="headerlink" title="《第 11 讲 | TCP 协议（上）：因性恶而复杂，先恶后善反轻松》"></a>《第 11 讲 | TCP 协议（上）：因性恶而复杂，先恶后善反轻松》</h4><ol>
+<li><p>课后思考题</p>
+<p> TCP 的连接有这么多的状态，你知道如何在系统中查看某个连接的状态吗？</p>
+<p> <img src="/images/《趣谈网络协议》学习笔记/第11讲课后思考题.png" alt="第11讲课后思考题.png"></p>
+</li>
+<li><p>留言问题</p>
+<ol>
+<li><p>TIME_WAIT 状态太多是怎么回事儿？</p>
+<p> <img src="/images/《趣谈网络协议》学习笔记/TIME_WAIT状态太多是怎么回事儿一.png" alt="TIME_WAIT状态太多是怎么回事儿一"></p>
+<p> <img src="/images/《趣谈网络协议》学习笔记/TIME_WAIT状态太多是怎么回事儿二.jpg" alt="TIME_WAIT状态太多是怎么回事儿二"></p>
+<p> 如果处于 TIMEWAIT 状态，说明双方建立成功过连接，而且已经发送了最后的 ACK 之后，才会处于这个状态，而且是主动发起关闭的一方处于这个状态。</p>
+<p> 如果存在大量的 TIMEWAIT，往往是因为短连接太多，不断的创建连接，然后释放连接，从而导致很多连接在这个状态，可能会导致无法发起新的连接。解决的方式往往是：</p>
+<ul>
+<li>打开 tcp_tw_recycle 和 tcp_timestamps 选项；</li>
+<li>打开 tcp_tw_reuse 和 tcp_timestamps 选项；</li>
+<li><p>程序中使用 SO_LINGER，应用强制使用 rst 关闭。</p>
+<p>当客户端收到 Connection Reset，往往是收到了 TCP 的 RST 消息，RST 消息一般在下面的情况下发送：</p>
+</li>
+<li><p>试图连接一个未被监听的服务端；</p>
+</li>
+<li><p>对方处于 TIMEWAIT 状态，或者连接已经关闭处于 CLOSED 状态，或者重新监听 seq num 不匹配；</p>
+</li>
+<li><p>发起连接时超时，重传超时，keepalive 超时；</p>
+</li>
+<li><p>在程序中使用 SO_LINGER，关闭连接时，放弃缓存中的数据，给对方发送 RST。</p>
+</li>
+</ul>
+</li>
+<li><p>起始序列号是怎么计算的，会冲突吗？</p>
+<p> 有同学在留言中问了几个问题。Ender0224 的回答非常不错。</p>
+<p> <img src="/images/《趣谈网络协议》学习笔记/起始序列号是怎么计算的，会冲突吗一.png" alt="起始序列号是怎么计算的，会冲突吗一"></p>
+<p> <img src="/images/《趣谈网络协议》学习笔记/起始序列号是怎么计算的，会冲突吗二.jpg" alt="起始序列号是怎么计算的，会冲突吗二"></p>
+<p> 起始 ISN 是基于时钟的，每 4 毫秒加一，转一圈要 4.55 个小时。</p>
+<p> TCP 初始化序列号不能设置为一个固定值，因为这样容易被攻击者猜出后续序列号，从而遭到攻击。 RFC1948 中提出了一个较好的初始化序列号 ISN 随机生成算法。</p>
+<p> ISN = M + F (localhost, localport, remotehost, remoteport)</p>
+<p> M 是一个计时器，这个计时器每隔 4 毫秒加 1。F 是一个 Hash 算法，根据源 IP、目的 IP、源端口、目的端口生成一个随机数值。要保证 Hash 算法不能被外部轻易推算得出，用 MD5 算法是一个比较好的选择。</p>
+</li>
+</ol>
+</li>
+</ol>
+<h4 id="《第-12-讲-TCP-协议（下）：西行必定多妖孽，恒心智慧消磨难》"><a href="#《第-12-讲-TCP-协议（下）：西行必定多妖孽，恒心智慧消磨难》" class="headerlink" title="《第 12 讲 | TCP 协议（下）：西行必定多妖孽，恒心智慧消磨难》"></a>《第 12 讲 | TCP 协议（下）：西行必定多妖孽，恒心智慧消磨难》</h4><ol>
+<li><p>课后思考题</p>
+<p> TCP 的 BBR 听起来很牛，你知道它是如何达到这个最优点的嘛？</p>
+<p> <img src="/images/《趣谈网络协议》学习笔记/第12讲课后思考题.png" alt="第12讲课后思考题"></p>
+</li>
+</ol>
+<h4 id="《第-13-讲-套接字-Socket：Talk-is-cheap-show-me-the-code》"><a href="#《第-13-讲-套接字-Socket：Talk-is-cheap-show-me-the-code》" class="headerlink" title="《第 13 讲 | 套接字 Socket：Talk is cheap, show me the code》"></a>《第 13 讲 | 套接字 Socket：Talk is cheap, show me the code》</h4><ol>
+<li><p>课后思考题</p>
+<p> epoll 是 Linux 上的函数，那你知道 Windows 上对应的机制是什么吗？如果想实现一个跨平台的程序，你知道应该怎么办吗？</p>
+<p> <img src="/images/《趣谈网络协议》学习笔记/第13讲课后思考题.png" alt="第13讲课后思考题"></p>
+<p> epoll 是异步通知，当事件发生的时候，通知应用去调用 IO 函数获取数据。IOCP 异步传输，当事件发生时，IOCP 机制会将数据直接拷贝到缓冲区里，应用可以直接使用。</p>
+<p> 如果跨平台，推荐使用 libevent 库，它是一个事件通知库，适用于 Windows、Linux、BSD 等多种平台，内部使用 select、epoll、kqueue、IOCP 等系统调用管理事件机制。</p>
+</li>
+</ol>
+
                 
             </div>
             <hr/>
@@ -4239,7 +4691,7 @@ docker pull hub.c.163.com/liuchao110119163/ubuntu:tcpip
             <br>
             
             &nbsp;<i class="fas fa-chart-area"></i>&nbsp;站点总字数:&nbsp;<span
-                class="white-color">1027.3k</span>&nbsp;字
+                class="white-color">1037.5k</span>&nbsp;字
             
             
             
