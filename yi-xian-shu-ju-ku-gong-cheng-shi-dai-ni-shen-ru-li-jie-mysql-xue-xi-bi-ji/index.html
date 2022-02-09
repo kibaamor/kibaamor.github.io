@@ -431,14 +431,14 @@
                 
                 <div class="post-date info-break-policy">
                     <i class="far fa-calendar-check fa-fw"></i>更新日期:&nbsp;&nbsp;
-                    2022-02-08
+                    2022-02-09
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-file-word fa-fw"></i>文章字数:&nbsp;&nbsp;
-                    39.8k
+                    39.9k
                 </div>
                 
 
@@ -1125,9 +1125,9 @@ MISSING_BYTES_BEYOND_MAX_MEM_SIZE: 0 --该字段表示分析过程丢弃的文�
 <p>知识扩展：</p>
 <p><strong>知识点一：MySQL 常见排序模式：</strong></p>
 <ul>
-<li>&lt; sort_key, rowid &gt;双路排序（又叫回表排序模式）：是首先根据相应的条件取出相应的排序字段和可以直接定位行数据的行 ID，然后在 sort buffer 中进行排序，排序完后需要再次取回其它需要的字段；</li>
-<li>&lt; sort_key, additional_fields &gt;单路排序：是一次性取出满足条件行的所有字段，然后在sort buffer中进行排序；</li>
-<li>&lt; sort_key, packed_additional_fields &gt;打包数据排序模式：将 char 和 varchar 字段存到 sort buffer 中时，更加紧缩。</li>
+<li><code>&lt; sort_key, rowid &gt;</code>双路排序（又叫回表排序模式）：是首先根据相应的条件取出相应的排序字段和可以直接定位行数据的行 ID，然后在 sort buffer 中进行排序，排序完后需要再次取回其它需要的字段；</li>
+<li><code>&lt; sort_key, additional_fields &gt;</code>单路排序：是一次性取出满足条件行的所有字段，然后在sort buffer中进行排序；</li>
+<li><code>&lt; sort_key, packed_additional_fields &gt;</code>打包数据排序模式：将 char 和 varchar 字段存到 sort buffer 中时，更加紧缩。</li>
 </ul>
 <p>三种排序模式比较：</p>
 <p>第二种模式相对第一种模式，避免了二次回表，可以理解为用空间换时间。由于 sort buffer 有限，如果需要查询的数据比较大的话，会增加磁盘排序时间，效率可能比第一种方式更低。</p>
@@ -1386,14 +1386,14 @@ MISSING_BYTES_BEYOND_MAX_MEM_SIZE: 0 --该字段表示分析过程丢弃的文�
 </blockquote>
 <h4 id="1-3-Filesort-下的排序模式"><a href="#1-3-Filesort-下的排序模式" class="headerlink" title="1.3 Filesort 下的排序模式"></a>1.3 Filesort 下的排序模式</h4><p>Filesort 下的排序模式有三种，具体介绍如下：（参考<a target="_blank" rel="noopener" href="https://dev.mysql.com/doc/refman/5.7/en/order-by-optimization.html">《MySQL 5.7 Reference Manual》8.2.1.14 ORDER BY Optimization</a>）</p>
 <ul>
-<li>&lt; sort_key, rowid &gt;双路排序（又叫回表排序模式）：是首先根据相应的条件取出相应的排序字段和可以直接定位行数据的行 ID，然后在 sort buffer 中进行排序，排序完后需要再次取回其它需要的字段；</li>
-<li>&lt; sort_key, additional_fields &gt;单路排序：是一次性取出满足条件行的所有字段，然后在sort buffer中进行排序；</li>
-<li>&lt; sort_key, packed_additional_fields &gt;打包数据排序模式：与单路排序相似，区别是将 char 和 varchar 字段存到 sort buffer 中时，更加紧缩。</li>
+<li><code>&lt; sort_key, rowid &gt;</code>双路排序（又叫回表排序模式）：是首先根据相应的条件取出相应的排序字段和可以直接定位行数据的行 ID，然后在 sort buffer 中进行排序，排序完后需要再次取回其它需要的字段；</li>
+<li><code>&lt; sort_key, additional_fields &gt;</code>单路排序：是一次性取出满足条件行的所有字段，然后在sort buffer中进行排序；</li>
+<li><code>&lt; sort_key, packed_additional_fields &gt;</code>打包数据排序模式：与单路排序相似，区别是将 char 和 varchar 字段存到 sort buffer 中时，更加紧缩。</li>
 </ul>
 <p>因为打包数据排序模式是单路排序的一种升级模式，因此重点探讨双路排序和单路排序的区别。MySQL 通过比较系统变量 max_length_for_sort_data 的大小和需要查询的字段总大小来判断使用哪种排序模式。</p>
 <ul>
-<li>如果 max_length_for_sort_data 比查询字段的总长度大，那么使用 &lt; sort_key, additional_fields &gt;排序模式；</li>
-<li>如果 max_length_for_sort_data 比查询字段的总长度小，那么使用 <sort_key, rowid=""> 排序模式。</sort_key,></li>
+<li>如果 max_length_for_sort_data 比查询字段的总长度大，那么使用 <code>&lt; sort_key, additional_fields &gt;</code>排序模式；</li>
+<li>如果 max_length_for_sort_data 比查询字段的总长度小，那么使用 <code>&lt;sort_key, rowid&gt;</code> 排序模式。</li>
 </ul>
 <p>为什么要添加 max_length_for_sort_data 这个参数让排序使用不同的排序模式呢？</p>
 <p>接下来，我们一起分析下 max_length_for_sort_data 的重要性。比如下面这条 SQL：</p>
@@ -1539,9 +1539,9 @@ mysql&gt; explain select id,a,b from t1 order by a,b;
 <p>优先考虑内存排序。</p>
 <p>Filesort 有三种排序模式：</p>
 <ul>
-<li>&lt; sort_key, rowid &gt;</li>
-<li>&lt; sort_key, additional_fields &gt;</li>
-<li>&lt; sort_key, packed_additional_fields &gt;</li>
+<li><code>&lt; sort_key, rowid &gt;</code></li>
+<li><code>&lt; sort_key, additional_fields &gt;</code></li>
+<li><code>&lt; sort_key, packed_additional_fields &gt;</code></li>
 </ul>
 <p><strong>order by 语句的优化，这个是本节的重点：</strong></p>
 <ul>
@@ -3972,7 +3972,7 @@ Query OK, 0 rows affected (0.37 sec)<span aria-hidden="true" class="line-numbers
             <br>
             
             &nbsp;<i class="fas fa-chart-area"></i>&nbsp;站点总字数:&nbsp;<span
-                class="white-color">915.5k</span>&nbsp;字
+                class="white-color">999.5k</span>&nbsp;字
             
             
             
