@@ -438,14 +438,14 @@
                 
                 <div class="info-break-policy">
                     <i class="far fa-file-word fa-fw"></i>文章字数:&nbsp;&nbsp;
-                    115.2k
+                    130.9k
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-clock fa-fw"></i>阅读时长:&nbsp;&nbsp;
-                    412 分
+                    469 分
                 </div>
                 
 
@@ -3044,7 +3044,464 @@ tc filter <span class="token function">add</span> dev eth0 protocol <span class=
 <li>Calico 的主要组件包括路由、iptables 的配置组件 Felix、路由广播组件 BGP Speaker，以及大规模场景下的 BGP Route Reflector。</li>
 <li>为解决跨网段的问题，Calico 还有一种 IPIP 模式，也即通过打隧道的方式，从隧道端点来看，将本来不是邻居的两台机器，变成相邻的机器。</li>
 </ul>
-<h2 id="热门技术中的应用：微服务相关协议"><a href="#热门技术中的应用：微服务相关协议" class="headerlink" title="热门技术中的应用：微服务相关协议"></a>热门技术中的应用：微服务相关协议</h2><h2 id="网络协议知识串讲"><a href="#网络协议知识串讲" class="headerlink" title="网络协议知识串讲"></a>网络协议知识串讲</h2><h2 id="答疑与加餐"><a href="#答疑与加餐" class="headerlink" title="答疑与加餐"></a>答疑与加餐</h2>
+<h2 id="热门技术中的应用：微服务相关协议"><a href="#热门技术中的应用：微服务相关协议" class="headerlink" title="热门技术中的应用：微服务相关协议"></a>热门技术中的应用：微服务相关协议</h2><h3 id="第32讲-RPC协议综述：远在天边，近在眼前"><a href="#第32讲-RPC协议综述：远在天边，近在眼前" class="headerlink" title="第32讲 | RPC协议综述：远在天边，近在眼前"></a>第32讲 | RPC协议综述：远在天边，近在眼前</h3><p>前面我们讲了容器网络如何实现跨主机互通，以及微服务之间的相互调用。</p>
+<p><img src="/images/《趣谈网络协议》学习笔记/RPC协议综述一.jpg" alt="RPC协议综述一"></p>
+<p>网络是打通了，那服务之间的互相调用，该怎么实现呢？你可能说，咱不是学过 Socket。服务之间分调用方和被调用方，我们就建立一个 TCP 或者 UDP 的连接，不就可以通信了？</p>
+<p><img src="/images/《趣谈网络协议》学习笔记/RPC协议综述二.jpg" alt="RPC协议综述二"></p>
+<p>你仔细想一下，这事儿没这么简单。我们就拿最简单的场景，客户端调用一个加法函数，将两个整数加起来，返回它们的和。</p>
+<p>如果放在本地调用，那是简单的不能再简单了，只要稍微学过一种编程语言，三下五除二就搞定了。但是一旦变成了远程调用，门槛一下子就上去了。</p>
+<p>首先你要会 Socket 编程，至少先要把咱们这门网络协议课学一下，然后再看 N 本砖头厚的 Socket 程序设计的书，学会咱们学过的几种 Socket 程序设计的模型。这就使得本来大学毕业就能干的一项工作，变成了一件五年工作经验都不一定干好的工作，而且，搞定了 Socket 程序设计，才是万里长征的第一步。后面还有很多问题呢！</p>
+<h4 id="32-1-如何解决这五个问题？"><a href="#32-1-如何解决这五个问题？" class="headerlink" title="32.1 如何解决这五个问题？"></a>32.1 如何解决这五个问题？</h4><ol>
+<li><p>问题一：如何规定远程调用的语法？</p>
+<p> 客户端如何告诉服务端，我是一个加法，而另一个是乘法。我是用字符串“add”传给你，还是传给你一个整数，比如 1 表示加法，2 表示乘法？服务端该如何告诉客户端，我的这个加法，目前只能加整数，不能加小数，不能加字符串；而另一个加法“add1”，它能实现小数和整数的混合加法。那返回值是什么？正确的时候返回什么，错误的时候又返回什么？</p>
+</li>
+<li><p>问题二：如果传递参数？</p>
+<p> 我是先传两个整数，后传一个操作符“add”，还是先传操作符，再传两个整数？是不是像咱们数据结构里一样，如果都是 UDP，想要实现一个逆波兰表达式，放在一个报文里面还好，如果是 TCP，是一个流，在这个流里面，如何将两次调用进行分界？什么时候是头，什么时候是尾？别这次的参数和上次的参数混了起来，TCP 一端发送出去的数据，另外一端不一定能一下子全部读取出来。所以，怎么才算读完呢？</p>
+</li>
+<li><p>问题三：如何表示数据？</p>
+<p> 在这个简单的例子中，传递的就是一个固定长度的 int 值，这种情况还好，如果是变长的类型，是一个结构体，甚至是一个类，应该怎么办呢？如果是 int，不同的平台上长度也不同，该怎么办呢？</p>
+<p> 在网络上传输超过一个 Byte 的类型，还有大端 Big Endian 和小端 Little Endian 的问题。</p>
+<p> 假设我们要在 32 位四个 Byte 的一个空间存放整数 1，很显然只要一个 Byte 放 1，其他三个 Byte 放 0 就可以了。那问题是，最后一个 Byte 放 1 呢，还是第一个 Byte 放 1 呢？或者说 1 作为最低位，应该是放在 32 位的最后一个位置呢，还是放在第一个位置呢？</p>
+<p> 最低位放在最后一个位置，叫作 Little Endian，最低位放在第一个位置，叫作 Big Endian。TCP/IP 协议栈是按照 Big Endian 来设计的，而 X86 机器多按照 Little Endian 来设计的，因而发出去的时候需要做一个转换。</p>
+</li>
+<li><p>问题四：如何知道一个服务端都实现了哪些远程调用？从哪个端口可以访问这个远程调用？</p>
+<p> 假设服务端实现了多个远程调用，每个可能实现在不同的进程中，监听的端口也不一样，而且由于服务端都是自己实现的，不可能使用一个大家都公认的端口，而且有可能多个进程部署在一台机器上，大家需要抢占端口，为了防止冲突，往往使用随机端口，那客户端如何找到这些监听的端口呢？</p>
+</li>
+<li><p>问题五：发生了错误、重传、丢包、性能等问题怎么办？</p>
+<p> 本地调用没有这个问题，但是一旦到网络上，这些问题都需要处理，因为网络是不可靠的，虽然在同一个连接中，我们还可通过 TCP 协议保证丢包、重传的问题，但是如果服务器崩溃了又重启，当前连接断开了，TCP 就保证不了了，需要应用自己进行重新调用，重新传输会不会同样的操作做两遍，远程调用性能会不会受影响呢？</p>
+</li>
+</ol>
+<h4 id="32-2-协议约定问题"><a href="#32-2-协议约定问题" class="headerlink" title="32.2 协议约定问题"></a>32.2 协议约定问题</h4><p>看到这么多问题，你是不是想起了我第一节讲过的这张图。</p>
+<p><img src="/images/《趣谈网络协议》学习笔记/代码编译过程.png" alt="代码编译过程"></p>
+<p>本地调用函数里有很多问题，比如词法分析、语法分析、语义分析等等，这些编译器本来都能帮你做了。但是在远程调用中，这些问题你都需要重新操心。</p>
+<p>很多公司的解决方法是，弄一个核心通信组，里面都是 Socket 编程的大牛，实现一个统一的库，让其他业务组的人来调用，业务的人不需要知道中间传输的细节。通信双方的语法、语义、格式、端口、错误处理等，都需要调用方和被调用方开会商量，双方达成一致。一旦有一方改变，要及时通知对方，否则通信就会有问题。</p>
+<p>可是不是每一个公司都有这种大牛团队，往往只有大公司才配得起，那有没有已经实现好的框架可以使用呢？</p>
+<p>当然有。一个大牛 Bruce Jay Nelson 写了一篇论文<a target="_blank" rel="noopener" href="http://www.cs.cmu.edu/~dga/15-712/F07/papers/birrell842.pdf">Implementing Remote Procedure Calls</a>，定义了 RPC 的调用标准。后面所有 RPC 框架，都是按照这个标准模式来的。</p>
+<p><img src="/images/《趣谈网络协议》学习笔记/RPC的调用标准.jpg" alt="RPC的调用标准"></p>
+<p>当客户端的应用想发起一个远程调用时，它实际是通过本地调用本地调用方的 Stub。它负责将调用的接口、方法和参数，通过约定的协议规范进行编码，并通过本地的 RPCRuntime 进行传输，将调用网络包发送到服务器。</p>
+<p>服务器端的 RPCRuntime 收到请求后，交给提供方 Stub 进行解码，然后调用服务端的方法，服务端执行方法，返回结果，提供方 Stub 将返回结果编码后，发送给客户端，客户端的 RPCRuntime 收到结果，发给调用方 Stub 解码得到结果，返回给客户端。</p>
+<p>这里面分了三个层次，对于用户层和服务端，都像是本地调用一样，专注于业务逻辑的处理就可以了。对于 Stub 层，处理双方约定好的语法、语义、封装、解封装。对于 RPCRuntime，主要处理高性能的传输，以及网络的错误和异常。</p>
+<p>最早的 RPC 的一种实现方式称为 Sun RPC 或 ONC RPC。Sun 公司是第一个提供商业化 RPC 库和 RPC 编译器的公司。这个 RPC 框架是在 NFS 协议中使用的。</p>
+<p>NFS（Network File System）就是网络文件系统。要使 NFS 成功运行，要启动两个服务端，一个是 mountd，用来挂载文件路径；一个是 nfsd，用来读写文件。NFS 可以在本地 mount 一个远程的目录到本地的一个目录，从而本地的用户在这个目录里面写入、读出任何文件的时候，其实操作的是远程另一台机器上的文件。</p>
+<p>操作远程和远程调用的思路是一样的，就像操作本地一样。所以 NFS 协议就是基于 RPC 实现的。当然无论是什么 RPC，底层都是 Socket 编程。</p>
+<p><img src="/images/《趣谈网络协议》学习笔记/网络文件系统NFS.jpg" alt="网络文件系统NFS"></p>
+<p>XDR（External Data Representation，外部数据表示法）是一个标准的数据压缩格式，可以表示基本的数据类型，也可以表示结构体。</p>
+<p>这里是几种基本的数据类型。</p>
+<p><img src="/images/《趣谈网络协议》学习笔记/外部数据表示法XDR.jpg" alt="外部数据表示法XDR"></p>
+<p>在 RPC 的调用过程中，所有的数据类型都要封装成类似的格式。而且 RPC 的调用和结果返回，也有严格的格式。</p>
+<ul>
+<li>XID 唯一标识一对请求和回复。请求为 0，回复为 1。</li>
+<li>RPC 有版本号，两端要匹配 RPC 协议的版本号。如果不匹配，就会返回 Deny，原因就是 RPC_MISMATCH。</li>
+<li>程序有编号。如果服务端找不到这个程序，就会返回 PROG_UNAVAIL。</li>
+<li>程序有版本号。如果程序的版本号不匹配，就会返回 PROG_MISMATCH。</li>
+<li>一个程序可以有多个方法，方法也有编号，如果找不到方法，就会返回 PROC_UNAVAIL。</li>
+<li>调用需要认证鉴权，如果不通过，则 Deny。</li>
+<li>最后是参数列表，如果参数无法解析，则返回 GABAGE_ARGS。</li>
+</ul>
+<p><img src="/images/《趣谈网络协议》学习笔记/ONCRPC的调用过程.jpg" alt="ONCRPC的调用过程"></p>
+<p>为了可以成功调用 RPC，在客户端和服务端实现 RPC 的时候，首先要定义一个双方都认可的程序、版本、方法、参数等。</p>
+<p><img src="/images/《趣谈网络协议》学习笔记/ONCRPC的协议定义.jpg" alt="ONCRPC的协议定义"></p>
+<p>如果还是上面的加法，则双方约定为一个协议定义文件，同理如果是 NFS、mount 和读写，也会有类似的定义。</p>
+<p>有了协议定义文件，ONC RPC 会提供一个工具，根据这个文件生成客户端和服务器端的 Stub 程序。</p>
+<p><img src="/images/《趣谈网络协议》学习笔记/ONCRPC协议的生成.jpg" alt="ONCRPC协议的生成"></p>
+<p>最下层的是 XDR 文件，用于编码和解码参数。这个文件是客户端和服务端共享的，因为只有双方一致才能成功通信。</p>
+<p>在客户端，会调用 clnt_create 创建一个连接，然后调用 add_1，这是一个 Stub 函数，感觉是在调用本地一样。其实是这个函数发起了一个 RPC 调用，通过调用 clnt_call 来调用 ONC RPC 的类库，来真正发送请求。调用的过程非常复杂，一会儿我详细说这个。</p>
+<p>当然服务端也有一个 Stub 程序，监听客户端的请求，当调用到达的时候，判断如果是 add，则调用真正的服务端逻辑，也即将两个数加起来。</p>
+<p>服务端将结果返回服务端的 Stub，这个 Stub 程序发送结果给客户端，客户端的 Stub 程序正在等待结果，当结果到达客户端 Stub，就将结果返回给客户端的应用程序，从而完成整个调用过程。</p>
+<p>有了这个 RPC 的框架，前面五个问题中的前三个“如何规定远程调用的语法？”“如何传递参数？”以及“如何表示数据？”基本解决了，这三个问题我们统称为<strong>协议约定问题</strong>。</p>
+<h4 id="32-3-传输问题"><a href="#32-3-传输问题" class="headerlink" title="32.3 传输问题"></a>32.3 传输问题</h4><p>但是错误、重传、丢包、性能等问题还没有解决，这些问题我们统称为<strong>传输问题</strong>。这个就不用 Stub 操心了，而是由 ONC RPC 的类库来实现。这是大牛们实现的，我们只要调用就可以了。</p>
+<p><img src="/images/《趣谈网络协议》学习笔记/ONCRPC处理传输问题.jpg" alt="ONCRPC处理传输问题"></p>
+<p>在这个类库中，为了解决传输问题，对于每一个客户端，都会创建一个传输管理层，而每一次 RPC 调用，都会是一个任务，在传输管理层，你可以看到熟悉的队列机制、拥塞窗口机制等。</p>
+<p>由于在网络传输的时候，经常需要等待，因而同步的方式往往效率比较低，因而也就有 Socket 的异步模型。为了能够异步处理，对于远程调用的处理，往往是通过状态机来实现的。只有当满足某个状态的时候，才进行下一步，如果不满足状态，不是在那里等，而是将资源留出来，用来处理其他的 RPC 调用。</p>
+<p><img src="/images/《趣谈网络协议》学习笔记/ONCRPC的状态转换图.jpg" alt="ONCRPC的状态转换图"></p>
+<p>从这个图可以看出，这个状态转换图还是很复杂的。</p>
+<p>首先，进入起始状态，查看 RPC 的传输层队列中有没有空闲的位置，可以处理新的 RPC 任务。如果没有，说明太忙了，或直接结束或重试。如果申请成功，就可以分配内存，获取服务的端口号，然后连接服务器。</p>
+<p>连接的过程要有一段时间，因而要等待连接的结果，会有连接失败，或直接结束或重试。如果连接成功，则开始发送 RPC 请求，然后等待获取 RPC 结果，这个过程也需要一定的时间；如果发送出错，可以重新发送；如果连接断了，可以重新连接；如果超时，可以重新传输；如果获取到结果，就可以解码，正常结束。</p>
+<p>这里处理了连接失败、重试、发送失败、超时、重试等场景。不是大牛真写不出来，因而实现一个 RPC 的框架，其实很有难度。</p>
+<h4 id="32-4-服务发现问题"><a href="#32-4-服务发现问题" class="headerlink" title="32.4 服务发现问题"></a>32.4 服务发现问题</h4><p>传输问题解决了，我们还遗留一个问题，就是问题四“如何找到 RPC 服务端的那个随机端口”。这个问题我们称为服务发现问题。在 ONC RPC 中，服务发现是通过 portmapper 实现的。</p>
+<p><img src="/images/《趣谈网络协议》学习笔记/portmapper.jpg" alt="portmapper"></p>
+<p>portmapper 会启动在一个众所周知的端口上，RPC 程序由于是用户自己写的，会监听在一个随机端口上，但是 RPC 程序启动的时候，会向 portmapper 注册。客户端要访问 RPC 服务端这个程序的时候，首先查询 portmapper，获取 RPC 服务端程序的随机端口，然后向这个随机端口建立连接，开始 RPC 调用。从图中可以看出，mount 命令的 RPC 调用，就是这样实现的。</p>
+<h4 id="32-5-小结"><a href="#32-5-小结" class="headerlink" title="32.5 小结"></a>32.5 小结</h4><p>总结一下：</p>
+<ul>
+<li>远程调用看起来用 Socket 编程就可以了，其实是很复杂的，要解决协议约定问题、传输问题和服务发现问题。</li>
+<li>大牛 Bruce Jay Nelson 的论文、早期 ONC RPC 框架，以及 NFS 的实现，给出了解决这三大问题的示范性实现，也即协议约定要公用协议描述文件，并通过这个文件生成 Stub 程序；RPC 的传输一般需要一个状态机，需要另外一个进程专门做服务发现。</li>
+</ul>
+<h3 id="第33讲-基于XML的SOAP协议：不要说NBA，请说美国职业篮球联赛"><a href="#第33讲-基于XML的SOAP协议：不要说NBA，请说美国职业篮球联赛" class="headerlink" title="第33讲 | 基于XML的SOAP协议：不要说NBA，请说美国职业篮球联赛"></a>第33讲 | 基于XML的SOAP协议：不要说NBA，请说美国职业篮球联赛</h3><p>上一节我们讲了 RPC 的经典模型和设计要点，并用最早期的 ONC RPC 为例子，详述了具体的实现。</p>
+<h4 id="33-1-ONC-RPC-存在哪些问题？"><a href="#33-1-ONC-RPC-存在哪些问题？" class="headerlink" title="33.1 ONC RPC 存在哪些问题？"></a>33.1 ONC RPC 存在哪些问题？</h4><p>ONC RPC 将客户端要发送的参数，以及服务端要发送的回复，都压缩为一个二进制串，这样固然能够解决双方的协议约定问题，但是存在一定的不方便。</p>
+<p>首先，<strong>需要双方的压缩格式完全一致</strong>，一点都不能差。一旦有少许的差错，多一位，少一位或者错一位，都可能造成无法解压缩。当然，我们可以用传输层的可靠性以及加入校验值等方式，来减少传输过程中的差错。</p>
+<p>其次，<strong>协议修改不灵活</strong>。如果不是传输过程中造成的差错，而是客户端因为业务逻辑的改变，添加或者删除了字段，或者服务端添加或者删除了字段，而双方没有及时通知，或者线上系统没有及时升级，就会造成解压缩不成功。</p>
+<p>因而，当业务发生改变，需要多传输一些参数或者少传输一些参数的时候，都需要及时通知对方，并且根据约定好的协议文件重新生成双方的 Stub 程序。自然，这样灵活性比较差。</p>
+<p>如果仅仅是沟通的问题也还好解决，其实更难弄的还有<strong>版本的问题</strong>。比如在服务端提供一个服务，参数的格式是版本一的，已经有 50 个客户端在线上调用了。现在有一个客户端有个需求，要加一个字段，怎么办呢？这可是一个大工程，所有的客户端都要适配这个，需要重新写程序，加上这个字段，但是传输值是 0，不需要这个字段的客户端很“冤”，本来没我啥事儿，为啥让我也忙活？</p>
+<p>最后，<strong>ONC RPC 的设计明显是面向函数的，而非面向对象</strong>。而当前面向对象的业务逻辑设计与实现方式已经成为主流。</p>
+<p>这一切的根源就在于压缩。这就像平时我们爱用缩略语。如果是篮球爱好者，你直接说 NBA，他马上就知道什么意思，但是如果你给一个大妈说 NBA，她可能就不知所云。</p>
+<p>所以，这种 RPC 框架只能用于客户端和服务端全由一拨人开发的场景，或者至少客户端和服务端的开发人员要密切沟通，相互合作，有大量的共同语言，才能按照既定的协议顺畅地进行工作。</p>
+<h4 id="33-2-XML-与-SOAP"><a href="#33-2-XML-与-SOAP" class="headerlink" title="33.2 XML 与 SOAP"></a>33.2 XML 与 SOAP</h4><p>但是，一般情况下，我们做一个服务，都是要提供给陌生人用的，你和客户不会经常沟通，也没有什么共同语言。就像你给别人介绍 NBA，你要说美国职业篮球赛，这样不管他是干啥的，都能听得懂。</p>
+<p>放到我们的场景中，对应的就是用<strong>文本类</strong>的方式进行传输。无论哪个客户端获得这个文本，都能够知道它的意义。</p>
+<p>一种常见的文本类格式是 XML。我们这里举个例子来看。</p>
+<pre class="line-numbers language-xml" data-language="xml"><code class="language-xml"><span class="token prolog">&lt;?xml version="1.0" encoding="UTF-8"?&gt;</span>
+<span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span><span class="token namespace">geek:</span>purchaseOrder</span> <span class="token attr-name"><span class="token namespace">xmlns:</span>xsi</span><span class="token attr-value"><span class="token punctuation attr-equals">=</span><span class="token punctuation">"</span>http://www.w3.org/2001/XMLSchema-instance<span class="token punctuation">"</span></span> <span class="token attr-name"><span class="token namespace">xmlns:</span>geek</span><span class="token attr-value"><span class="token punctuation attr-equals">=</span><span class="token punctuation">"</span>http://www.example.com/geek<span class="token punctuation">"</span></span><span class="token punctuation">&gt;</span></span>
+    <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>order</span><span class="token punctuation">&gt;</span></span>
+        <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>date</span><span class="token punctuation">&gt;</span></span>2018-07-01<span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>date</span><span class="token punctuation">&gt;</span></span>
+        <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>className</span><span class="token punctuation">&gt;</span></span> 趣谈网络协议 <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>className</span><span class="token punctuation">&gt;</span></span>
+        <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>Author</span><span class="token punctuation">&gt;</span></span> 刘超 <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>Author</span><span class="token punctuation">&gt;</span></span>
+        <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>price</span><span class="token punctuation">&gt;</span></span>68<span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>price</span><span class="token punctuation">&gt;</span></span>
+    <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>order</span><span class="token punctuation">&gt;</span></span>
+<span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span><span class="token namespace">geek:</span>purchaseOrder</span><span class="token punctuation">&gt;</span></span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>我这里不准备详细讲述 XML 的语法规则，但是你相信我，看完下面的内容，即便你没有学过 XML，也能一看就懂，这段 XML 描述的是什么，不像全面的二进制，你看到的都是 010101，不知所云。</p>
+<p>有了这个，刚才我们说的那几个问题就都不是问题了。</p>
+<p>首先，<strong>格式没必要完全一致</strong>。比如如果我们把 price 和 author 换个位置，并不影响客户端和服务端解析这个文本，也根本不会误会，说这个作者的名字叫 68。</p>
+<p>如果有的客户端想增加一个字段，例如添加一个推荐人字段，只需要在上面的文件中加一行：</p>
+<pre class="line-numbers language-xml" data-language="xml"><code class="language-xml"><span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>recommended</span><span class="token punctuation">&gt;</span></span> Gary <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>recommended</span><span class="token punctuation">&gt;</span></span><span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>对于不需要这个字段的客户端，只要不解析这一行就是了。只要用简单的处理，就不会出现错误。</p>
+<p>另外，这种表述方式显然是描述一个订单对象的，是一种面向对象的、更加接近用户场景的表示方式。</p>
+<p>既然 XML 这么好，接下来我们来看看怎么把它用在 RPC 中。</p>
+<h4 id="33-3-传输协议问题"><a href="#33-3-传输协议问题" class="headerlink" title="33.3 传输协议问题"></a>33.3 传输协议问题</h4><p>我们先解决第一个，传输协议的问题。</p>
+<p>基于 XML 的最著名的通信协议就是<strong>SOAP</strong>了，全称<strong>简单对象访问协议（Simple Object Access Protocol）</strong>。它使用 XML 编写简单的请求和回复消息，并用 HTTP 协议进行传输。</p>
+<p>SOAP 将请求和回复放在一个信封里面，就像传递一个邮件一样。信封里面的信分<strong>抬头</strong>和<strong>正文</strong>。</p>
+<pre class="line-numbers language-text" data-language="text"><code class="language-text">POST /purchaseOrder HTTP/1.1
+Host: www.geektime.com
+Content-Type: application/soap+xml; charset=utf-8
+Content-Length: nnn<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span></span></code></pre>
+<pre class="line-numbers language-xml" data-language="xml"><code class="language-xml"><span class="token prolog">&lt;?xml version="1.0"?&gt;</span>
+<span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span><span class="token namespace">soap:</span>Envelope</span> <span class="token attr-name"><span class="token namespace">xmlns:</span>soap</span><span class="token attr-value"><span class="token punctuation attr-equals">=</span><span class="token punctuation">"</span>http://www.w3.org/2001/12/soap-envelope<span class="token punctuation">"</span></span>
+<span class="token attr-name"><span class="token namespace">soap:</span>encodingStyle</span><span class="token attr-value"><span class="token punctuation attr-equals">=</span><span class="token punctuation">"</span>http://www.w3.org/2001/12/soap-encoding<span class="token punctuation">"</span></span><span class="token punctuation">&gt;</span></span>
+    <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span><span class="token namespace">soap:</span>Header</span><span class="token punctuation">&gt;</span></span>
+        <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span><span class="token namespace">m:</span>Trans</span> <span class="token attr-name"><span class="token namespace">xmlns:</span>m</span><span class="token attr-value"><span class="token punctuation attr-equals">=</span><span class="token punctuation">"</span>http://www.w3schools.com/transaction/<span class="token punctuation">"</span></span>
+          <span class="token attr-name"><span class="token namespace">soap:</span>mustUnderstand</span><span class="token attr-value"><span class="token punctuation attr-equals">=</span><span class="token punctuation">"</span>1<span class="token punctuation">"</span></span><span class="token punctuation">&gt;</span></span>1234
+        <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span><span class="token namespace">m:</span>Trans</span><span class="token punctuation">&gt;</span></span>
+    <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span><span class="token namespace">soap:</span>Header</span><span class="token punctuation">&gt;</span></span>
+    <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span><span class="token namespace">soap:</span>Body</span> <span class="token attr-name"><span class="token namespace">xmlns:</span>m</span><span class="token attr-value"><span class="token punctuation attr-equals">=</span><span class="token punctuation">"</span>http://www.geektime.com/perchaseOrder<span class="token punctuation">"</span></span><span class="token punctuation">&gt;</span></span>
+        <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span><span class="token namespace">m:</span>purchaseOrder"</span><span class="token punctuation">&gt;</span></span>
+            <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>order</span><span class="token punctuation">&gt;</span></span>
+                <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>date</span><span class="token punctuation">&gt;</span></span>2018-07-01<span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>date</span><span class="token punctuation">&gt;</span></span>
+                <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>className</span><span class="token punctuation">&gt;</span></span> 趣谈网络协议 <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>className</span><span class="token punctuation">&gt;</span></span>
+                <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>Author</span><span class="token punctuation">&gt;</span></span> 刘超 <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>Author</span><span class="token punctuation">&gt;</span></span>
+                <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>price</span><span class="token punctuation">&gt;</span></span>68<span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>price</span><span class="token punctuation">&gt;</span></span>
+            <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span>order</span><span class="token punctuation">&gt;</span></span>
+        <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span><span class="token namespace">m:</span>purchaseOrder</span><span class="token punctuation">&gt;</span></span>
+    <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span><span class="token namespace">soap:</span>Body</span><span class="token punctuation">&gt;</span></span>
+<span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span><span class="token namespace">soap:</span>Envelope</span><span class="token punctuation">&gt;</span></span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>HTTP 协议我们学过，这个请求使用 POST 方法，发送一个格式为 application/soap + xml 的 XML 正文给 www.geektime.com，从而下一个单，这个订单封装在 SOAP 的信封里面，并且表明这是一笔交易（transaction），而且订单的详情都已经写明了。</p>
+<h4 id="33-4-协议约定问题"><a href="#33-4-协议约定问题" class="headerlink" title="33.4 协议约定问题"></a>33.4 协议约定问题</h4><p>接下来我们解决第二个问题，就是双方的协议约定是什么样的？</p>
+<p>因为服务开发出来是给陌生人用的，就像上面下单的那个 XML 文件，对于客户端来说，它如何知道应该拼装成上面的格式呢？这就需要对于服务进行描述，因为调用的人不认识你，所以没办法找到你，问你的服务应该如何调用。</p>
+<p>当然你可以写文档，然后放在官方网站上，但是你的文档不一定更新得那么及时，而且你也写的文档也不一定那么严谨，所以常常会有调试不成功的情况。因而，我们需要一种相对比较严谨的<strong>Web 服务描述语言，WSDL（Web Service Description Languages）</strong>。它也是一个 XML 文件。</p>
+<p>在这个文件中，要定义一个类型 order，与上面的 XML 对应起来。</p>
+<pre class="line-numbers language-xml" data-language="xml"><code class="language-xml"><span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span><span class="token namespace">wsdl:</span>types</span><span class="token punctuation">&gt;</span></span>
+    <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span><span class="token namespace">xsd:</span>schema</span> <span class="token attr-name">targetNamespace</span><span class="token attr-value"><span class="token punctuation attr-equals">=</span><span class="token punctuation">"</span>http://www.example.org/geektime<span class="token punctuation">"</span></span><span class="token punctuation">&gt;</span></span>
+            <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span><span class="token namespace">xsd:</span>complexType</span> <span class="token attr-name">name</span><span class="token attr-value"><span class="token punctuation attr-equals">=</span><span class="token punctuation">"</span>order<span class="token punctuation">"</span></span><span class="token punctuation">&gt;</span></span>
+            <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span><span class="token namespace">xsd:</span>element</span> <span class="token attr-name">name</span><span class="token attr-value"><span class="token punctuation attr-equals">=</span><span class="token punctuation">"</span>date<span class="token punctuation">"</span></span> <span class="token attr-name">type</span><span class="token attr-value"><span class="token punctuation attr-equals">=</span><span class="token punctuation">"</span>xsd:string<span class="token punctuation">"</span></span><span class="token punctuation">&gt;</span></span><span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span><span class="token namespace">xsd:</span>element</span><span class="token punctuation">&gt;</span></span>
+            <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span><span class="token namespace">xsd:</span>element</span> <span class="token attr-name">name</span><span class="token attr-value"><span class="token punctuation attr-equals">=</span><span class="token punctuation">"</span>className<span class="token punctuation">"</span></span> <span class="token attr-name">type</span><span class="token attr-value"><span class="token punctuation attr-equals">=</span><span class="token punctuation">"</span>xsd:string<span class="token punctuation">"</span></span><span class="token punctuation">&gt;</span></span><span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span><span class="token namespace">xsd:</span>element</span><span class="token punctuation">&gt;</span></span>
+            <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span><span class="token namespace">xsd:</span>element</span> <span class="token attr-name">name</span><span class="token attr-value"><span class="token punctuation attr-equals">=</span><span class="token punctuation">"</span>Author<span class="token punctuation">"</span></span> <span class="token attr-name">type</span><span class="token attr-value"><span class="token punctuation attr-equals">=</span><span class="token punctuation">"</span>xsd:string<span class="token punctuation">"</span></span><span class="token punctuation">&gt;</span></span><span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span><span class="token namespace">xsd:</span>element</span><span class="token punctuation">&gt;</span></span>
+            <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span><span class="token namespace">xsd:</span>element</span> <span class="token attr-name">name</span><span class="token attr-value"><span class="token punctuation attr-equals">=</span><span class="token punctuation">"</span>price<span class="token punctuation">"</span></span> <span class="token attr-name">type</span><span class="token attr-value"><span class="token punctuation attr-equals">=</span><span class="token punctuation">"</span>xsd:int<span class="token punctuation">"</span></span><span class="token punctuation">&gt;</span></span><span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span><span class="token namespace">xsd:</span>element</span><span class="token punctuation">&gt;</span></span>
+        <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span><span class="token namespace">xsd:</span>complexType</span><span class="token punctuation">&gt;</span></span>
+    <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span><span class="token namespace">xsd:</span>schema</span><span class="token punctuation">&gt;</span></span>
+<span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span><span class="token namespace">wsdl:</span>types</span><span class="token punctuation">&gt;</span></span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>接下来，需要定义一个 message 的结构。</p>
+<pre class="line-numbers language-xml" data-language="xml"><code class="language-xml"><span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span><span class="token namespace">wsdl:</span>message</span> <span class="token attr-name">name</span><span class="token attr-value"><span class="token punctuation attr-equals">=</span><span class="token punctuation">"</span>purchase<span class="token punctuation">"</span></span><span class="token punctuation">&gt;</span></span>
+    <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span><span class="token namespace">wsdl:</span>part</span> <span class="token attr-name">name</span><span class="token attr-value"><span class="token punctuation attr-equals">=</span><span class="token punctuation">"</span>purchaseOrder<span class="token punctuation">"</span></span> <span class="token attr-name">element</span><span class="token attr-value"><span class="token punctuation attr-equals">=</span><span class="token punctuation">"</span>tns:order<span class="token punctuation">"</span></span><span class="token punctuation">&gt;</span></span><span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span><span class="token namespace">wsdl:</span>part</span><span class="token punctuation">&gt;</span></span>
+<span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span><span class="token namespace">wsdl:</span>message</span><span class="token punctuation">&gt;</span></span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span></span></code></pre>
+<p>接下来，应该暴露一个端口。</p>
+<pre class="line-numbers language-xml" data-language="xml"><code class="language-xml"><span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span><span class="token namespace">wsdl:</span>portType</span> <span class="token attr-name">name</span><span class="token attr-value"><span class="token punctuation attr-equals">=</span><span class="token punctuation">"</span>PurchaseOrderService<span class="token punctuation">"</span></span><span class="token punctuation">&gt;</span></span>
+    <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span><span class="token namespace">wsdl:</span>operation</span> <span class="token attr-name">name</span><span class="token attr-value"><span class="token punctuation attr-equals">=</span><span class="token punctuation">"</span>purchase<span class="token punctuation">"</span></span><span class="token punctuation">&gt;</span></span>
+        <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span><span class="token namespace">wsdl:</span>input</span> <span class="token attr-name">message</span><span class="token attr-value"><span class="token punctuation attr-equals">=</span><span class="token punctuation">"</span>tns:purchase<span class="token punctuation">"</span></span><span class="token punctuation">&gt;</span></span><span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span><span class="token namespace">wsdl:</span>input</span><span class="token punctuation">&gt;</span></span>
+        <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span><span class="token namespace">wsdl:</span>output</span> <span class="token attr-name">message</span><span class="token attr-value"><span class="token punctuation attr-equals">=</span><span class="token punctuation">"</span>......<span class="token punctuation">"</span></span><span class="token punctuation">&gt;</span></span><span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span><span class="token namespace">wsdl:</span>output</span><span class="token punctuation">&gt;</span></span>
+    <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span><span class="token namespace">wsdl:</span>operation</span><span class="token punctuation">&gt;</span></span>
+<span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span><span class="token namespace">wsdl:</span>portType</span><span class="token punctuation">&gt;</span></span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>然后，我们来编写一个 binding，将上面定义的信息绑定到 SOAP 请求的 body 里面。</p>
+<pre class="line-numbers language-xml" data-language="xml"><code class="language-xml"><span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span><span class="token namespace">wsdl:</span>binding</span> <span class="token attr-name">name</span><span class="token attr-value"><span class="token punctuation attr-equals">=</span><span class="token punctuation">"</span>purchaseOrderServiceSOAP<span class="token punctuation">"</span></span> <span class="token attr-name">type</span><span class="token attr-value"><span class="token punctuation attr-equals">=</span><span class="token punctuation">"</span>tns:PurchaseOrderService<span class="token punctuation">"</span></span><span class="token punctuation">&gt;</span></span>
+    <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span><span class="token namespace">soap:</span>binding</span> <span class="token attr-name">style</span><span class="token attr-value"><span class="token punctuation attr-equals">=</span><span class="token punctuation">"</span>rpc<span class="token punctuation">"</span></span> <span class="token attr-name">transport</span><span class="token attr-value"><span class="token punctuation attr-equals">=</span><span class="token punctuation">"</span>http://schemas.xmlsoap.org/soap/http<span class="token punctuation">"</span></span> <span class="token punctuation">/&gt;</span></span>
+    <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span><span class="token namespace">wsdl:</span>operation</span> <span class="token attr-name">name</span><span class="token attr-value"><span class="token punctuation attr-equals">=</span><span class="token punctuation">"</span>purchase<span class="token punctuation">"</span></span><span class="token punctuation">&gt;</span></span>
+        <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span><span class="token namespace">wsdl:</span>input</span><span class="token punctuation">&gt;</span></span>
+            <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span><span class="token namespace">soap:</span>body</span> <span class="token attr-name">use</span><span class="token attr-value"><span class="token punctuation attr-equals">=</span><span class="token punctuation">"</span>literal<span class="token punctuation">"</span></span> <span class="token punctuation">/&gt;</span></span>
+        <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span><span class="token namespace">wsdl:</span>input</span><span class="token punctuation">&gt;</span></span>
+        <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span><span class="token namespace">wsdl:</span>output</span><span class="token punctuation">&gt;</span></span>
+            <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span><span class="token namespace">soap:</span>body</span> <span class="token attr-name">use</span><span class="token attr-value"><span class="token punctuation attr-equals">=</span><span class="token punctuation">"</span>literal<span class="token punctuation">"</span></span> <span class="token punctuation">/&gt;</span></span>
+        <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span><span class="token namespace">wsdl:</span>output</span><span class="token punctuation">&gt;</span></span>
+    <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span><span class="token namespace">wsdl:</span>operation</span><span class="token punctuation">&gt;</span></span>
+<span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span><span class="token namespace">wsdl:</span>binding</span><span class="token punctuation">&gt;</span></span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>最后，我们需要编写 service。</p>
+<pre class="line-numbers language-xml" data-language="xml"><code class="language-xml"><span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span><span class="token namespace">wsdl:</span>service</span> <span class="token attr-name">name</span><span class="token attr-value"><span class="token punctuation attr-equals">=</span><span class="token punctuation">"</span>PurchaseOrderServiceImplService<span class="token punctuation">"</span></span><span class="token punctuation">&gt;</span></span>
+    <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span><span class="token namespace">wsdl:</span>port</span> <span class="token attr-name">binding</span><span class="token attr-value"><span class="token punctuation attr-equals">=</span><span class="token punctuation">"</span>tns:purchaseOrderServiceSOAP<span class="token punctuation">"</span></span> <span class="token attr-name">name</span><span class="token attr-value"><span class="token punctuation attr-equals">=</span><span class="token punctuation">"</span>PurchaseOrderServiceImplPort<span class="token punctuation">"</span></span><span class="token punctuation">&gt;</span></span>
+        <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span><span class="token namespace">soap:</span>address</span> <span class="token attr-name">location</span><span class="token attr-value"><span class="token punctuation attr-equals">=</span><span class="token punctuation">"</span>http://www.geektime.com:8080/purchaseOrder<span class="token punctuation">"</span></span> <span class="token punctuation">/&gt;</span></span>
+    <span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span><span class="token namespace">wsdl:</span>port</span><span class="token punctuation">&gt;</span></span>
+<span class="token tag"><span class="token tag"><span class="token punctuation">&lt;/</span><span class="token namespace">wsdl:</span>service</span><span class="token punctuation">&gt;</span></span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>WSDL 还是有些复杂的，不过好在有工具可以生成。</p>
+<p>对于某个服务，哪怕是一个陌生人，都可以通过在服务地址后面加上“?wsdl”来获取到这个文件，但是这个文件还是比较复杂，比较难以看懂。不过好在也有工具可以根据 WSDL 生成客户端 Stub，让客户端通过 Stub 进行远程调用，就跟调用本地的方法一样。</p>
+<h4 id="33-5-服务发现问题"><a href="#33-5-服务发现问题" class="headerlink" title="33.5 服务发现问题"></a>33.5 服务发现问题</h4><p>最后解决第三个问题，服务发现问题。</p>
+<p>这里有一个<strong>UDDI（Universal Description, Discovery, and Integration）</strong>，也即<strong>统一描述、发现和集成协议</strong>。它其实是一个注册中心，服务提供方可以将上面的 WSDL 描述文件，发布到这个注册中心，注册完毕后，服务使用方可以查找到服务的描述，封装为本地的客户端进行调用。</p>
+<h4 id="33-6-小结"><a href="#33-6-小结" class="headerlink" title="33.6 小结"></a>33.6 小结</h4><ul>
+<li>原来的二进制 RPC 有很多缺点，格式要求严格，修改过于复杂，不面向对象，于是产生了基于文本的调用方式——基于 XML 的 SOAP。</li>
+<li>SOAP 有三大要素：协议约定用 WSDL、传输协议用 HTTP、服务发现用 UDDL。</li>
+</ul>
+<h3 id="第34讲-基于JSON的RESTful接口协议：我不关心过程，请给我结果"><a href="#第34讲-基于JSON的RESTful接口协议：我不关心过程，请给我结果" class="headerlink" title="第34讲 | 基于JSON的RESTful接口协议：我不关心过程，请给我结果"></a>第34讲 | 基于JSON的RESTful接口协议：我不关心过程，请给我结果</h3><p>上一节我们讲了基于 XML 的 SOAP 协议，SOAP 的 S 是啥意思来着？是 Simple，但是好像一点儿都不简单啊！</p>
+<p>你会发现，对于 SOAP 来讲，无论 XML 中调用的是什么函数，多是通过 HTTP 的 POST 方法发送的。但是咱们原来学 HTTP 的时候，我们知道 HTTP 除了 POST，还有 PUT、DELETE、GET 等方法，这些也可以代表一个个动作，而且基本满足增、删、查、改的需求，比如增是 POST，删是 DELETE，查是 GET，改是 PUT。</p>
+<h4 id="34-1-传输协议问题"><a href="#34-1-传输协议问题" class="headerlink" title="34.1 传输协议问题"></a>34.1 传输协议问题</h4><p>对于 SOAP 来讲，比如我创建一个订单，用 POST，在 XML 里面写明动作是 CreateOrder；删除一个订单，还是用 POST，在 XML 里面写明了动作是 DeleteOrder。其实创建订单完全可以使用 POST 动作，然后在 XML 里面放一个订单的信息就可以了，而删除用 DELETE 动作，然后在 XML 里面放一个订单的 ID 就可以了。</p>
+<p>于是上面的那个 SOAP 就变成下面这个简单的模样。</p>
+<pre class="line-numbers language-text" data-language="text"><code class="language-text">POST /purchaseOrder HTTP/1.1
+Host: www.geektime.com
+Content-Type: application/xml; charset=utf-8
+Content-Length: nnn
+
+&lt;?xml version="1.0"?&gt;
+&lt;order&gt;
+    &lt;date&gt;2018-07-01&lt;/date&gt;
+    &lt;className&gt; 趣谈网络协议 &lt;/className&gt;
+    &lt;Author&gt; 刘超 &lt;/Author&gt;
+    &lt;price&gt;68&lt;/price&gt;
+&lt;/order&gt;<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>而且 XML 的格式也可以改成另外一种简单的文本化的对象表示格式 JSON。</p>
+<pre class="line-numbers language-text" data-language="text"><code class="language-text">POST /purchaseOrder HTTP/1.1
+Host: www.geektime.com
+Content-Type: application/json; charset=utf-8
+Content-Length: nnn
+
+{
+ "order": {
+  "date": "2018-07-01",
+  "className": " 趣谈网络协议 ",
+  "Author": " 刘超 ",
+  "price": "68"
+ }
+}<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>经常写 Web 应用的应该已经发现，这就是 RESTful 格式的 API 的样子。</p>
+<h4 id="34-2-协议约定问题"><a href="#34-2-协议约定问题" class="headerlink" title="34.2 协议约定问题"></a>34.2 协议约定问题</h4><p>然而 RESTful 可不仅仅是指 API，而是一种架构风格，全称 Representational State Transfer，表述性状态转移，来自一篇重要的论文《架构风格与基于网络的软件架构设计》（Architectural Styles and the Design of Network-based Software Architectures）。</p>
+<p>这篇文章从深层次，更加抽象地论证了一个互联网应用应该有的设计要点，而这些设计要点，成为后来我们能看到的所有高并发应用设计都必须要考虑的问题，再加上 REST API 比较简单直接，所以后来几乎成为互联网应用的标准接口。</p>
+<p>因此，和 SOAP 不一样，REST 不是一种严格规定的标准，它其实是一种设计风格。如果按这种风格进行设计，RESTful 接口和 SOAP 接口都能做到，只不过后面的架构是 REST 倡导的，而 SOAP 相对比较关注前面的接口。</p>
+<p>而且由于能够通过 WSDL 生成客户端的 Stub，因而 SOAP 常常被用于类似传统的 RPC 方式，也即调用远端和调用本地是一样的。</p>
+<p>然而本地调用和远程跨网络调用毕竟不一样，这里的不一样还不仅仅是因为有网络而导致的客户端和服务端的分离，从而带来的网络性能问题。更重要的问题是，客户端和服务端谁来维护状态。所谓的状态就是对某个数据当前处理到什么程度了。</p>
+<p>这里举几个例子，例如，我浏览到哪个目录了，我看到第几页了，我要买个东西，需要扣减一下库存，这些都是状态。本地调用其实没有人纠结这个问题，因为数据都在本地，谁处理都一样，而且一边处理了，另一边马上就能看到。</p>
+<p>当有了 RPC 之后，我们本来期望对上层透明，就像上一节说的“远在天边，尽在眼前”。于是使用 RPC 的时候，对于状态的问题也没有太多的考虑。</p>
+<p>就像 NFS 一样，客户端会告诉服务端，我要进入哪个目录，服务端必须要为某个客户端维护一个状态，就是当前这个客户端浏览到哪个目录了。例如，客户端输入 cd hello，服务端要在某个地方记住，上次浏览到 /root/liuchao 了，因而客户的这次输入，应该给它显示 /root/liuchao/hello 下面的文件列表。而如果有另一个客户端，同样输入 cd hello，服务端也在某个地方记住，上次浏览到 /var/lib，因而要给客户显示的是 /var/lib/hello。</p>
+<p>不光 NFS，如果浏览翻页，我们经常要实现函数 next()，在一个列表中取下一页，但是这就需要服务端记住，客户端 A 上次浏览到 20～30 页了，那它调用 next()，应该显示 30～40 页，而客户端 B 上次浏览到 100～110 页了，调用 next() 应该显示 110～120 页。</p>
+<p>上面的例子都是在 RPC 场景下，由服务端来维护状态，很多 SOAP 接口设计的时候，也常常按这种模式。这种模式原来没有问题，是因为客户端和服务端之间的比例没有失衡。因为一般不会同时有太多的客户端同时连上来，所以 NFS 还能把每个客户端的状态都记住。</p>
+<p>公司内部使用的 ERP 系统，如果使用 SOAP 的方式实现，并且服务端为每个登录的用户维护浏览到报表那一页的状态，由于一个公司内部的人也不会太多，把 ERP 放在一个强大的物理机上，也能记得过来。</p>
+<p>但是互联网场景下，客户端和服务端就彻底失衡了。你可以想象“双十一”，多少人同时来购物，作为服务端，它能记得过来吗？当然不可能，只好多个服务端同时提供服务，大家分担一下。但是这就存在一个问题，服务端怎么把自己记住的客户端状态告诉另一个服务端呢？或者说，你让我给你分担工作，你也要把工作的前因后果给我说清楚啊！</p>
+<p>那服务端索性就要想了，既然这么多客户端，那大家就分分工吧。服务端就只记录资源的状态，例如文件的状态，报表的状态，库存的状态，而客户端自己维护自己的状态。比如，你访问到哪个目录了啊，报表的哪一页了啊，等等。</p>
+<p>这样对于 API 也有影响，也就是说，当客户端维护了自己的状态，就不能这样调用服务端了。例如客户端说，我想访问当前目录下的 hello 路径。服务端说，我怎么知道你的当前路径。所以客户端要先看看自己当前路径是 /root/liuchao，然后告诉服务端说，我想访问 /root/liuchao/hello 路径。</p>
+<p>再比如，客户端说我想访问下一页，服务端说，我怎么知道你当前访问到哪一页了。所以客户端要先看看自己访问到了 100～110 页，然后告诉服务器说，我想访问 110～120 页。</p>
+<p>这就是服务端的无状态化。这样服务端就可以横向扩展了，一百个人一起服务，不用交接，每个人都能处理。</p>
+<p>所谓的无状态，其实是服务端维护资源的状态，客户端维护会话的状态。对于服务端来讲，只有资源的状态改变了，客户端才调用 POST、PUT、DELETE 方法来找我；如果资源的状态没变，只是客户端的状态变了，就不用告诉我了，对于我来说都是统一的 GET。</p>
+<p>虽然这只改进了 GET，但是已经带来了很大的进步。因为对于互联网应用，大多数是读多写少的。而且只要服务端的资源状态不变，就给了我们缓存的可能。例如可以将状态缓存到接入层，甚至缓存到 CDN 的边缘节点，这都是资源状态不变的好处。</p>
+<p>按照这种思路，对于 API 的设计，就慢慢变成了以资源为核心，而非以过程为核心。也就是说，客户端只要告诉服务端你想让资源状态最终变成什么样就可以了，而不用告诉我过程，不用告诉我动作。</p>
+<p>还是文件目录的例子。客户端应该访问哪个绝对路径，而非一个动作，我就要进入某个路径。再如，库存的调用，应该查看当前的库存数目，然后减去购买的数量，得到结果的库存数。这个时候应该设置为目标库存数（但是当前库存数要匹配），而非告知减去多少库存。</p>
+<p>这种 API 的设计需要实现幂等，因为网络不稳定，就会经常出错，因而需要重试，但是一旦重试，就会存在幂等的问题，也就是同一个调用，多次调用的结果应该一样，不能一次支付调用，因为调用三次变成了支付三次。不能进入 cd a，做了三次，就变成了 cd a/a/a。也不能扣减库存，调用了三次，就扣减三次库存。</p>
+<p>当然按照这种设计模式，无论 RESTful API 还是 SOAP API 都可以将架构实现成无状态的，面向资源的、幂等的、横向扩展的、可缓存的。</p>
+<p>但是 SOAP 的 XML 正文中，是可以放任何动作的。例如 XML 里面可以写 &lt; ADD &gt;，&lt; MINUS &gt; 等。这就方便使用 SOAP 的人，将大量的动作放在 API 里面。</p>
+<p>RESTful 没这么复杂，也没给客户提供这么多的可能性，正文里的 JSON 基本描述的就是资源的状态，没办法描述动作，而且能够出发的动作只有 CRUD，也即 POST、GET、PUT、DELETE，也就是对于状态的改变。</p>
+<p>所以，从接口角度，就让你死了这条心。当然也有很多技巧的方法，在使用 RESTful API 的情况下，依然提供基于动作的有状态请求，这属于反模式了。</p>
+<h4 id="34-3-服务发现问题"><a href="#34-3-服务发现问题" class="headerlink" title="34.3 服务发现问题"></a>34.3 服务发现问题</h4><p>对于 RESTful API 来讲，我们已经解决了传输协议的问题——基于 HTTP，协议约定问题——基于 JSON，最后要解决的是服务发现问题。</p>
+<p>有个著名的基于 RESTful API 的跨系统调用框架叫 Spring Cloud。在 Spring Cloud 中有一个组件叫 Eureka。传说，阿基米德在洗澡时发现浮力原理，高兴得来不及穿上裤子，跑到街上大喊：“Eureka（我找到了）！”所以 Eureka 是用来实现注册中心的，负责维护注册的服务列表。</p>
+<p>服务分服务提供方，它向 Eureka 做服务注册、续约和下线等操作，注册的主要数据包括服务名、机器 IP、端口号、域名等等。</p>
+<p>另外一方是服务消费方，向 Eureka 获取服务提供方的注册信息。为了实现负载均衡和容错，服务提供方可以注册多个。</p>
+<p>当消费方要调用服务的时候，会从注册中心读出多个服务来，那怎么调用呢？当然是 RESTful 方式了。</p>
+<p>Spring Cloud 提供一个 RestTemplate 工具，用于将请求对象转换为 JSON，并发起 Rest 调用，RestTemplate 的调用也是分 POST、PUT、GET、 DELETE 的，当结果返回的时候，根据返回的 JSON 解析成对象。</p>
+<p>通过这样封装，调用起来也很方便。</p>
+<h4 id="34-4-小结"><a href="#34-4-小结" class="headerlink" title="34.4 小结"></a>34.4 小结</h4><p>总结一下：</p>
+<ul>
+<li>SOAP 过于复杂，而且设计是面向动作的，因而往往因为架构问题导致并发量上不去。</li>
+<li>RESTful 不仅仅是一个 API，而且是一种架构模式，主要面向资源，提供无状态服务，有利于横向扩展应对高并发。</li>
+</ul>
+<h3 id="第35讲-二进制类RPC协议：还是叫NBA吧，总说全称多费劲"><a href="#第35讲-二进制类RPC协议：还是叫NBA吧，总说全称多费劲" class="headerlink" title="第35讲 | 二进制类RPC协议：还是叫NBA吧，总说全称多费劲"></a>第35讲 | 二进制类RPC协议：还是叫NBA吧，总说全称多费劲</h3><p>前面我们讲了两个常用文本类的 RPC 协议，对于陌生人之间的沟通，用 NBA、CBA 这样的缩略语，会使得协议约定非常不方便。</p>
+<p>在讲 CDN 和 DNS 的时候，我们讲过接入层的设计，对于静态资源或者动态资源静态化的部分都可以做缓存。但是对于下单、支付等交易场景，还是需要调用 API。</p>
+<p>对于微服务的架构，API 需要一个 API 网关统一的管理。API 网关有多种实现方式，用 Nginx 或者 OpenResty 结合 Lua 脚本是常用的方式。在上一节讲过的 Spring Cloud 体系中，有个组件 Zuul 也是干这个的。</p>
+<h4 id="35-1-数据中心内部是如何相互调用的？"><a href="#35-1-数据中心内部是如何相互调用的？" class="headerlink" title="35.1 数据中心内部是如何相互调用的？"></a>35.1 数据中心内部是如何相互调用的？</h4><p>API 网关用来管理 API，但是 API 的实现一般在一个叫作Controller 层的地方。这一层对外提供 API。由于是让陌生人访问的，我们能看到目前业界主流的，基本都是 RESTful 的 API，是面向大规模互联网应用的。</p>
+<p><img src="/images/《趣谈网络协议》学习笔记/数据中心内部是如何相互调用的.jpg" alt="数据中心内部是如何相互调用的"></p>
+<p>在 Controller 之内，就是咱们互联网应用的业务逻辑实现。上节讲 RESTful 的时候，说过业务逻辑的实现最好是无状态的，从而可以横向扩展，但是资源的状态还需要服务端去维护。资源的状态不应该维护在业务逻辑层，而是在最底层的持久化层，一般会使用分布式数据库和 ElasticSearch。</p>
+<p>这些服务端的状态，例如订单、库存、商品等，都是重中之重，都需要持久化到硬盘上，数据不能丢，但是由于硬盘读写性能差，因而持久化层往往吞吐量不能达到互联网应用要求的吞吐量，因而前面要有一层缓存层，使用 Redis 或者 memcached 将请求拦截一道，不能让所有的请求都进入数据库“中军大营”。</p>
+<p>缓存和持久化层之上一般是<strong>基础服务层</strong>，这里面提供一些原子化的接口。例如，对于用户、商品、订单、库存的增删查改，将缓存和数据库对再上层的业务逻辑屏蔽一道。有了这一层，上层业务逻辑看到的都是接口，而不会调用数据库和缓存。因而对于缓存层的扩容，数据库的分库分表，所有的改变，都截止到这一层，这样有利于将来对于缓存和数据库的运维。</p>
+<p>再往上就是<strong>组合层</strong>。因为基础服务层只是提供简单的接口，实现简单的业务逻辑，而复杂的业务逻辑，比如下单，要扣优惠券，扣减库存等，就要在组合服务层实现。</p>
+<p>这样，Controller 层、组合服务层、基础服务层就会相互调用，这个调用是在数据中心内部的，量也会比较大，还是使用 RPC 的机制实现的。</p>
+<p>由于服务比较多，需要一个单独的注册中心来做服务发现。服务提供方会将自己提供哪些服务注册到注册中心中去，同时服务消费方订阅这个服务，从而可以对这个服务进行调用。</p>
+<p>调用的时候有一个问题，这里的 RPC 调用，应该用二进制还是文本类？其实文本的最大问题是，占用字节数目比较多。比如数字 123，其实本来二进制 8 位就够了，但是如果变成文本，就成了字符串 123。如果是 UTF-8 编码的话，就是三个字节；如果是 UTF-16，就是六个字节。同样的信息，要多费好多的空间，传输起来也更加占带宽，时延也高。</p>
+<p>因而对于数据中心内部的相互调用，很多公司选型的时候，还是希望采用更加省空间和带宽的二进制的方案。</p>
+<p>这里一个著名的例子就是 Dubbo 服务化框架二进制的 RPC 方式。</p>
+<p><img src="/images/《趣谈网络协议》学习笔记/Dubbo服务化框架二进制的RPC方式.jpg" alt="Dubbo服务化框架二进制的RPC方式"></p>
+<p>Dubbo 会在客户端的本地启动一个 Proxy，其实就是客户端的 Stub，对于远程的调用都通过这个 Stub 进行封装。</p>
+<p>接下来，Dubbo 会从注册中心获取服务端的列表，根据路由规则和负载均衡规则，在多个服务端中选择一个最合适的服务端进行调用。</p>
+<p>调用服务端的时候，首先要进行编码和序列化，形成 Dubbo 头和序列化的方法和参数。将编码好的数据，交给网络客户端进行发送，网络服务端收到消息后，进行解码。然后将任务分发给某个线程进行处理，在线程中会调用服务端的代码逻辑，然后返回结果。</p>
+<p>这个过程和经典的 RPC 模式何其相似啊！</p>
+<h4 id="35-2-如何解决协议约定问题？"><a href="#35-2-如何解决协议约定问题？" class="headerlink" title="35.2 如何解决协议约定问题？"></a>35.2 如何解决协议约定问题？</h4><p>接下来我们还是来看 RPC 的三大问题，其中注册发现问题已经通过注册中心解决了。我们下面就来看协议约定问题。</p>
+<p>Dubbo 中默认的 RPC 协议是 Hessian2。为了保证传输的效率，Hessian2 将远程调用序列化为二进制进行传输，并且可以进行一定的压缩。这个时候你可能会疑惑，同为二进制的序列化协议，Hessian2 和前面的二进制的 RPC 有什么区别呢？这不绕了一圈又回来了吗？</p>
+<p>Hessian2 是解决了一些问题的。例如，原来要定义一个协议文件，然后通过这个文件生成客户端和服务端的 Stub，才能进行相互调用，这样使得修改就会不方便。Hessian2 不需要定义这个协议文件，而是自描述的。什么是自描述呢？</p>
+<p>所谓自描述就是，关于调用哪个函数，参数是什么，另一方不需要拿到某个协议文件、拿到二进制，靠它本身根据 Hessian2 的规则，就能解析出来。</p>
+<p>原来有协议文件的场景，有点儿像两个人事先约定好，0 表示方法 add，然后后面会传两个数。服务端把两个数加起来，这样一方发送 012，另一方知道是将 1 和 2 加起来，但是不知道协议文件的，当它收到 012 的时候，完全不知道代表什么意思。</p>
+<p>而自描述的场景，就像两个人说的每句话都带前因后果。例如，传递的是“函数：add，第一个参数 1，第二个参数 2”。这样无论谁拿到这个表述，都知道是什么意思。但是只不过都是以二进制的形式编码的。这其实相当于综合了 XML 和二进制共同优势的一个协议。</p>
+<p>Hessian2 是如何做到这一点的呢？这就需要去看 Hessian2 的序列化的<a target="_blank" rel="noopener" href="http://hessian.caucho.com/doc/hessian-serialization.html">语法描述文件</a>。</p>
+<p><img src="/images/《趣谈网络协议》学习笔记/Hessian2的序列化的语法描述文件.jpg" alt="Hessian2的序列化的语法描述文件"></p>
+<p>看起来很复杂，编译原理里面是有这样的语法规则的。</p>
+<p>我们从 Top 看起，下一层是 value，直到形成一棵树。这里面的有个思想，为了防止歧义，每一个类型的起始数字都设置成为独一无二的。这样，解析的时候，看到这个数字，就知道后面跟的是什么了。</p>
+<p>这里还是以加法为例子，“add(2,3)”被序列化之后是什么样的呢？</p>
+<pre class="line-numbers language-text" data-language="text"><code class="language-text">H x02 x00   # Hessian 2.0
+C           # RPC call
+x03 add     # method "add"
+x92         # two arguments
+x92         # 2 - argument 1
+x93         # 3 - argument 2<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<ul>
+<li>H 开头，表示使用的协议是 Hession，H 的二进制是 0x48。</li>
+<li>C 开头，表示这是一个 RPC 调用。</li>
+<li>0x03，表示方法名是三个字符。</li>
+<li>0x92，表示有两个参数。其实这里存的应该是 2，之所以加上 0x90，就是为了防止歧义，表示这里一定是一个 int。</li>
+<li>第一个参数是 2，编码为 0x92，第二个参数是 3，编码为 0x93。</li>
+</ul>
+<p>这个就叫作自描述。</p>
+<p>另外，Hessian2 是面向对象的，可以传输一个对象。</p>
+<pre class="line-numbers language-text" data-language="text"><code class="language-text">class Car {
+ String color;
+ String model;
+}
+out.writeObject(new Car("red", "corvette"));
+out.writeObject(new Car("green", "civic"));
+
+---
+
+C                   # object definition (#0)
+ x0b example.Car    # type is example.Car
+ x92                # two fields
+ x05 color          # color field name
+ x05 model          # model field name
+
+O                   # object def (long form)
+ x90                # object definition #0
+ x03 red            # color field value
+ x08 corvette       # model field value
+
+x60                 # object def #0 (short form)
+ x05 green          # color field value
+ x05 civic          # model field value<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>首先，定义这个类。对于类型的定义也传过去，因而也是自描述的。类名为 example.Car，字符长 11 位，因而前面长度为 0x0b。有两个成员变量，一个是 color，一个是 model，字符长 5 位，因而前面长度 0x05,。</p>
+<p>然后，传输的对象引用这个类。由于类定义在位置 0，因而对象会指向这个位置 0，编码为 0x90。后面 red 和 corvette 是两个成员变量的值，字符长分别为 3 和 8。</p>
+<p>接着又传输一个属于相同类的对象。这时候就不保存对于类的引用了，只保存一个 0x60，表示同上就可以了。</p>
+<p>可以看出，Hessian2 真的是能压缩尽量压缩，多一个 Byte 都不传。</p>
+<h4 id="35-3-如何解决-RPC-传输问题？"><a href="#35-3-如何解决-RPC-传输问题？" class="headerlink" title="35.3 如何解决 RPC 传输问题？"></a>35.3 如何解决 RPC 传输问题？</h4><p>接下来，我们再来看 Dubbo 的 RPC 传输问题。前面我们也说了，基于 Socket 实现一个高性能的服务端，是很复杂的一件事情，在 Dubbo 里面，使用了 Netty 的网络传输框架。</p>
+<p>Netty 是一个非阻塞的基于事件的网络传输框架，在服务端启动的时候，会监听一个端口，并注册以下的事件。</p>
+<ul>
+<li><strong>连接事件</strong>：当收到客户端的连接事件时，会调用 void connected(Channel channel) 方法。</li>
+<li>当<strong>可写事件</strong>触发时，会调用 void sent(Channel channel, Object message)，服务端向客户端返回响应数据。</li>
+<li>当<strong>可读事件</strong>触发时，会调用 void received(Channel channel, Object message) ，服务端在收到客户端的请求数据。</li>
+<li>当<strong>发生异常</strong>时，会调用 void caught(Channel channel, Throwable exception)。</li>
+</ul>
+<p>当事件触发之后，服务端在这些函数中的逻辑，可以选择直接在这个函数里面进行操作，还是将请求分发到线程池去处理。一般异步的数据读写都需要另外的线程池参与，在线程池中会调用真正的服务端业务代码逻辑，返回结果。</p>
+<p>Hessian2 是 Dubbo 默认的 RPC 序列化方式，当然还有其他选择。例如，Dubbox 从 Spark 那里借鉴 Kryo，实现高性能的序列化。</p>
+<p>到这里，我们说了数据中心里面的相互调用。为了高性能，大家都愿意用二进制，但是为什么后期 Spring Cloud 又兴起了呢？这是因为，并发量越来越大，已经到了微服务的阶段。同原来的 SOA 不同，微服务粒度更细，模块之间的关系更加复杂。</p>
+<p>在上面的架构中，如果使用二进制的方式进行序列化，虽然不用协议文件来生成 Stub，但是对于接口的定义，以及传的对象 DTO，还是需要共享 JAR。因为只有客户端和服务端都有这个 JAR，才能成功地序列化和反序列化。</p>
+<p>但当关系复杂的时候，JAR 的依赖也变得异常复杂，难以维护，而且如果在 DTO 里加一个字段，双方的 JAR 没有匹配好，也会导致序列化不成功，而且还有可能循环依赖。这个时候，一般有两种选择。</p>
+<p>第一种，建立严格的项目管理流程。</p>
+<ul>
+<li>不允许循环调用，不允许跨层调用，只准上层调用下层，不允许下层调用上层。</li>
+<li>接口要保持兼容性，不兼容的接口新添加而非改原来的，当接口通过监控，发现不用的时候，再下掉。</li>
+<li>升级的时候，先升级服务提供端，再升级服务消费端。</li>
+</ul>
+<p>第二种，改用 RESTful 的方式。</p>
+<ul>
+<li>使用 Spring Cloud，消费端和提供端不用共享 JAR，各声明各的，只要能变成 JSON 就行，而且 JSON 也是比较灵活的。</li>
+<li>使用 RESTful 的方式，性能会降低，所以需要通过横向扩展来抵消单机的性能损耗。</li>
+</ul>
+<p>这个时候，就看架构师的选择喽！</p>
+<h4 id="35-4-小结"><a href="#35-4-小结" class="headerlink" title="35.4 小结"></a>35.4 小结</h4><p>总结一下：</p>
+<ul>
+<li>RESTful API 对于接入层和 Controller 层之外的调用，已基本形成事实标准，但是随着内部服务之间的调用越来越多，性能也越来越重要，于是 Dubbo 的 RPC 框架有了用武之地。</li>
+<li>Dubbo 通过注册中心解决服务发现问题，通过 Hessian2 序列化解决协议约定的问题，通过 Netty 解决网络传输的问题。</li>
+<li>在更加复杂的微服务场景下，Spring Cloud 的 RESTful 方式在内部调用也会被考虑，主要是 JAR 包的依赖和管理问题。</li>
+</ul>
+<h3 id="第36讲-跨语言类RPC协议：交流之前，双方先来个专业术语表"><a href="#第36讲-跨语言类RPC协议：交流之前，双方先来个专业术语表" class="headerlink" title="第36讲 | 跨语言类RPC协议：交流之前，双方先来个专业术语表"></a>第36讲 | 跨语言类RPC协议：交流之前，双方先来个专业术语表</h3><p>到目前为止，咱们讲了四种 RPC，分别是 ONC RPC、基于 XML 的 SOAP、基于 JSON 的 RESTful 和 Hessian2。</p>
+<p>通过学习，我们知道，二进制的传输性能好，文本类的传输性能差一些；二进制的难以跨语言，文本类的可以跨语言；要写协议文件的严谨一些，不写协议文件的灵活一些。虽然都有服务发现机制，有的可以进行服务治理，有的则没有。</p>
+<p>我们也看到了 RPC 从最初的客户端服务器模式，最终演进到微服务。对于 RPC 框架的要求越来越多了，具体有哪些要求呢？</p>
+<ul>
+<li>首先，传输性能很重要。因为服务之间的调用如此频繁了，还是二进制的越快越好。</li>
+<li>其次，跨语言很重要。因为服务多了，什么语言写成的都有，而且不同的场景适宜用不同的语言，不能一个语言走到底。</li>
+<li>最好既严谨又灵活，添加个字段不用重新编译和发布程序。</li>
+<li>最好既有服务发现，也有服务治理，就像 Dubbo 和 Spring Cloud 一样。</li>
+</ul>
+<h4 id="36-1-Protocol-Buffers"><a href="#36-1-Protocol-Buffers" class="headerlink" title="36.1 Protocol Buffers"></a>36.1 Protocol Buffers</h4><p>GRPC 首先满足二进制和跨语言这两条，二进制说明压缩效率高，跨语言说明更灵活。但是又是二进制，又是跨语言，这就相当于两个人沟通，你不但说方言，还说缩略语，人家怎么听懂呢？所以，最好双方弄一个协议约定文件，里面规定好双方沟通的专业术语，这样沟通就顺畅多了。</p>
+<p>对于 GRPC 来讲，二进制序列化协议是 Protocol Buffers。首先，需要定义一个协议文件.proto。</p>
+<p>我们还看买极客时间专栏的这个例子。</p>
+<pre class="line-numbers language-proto3" data-language="proto3"><code class="language-proto3">syntax = "proto3";
+package com.geektime.grpc
+option java_package = "com.geektime.grpc";
+message Order {
+  required string date = 1;
+  required string classname = 2;
+  required string author = 3;
+  required int price = 4;
+}
+
+message OrderResponse {
+  required string message = 1;
+}
+
+service PurchaseOrder {
+  rpc Purchase (Order) returns (OrderResponse) {}
+}<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>在这个协议文件中，我们首先指定使用 proto3 的语法，然后我们使用 Protocol Buffers 的语法，定义两个消息的类型，一个是发出去的参数，一个是返回的结果。里面的每一个字段，例如 date、classname、author、price 都有唯一的一个数字标识，这样在压缩的时候，就不用传输字段名称了，只传输这个数字标识就行了，能节省很多空间。</p>
+<p>最后定义一个 Service，里面会有一个 RPC 调用的声明。</p>
+<p>无论使用什么语言，都有相应的工具生成客户端和服务端的 Stub 程序，这样客户端就可以像调用本地一样，调用远程的服务了。</p>
+<h4 id="36-2-协议约定问题"><a href="#36-2-协议约定问题" class="headerlink" title="36.2 协议约定问题"></a>36.2 协议约定问题</h4><p>Protocol Buffers 是一款压缩效率极高的序列化协议，有很多设计精巧的序列化方法。</p>
+<p>对于 int 类型 32 位的，一般都需要 4 个 Byte 进行存储。在 Protocol Buffers 中，使用的是变长整数的形式。对于每一个 Byte 的 8 位，最高位都有特殊的含义。</p>
+<p>如果该位为 1，表示这个数字没完，后续的 Byte 也属于这个数字；如果该位为 0，则这个数字到此结束。其他的 7 个 Bit 才是用来表示数字的内容。因此，小于 128 的数字都可以用一个 Byte 表示；大于 128 的数字，比如 130，会用两个字节来表示。</p>
+<p>对于每一个字段，使用的是 TLV（Tag，Length，Value）的存储办法。</p>
+<p>其中 Tag = (field_num &lt;&lt; 3) | wire_type。field_num 就是在 proto 文件中，给每个字段指定唯一的数字标识，而 wire_type 用于标识后面的数据类型。</p>
+<p><img src="/images/《趣谈网络协议》学习笔记/ProtocolBuffer中的数据类型.jpg" alt="ProtocolBuffer中的数据类型"></p>
+<p>例如，对于 string author = 3，在这里 field_num 为 3，string 的 wire_type 为 2，于是 (field_num &lt;&lt; 3) | wire_type = (11000) | 10 = 11010 = 26；接下来是 Length，最后是 Value 为“liuchao”，如果使用 UTF-8 编码，长度为 7 个字符，因而 Length 为 7。</p>
+<p>可见，在序列化效率方面，Protocol Buffers 简直做到了极致。</p>
+<p>在灵活性方面，这种基于协议文件的二进制压缩协议往往存在更新不方便的问题。例如，客户端和服务器因为需求的改变需要添加或者删除字段。</p>
+<p>这一点上，Protocol Buffers 考虑了兼容性。在上面的协议文件中，每一个字段都有修饰符。比如：</p>
+<ul>
+<li>required：这个值不能为空，一定要有这么一个字段出现；</li>
+<li>optional：可选字段，可以设置，也可以不设置，如果不设置，则使用默认值；</li>
+<li>repeated：可以重复 0 到多次。</li>
+</ul>
+<p>如果我们想修改协议文件，对于赋给某个标签的数字，例如 string author=3，这个就不要改变了，改变了就不认了；也不要添加或者删除 required 字段，因为解析的时候，发现没有这个字段就会报错。对于 optional 和 repeated 字段，可以删除，也可以添加。这就给了客户端和服务端升级的可能性。</p>
+<p>例如，我们在协议里面新增一个 string recommended 字段，表示这个课程是谁推荐的，就将这个字段设置为 optional。我们可以先升级服务端，当客户端发过来消息的时候，是没有这个值的，将它设置为一个默认值。我们也可以先升级客户端，当客户端发过来消息的时候，是有这个值的，那它将被服务端忽略。</p>
+<p>至此，我们解决了协议约定的问题。</p>
+<h4 id="36-3-网络传输问题"><a href="#36-3-网络传输问题" class="headerlink" title="36.3 网络传输问题"></a>36.3 网络传输问题</h4><p>如果是 Java 技术栈，GRPC 的客户端和服务器之间通过 Netty Channel 作为数据通道，每个请求都被封装成 HTTP 2.0 的 Stream。</p>
+<p>Netty 是一个高效的基于异步 IO 的网络传输框架，这个上一节我们已经介绍过了。HTTP 2.0 在<a target="_blank" rel="noopener" href="https://time.geekbang.org/column/article/9410">第 14 讲</a>，我们也介绍过。HTTP 2.0 协议将一个 TCP 的连接，切分成多个流，每个流都有自己的 ID，而且流是有优先级的。流可以是客户端发往服务端，也可以是服务端发往客户端。它其实只是一个虚拟的通道。</p>
+<p>HTTP 2.0 还将所有的传输信息分割为更小的消息和帧，并对它们采用二进制格式编码。</p>
+<p>通过这两种机制，HTTP 2.0 的客户端可以将多个请求分到不同的流中，然后将请求内容拆成帧，进行二进制传输。这些帧可以打散乱序发送， 然后根据每个帧首部的流标识符重新组装，并且可以根据优先级，决定优先处理哪个流的数据。</p>
+<p><img src="/images/《趣谈网络协议》学习笔记/HTTP2中的流和帧.jpg" alt="HTTP2中的流和帧"></p>
+<p>由于基于 HTTP 2.0，GRPC 和其他的 RPC 不同，可以定义四种服务方法。</p>
+<p>第一种，也是最常用的方式是<strong>单向 RPC</strong>，即客户端发送一个请求给服务端，从服务端获取一个应答，就像一次普通的函数调用。</p>
+<pre class="line-numbers language-proto3" data-language="proto3"><code class="language-proto3">rpc SayHello(HelloRequest) returns (HelloResponse){}<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>第二种方式是<strong>服务端流式 RPC</strong>，即服务端返回的不是一个结果，而是一批。客户端发送一个请求给服务端，可获取一个数据流用来读取一系列消息。客户端从返回的数据流里一直读取，直到没有更多消息为止。</p>
+<pre class="line-numbers language-proto3" data-language="proto3"><code class="language-proto3">pc LotsOfReplies(HelloRequest) returns (stream HelloResponse){}<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>第三种方式为<strong>客户端流式 RPC</strong>，也即客户端的请求不是一个，而是一批。客户端用提供的一个数据流写入并发送一系列消息给服务端。一旦客户端完成消息写入，就等待服务端读取这些消息并返回应答。</p>
+<pre class="line-numbers language-proto3" data-language="proto3"><code class="language-proto3">rpc LotsOfGreetings(stream HelloRequest) returns (HelloResponse) {}<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>第四种方式为<strong>双向流式 RPC</strong>，即两边都可以分别通过一个读写数据流来发送一系列消息。这两个数据流操作是相互独立的，所以客户端和服务端能按其希望的任意顺序读写，服务端可以在写应答前等待所有的客户端消息，或者它可以先读一个消息再写一个消息，或者读写相结合的其他方式。每个数据流里消息的顺序会被保持。</p>
+<pre class="line-numbers language-proto3" data-language="proto3"><code class="language-proto3">rpc BidiHello(stream HelloRequest) returns (stream HelloResponse){}<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>如果基于 HTTP 2.0，客户端和服务器之间的交互方式要丰富得多，不仅可以单方向远程调用，还可以实现当服务端状态改变的时候，主动通知客户端。</p>
+<p>至此，传输问题得到了解决。</p>
+<h4 id="36-4-服务发现与治理问题"><a href="#36-4-服务发现与治理问题" class="headerlink" title="36.4 服务发现与治理问题"></a>36.4 服务发现与治理问题</h4><p>GRPC 本身没有提供服务发现的机制，需要借助其他的组件，发现要访问的服务端，在多个服务端之间进行容错和负载均衡。</p>
+<p>其实负载均衡本身比较简单，LVS、HAProxy、Nginx 都可以做，关键问题是如何发现服务端，并根据服务端的变化，动态修改负载均衡器的配置。</p>
+<p>在这里我们介绍一种对于 GRPC 支持比较好的负载均衡器 Envoy。其实 Envoy 不仅仅是负载均衡器，它还是一个高性能的 C++ 写的 Proxy 转发器，可以配置非常灵活的转发规则。</p>
+<p>这些规则可以是静态的，放在配置文件中的，在启动的时候加载。要想重新加载，一般需要重新启动，但是 Envoy 支持热加载和热重启，这在一定程度上缓解了这个问题。</p>
+<p>当然，最好的方式是将规则设置为动态的，放在统一的地方维护。这个统一的地方在 Envoy 眼中被称为服务发现（Discovery Service），过一段时间去这里拿一下配置，就修改了转发策略。</p>
+<p>无论是静态的，还是动态的，在配置里面往往会配置四个东西。</p>
+<ul>
+<li>第一个是 listener。Envoy 既然是 Proxy，专门做转发，就得监听一个端口，接入请求，然后才能够根据策略转发，这个监听的端口就称为 listener。</li>
+<li>第二个是 endpoint，是目标的 IP 地址和端口。这个是 Proxy 最终将请求转发到的地方。</li>
+<li>第三个是 cluster。一个 cluster 是具有完全相同行为的多个 endpoint，也即如果有三个服务端在运行，就会有三个 IP 和端口，但是部署的是完全相同的三个服务，它们组成一个 cluster，从 cluster 到 endpoint 的过程称为负载均衡，可以轮询。</li>
+<li>第四个是 route。有时候多个 cluster 具有类似的功能，但是是不同的版本号，可以通过 route 规则，选择将请求路由到某一个版本号，也即某一个 cluster。</li>
+</ul>
+<p>如果是静态的，则将后端的服务端的 IP 地址拿到，然后放在配置文件里面就可以了。</p>
+<p>如果是动态的，就需要配置一个服务发现中心，这个服务发现中心要实现 Envoy 的 API，Envoy 可以主动去服务发现中心拉取转发策略。</p>
+<p><img src="/images/《趣谈网络协议》学习笔记/实现了EnvoyAPI的服务发现中心.jpg" alt="实现了EnvoyAPI的服务发现中心"></p>
+<p>看来，Envoy 进程和服务发现中心之间要经常相互通信，互相推送数据，所以 Envoy 在控制面和服务发现中心沟通的时候，就可以使用 GRPC，也就天然具备在用户面支撑 GRPC 的能力。</p>
+<p>Envoy 如果复杂的配置，都能干什么事呢？</p>
+<p>一种常见的规则是<strong>配置路由策略</strong>。例如后端的服务有两个版本，可以通过配置 Envoy 的 route，来设置两个版本之间，也即两个 cluster 之间的 route 规则，一个占 99% 的流量，一个占 1% 的流量。</p>
+<p>另一种常见的规则就是<strong>负载均衡策略</strong>。对于一个 cluster 下的多个 endpoint，可以配置负载均衡机制和健康检查机制，当服务端新增了一个，或者挂了一个，都能够及时配置 Envoy，进行负载均衡。</p>
+<p><img src="/images/《趣谈网络协议》学习笔记/Envoy实现注册治理中心.jpg" alt="Envoy实现注册治理中心"></p>
+<p>所有这些节点的变化都会上传到注册中心，所有这些策略都可以通过注册中心进行下发，所以，更严格的意义上讲，注册中心可以称为<strong>注册治理中心</strong>。</p>
+<p>Envoy 这么牛，是不是能够将服务之间的相互调用全部由它代理？如果这样，服务也不用像 Dubbo，或者 Spring Cloud 一样，自己感知到注册中心，自己注册，自己治理，对应用干预比较大。</p>
+<p>如果我们的应用能够意识不到服务治理的存在，就是直接进行 GRPC 的调用就可以了。</p>
+<p>这就是未来服务治理的趋势Serivce Mesh，也即应用之间的相互调用全部由 Envoy 进行代理，服务之间的治理也被 Envoy 进行代理，完全将服务治理抽象出来，到平台层解决。</p>
+<p><img src="/images/《趣谈网络协议》学习笔记/Envoy实现SerivceMesh.jpg" alt="Envoy实现SerivceMesh"></p>
+<p>至此 RPC 框架中有治理功能的 Dubbo、Spring Cloud、Service Mesh 就聚齐了。</p>
+<h4 id="36-5-小结"><a href="#36-5-小结" class="headerlink" title="36.5 小结"></a>36.5 小结</h4><p>总结一下：</p>
+<ul>
+<li>GRPC 是一种二进制，性能好，跨语言，还灵活，同时可以进行服务治理的多快好省的 RPC 框架，唯一不足就是还是要写协议文件。</li>
+<li>GRPC 序列化使用 Protocol Buffers，网络传输使用 HTTP 2.0，服务治理可以使用基于 Envoy 的 Service Mesh。</li>
+</ul>
+<h2 id="网络协议知识串讲"><a href="#网络协议知识串讲" class="headerlink" title="网络协议知识串讲"></a>网络协议知识串讲</h2><h2 id="答疑与加餐"><a href="#答疑与加餐" class="headerlink" title="答疑与加餐"></a>答疑与加餐</h2>
                 
             </div>
             <hr/>
@@ -3441,7 +3898,7 @@ tc filter <span class="token function">add</span> dev eth0 protocol <span class=
             <br>
             
             &nbsp;<i class="fas fa-chart-area"></i>&nbsp;站点总字数:&nbsp;<span
-                class="white-color">999.5k</span>&nbsp;字
+                class="white-color">1015.2k</span>&nbsp;字
             
             
             
