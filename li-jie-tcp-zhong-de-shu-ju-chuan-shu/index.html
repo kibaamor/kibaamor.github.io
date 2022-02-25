@@ -438,14 +438,14 @@
                 
                 <div class="info-break-policy">
                     <i class="far fa-file-word fa-fw"></i>文章字数:&nbsp;&nbsp;
-                    3.3k
+                    3.9k
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-clock fa-fw"></i>阅读时长:&nbsp;&nbsp;
-                    12 分
+                    14 分
                 </div>
                 
 
@@ -627,7 +627,23 @@ net.ipv4.tcp_congestion_control <span class="token operator">=</span> cubic<span
                  <span class="token keyword">unsigned</span> <span class="token keyword">int</span> cur_mss<span class="token punctuation">)</span><span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span></span></code></pre>
 <!----fix markdown render issues---->
 <h2 id="六、糊涂窗口综合症：运输效率太低了怎么办"><a href="#六、糊涂窗口综合症：运输效率太低了怎么办" class="headerlink" title="六、糊涂窗口综合症：运输效率太低了怎么办"></a>六、糊涂窗口综合症：运输效率太低了怎么办</h2><blockquote>
-<p>更多的细节可以查阅 <a target="_blank" rel="noopener" href="https://book.douban.com/subject/26825411/">《TCP/IP 详解 卷一： 协议 第2版》</a> 中 <code>15.5.3 糊涂窗口综合症</code> 一节。</p>
+<p>更多的细节可以查阅 <a target="_blank" rel="noopener" href="https://book.douban.com/subject/26825411/">《TCP/IP 详解 卷一： 协议 第2版》</a> 中 <code>15.5.3 糊涂窗口综合症</code> 一节。<br>相关内容摘录如下：</p>
+<p>需要遵循以下规则：</p>
+<ol>
+<li><p>对于接收端来说，不应通告小的窗口值。<a target="_blank" rel="noopener" href="https://datatracker.ietf.org/doc/html/rfc1122#page-97">RFC1122</a><br>抽述的接收算法中，在窗门大小增至一个全长的报文段（比如：接收端 MSS ）或者接收端缓存空间的一半（取两者中较小者）之前，不能通告比当前窗口（可能为 0 ）更大的窗口值。注意到可能有两种情况会用到该规则：当应用程序处理接收到的数据后使得可用缓存增大，以及 TCP 接收端需要强制返回对窗口探测的响应。</p>
+</li>
+<li><p>对于发送端来说，不应发送小的报文段，而且需要由 Nagle 算法控制何时发送。为避免糊涂窗口综合症问题，只有当至少满足一下条件之一时才能传输报文段：</p>
+</li>
+</ol>
+<blockquote>
+<p>a. 全长（发送 MSS 字节）的报文段可以发送。<br>b. 数据段长度 &gt;= 接收端<strong>通告过的</strong>最大窗口值的一半的，可以发送。<br>c. 满足一下任一条件的都可以发送：</p>
+<blockquote>
+<p>i. 某一 ACK 不是目前期盼的（比如：没有未经确认的在传数据）；<br>ii. 该连接禁用 Nagle 算法。</p>
+</blockquote>
+</blockquote>
+<p>条件 a 最直接地避免了高耗费的报文段传输问题。条件 b 针对通告窗口值较小，可能小于要传输的报文段的情况。条件 c 防止 TCP 在数据需要被确认以及 Nagle 算法启用的情况下发送小报文段。若发送端应用在执行某些较小的写操作（如小于报文段大小），条件 c 可能有效避免出现糊涂窗口综合症。</p>
+<p>上述三个条件也让我们回答了以下问题：当有未经确认的在传数据时，若使用 Nagle 算法阻止发送小的报文段，究竟多小才算小？从条件 a 可以看出，“小”意味着字节数要小于 SMSS （即包的最大大小不超过 PMTU 或者接收端的 MSS）。条件 b 只用于比较旧的原始主机，或者因接收端缓存有限而使用较小通告窗口时。</p>
+<p>第 2 点中的条件 b 要求发送端记录接收端通告窗口的最大值。发送端以此猜测接收端缓存大小。尽管当连接建立时缓存大小可能减小，但实际这种情况很少见。另外，前面也提到过， TCP 需要避免窗口收缩。</p>
 </blockquote>
 <p>每辆货车的最大载货量是 <strong>MSS（Maximum Segment Size，最大分段大小）</strong>，但是如果在运输时货车里面实际的载货量常常很小，造成这种情况的原因可能是：</p>
 <ul>
@@ -1179,7 +1195,7 @@ net.ipv4.tcp_congestion_control <span class="token operator">=</span> cubic<span
             <br>
             
             &nbsp;<i class="fas fa-chart-area"></i>&nbsp;站点总字数:&nbsp;<span
-                class="white-color">1046.5k</span>&nbsp;字
+                class="white-color">1047.1k</span>&nbsp;字
             
             
             
