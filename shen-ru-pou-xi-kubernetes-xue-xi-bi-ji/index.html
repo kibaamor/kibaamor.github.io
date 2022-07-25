@@ -460,14 +460,14 @@
                 
                 <div class="info-break-policy">
                     <i class="far fa-file-word fa-fw"></i>文章字数:&nbsp;&nbsp;
-                    33.1k
+                    38.4k
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-clock fa-fw"></i>阅读时长:&nbsp;&nbsp;
-                    121 分
+                    142 分
                 </div>
                 
 
@@ -738,10 +738,10 @@ $ <span class="token function">cat</span> /sys/fs/cgroup/cpu/container/cpu.cfs_p
 <span class="token number">100000</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span></span></code></pre>
 <p>接下来，我们可以通过修改这些文件的内容来设置限制。</p>
 <p>比如，向 container 组里的 cfs_quota 文件写入 20 ms（20000 us）：</p>
-<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ <span class="token builtin class-name">echo</span> <span class="token number">20000</span> <span class="token operator">&gt;</span> /sys/fs/cgroup/cpu/container/cpu.cfs_quota_us<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token builtin class-name">echo</span> <span class="token number">20000</span> <span class="token operator">&gt;</span> /sys/fs/cgroup/cpu/container/cpu.cfs_quota_us<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
 <p>结合前面的介绍，你应该能明白这个操作的含义，它意味着在每 100 ms 的时间里，被该控制组限制的进程只能使用 20 ms 的 CPU 时间，也就是说这个进程只能使用到 20% 的 CPU 带宽。</p>
 <p>接下来，我们把被限制的进程的 PID 写入 container 组里的 tasks 文件，上面的设置就会对该进程生效了：</p>
-<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ <span class="token builtin class-name">echo</span> <span class="token number">226</span> <span class="token operator">&gt;</span> /sys/fs/cgroup/cpu/container/tasks<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token builtin class-name">echo</span> <span class="token number">226</span> <span class="token operator">&gt;</span> /sys/fs/cgroup/cpu/container/tasks<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
 <p>我们可以用 top 指令查看一下：</p>
 <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ <span class="token function">top</span>
 %Cpu0 <span class="token builtin class-name">:</span> <span class="token number">20.3</span> us, <span class="token number">0.0</span> sy, <span class="token number">0.0</span> ni, <span class="token number">79.7</span> id, <span class="token number">0.0</span> wa, <span class="token number">0.0</span> hi, <span class="token number">0.0</span> si, <span class="token number">0.0</span> st<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre>
@@ -754,7 +754,7 @@ $ <span class="token function">cat</span> /sys/fs/cgroup/cpu/container/cpu.cfs_p
 </ul>
 <p><strong>Linux Cgroups 的设计还是比较易用的，简单粗暴地理解呢，它就是一个子系统目录加上一组资源限制文件的组合。</strong> 而对于 Docker 等 Linux 容器项目来说，它们只需要在每个子系统下面，为每个容器创建一个控制组（即创建一个新目录），然后在启动容器进程之后，把这个进程的 PID 填写到对应控制组的 tasks 文件中就可以了。</p>
 <p>而至于在这些控制组下面的资源文件里填上什么值，就靠用户执行 docker run 时的参数指定了，比如这样一条命令：</p>
-<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ docker run -it --cpu-period<span class="token operator">=</span><span class="token number">100000</span> --cpu-quota<span class="token operator">=</span><span class="token number">20000</span> ubuntu /bin/bash<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">docker run -it --cpu-period<span class="token operator">=</span><span class="token number">100000</span> --cpu-quota<span class="token operator">=</span><span class="token number">20000</span> ubuntu /bin/bash<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
 <p>在启动这个容器后，我们可以通过查看 Cgroups 文件系统下，CPU 子系统中，”docker”这个控制组里的资源限制文件的内容来确认：</p>
 <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ <span class="token function">cat</span> /sys/fs/cgroup/cpu/docker/5d5c9f67d/cpu.cfs_period_us
 <span class="token number">100000</span>
@@ -852,17 +852,17 @@ $ <span class="token function">mount</span> -l <span class="token operator">|</s
 <p>在 Linux 操作系统里，有一个名为 chroot 的命令可以帮助你在 shell 中方便地完成这个工作。顾名思义，它的作用就是帮你”change root file system”，即改变进程的根目录到你指定的位置。它的用法也非常简单。</p>
 <p>假设，我们现在有一个 $HOME/test 目录，想要把它作为一个 /bin/bash 进程的根目录。</p>
 <p>首先，创建一个 test 目录和几个 lib 文件夹：</p>
-<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ <span class="token function">mkdir</span> -p <span class="token environment constant">$HOME</span>/test
-$ <span class="token function">mkdir</span> -p <span class="token environment constant">$HOME</span>/test/<span class="token punctuation">{</span>bin,lib64,lib<span class="token punctuation">}</span>
-$ <span class="token builtin class-name">cd</span> <span class="token variable">$T</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span></span></code></pre>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token function">mkdir</span> -p <span class="token environment constant">$HOME</span>/test
+<span class="token function">mkdir</span> -p <span class="token environment constant">$HOME</span>/test/<span class="token punctuation">{</span>bin,lib64,lib<span class="token punctuation">}</span>
+<span class="token builtin class-name">cd</span> <span class="token variable">$T</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span></span></code></pre>
 <p>然后，把 bash 命令拷贝到 test 目录对应的 bin 路径下：</p>
-<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ <span class="token function">cp</span> -v /bin/<span class="token punctuation">{</span>bash,ls<span class="token punctuation">}</span> <span class="token environment constant">$HOME</span>/test/bin<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token function">cp</span> -v /bin/<span class="token punctuation">{</span>bash,ls<span class="token punctuation">}</span> <span class="token environment constant">$HOME</span>/test/bin<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
 <p>接下来，把 bash 命令需要的所有 so 文件，也拷贝到 test 目录对应的 lib 路径下。找到 so 文件可以用 ldd 命令：</p>
-<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ <span class="token assign-left variable">T</span><span class="token operator">=</span><span class="token environment constant">$HOME</span>/test
-$ <span class="token assign-left variable">list</span><span class="token operator">=</span><span class="token string">"<span class="token variable"><span class="token variable">$(</span>ldd /bin/ls <span class="token operator">|</span> <span class="token function">egrep</span> -o <span class="token string">'/lib.*\.[0-9]'</span><span class="token variable">)</span></span>"</span>
-$ <span class="token keyword">for</span> <span class="token for-or-select variable">i</span> <span class="token keyword">in</span> <span class="token variable">$list</span><span class="token punctuation">;</span> <span class="token keyword">do</span> <span class="token function">cp</span> -v <span class="token string">"<span class="token variable">$i</span>"</span> <span class="token string">"<span class="token variable">${T}</span><span class="token variable">${i}</span>"</span><span class="token punctuation">;</span> <span class="token keyword">done</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span></span></code></pre>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token assign-left variable">T</span><span class="token operator">=</span><span class="token environment constant">$HOME</span>/test
+<span class="token assign-left variable">list</span><span class="token operator">=</span><span class="token string">"<span class="token variable"><span class="token variable">$(</span>ldd /bin/ls <span class="token operator">|</span> <span class="token function">egrep</span> -o <span class="token string">'/lib.*\.[0-9]'</span><span class="token variable">)</span></span>"</span>
+<span class="token keyword">for</span> <span class="token for-or-select variable">i</span> <span class="token keyword">in</span> <span class="token variable">$list</span><span class="token punctuation">;</span> <span class="token keyword">do</span> <span class="token function">cp</span> -v <span class="token string">"<span class="token variable">$i</span>"</span> <span class="token string">"<span class="token variable">${T}</span><span class="token variable">${i}</span>"</span><span class="token punctuation">;</span> <span class="token keyword">done</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span></span></code></pre>
 <p>最后，执行 chroot 命令，告诉操作系统，我们将使用 $HOME/test 目录作为 /bin/bash 进程的根目录：</p>
-<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ <span class="token function">chroot</span> <span class="token environment constant">$HOME</span>/test /bin/bash<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token function">chroot</span> <span class="token environment constant">$HOME</span>/test /bin/bash<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
 <p>这时，你如果执行 “ls /“，就会看到，它返回的都是 $HOME/test 目录下面的内容，而不是宿主机的内容。</p>
 <p>更重要的是，对于被 chroot 的进程来说，它并不会感受到自己的根目录已经被”修改”成 $HOME/test 了。</p>
 <p>这种视图被修改的原理，是不是跟我之前介绍的 Linux Namespace 很类似呢？</p>
@@ -913,8 +913,8 @@ bin dev etc home lib lib64 mnt opt proc root run sbin sys tmp usr var<span aria-
   ├── b
   └── x<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
 <p>然后，我使用联合挂载的方式，将这两个目录挂载到一个公共的目录 C 上：</p>
-<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ <span class="token function">mkdir</span> C
-$ <span class="token function">mount</span> -t aufs -o <span class="token assign-left variable">dirs</span><span class="token operator">=</span>./A:./B none ./C<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token function">mkdir</span> C
+<span class="token function">mount</span> -t aufs -o <span class="token assign-left variable">dirs</span><span class="token operator">=</span>./A:./B none ./C<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre>
 <p>这时，我再查看目录 C 的内容，就能看到目录 A 和 B 下的文件被合并到了一起：</p>
 <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ tree ./C
 ./C
@@ -933,7 +933,7 @@ $ <span class="token function">mount</span> -t aufs -o <span class="token assign
 <pre class="line-numbers language-text" data-language="text"><code class="language-text">/var/lib/docker/aufs/diff/&lt;layer_id&gt;<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
 <p><strong>而这个目录的作用，我们不妨通过一个具体例子来看一下。</strong></p>
 <p>现在，我们启动一个容器，比如：</p>
-<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ docker run -d ubuntu:latest <span class="token function">sleep</span> <span class="token number">3600</span><span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">docker run -d ubuntu:latest <span class="token function">sleep</span> <span class="token number">3600</span><span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
 <p>这时候，Docker 就会从 Docker Hub 上拉取一个 Ubuntu 镜像到本地。</p>
 <p>这个所谓的”镜像”，实际上就是一个 Ubuntu 操作系统的 rootfs，它的内容是 Ubuntu 操作系统的所有文件和目录。不过，与之前我们讲述的 rootfs 稍微不同的是，Docker 镜像使用的 rootfs，往往由多个”层”组成：</p>
 <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ docker image inspect ubuntu:latest
@@ -1044,14 +1044,14 @@ CMD ["python", "app.py"]<span aria-hidden="true" class="line-numbers-rows"><span
 <p>备注：基于以上原因， <strong>我们后面会统一称 Docker 容器的启动进程为 ENTRYPOINT，而不是 CMD。</strong></p>
 </blockquote>
 <p>制作镜像：</p>
-<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ docker build -t helloworld <span class="token builtin class-name">.</span><span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">docker build -t helloworld <span class="token builtin class-name">.</span><span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
 <p><strong>需要注意的是，Dockerfile 中的每个原语执行后，都会生成一个对应的镜像层。</strong> 即使原语本身并没有明显地修改文件的操作（比如，ENV 原语），它对应的层也会存在。只不过在外界看来，这个层是空的。</p>
 <p>docker build 操作完成后，我可以通过 docker images 命令查看结果：</p>
 <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ docker image <span class="token function">ls</span>
 REPOSITORY            TAG                 IMAGE ID
 helloworld         latest              653287cdf998<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span></span></code></pre>
 <p>接下来，我使用这个镜像，通过 docker run 命令启动容器：</p>
-<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ docker run -p <span class="token number">4000</span>:80 helloworld<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">docker run -p <span class="token number">4000</span>:80 helloworld<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
 <p>容器启动之后，我可以使用 docker ps 命令看到：</p>
 <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ docker <span class="token function">ps</span>
 CONTAINER ID        IMAGE               COMMAND             CREATED
@@ -1146,7 +1146,7 @@ $ <span class="token function">ls</span> -l  /proc/25686/ns/net
 lrwxrwxrwx <span class="token number">1</span> root root <span class="token number">0</span> Aug <span class="token number">13</span> <span class="token number">14</span>:05 /proc/25686/ns/net -<span class="token operator">&gt;</span> net:<span class="token punctuation">[</span><span class="token number">4026532281</span><span class="token punctuation">]</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span></span></code></pre>
 <p>在 /proc/[PID]/ns/net 目录下，这个 PID=28499 进程，与我们前面的 Docker 容器进程（PID=25686）指向的 Network Namespace 文件完全一样。这说明这两个进程，共享了这个名叫 net:[4026532281] 的 Network Namespace。</p>
 <p>此外，Docker 还专门提供了一个参数，可以让你启动一个容器并”加入”到另一个容器的 Network Namespace 里，这个参数就是 -net，比如:</p>
-<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ docker run -it --net container:4ddf4638572d busybox <span class="token function">ifconfig</span><span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">docker run -it --net container:4ddf4638572d busybox <span class="token function">ifconfig</span><span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
 <p>这样，我们新启动的这个容器，就会直接加入到 ID=4ddf4638572d 的容器，也就是我们前面的创建的 Python 应用容器（PID=25686）的 Network Namespace 中。</p>
 <p>而如果我指定–net=host，就意味着这个容器不会为进程启用 Network Namespace。这就意味着，这个容器拆除了 Network Namespace 的”隔离墙”，所以，它会和宿主机上的其他普通进程一样，直接共享宿主机的网络栈。这就为容器直接操作和使用宿主机网络提供了一个渠道。</p>
 <p><strong>转了一个大圈子，我其实是为你详细解读了 docker exec 这个操作背后，Linux Namespace 更具体的工作原理。</strong></p>
@@ -1158,8 +1158,8 @@ lrwxrwxrwx <span class="token number">1</span> root root <span class="token numb
 <p><strong>最后，我再来讲解一下 Docker 项目另一个重要的内容：Volume（数据卷）。</strong></p>
 <p><strong>Volume 机制，允许你将宿主机上指定的目录或者文件，挂载到容器里面进行读取和修改操作。</strong></p>
 <p>在 Docker 项目里，它支持两种 Volume 声明方式，可以把宿主机目录挂载进容器的 /test 目录当中：</p>
-<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ docker run -v /test <span class="token punctuation">..</span>.
-$ docker run -v /home:/test <span class="token punctuation">..</span>.<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">docker run -v /test <span class="token punctuation">..</span>.
+docker run -v /home:/test <span class="token punctuation">..</span>.<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre>
 <p>而这两种声明方式的本质，实际上是相同的：都是把一个宿主机的目录挂载进了容器的 /test 目录。</p>
 <p>只不过，在第一种情况下，由于你并没有显示声明宿主机目录，那么 Docker 就会默认在宿主机上创建一个临时目录 /var/lib/docker/volumes/[VOLUME_ID]/_data，然后把它挂载到容器的 /test 目录上。而在第二种情况下，Docker 就直接把宿主机的 /home 目录挂载到容器的 /test 目录上。</p>
 <p>那么，Docker 又是如何做到把一个宿主机上的目录或者文件，挂载到容器里面去呢？</p>
@@ -1192,7 +1192,7 @@ cf53b766fa6f<span aria-hidden="true" class="line-numbers-rows"><span></span><spa
 DRIVER              VOLUME NAME
 <span class="token builtin class-name">local</span>               cb1c2f7221fa9b0971cc35f68aa1034824755ac44a034c0c0a1dd318838d3a6d<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span></span></code></pre>
 <p>然后，使用这个 ID，可以找到它在 Docker 工作目录下的 volumes 路径：</p>
-<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ <span class="token function">ls</span> /var/lib/docker/volumes/cb1c2f7221fa/_data/<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token function">ls</span> /var/lib/docker/volumes/cb1c2f7221fa/_data/<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
 <p>这个 _data 文件夹，就是这个容器的 Volume 在宿主机上对应的临时目录了。</p>
 <p>接下来，我们在容器的 Volume 里，添加一个文件 text.txt：</p>
 <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ docker <span class="token builtin class-name">exec</span> -it cf53b766fa6f /bin/sh
@@ -1202,7 +1202,7 @@ DRIVER              VOLUME NAME
 <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ <span class="token function">ls</span> /var/lib/docker/volumes/cb1c2f7221fa/_data/
 text.txt<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre>
 <p>可是，如果你在宿主机上查看该容器的可读写层，虽然可以看到这个 /test 目录，但其内容是空的（关于如何找到这个 AuFS 文件系统的路径，请参考我上一次分享的内容）：</p>
-<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ <span class="token function">ls</span> /var/lib/docker/aufs/mnt/6780d0778b8a/test<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token function">ls</span> /var/lib/docker/aufs/mnt/6780d0778b8a/test<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
 <p>可以确认，容器 Volume 里的信息，并不会被 docker commit 提交掉；但这个挂载点目录 /test 本身，则会出现在新的镜像当中。</p>
 <p>以上内容，就是 Docker Volume 的核心原理了。</p>
 <h4 id="8-1-总结"><a href="#8-1-总结" class="headerlink" title="8.1 总结"></a>8.1 总结</h4><p>在今天的这次分享中，我用了一个非常经典的 Python 应用作为案例，讲解了 Docker 容器使用的主要场景。熟悉了这些操作，你也就基本上摸清了 Docker 容器的核心功能。</p>
@@ -1342,7 +1342,7 @@ text.txt<span aria-hidden="true" class="line-numbers-rows"><span></span><span></
         <span class="token punctuation">-</span> <span class="token key atrule">containerPort</span><span class="token punctuation">:</span> <span class="token number">80</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
 <p>在上面这个 YAML 文件中，我们定义了一个 Deployment 对象，它的主体部分（spec.template 部分）是一个使用 Nginx 镜像的 Pod，而这个 Pod 的副本数是 2（replicas=2）。</p>
 <p>然后执行：</p>
-<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ kubectl create -f nginx-deployment.yaml<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">kubectl create -f nginx-deployment.yaml<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
 <p>这样，两个完全相同的 Nginx 容器副本就被启动了。</p>
 <p>不过，这么看来，做同样一件事情，Kubernetes 用户要做的工作也不少嘛。</p>
 <p>别急，在后续的讲解中，我会陆续介绍 Kubernetes 项目这种”声明式 API”的种种好处，以及基于它实现的强大的编排能力。</p>
@@ -1478,7 +1478,7 @@ etcd.yaml  kube-apiserver.yaml  kube-controller-manager.yaml  kube-scheduler.yam
 <p> 我在前面讲解了 kubeadm 部署 Kubernetes 集群最关键的两个步骤，kubeadm init 和 kubeadm join。相信你一定会有这样的疑问：kubeadm 确实简单易用，可是我又该如何定制我的集群组件参数呢？</p>
 <p> 比如，我要指定 kube-apiserver 的启动参数，该怎么办？</p>
 <p> 在这里，我强烈推荐你在使用 kubeadm init 部署 Master 节点时，使用下面这条指令：</p>
- <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ kubeadm init --config kubeadm.yaml<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+ <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">kubeadm init --config kubeadm.yaml<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
 <p> 这时，你就可以给 kubeadm 提供一个 YAML 文件（比如，kubeadm.yaml），它的内容如下所示（我仅列举了主要部分）：</p>
  <pre class="line-numbers language-yaml" data-language="yaml"><code class="language-yaml"><span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> kubeadm.k8s.io/v1alpha2
 <span class="token key atrule">kind</span><span class="token punctuation">:</span> MasterConfiguration
@@ -1520,7 +1520,280 @@ etcd.yaml  kube-apiserver.yaml  kube-controller-manager.yaml  kube-scheduler.yam
 </ol>
 <h4 id="10-1-总结"><a href="#10-1-总结" class="headerlink" title="10.1 总结"></a>10.1 总结</h4><p>kubeadm 的源代码，直接就在 kubernetes/cmd/kubeadm 目录下，是 Kubernetes 项目的一部分。其中，app/phases 文件夹下的代码，对应的就是我在这篇文章中详细介绍的每一个具体步骤。</p>
 <p>实际上，kubeadm 几乎完全是一位高中生的作品。他叫 Lucas Käldström，芬兰人，今年只有 18 岁。kubeadm，是他 17 岁时用业余时间完成的一个社区项目。</p>
-<h3 id="11-从0到1：搭建一个完整的Kubernetes集群"><a href="#11-从0到1：搭建一个完整的Kubernetes集群" class="headerlink" title="11 | 从0到1：搭建一个完整的Kubernetes集群"></a>11 | 从0到1：搭建一个完整的Kubernetes集群</h3><h2 id="容器编排与Kubernetes作业管理"><a href="#容器编排与Kubernetes作业管理" class="headerlink" title="容器编排与Kubernetes作业管理"></a>容器编排与Kubernetes作业管理</h2><h2 id="Kubernetes容器持久化存储"><a href="#Kubernetes容器持久化存储" class="headerlink" title="Kubernetes容器持久化存储"></a>Kubernetes容器持久化存储</h2><h2 id="Kubernetes容器网络"><a href="#Kubernetes容器网络" class="headerlink" title="Kubernetes容器网络"></a>Kubernetes容器网络</h2><h2 id="Kubernetes作业调度与资源管理"><a href="#Kubernetes作业调度与资源管理" class="headerlink" title="Kubernetes作业调度与资源管理"></a>Kubernetes作业调度与资源管理</h2><h2 id="Kubernetes容器运行时"><a href="#Kubernetes容器运行时" class="headerlink" title="Kubernetes容器运行时"></a>Kubernetes容器运行时</h2><h2 id="Kubernetes容器监控与日志"><a href="#Kubernetes容器监控与日志" class="headerlink" title="Kubernetes容器监控与日志"></a>Kubernetes容器监控与日志</h2><h2 id="再谈开源与社区"><a href="#再谈开源与社区" class="headerlink" title="再谈开源与社区"></a>再谈开源与社区</h2><h2 id="答疑文章"><a href="#答疑文章" class="headerlink" title="答疑文章"></a>答疑文章</h2>
+<h3 id="11-从0到1：搭建一个完整的Kubernetes集群"><a href="#11-从0到1：搭建一个完整的Kubernetes集群" class="headerlink" title="11 | 从0到1：搭建一个完整的Kubernetes集群"></a>11 | 从0到1：搭建一个完整的Kubernetes集群</h3><ol>
+<li><p>安装 kubeadm 和 Docker</p>
+</li>
+<li><p>部署 Kubernetes 的 Master 节点</p>
+</li>
+<li><p>部署网络插件</p>
+</li>
+<li><p>部署 Kubernetes 的 Worker 节点</p>
+</li>
+<li><p>通过 Taint/Toleration 调整 Master 执行 Pod 的策略</p>
+<p> 默认情况下 Master 节点是不允许运行用户 Pod 的。而 Kubernetes 做到这一点，依靠的是 Kubernetes 的 Taint/Toleration 机制。</p>
+<p> 它的原理非常简单：一旦某个节点被加上了一个 Taint，即被”打上了污点”，那么所有 Pod 就都不能在这个节点上运行，因为 Kubernetes 的 Pod 都有”洁癖”。</p>
+<p> 除非，有个别的 Pod 声明自己能”容忍”这个”污点”，即声明了 Toleration，它才可以在这个节点上运行。</p>
+<p> 其中，为节点打上”污点”（Taint）的命令是：</p>
+ <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">kubectl taint nodes node1 <span class="token assign-left variable">foo</span><span class="token operator">=</span>bar:NoSchedule<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p> 这时，该 node1 节点上就会增加一个键值对格式的 Taint，即：foo=bar:NoSchedule。其中值里面的 NoSchedule，意味着这个 Taint 只会在调度新 Pod 时产生作用，而不会影响已经在 node1 上运行的 Pod，哪怕它们没有 Toleration。</p>
+<p> 那么 Pod 又如何声明 Toleration 呢？</p>
+<p> 我们只要在 Pod 的.yaml 文件中的 spec 部分，加入 tolerations 字段即可：</p>
+ <pre class="line-numbers language-yaml" data-language="yaml"><code class="language-yaml"><span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> v1
+<span class="token key atrule">kind</span><span class="token punctuation">:</span> Pod
+<span class="token punctuation">...</span>
+<span class="token key atrule">spec</span><span class="token punctuation">:</span>
+<span class="token key atrule">tolerations</span><span class="token punctuation">:</span>
+<span class="token punctuation">-</span> <span class="token key atrule">key</span><span class="token punctuation">:</span> <span class="token string">"foo"</span>
+    <span class="token key atrule">operator</span><span class="token punctuation">:</span> <span class="token string">"Equal"</span>
+    <span class="token key atrule">value</span><span class="token punctuation">:</span> <span class="token string">"bar"</span>
+    <span class="token key atrule">effect</span><span class="token punctuation">:</span> <span class="token string">"NoSchedule"</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p> 这个 Toleration 的含义是，这个 Pod 能”容忍”所有键值对为 foo=bar 的 Taint（ operator: “Equal”，”等于”操作）。</p>
+<p> 现在回到我们已经搭建的集群上来。这时，如果你通过 kubectl describe 检查一下 Master 节点的 Taint 字段，就会有所发现了：</p>
+ <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ kubectl describe node master
+Name:               master
+Roles:              master
+Taints:             node-role.kubernetes.io/master:NoSchedule<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span></span></code></pre>
+<p> 可以看到，Master 节点默认被加上了node-role.kubernetes.io/master:NoSchedule这样一个”污点”，其中”键”是node-role.kubernetes.io/master，而没有提供”值”。</p>
+<p> 此时，你就需要像下面这样用”Exists”操作符（operator: “Exists”，”存在”即可）来说明，该 Pod 能够容忍所有以 foo 为键的 Taint，才能让这个 Pod 运行在该 Master 节点上：</p>
+ <pre class="line-numbers language-yaml" data-language="yaml"><code class="language-yaml"><span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> v1
+<span class="token key atrule">kind</span><span class="token punctuation">:</span> Pod
+<span class="token punctuation">...</span>
+<span class="token key atrule">spec</span><span class="token punctuation">:</span>
+<span class="token key atrule">tolerations</span><span class="token punctuation">:</span>
+<span class="token punctuation">-</span> <span class="token key atrule">key</span><span class="token punctuation">:</span> <span class="token string">"foo"</span>
+    <span class="token key atrule">operator</span><span class="token punctuation">:</span> <span class="token string">"Exists"</span>
+    <span class="token key atrule">effect</span><span class="token punctuation">:</span> <span class="token string">"NoSchedule"</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p> 当然，如果你就是想要一个单节点的 Kubernetes，删除这个 Taint 才是正确的选择：</p>
+ <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">kubectl taint nodes --all node-role.kubernetes.io/master-<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p> 如上所示，我们在”node-role.kubernetes.io/master”这个键后面加上了一个短横线”-“，这个格式就意味着移除所有以”node-role.kubernetes.io/master”为键的 Taint。</p>
+</li>
+<li><p>部署 Dashboard 可视化插件</p>
+</li>
+<li><p>部署容器存储插件</p>
+<p> 我在前面介绍容器原理时已经提到过，很多时候我们需要用数据卷（Volume）把外面宿主机上的目录或者文件挂载进容器的 Mount Namespace 中，从而达到容器和宿主机共享这些目录或者文件的目的。容器里的应用，也就可以在这些数据卷中新建和写入文件。</p>
+<p> 可是，如果你在某一台机器上启动的一个容器，显然无法看到其他机器上的容器在它们的数据卷里写入的文件。这是容器最典型的特征之一：无状态。</p>
+<p> 而容器的持久化存储，就是用来保存容器存储状态的重要手段：存储插件会在容器里挂载一个基于网络或者其他机制的远程数据卷，使得在容器里创建的文件，实际上是保存在远程存储服务器上，或者以分布式的方式保存在多个节点上，而与当前宿主机没有任何绑定关系。这样，无论你在其他哪个宿主机上启动新的容器，都可以请求挂载指定的持久化存储卷，从而访问到数据卷里保存的内容。这就是”持久化”的含义。</p>
+<p> 由于 Kubernetes 本身的松耦合设计，绝大多数存储项目，比如 Ceph、GlusterFS、NFS 等，都可以为 Kubernetes 提供持久化存储能力。在这次的部署实战中，我会选择部署一个很重要的 Kubernetes 存储插件项目：Rook。</p>
+<p> Rook 项目是一个基于 Ceph 的 Kubernetes 存储插件（它后期也在加入对更多存储实现的支持）。不过，不同于对 Ceph 的简单封装，Rook 在自己的实现中加入了水平扩展、迁移、灾难备份、监控等大量的企业级功能，使得这个项目变成了一个完整的、生产级别可用的容器存储插件。</p>
+<p> 得益于容器化技术，用两条指令，Rook 就可以把复杂的 Ceph 存储后端部署起来：</p>
+ <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">kubectl apply -f https://raw.githubusercontent.com/rook/rook/master/cluster/examples/kubernetes/ceph/operator.yaml
+kubectl apply -f https://raw.githubusercontent.com/rook/rook/master/cluster/examples/kubernetes/ceph/cluster.yaml<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre>
+<p> 在部署完成后，你就可以看到 Rook 项目会将自己的 Pod 放置在由它自己管理的两个 Namespace 当中：</p>
+ <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ kubectl get pods -n rook-ceph-system
+NAME                                  READY     STATUS    RESTARTS   AGE
+rook-ceph-agent-7cv62                 <span class="token number">1</span>/1       Running   <span class="token number">0</span>          15s
+rook-ceph-operator-78d498c68c-7fj72   <span class="token number">1</span>/1       Running   <span class="token number">0</span>          44s
+rook-discover-2ctcv                   <span class="token number">1</span>/1       Running   <span class="token number">0</span>          15s
+
+$ kubectl get pods -n rook-ceph
+NAME                   READY     STATUS    RESTARTS   AGE
+rook-ceph-mon0-kxnzh   <span class="token number">1</span>/1       Running   <span class="token number">0</span>          13s
+rook-ceph-mon1-7dn2t   <span class="token number">1</span>/1       Running   <span class="token number">0</span>          2s<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p> 这样，一个基于 Rook 持久化存储集群就以容器的方式运行起来了，而接下来在 Kubernetes 项目上创建的所有 Pod 就能够通过 Persistent Volume（PV）和 Persistent Volume Claim（PVC）的方式，在容器里挂载由 Ceph 提供的数据卷了。</p>
+<p> 而 Rook 项目，则会负责这些数据卷的生命周期管理、灾难备份等运维工作。关于这些容器持久化存储的知识，我会在后续章节中专门讲解。</p>
+<p> 这时候，你可能会有个疑问：为什么我要选择 Rook 项目呢？</p>
+<p> 其实，是因为这个项目很有前途。</p>
+<p> 如果你去研究一下 Rook 项目的实现，就会发现它巧妙地依赖了 Kubernetes 提供的编排能力，合理的使用了很多诸如 Operator、CRD 等重要的扩展特性（这些特性我都会在后面的文章中逐一讲解到）。这使得 Rook 项目，成为了目前社区中基于 Kubernetes API 构建的最完善也最成熟的容器存储插件。我相信，这样的发展路线，很快就会得到整个社区的推崇。</p>
+<blockquote>
+<p>备注：其实，在很多时候，大家说的所谓”云原生”，就是”Kubernetes 原生”的意思。而像 Rook、Istio 这样的项目，正是贯彻这个思路的典范。在我们后面讲解了声明式 API 之后，相信你对这些项目的设计思想会有更深刻的体会。</p>
+</blockquote>
+</li>
+</ol>
+<h3 id="12-牛刀小试：我的第一个容器化应用"><a href="#12-牛刀小试：我的第一个容器化应用" class="headerlink" title="12 | 牛刀小试：我的第一个容器化应用"></a>12 | 牛刀小试：我的第一个容器化应用</h3><p>使用 Kubernetes 的必备技能：编写配置文件。</p>
+<blockquote>
+<p>备注：配置文件可以是 YAML 或者 JSON 格式的。为方便阅读与理解，在后面的讲解中，我会统一使用 YAML 文件来指代它们。</p>
+</blockquote>
+<p>Kubernetes 跟 Docker 等很多项目最大的不同，就在于它不推荐你使用命令行的方式直接运行容器（虽然 Kubernetes 项目也支持这种方式，比如：kubectl run），而是希望你用 YAML 文件的方式，即：把容器的定义、参数、配置，统统记录在一个 YAML 文件中，然后用这样一句指令把它运行起来：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">kubectl create -f 我的配置文件<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>这么做最直接的好处是，你会有一个文件能记录下 Kubernetes 到底”run”了什么。比如下面这个例子：</p>
+<pre class="line-numbers language-yaml" data-language="yaml"><code class="language-yaml"><span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> apps/v1
+<span class="token key atrule">kind</span><span class="token punctuation">:</span> Deployment
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> nginx<span class="token punctuation">-</span>deployment
+<span class="token key atrule">spec</span><span class="token punctuation">:</span>
+  <span class="token key atrule">selector</span><span class="token punctuation">:</span>
+    <span class="token key atrule">matchLabels</span><span class="token punctuation">:</span>
+      <span class="token key atrule">app</span><span class="token punctuation">:</span> nginx
+  <span class="token key atrule">replicas</span><span class="token punctuation">:</span> <span class="token number">2</span>
+  <span class="token key atrule">template</span><span class="token punctuation">:</span>
+    <span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+      <span class="token key atrule">labels</span><span class="token punctuation">:</span>
+        <span class="token key atrule">app</span><span class="token punctuation">:</span> nginx
+    <span class="token key atrule">spec</span><span class="token punctuation">:</span>
+      <span class="token key atrule">containers</span><span class="token punctuation">:</span>
+      <span class="token punctuation">-</span> <span class="token key atrule">name</span><span class="token punctuation">:</span> nginx
+        <span class="token key atrule">image</span><span class="token punctuation">:</span> nginx<span class="token punctuation">:</span>1.7.9
+        <span class="token key atrule">ports</span><span class="token punctuation">:</span>
+        <span class="token punctuation">-</span> <span class="token key atrule">containerPort</span><span class="token punctuation">:</span> <span class="token number">80</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>像这样的一个 YAML 文件，对应到 Kubernetes 中，就是一个 API Object（API 对象）。当你为这个对象的各个字段填好值并提交给 Kubernetes 之后，Kubernetes 就会负责创建出这些对象所定义的容器或者其他类型的 API 资源。</p>
+<p>可以看到，这个 YAML 文件中的 Kind 字段，指定了这个 API 对象的类型（Type），是一个 Deployment。</p>
+<p>所谓 Deployment，是一个定义多副本应用（即多个副本 Pod）的对象，我在前面的文章中（也是第 9 篇文章《从容器到容器云：谈谈 Kubernetes 的本质》）曾经简单提到过它的用法。此外，Deployment 还负责在 Pod 定义发生变化时，对每个副本进行滚动更新（Rolling Update）。</p>
+<p>在上面这个 YAML 文件中，我给它定义的 Pod 副本个数 (spec.replicas) 是：2。</p>
+<p>而这些 Pod 具体的又长什么样子呢？</p>
+<p>为此，我定义了一个 Pod 模版（spec.template），这个模版描述了我想要创建的 Pod 的细节。在上面的例子里，这个 Pod 里只有一个容器，这个容器的镜像（spec.containers.image）是 nginx:1.7.9，这个容器监听端口（containerPort）是 80。</p>
+<p>关于 Pod 的设计和用法我已经在第 9 篇文章《从容器到容器云：谈谈 Kubernetes 的本质》中简单的介绍过。而在这里，你需要记住这样一句话：</p>
+<p><strong>Pod 就是 Kubernetes 世界里的”应用”；而一个应用，可以由多个容器组成。</strong></p>
+<p><strong>需要注意的是，像这样使用一种 API 对象（Deployment）管理另一种 API 对象（Pod）的方法，在 Kubernetes 中，叫作”控制器”模式（controller pattern）</strong>。 在我们的例子中，Deployment 扮演的正是 Pod 的控制器的角色。关于 Pod 和控制器模式的更多细节，我会在后续编排部分做进一步讲解。</p>
+<p>你可能还注意到，这样的每一个 API 对象都有一个叫作 Metadata 的字段，这个字段就是 API 对象的”标识”，即元数据，它也是我们从 Kubernetes 里找到这个对象的主要依据。这其中最主要使用到的字段是 Labels。</p>
+<p>顾名思义，Labels 就是一组 key-value 格式的标签。而像 Deployment 这样的控制器对象，就可以通过这个 Labels 字段从 Kubernetes 中过滤出它所关心的被控制对象。</p>
+<p>比如，在上面这个 YAML 文件中，Deployment 会把所有正在运行的、携带”app: nginx”标签的 Pod 识别为被管理的对象，并确保这些 Pod 的总数严格等于两个。</p>
+<p>而这个过滤规则的定义，是在 Deployment 的”spec.selector.matchLabels”字段。我们一般称之为：Label Selector。</p>
+<p>另外，在 Metadata 中，还有一个与 Labels 格式、层级完全相同的字段叫 <strong>Annotations，它专门用来携带 key-value 格式的内部信息。所谓内部信息，指的是对这些信息感兴趣的，是 Kubernetes 组件本身，而不是用户。所以大多数 Annotations，都是在 Kubernetes 运行过程中，被自动加在这个 API 对象上。</strong></p>
+<p>一个 Kubernetes 的 API 对象的定义，大多可以分为 Metadata 和 Spec 两个部分。前者存放的是这个对象的元数据，对所有 API 对象来说，这一部分的字段和格式基本上是一样的；而后者存放的，则是属于这个对象独有的定义，用来描述它所要表达的功能。</p>
+<p>在了解了上述 Kubernetes 配置文件的基本知识之后，我们现在就可以把这个 YAML 文件”运行”起来。正如前所述，你可以使用 kubectl create 指令完成这个操作：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">kubectl create -f nginx-deployment.yaml<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>然后，通过 kubectl get 命令检查这个 YAML 运行起来的状态是不是与我们预期的一致：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ kubectl get pods -l <span class="token assign-left variable">app</span><span class="token operator">=</span>nginx
+NAME                                READY     STATUS    RESTARTS   AGE
+nginx-deployment-67594d6bf6-9gdvr   <span class="token number">1</span>/1       Running   <span class="token number">0</span>          10m
+nginx-deployment-67594d6bf6-v6j7w   <span class="token number">1</span>/1       Running   <span class="token number">0</span>          10m<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span></span></code></pre>
+<p>kubectl get 指令的作用，就是从 Kubernetes 里面获取（GET）指定的 API 对象。可以看到，在这里我还加上了一个 -l 参数，即获取所有匹配 app: nginx 标签的 Pod。需要注意的是， <strong>在命令行中，所有 key-value 格式的参数，都使用”=”而非”:”表示。</strong></p>
+<p>从这条指令返回的结果中，我们可以看到现在有两个 Pod 处于 Running 状态，也就意味着我们这个 Deployment 所管理的 Pod 都处于预期的状态。</p>
+<p>此外， 你还可以使用 kubectl describe 命令，查看一个 API 对象的细节，比如：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ kubectl describe pod nginx-deployment-67594d6bf6-9gdvr
+Name:               nginx-deployment-67594d6bf6-9gdvr
+Namespace:          default
+Priority:           <span class="token number">0</span>
+PriorityClassName:  <span class="token operator">&lt;</span>none<span class="token operator">&gt;</span>
+Node:               node-1/10.168.0.3
+Start Time:         Thu, <span class="token number">16</span> Aug <span class="token number">2018</span> 08:48:42 +0000
+Labels:             <span class="token assign-left variable">app</span><span class="token operator">=</span>nginx
+                    pod-template-hash<span class="token operator">=</span><span class="token number">2315082692</span>
+Annotations:        <span class="token operator">&lt;</span>none<span class="token operator">&gt;</span>
+Status:             Running
+IP:                 <span class="token number">10.32</span>.0.23
+Controlled By:      ReplicaSet/nginx-deployment-67594d6bf6
+<span class="token punctuation">..</span>.
+Events:
+
+  Type     Reason                  Age                From               Message
+
+  ----     ------                  ----               ----               -------
+
+  Normal   Scheduled               1m                 default-scheduler  Successfully assigned default/nginx-deployment-67594d6bf6-9gdvr to node-1
+  Normal   Pulling                 25s                kubelet, node-1    pulling image <span class="token string">"nginx:1.7.9"</span>
+  Normal   Pulled                  17s                kubelet, node-1    Successfully pulled image <span class="token string">"nginx:1.7.9"</span>
+  Normal   Created                 17s                kubelet, node-1    Created container
+  Normal   Started                 17s                kubelet, node-1    Started container<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>在 kubectl describe 命令返回的结果中，你可以清楚地看到这个 Pod 的详细信息，比如它的 IP 地址等等。其中，有一个部分值得你特别关注，它就是 <strong>Events（事件）</strong> 。</p>
+<p>在 Kubernetes 执行的过程中，对 API 对象的所有重要操作，都会被记录在这个对象的 Events 里，并且显示在 kubectl describe 指令返回的结果中。</p>
+<p>比如，对于这个 Pod，我们可以看到它被创建之后，被调度器调度（Successfully assigned）到了 node-1，拉取了指定的镜像（pulling image），然后启动了 Pod 里定义的容器（Started container）。</p>
+<p>所以，这个部分正是我们将来进行 Debug 的重要依据。 <strong>如果有异常发生，你一定要第一时间查看这些 Events</strong> ，往往可以看到非常详细的错误信息。</p>
+<p><strong>接下来，如果我们要对这个 Nginx 服务进行升级，把它的镜像版本从 1.7.9 升级为 1.8，要怎么做呢？</strong></p>
+<p>很简单，我们只要修改这个 YAML 文件即可。</p>
+<pre class="line-numbers language-yaml" data-language="yaml"><code class="language-yaml"><span class="token punctuation">...</span>
+    <span class="token key atrule">spec</span><span class="token punctuation">:</span>
+      <span class="token key atrule">containers</span><span class="token punctuation">:</span>
+      <span class="token punctuation">-</span> <span class="token key atrule">name</span><span class="token punctuation">:</span> nginx
+        <span class="token key atrule">image</span><span class="token punctuation">:</span> nginx<span class="token punctuation">:</span><span class="token number">1.8</span> <span class="token comment"># 这里被从 1.7.9 修改为 1.8</span>
+        <span class="token key atrule">ports</span><span class="token punctuation">:</span>
+      <span class="token punctuation">-</span> <span class="token key atrule">containerPort</span><span class="token punctuation">:</span> <span class="token number">80</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>可是，这个修改目前只发生在本地，如何让这个更新在 Kubernetes 里也生效呢？</p>
+<p>我们可以使用 kubectl replace 指令来完成这个更新：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">kubectl replace -f nginx-deployment.yaml<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>不过，在本专栏里，我推荐你使用 kubectl apply 命令，来统一进行 Kubernetes 对象的创建和更新操作，具体做法如下所示：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token comment"># 修改 nginx-deployment.yaml 的内容</span>
+$ kubectl apply -f nginx-deployment.yaml<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre>
+<p>这样的操作方法，是 Kubernetes”声明式 API”所推荐的使用方法。也就是说，作为用户，你不必关心当前的操作是创建，还是更新，你执行的命令始终是 kubectl apply，而 Kubernetes 则会根据 YAML 文件的内容变化，自动进行具体的处理。</p>
+<p>而这个流程的好处是，它有助于帮助开发和运维人员，围绕着可以版本化管理的 YAML 文件，而不是”行踪不定”的命令行进行协作，从而大大降低开发人员和运维人员之间的沟通成本。</p>
+<p>举个例子，一位开发人员开发好一个应用，制作好了容器镜像。那么他就可以在应用的发布目录里附带上一个 Deployment 的 YAML 文件。</p>
+<p>而运维人员，拿到这个应用的发布目录后，就可以直接用这个 YAML 文件执行 kubectl apply 操作把它运行起来。</p>
+<p>这时候，如果开发人员修改了应用，生成了新的发布内容，那么这个 YAML 文件，也就需要被修改，并且成为这次变更的一部分。</p>
+<p>而接下来，运维人员可以使用 git diff 命令查看到这个 YAML 文件本身的变化，然后继续用 kubectl apply 命令更新这个应用。</p>
+<p>所以说，如果通过容器镜像，我们能够保证应用本身在开发与部署环境里的一致性的话，那么现在，Kubernetes 项目通过这些 YAML 文件，就保证了应用的”部署参数”在开发与部署环境中的一致性。</p>
+<p><strong>而当应用本身发生变化时，开发人员和运维人员可以依靠容器镜像来进行同步；当应用部署参数发生变化时，这些 YAML 文件就是他们相互沟通和信任的媒介。</strong></p>
+<p>以上，就是 Kubernetes 发布应用的最基本操作了。</p>
+<p>接下来，我们再在这个 Deployment 中尝试声明一个 Volume。</p>
+<p>在 Kubernetes 中，Volume 是属于 Pod 对象的一部分。所以，我们就需要修改这个 YAML 文件里的 template.spec 字段，如下所示：</p>
+<pre class="line-numbers language-yaml" data-language="yaml"><code class="language-yaml"><span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> apps/v1
+<span class="token key atrule">kind</span><span class="token punctuation">:</span> Deployment
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> nginx<span class="token punctuation">-</span>deployment
+<span class="token key atrule">spec</span><span class="token punctuation">:</span>
+  <span class="token key atrule">selector</span><span class="token punctuation">:</span>
+    <span class="token key atrule">matchLabels</span><span class="token punctuation">:</span>
+      <span class="token key atrule">app</span><span class="token punctuation">:</span> nginx
+  <span class="token key atrule">replicas</span><span class="token punctuation">:</span> <span class="token number">2</span>
+  <span class="token key atrule">template</span><span class="token punctuation">:</span>
+    <span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+      <span class="token key atrule">labels</span><span class="token punctuation">:</span>
+        <span class="token key atrule">app</span><span class="token punctuation">:</span> nginx
+    <span class="token key atrule">spec</span><span class="token punctuation">:</span>
+      <span class="token key atrule">containers</span><span class="token punctuation">:</span>
+      <span class="token punctuation">-</span> <span class="token key atrule">name</span><span class="token punctuation">:</span> nginx
+        <span class="token key atrule">image</span><span class="token punctuation">:</span> nginx<span class="token punctuation">:</span><span class="token number">1.8</span>
+        <span class="token key atrule">ports</span><span class="token punctuation">:</span>
+        <span class="token punctuation">-</span> <span class="token key atrule">containerPort</span><span class="token punctuation">:</span> <span class="token number">80</span>
+        <span class="token key atrule">volumeMounts</span><span class="token punctuation">:</span>
+        <span class="token punctuation">-</span> <span class="token key atrule">mountPath</span><span class="token punctuation">:</span> <span class="token string">"/usr/share/nginx/html"</span>
+          <span class="token key atrule">name</span><span class="token punctuation">:</span> nginx<span class="token punctuation">-</span>vol
+      <span class="token key atrule">volumes</span><span class="token punctuation">:</span>
+      <span class="token punctuation">-</span> <span class="token key atrule">name</span><span class="token punctuation">:</span> nginx<span class="token punctuation">-</span>vol
+        <span class="token key atrule">emptyDir</span><span class="token punctuation">:</span> <span class="token punctuation">{</span><span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>可以看到，我们在 Deployment 的 Pod 模板部分添加了一个 volumes 字段，定义了这个 Pod 声明的所有 Volume。它的名字叫作 nginx-vol，类型是 emptyDir。</p>
+<p>那什么是 emptyDir 类型呢？</p>
+<p>它其实就等同于我们之前讲过的 Docker 的隐式 Volume 参数，即：不显式声明宿主机目录的 Volume。所以，Kubernetes 也会在宿主机上创建一个临时目录，这个目录将来就会被绑定挂载到容器所声明的 Volume 目录上。</p>
+<blockquote>
+<p>备注：不难看到，Kubernetes 的 emptyDir 类型，只是把 Kubernetes 创建的临时目录作为 Volume 的宿主机目录，交给了 Docker。这么做的原因，是 Kubernetes 不想依赖 Docker 自己创建的那个 _data 目录。</p>
+</blockquote>
+<p>而 Pod 中的容器，使用的是 volumeMounts 字段来声明自己要挂载哪个 Volume，并通过 mountPath 字段来定义容器内的 Volume 目录，比如：/usr/share/nginx/html。</p>
+<p>当然，Kubernetes 也提供了显式的 Volume 定义，它叫做 hostPath。比如下面的这个 YAML 文件：</p>
+<pre class="line-numbers language-yaml" data-language="yaml"><code class="language-yaml"><span class="token punctuation">...</span>
+   <span class="token key atrule">volumes</span><span class="token punctuation">:</span>
+     <span class="token punctuation">-</span> <span class="token key atrule">name</span><span class="token punctuation">:</span> nginx<span class="token punctuation">-</span>vol
+       <span class="token key atrule">hostPath</span><span class="token punctuation">:</span>
+         <span class="token key atrule">path</span><span class="token punctuation">:</span> /var/data<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>这样，容器 Volume 挂载的宿主机目录，就变成了 /var/data。</p>
+<p>在上述修改完成后，我们还是使用 kubectl apply 指令，更新这个 Deployment:</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">kubectl apply -f nginx-deployment.yaml<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>接下来，你可以通过 kubectl get 指令，查看两个 Pod 被逐一更新的过程：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ kubectl get pods
+NAME                                READY     STATUS              RESTARTS   AGE
+nginx-deployment-5c678cfb6d-v5dlh   <span class="token number">0</span>/1       ContainerCreating   <span class="token number">0</span>          4s
+nginx-deployment-67594d6bf6-9gdvr   <span class="token number">1</span>/1       Running             <span class="token number">0</span>          10m
+nginx-deployment-67594d6bf6-v6j7w   <span class="token number">1</span>/1       Running             <span class="token number">0</span>          10m
+
+$ kubectl get pods
+NAME                                READY     STATUS    RESTARTS   AGE
+nginx-deployment-5c678cfb6d-lg9lw   <span class="token number">1</span>/1       Running   <span class="token number">0</span>          8s
+nginx-deployment-5c678cfb6d-v5dlh   <span class="token number">1</span>/1       Running   <span class="token number">0</span>          19s<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>从返回结果中，我们可以看到，新旧两个 Pod，被交替创建、删除，最后剩下的就是新版本的 Pod。这个滚动更新的过程，我也会在后续进行详细的讲解。</p>
+<p>然后，你可以使用 kubectl describe 查看一下最新的 Pod，就会发现 Volume 的信息已经出现在了 Container 描述部分：</p>
+<pre class="line-numbers language-text" data-language="text"><code class="language-text">...
+Containers:
+  nginx:
+    Container ID:   docker://07b4f89248791c2aa47787e3da3cc94b48576cd173018356a6ec8db2b6041343
+    Image:          nginx:1.8
+    ...
+    Environment:    &lt;none&gt;
+    Mounts:
+      /usr/share/nginx/html from nginx-vol (rw)
+...
+Volumes:
+  nginx-vol:
+    Type:    EmptyDir (a temporary directory that shares a pod's lifetime)<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<blockquote>
+<p>备注：作为一个完整的容器化平台项目，Kubernetes 为我们提供的 Volume 类型远远不止这些，在容器存储章节里，我将会为你详细介绍这部分内容。</p>
+</blockquote>
+<p>最后，你还可以使用 kubectl exec 指令，进入到这个 Pod 当中（即容器的 Namespace 中）查看这个 Volume 目录：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ kubectl <span class="token builtin class-name">exec</span> -it nginx-deployment-5c678cfb6d-lg9lw -- /bin/bash
+<span class="token comment"># ls /usr/share/nginx/html</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre>
+<p>此外，你想要从 Kubernetes 集群中删除这个 Nginx Deployment 的话，直接执行：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">kubectl delete -f nginx-deployment.yaml<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<h4 id="12-1-总结"><a href="#12-1-总结" class="headerlink" title="12.1 总结"></a>12.1 总结</h4><p>可以看到，Kubernetes 推荐的使用方式，是用一个 YAML 文件来描述你所要部署的 API 对象。然后，统一使用 kubectl apply 命令完成对这个对象的创建和更新操作。</p>
+<p>而 Kubernetes 里”最小”的 API 对象是 Pod。Pod 可以等价为一个应用，所以，Pod 可以由多个紧密协作的容器组成。</p>
+<p>在 Kubernetes 中，我们经常会看到它通过一种 API 对象来管理另一种 API 对象，比如 Deployment 和 Pod 之间的关系；而由于 Pod 是”最小”的对象，所以它往往都是被其他对象控制的。这种组合方式，正是 Kubernetes 进行容器编排的重要模式。</p>
+<p>而像这样的 Kubernetes API 对象，往往由 Metadata 和 Spec 两部分组成，其中 Metadata 里的 Labels 字段是 Kubernetes 过滤对象的主要手段。</p>
+<p>在这些字段里面，容器想要使用的数据卷，也就是 Volume，正是 Pod 的 Spec 字段的一部分。而 Pod 里的每个容器，则需要显式的声明自己要挂载哪个 Volume。</p>
+<p>上面这些基于 YAML 文件的容器管理方式，跟 Docker、Mesos 的使用习惯都是不一样的，而从 docker run 这样的命令行操作，向 kubectl apply YAML 文件这样的声明式 API 的转变，是每一个容器技术学习者，必须要跨过的第一道门槛。</p>
+<p>所以，如果你想要快速熟悉 Kubernetes，请按照下面的流程进行练习：</p>
+<ul>
+<li>首先，在本地通过 Docker 测试代码，制作镜像；</li>
+<li>然后，选择合适的 Kubernetes API 对象，编写对应 YAML 文件（比如，Pod，Deployment）；</li>
+<li>最后，在 Kubernetes 上部署这个 YAML 文件。</li>
+</ul>
+<p>更重要的是，在部署到 Kubernetes 之后，接下来的所有操作，要么通过 kubectl 来执行，要么通过修改 YAML 文件来实现，<strong>就尽量不要再碰 Docker 的命令行了</strong>。</p>
+<h2 id="容器编排与Kubernetes作业管理"><a href="#容器编排与Kubernetes作业管理" class="headerlink" title="容器编排与Kubernetes作业管理"></a>容器编排与Kubernetes作业管理</h2><h2 id="Kubernetes容器持久化存储"><a href="#Kubernetes容器持久化存储" class="headerlink" title="Kubernetes容器持久化存储"></a>Kubernetes容器持久化存储</h2><h2 id="Kubernetes容器网络"><a href="#Kubernetes容器网络" class="headerlink" title="Kubernetes容器网络"></a>Kubernetes容器网络</h2><h2 id="Kubernetes作业调度与资源管理"><a href="#Kubernetes作业调度与资源管理" class="headerlink" title="Kubernetes作业调度与资源管理"></a>Kubernetes作业调度与资源管理</h2><h2 id="Kubernetes容器运行时"><a href="#Kubernetes容器运行时" class="headerlink" title="Kubernetes容器运行时"></a>Kubernetes容器运行时</h2><h2 id="Kubernetes容器监控与日志"><a href="#Kubernetes容器监控与日志" class="headerlink" title="Kubernetes容器监控与日志"></a>Kubernetes容器监控与日志</h2><h2 id="再谈开源与社区"><a href="#再谈开源与社区" class="headerlink" title="再谈开源与社区"></a>再谈开源与社区</h2><h2 id="答疑文章"><a href="#答疑文章" class="headerlink" title="答疑文章"></a>答疑文章</h2>
                 
             </div>
             <hr/>
@@ -1925,7 +2198,7 @@ etcd.yaml  kube-apiserver.yaml  kube-controller-manager.yaml  kube-scheduler.yam
             <br>
             
             &nbsp;<i class="fas fa-chart-area"></i>&nbsp;站点总字数:&nbsp;<span
-                class="white-color">1080.2k</span>&nbsp;字
+                class="white-color">1085.5k</span>&nbsp;字
             
             
             
