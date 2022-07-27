@@ -460,14 +460,14 @@
                 
                 <div class="info-break-policy">
                     <i class="far fa-file-word fa-fw"></i>文章字数:&nbsp;&nbsp;
-                    58.8k
+                    65.3k
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-clock fa-fw"></i>阅读时长:&nbsp;&nbsp;
-                    219 分
+                    246 分
                 </div>
                 
 
@@ -2773,6 +2773,367 @@ nginx-3196763511   <span class="token number">3</span>         <span class="toke
 <p>可是，在实际使用场景中，应用发布的流程往往千差万别，也可能有很多的定制化需求。比如，我的应用可能有会话黏连（session sticky），这就意味着”滚动更新”的时候，哪个 Pod 能下线，是不能随便选择的。</p>
 <p>这种场景，光靠 Deployment 自己就很难应对了。对于这种需求，我在专栏后续文章中重点介绍的”自定义控制器”，就可以帮我们实现一个功能更加强大的 Deployment Controller。</p>
 <p>当然，Kubernetes 项目本身，也提供了另外一种抽象方式，帮我们应对其他一些用 Deployment 无法处理的应用编排场景。这个设计，就是对有状态应用的管理，也是我在下一篇文章中要重点讲解的内容。</p>
+<h3 id="18-深入理解StatefulSet（一）：拓扑状态"><a href="#18-深入理解StatefulSet（一）：拓扑状态" class="headerlink" title="18 | 深入理解StatefulSet（一）：拓扑状态"></a>18 | 深入理解StatefulSet（一）：拓扑状态</h3><p>在上一篇文章中，我在结尾处讨论到了 Deployment 实际上并不足以覆盖所有的应用编排问题。</p>
+<p>造成这个问题的根本原因，在于 Deployment 对应用做了一个简单化假设。</p>
+<p>它认为，一个应用的所有 Pod，是完全一样的。所以，它们互相之间没有顺序，也无所谓运行在哪台宿主机上。需要的时候，Deployment 就可以通过 Pod 模板创建新的 Pod；不需要的时候，Deployment 就可以”杀掉”任意一个 Pod。</p>
+<p>但是，在实际的场景中，并不是所有的应用都可以满足这样的要求。</p>
+<p>尤其是分布式应用，它的多个实例之间，往往有依赖关系，比如：主从关系、主备关系。</p>
+<p>还有就是数据存储类应用，它的多个实例，往往都会在本地磁盘上保存一份数据。而这些实例一旦被杀掉，即便重建出来，实例与数据之间的对应关系也已经丢失，从而导致应用失败。</p>
+<p>所以，这种实例之间有不对等关系，以及实例对外部数据有依赖关系的应用，就被称为”有状态应用”（Stateful Application）。</p>
+<p>得益于”控制器模式”的设计思想，Kubernetes 项目很早就在 Deployment 的基础上，扩展出了对”有状态应用”的初步支持。这个编排功能，就是：StatefulSet。</p>
+<p>StatefulSet 的设计其实非常容易理解。它把真实世界里的应用状态，抽象为了两种情况：</p>
+<ol>
+<li><p><strong>拓扑状态。</strong> 这种情况意味着，应用的多个实例之间不是完全对等的关系。这些应用实例，必须按照某些顺序启动，比如应用的主节点 A 要先于从节点 B 启动。而如果你把 A 和 B 两个 Pod 删除掉，它们再次被创建出来时也必须严格按照这个顺序才行。并且，新创建出来的 Pod，必须和原来 Pod 的网络标识一样，这样原先的访问者才能使用同样的方法，访问到这个新 Pod。</p>
+</li>
+<li><p><strong>存储状态。</strong> 这种情况意味着，应用的多个实例分别绑定了不同的存储数据。对于这些应用实例来说，Pod A 第一次读取到的数据，和隔了十分钟之后再次读取到的数据，应该是同一份，哪怕在此期间 Pod A 被重新创建过。这种情况最典型的例子，就是一个数据库应用的多个存储实例。</p>
+</li>
+</ol>
+<p>所以， <strong>StatefulSet 的核心功能，就是通过某种方式记录这些状态，然后在 Pod 被重新创建时，能够为新 Pod 恢复这些状态。</strong></p>
+<p>在开始讲述 StatefulSet 的工作原理之前，我就必须 <strong>先为你讲解一个 Kubernetes 项目中非常实用的概念：Headless Service。</strong></p>
+<p>我在和你一起讨论 Kubernetes 架构的时候就曾介绍过，Service 是 Kubernetes 项目中用来将一组 Pod 暴露给外界访问的一种机制。比如，一个 Deployment 有 3 个 Pod，那么我就可以定义一个 Service。然后，用户只要能访问到这个 Service，它就能访问到某个具体的 Pod。</p>
+<p>那么，这个 Service 又是如何被访问的呢？</p>
+<ol>
+<li><p><strong>第一种方式，是以 Service 的 VIP（Virtual IP，即：虚拟 IP）方式。</strong> 比如：当我访问 10.0.23.1 这个 Service 的 IP 地址时，10.0.23.1 其实就是一个 VIP，它会把请求转发到该 Service 所代理的某一个 Pod 上。这里的具体原理，我会在后续的 Service 章节中进行详细介绍。</p>
+</li>
+<li><p><strong>第二种方式，就是以 Service 的 DNS 方式。</strong> 比如：这时候，只要我访问”my-svc.my-namespace.svc.cluster.local”这条 DNS 记录，就可以访问到名叫 my-svc 的 Service 所代理的某一个 Pod。</p>
+</li>
+</ol>
+<p>而在第二种 Service DNS 的方式下，具体还可以分为两种处理方法：</p>
+<ol>
+<li><p>第一种处理方法，是 Normal Service。这种情况下，你访问”my-svc.my-namespace.svc.cluster.local”解析到的，正是 my-svc 这个 Service 的 VIP，后面的流程就跟 VIP 方式一致了。</p>
+</li>
+<li><p>而第二种处理方法，正是 Headless Service。这种情况下，你访问”my-svc.my-namespace.svc.cluster.local”解析到的，直接就是 my-svc 代理的某一个 Pod 的 IP 地址。 <strong>可以看到，这里的区别在于，Headless Service 不需要分配一个 VIP，而是可以直接以 DNS 记录的方式解析出被代理 Pod 的 IP 地址。</strong></p>
+</li>
+</ol>
+<p>那么，这样的设计又有什么作用呢？</p>
+<p>想要回答这个问题，我们需要从 Headless Service 的定义方式看起。</p>
+<p>下面是一个标准的 Headless Service 对应的 YAML 文件：</p>
+<pre class="line-numbers language-yaml" data-language="yaml"><code class="language-yaml"><span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> v1
+<span class="token key atrule">kind</span><span class="token punctuation">:</span> Service
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> nginx
+  <span class="token key atrule">labels</span><span class="token punctuation">:</span>
+    <span class="token key atrule">app</span><span class="token punctuation">:</span> nginx
+<span class="token key atrule">spec</span><span class="token punctuation">:</span>
+  <span class="token key atrule">ports</span><span class="token punctuation">:</span>
+  <span class="token punctuation">-</span> <span class="token key atrule">port</span><span class="token punctuation">:</span> <span class="token number">80</span>
+    <span class="token key atrule">name</span><span class="token punctuation">:</span> web
+  <span class="token key atrule">clusterIP</span><span class="token punctuation">:</span> None
+  <span class="token key atrule">selector</span><span class="token punctuation">:</span>
+    <span class="token key atrule">app</span><span class="token punctuation">:</span> nginx<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>可以看到，所谓的 Headless Service，其实仍是一个标准 Service 的 YAML 文件。只不过，它的 clusterIP 字段的值是：None，即：这个 Service，没有一个 VIP 作为”头”。这也就是 Headless 的含义。所以，这个 Service 被创建后并不会被分配一个 VIP，而是会以 DNS 记录的方式暴露出它所代理的 Pod。</p>
+<p>而它所代理的 Pod，依然是采用我在前面第 12 篇文章 <a target="_blank" rel="noopener" href="https://time.geekbang.org/column/article/40008">《牛刀小试：我的第一个容器化应用》</a> 中提到的 Label Selector 机制选择出来的，即：所有携带了 app=nginx 标签的 Pod，都会被这个 Service 代理起来。</p>
+<p>然后关键来了。</p>
+<p>当你按照这样的方式创建了一个 Headless Service 之后，它所代理的所有 Pod 的 IP 地址，都会被绑定一个这样格式的 DNS 记录，如下所示：</p>
+<pre class="line-numbers language-text" data-language="text"><code class="language-text">&lt;pod-name&gt;.&lt;svc-name&gt;.&lt;namespace&gt;.svc.cluster.local<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>这个 DNS 记录，正是 Kubernetes 项目为 Pod 分配的唯一的”可解析身份”（Resolvable Identity）。</p>
+<p>有了这个”可解析身份”，只要你知道了一个 Pod 的名字，以及它对应的 Service 的名字，你就可以非常确定地通过这条 DNS 记录访问到 Pod 的 IP 地址。</p>
+<p>那么， <strong>StatefulSet 又是如何使用这个 DNS 记录来维持 Pod 的拓扑状态的呢？</strong></p>
+<p>为了回答这个问题，现在我们就来编写一个 StatefulSet 的 YAML 文件，如下所示：</p>
+<pre class="line-numbers language-yaml" data-language="yaml"><code class="language-yaml"><span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> apps/v1
+<span class="token key atrule">kind</span><span class="token punctuation">:</span> StatefulSet
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> web
+<span class="token key atrule">spec</span><span class="token punctuation">:</span>
+  <span class="token key atrule">serviceName</span><span class="token punctuation">:</span> <span class="token string">"nginx"</span>
+  <span class="token key atrule">replicas</span><span class="token punctuation">:</span> <span class="token number">2</span>
+  <span class="token key atrule">selector</span><span class="token punctuation">:</span>
+    <span class="token key atrule">matchLabels</span><span class="token punctuation">:</span>
+      <span class="token key atrule">app</span><span class="token punctuation">:</span> nginx
+  <span class="token key atrule">template</span><span class="token punctuation">:</span>
+    <span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+      <span class="token key atrule">labels</span><span class="token punctuation">:</span>
+        <span class="token key atrule">app</span><span class="token punctuation">:</span> nginx
+    <span class="token key atrule">spec</span><span class="token punctuation">:</span>
+      <span class="token key atrule">containers</span><span class="token punctuation">:</span>
+      <span class="token punctuation">-</span> <span class="token key atrule">name</span><span class="token punctuation">:</span> nginx
+        <span class="token key atrule">image</span><span class="token punctuation">:</span> nginx<span class="token punctuation">:</span>1.9.1
+        <span class="token key atrule">ports</span><span class="token punctuation">:</span>
+        <span class="token punctuation">-</span> <span class="token key atrule">containerPort</span><span class="token punctuation">:</span> <span class="token number">80</span>
+          <span class="token key atrule">name</span><span class="token punctuation">:</span> web<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>这个 YAML 文件，和我们在前面文章中用到的 nginx-deployment 的唯一区别，就是多了一个 serviceName=nginx 字段。</p>
+<p>这个字段的作用，就是告诉 StatefulSet 控制器，在执行控制循环（Control Loop）的时候，请使用 nginx 这个 Headless Service 来保证 Pod 的”可解析身份”。</p>
+<p>所以，当你通过 kubectl create 创建了上面这个 Service 和 StatefulSet 之后，就会看到如下两个对象：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ kubectl create -f svc.yaml
+$ kubectl get <span class="token function">service</span> nginx
+NAME      TYPE         CLUSTER-IP   EXTERNAL-IP   PORT<span class="token punctuation">(</span>S<span class="token punctuation">)</span>   AGE
+nginx     ClusterIP    None         <span class="token operator">&lt;</span>none<span class="token operator">&gt;</span>        <span class="token number">80</span>/TCP    10s
+
+$ kubectl create -f statefulset.yaml
+$ kubectl get statefulset web
+NAME      DESIRED   CURRENT   AGE
+web       <span class="token number">2</span>         <span class="token number">1</span>         19s<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>这时候，如果你手比较快的话，还可以通过 kubectl 的 -w 参数，即：Watch 功能，实时查看 StatefulSet 创建两个有状态实例的过程：</p>
+<blockquote>
+<p>备注：如果手不够快的话，Pod 很快就创建完了。不过，你依然可以通过这个 StatefulSet 的 Events 看到这些信息。</p>
+</blockquote>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ kubectl get pods -w -l <span class="token assign-left variable">app</span><span class="token operator">=</span>nginx
+NAME      READY     STATUS    RESTARTS   AGE
+web-0     <span class="token number">0</span>/1       Pending   <span class="token number">0</span>          0s
+web-0     <span class="token number">0</span>/1       Pending   <span class="token number">0</span>         0s
+web-0     <span class="token number">0</span>/1       ContainerCreating   <span class="token number">0</span>         0s
+web-0     <span class="token number">1</span>/1       Running   <span class="token number">0</span>         19s
+web-1     <span class="token number">0</span>/1       Pending   <span class="token number">0</span>         0s
+web-1     <span class="token number">0</span>/1       Pending   <span class="token number">0</span>         0s
+web-1     <span class="token number">0</span>/1       ContainerCreating   <span class="token number">0</span>         0s
+web-1     <span class="token number">1</span>/1       Running   <span class="token number">0</span>         20s<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>通过上面这个 Pod 的创建过程，我们不难看到，StatefulSet 给它所管理的所有 Pod 的名字，进行了编号，编号规则是：-。</p>
+<p>而且这些编号都是从 0 开始累加，与 StatefulSet 的每个 Pod 实例一一对应，绝不重复。</p>
+<p>更重要的是，这些 Pod 的创建，也是严格按照编号顺序进行的。比如，在 web-0 进入到 Running 状态、并且细分状态（Conditions）成为 Ready 之前，web-1 会一直处于 Pending 状态。</p>
+<blockquote>
+<p>备注：Ready 状态再一次提醒了我们，为 Pod 设置 livenessProbe 和 readinessProbe 的重要性。</p>
+</blockquote>
+<p>当这两个 Pod 都进入了 Running 状态之后，你就可以查看到它们各自唯一的”网络身份”了。</p>
+<p>我们使用 kubectl exec 命令进入到容器中查看它们的 hostname：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ kubectl <span class="token builtin class-name">exec</span> web-0 -- <span class="token function">sh</span> -c <span class="token string">'hostname'</span>
+web-0
+$ kubectl <span class="token builtin class-name">exec</span> web-1 -- <span class="token function">sh</span> -c <span class="token string">'hostname'</span>
+web-1<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span></span></code></pre>
+<p>可以看到，这两个 Pod 的 hostname 与 Pod 名字是一致的，都被分配了对应的编号。接下来，我们再试着以 DNS 的方式，访问一下这个 Headless Service：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">kubectl run -i --tty --image busybox dns-test --restart<span class="token operator">=</span>Never --rm /bin/sh<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>通过这条命令，我们启动了一个一次性的 Pod，因为–rm 意味着 Pod 退出后就会被删除掉。然后，在这个 Pod 的容器里面，我们尝试用 nslookup 命令，解析一下 Pod 对应的 Headless Service：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ kubectl run -i --tty --image busybox dns-test --restart<span class="token operator">=</span>Never --rm /bin/sh
+$ <span class="token function">nslookup</span> web-0.nginx
+Server:    <span class="token number">10.0</span>.0.10
+Address <span class="token number">1</span>: <span class="token number">10.0</span>.0.10 kube-dns.kube-system.svc.cluster.local
+
+Name:      web-0.nginx
+Address <span class="token number">1</span>: <span class="token number">10.244</span>.1.7
+
+$ <span class="token function">nslookup</span> web-1.nginx
+Server:    <span class="token number">10.0</span>.0.10
+Address <span class="token number">1</span>: <span class="token number">10.0</span>.0.10 kube-dns.kube-system.svc.cluster.local
+
+Name:      web-1.nginx
+Address <span class="token number">1</span>: <span class="token number">10.244</span>.2.7<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>从 nslookup 命令的输出结果中，我们可以看到，在访问 web-0.nginx 的时候，最后解析到的，正是 web-0 这个 Pod 的 IP 地址；而当访问 web-1.nginx 的时候，解析到的则是 web-1 的 IP 地址。</p>
+<p>这时候，如果你在另外一个 Terminal 里把这两个”有状态应用”的 Pod 删掉：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ kubectl delete pod -l <span class="token assign-left variable">app</span><span class="token operator">=</span>nginx
+pod <span class="token string">"web-0"</span> deleted
+pod <span class="token string">"web-1"</span> deleted<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span></span></code></pre>
+<p>然后，再在当前 Terminal 里 Watch 一下这两个 Pod 的状态变化，就会发现一个有趣的现象：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ kubectl get pod -w -l <span class="token assign-left variable">app</span><span class="token operator">=</span>nginx
+NAME      READY     STATUS              RESTARTS   AGE
+web-0     <span class="token number">0</span>/1       ContainerCreating   <span class="token number">0</span>          0s
+NAME      READY     STATUS    RESTARTS   AGE
+web-0     <span class="token number">1</span>/1       Running   <span class="token number">0</span>          2s
+web-1     <span class="token number">0</span>/1       Pending   <span class="token number">0</span>         0s
+web-1     <span class="token number">0</span>/1       ContainerCreating   <span class="token number">0</span>         0s
+web-1     <span class="token number">1</span>/1       Running   <span class="token number">0</span>         32s<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>可以看到，当我们把这两个 Pod 删除之后，Kubernetes 会按照原先编号的顺序，创建出了两个新的 Pod。并且，Kubernetes 依然为它们分配了与原来相同的”网络身份”：web-0.nginx 和 web-1.nginx。</p>
+<p>通过这种严格的对应规则， <strong>StatefulSet 就保证了 Pod 网络标识的稳定性。</strong></p>
+<p>比如，如果 web-0 是一个需要先启动的主节点，web-1 是一个后启动的从节点，那么只要这个 StatefulSet 不被删除，你访问 web-0.nginx 时始终都会落在主节点上，访问 web-1.nginx 时，则始终都会落在从节点上，这个关系绝对不会发生任何变化。</p>
+<p>所以，如果我们再用 nslookup 命令，查看一下这个新 Pod 对应的 Headless Service 的话：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ kubectl run -i --tty --image busybox dns-test --restart<span class="token operator">=</span>Never --rm /bin/sh
+$ <span class="token function">nslookup</span> web-0.nginx
+Server:    <span class="token number">10.0</span>.0.10
+Address <span class="token number">1</span>: <span class="token number">10.0</span>.0.10 kube-dns.kube-system.svc.cluster.local
+
+Name:      web-0.nginx
+Address <span class="token number">1</span>: <span class="token number">10.244</span>.1.8
+
+$ <span class="token function">nslookup</span> web-1.nginx
+Server:    <span class="token number">10.0</span>.0.10
+Address <span class="token number">1</span>: <span class="token number">10.0</span>.0.10 kube-dns.kube-system.svc.cluster.local
+
+Name:      web-1.nginx
+Address <span class="token number">1</span>: <span class="token number">10.244</span>.2.8<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>我们可以看到，在这个 StatefulSet 中，这两个新 Pod 的”网络标识”（比如：web-0.nginx 和 web-1.nginx），再次解析到了正确的 IP 地址（比如：web-0 Pod 的 IP 地址 10.244.1.8）。</p>
+<p>通过这种方法，<strong>Kubernetes 就成功地将 Pod 的拓扑状态（比如：哪个节点先启动，哪个节点后启动），按照 Pod 的”名字 + 编号”的方式固定了下来。</strong> 此外，Kubernetes 还为每一个 Pod 提供了一个固定并且唯一的访问入口，即：这个 Pod 对应的 DNS 记录。</p>
+<p>这些状态，在 StatefulSet 的整个生命周期里都会保持不变，绝不会因为对应 Pod 的删除或者重新创建而失效。</p>
+<p>不过，相信你也已经注意到了，尽管 web-0.nginx 这条记录本身不会变，但它解析到的 Pod 的 IP 地址，并不是固定的。这就意味着，对于”有状态应用”实例的访问，你必须使用 DNS 记录或者 hostname 的方式，而绝不应该直接访问这些 Pod 的 IP 地址。</p>
+<h4 id="18-1-总结"><a href="#18-1-总结" class="headerlink" title="18.1 总结"></a>18.1 总结</h4><blockquote>
+<p>StatefulSet 这个控制器的主要作用之一，就是使用 Pod 模板创建 Pod 的时候，对它们进行编号，并且按照编号顺序逐一完成创建工作。而当 StatefulSet 的”控制循环”发现 Pod 的”实际状态”与”期望状态”不一致，需要新建或者删除 Pod 进行”调谐”的时候，它会严格按照这些 Pod 编号的顺序，逐一完成这些操作。</p>
+</blockquote>
+<p>所以，StatefulSet 其实可以认为是对 Deployment 的改良。</p>
+<p>与此同时，通过 Headless Service 的方式，StatefulSet 为每个 Pod 创建了一个固定并且稳定的 DNS 记录，来作为它的访问入口。</p>
+<p>实际上，在部署”有状态应用”的时候，应用的每个实例拥有唯一并且稳定的”网络标识”，是一个非常重要的假设。</p>
+<h4 id="18-2-留言"><a href="#18-2-留言" class="headerlink" title="18.2 留言"></a>18.2 留言</h4><p>今天按文章中的内容来, 确实也遇到了nslookup 反馈失败的状况.</p>
+<pre class="line-numbers language-txt" data-language="txt"><code class="language-txt">** server can't find web-0.nginx: NXDOMAIN
+*** Can't find web-0.nginx: No answer<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre>
+<p>但是直接 <code>ping web-0.nginx</code> 是可以获取真实ip地址的.<br>需要用 busybox:1.28.4 的镜像. 这个是最新版busybox的问题。</p>
+<h3 id="19-深入理解StatefulSet（二）：存储状态"><a href="#19-深入理解StatefulSet（二）：存储状态" class="headerlink" title="19 | 深入理解StatefulSet（二）：存储状态"></a>19 | 深入理解StatefulSet（二）：存储状态</h3><p>在今天这篇文章中，我将继续为你解读 StatefulSet 对存储状态的管理机制。这个机制，主要使用的是 <strong>一个叫作 Persistent Volume Claim 的功能。</strong></p>
+<p>在前面介绍 Pod 的时候，我曾提到过，要在一个 Pod 里声明 Volume，只要在 Pod 里加上 spec.volumes 字段即可。然后，你就可以在这个字段里定义一个具体类型的 Volume 了，比如：hostPath。</p>
+<p>可是，你有没有想过这样一个场景： <strong>如果你并不知道有哪些 Volume 类型可以用，要怎么办呢？</strong></p>
+<p>更具体地说，作为一个应用开发者，我可能对持久化存储项目（比如 Ceph、GlusterFS 等）一窍不通，也不知道公司的 Kubernetes 集群里到底是怎么搭建出来的，我也自然不会编写它们对应的 Volume 定义文件。</p>
+<p>所谓”术业有专攻”，这些关于 Volume 的管理和远程持久化存储的知识，不仅超越了开发者的知识储备，还会有暴露公司基础设施秘密的风险。</p>
+<p>比如，下面这个例子，就是一个声明了 Ceph RBD 类型 Volume 的 Pod：</p>
+<pre class="line-numbers language-yaml" data-language="yaml"><code class="language-yaml"><span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> v1
+<span class="token key atrule">kind</span><span class="token punctuation">:</span> Pod
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> rbd
+<span class="token key atrule">spec</span><span class="token punctuation">:</span>
+  <span class="token key atrule">containers</span><span class="token punctuation">:</span>
+    <span class="token punctuation">-</span> <span class="token key atrule">image</span><span class="token punctuation">:</span> kubernetes/pause
+      <span class="token key atrule">name</span><span class="token punctuation">:</span> rbd<span class="token punctuation">-</span>rw
+      <span class="token key atrule">volumeMounts</span><span class="token punctuation">:</span>
+      <span class="token punctuation">-</span> <span class="token key atrule">name</span><span class="token punctuation">:</span> rbdpd
+        <span class="token key atrule">mountPath</span><span class="token punctuation">:</span> /mnt/rbd
+  <span class="token key atrule">volumes</span><span class="token punctuation">:</span>
+    <span class="token punctuation">-</span> <span class="token key atrule">name</span><span class="token punctuation">:</span> rbdpd
+      <span class="token key atrule">rbd</span><span class="token punctuation">:</span>
+        <span class="token key atrule">monitors</span><span class="token punctuation">:</span>
+        <span class="token punctuation">-</span> <span class="token string">'10.16.154.78:6789'</span>
+        <span class="token punctuation">-</span> <span class="token string">'10.16.154.82:6789'</span>
+        <span class="token punctuation">-</span> <span class="token string">'10.16.154.83:6789'</span>
+        <span class="token key atrule">pool</span><span class="token punctuation">:</span> kube
+        <span class="token key atrule">image</span><span class="token punctuation">:</span> foo
+        <span class="token key atrule">fsType</span><span class="token punctuation">:</span> ext4
+        <span class="token key atrule">readOnly</span><span class="token punctuation">:</span> <span class="token boolean important">true</span>
+        <span class="token key atrule">user</span><span class="token punctuation">:</span> admin
+        <span class="token key atrule">keyring</span><span class="token punctuation">:</span> /etc/ceph/keyring
+        <span class="token key atrule">imageformat</span><span class="token punctuation">:</span> <span class="token string">"2"</span>
+        <span class="token key atrule">imagefeatures</span><span class="token punctuation">:</span> <span class="token string">"layering"</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>其一，如果不懂得 Ceph RBD 的使用方法，那么这个 Pod 里 Volumes 字段，你十有八九也完全看不懂。其二，这个 Ceph RBD 对应的存储服务器的地址、用户名、授权文件的位置，也都被轻易地暴露给了全公司的所有开发人员，这是一个典型的信息被”过度暴露”的例子。</p>
+<p>这也是为什么，在后来的演化中， <strong>Kubernetes 项目引入了一组叫作 Persistent Volume Claim（PVC）和 Persistent Volume（PV）的 API 对象，大大降低了用户声明和使用持久化 Volume 的门槛。</strong></p>
+<p>举个例子，有了 PVC 之后，一个开发人员想要使用一个 Volume，只需要简单的两步即可。</p>
+<p><strong>第一步：定义一个 PVC，声明想要的 Volume 的属性：</strong></p>
+<pre class="line-numbers language-yaml" data-language="yaml"><code class="language-yaml"><span class="token key atrule">kind</span><span class="token punctuation">:</span> PersistentVolumeClaim
+<span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> v1
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> pv<span class="token punctuation">-</span>claim
+<span class="token key atrule">spec</span><span class="token punctuation">:</span>
+  <span class="token key atrule">accessModes</span><span class="token punctuation">:</span>
+  <span class="token punctuation">-</span> ReadWriteOnce
+  <span class="token key atrule">resources</span><span class="token punctuation">:</span>
+    <span class="token key atrule">requests</span><span class="token punctuation">:</span>
+      <span class="token key atrule">storage</span><span class="token punctuation">:</span> 1Gi<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>可以看到，在这个 PVC 对象里，不需要任何关于 Volume 细节的字段，只有描述性的属性和定义。比如，storage: 1Gi，表示我想要的 Volume 大小至少是 1 GiB；accessModes: ReadWriteOnce，表示这个 Volume 的挂载方式是可读写，并且只能被挂载在一个节点上而非被多个节点共享。</p>
+<blockquote>
+<p>备注：关于哪种类型的 Volume 支持哪种类型的 AccessMode，你可以查看 Kubernetes 项目官方文档中的 <a target="_blank" rel="noopener" href="https://kubernetes.io/docs/concepts/storage/persistent-volumes/#access-modes">详细列表</a> 。</p>
+</blockquote>
+<p>第二步：在应用的 Pod 中，声明使用这个 PVC：</p>
+<pre class="line-numbers language-yaml" data-language="yaml"><code class="language-yaml"><span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> v1
+<span class="token key atrule">kind</span><span class="token punctuation">:</span> Pod
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> pv<span class="token punctuation">-</span>pod
+<span class="token key atrule">spec</span><span class="token punctuation">:</span>
+  <span class="token key atrule">containers</span><span class="token punctuation">:</span>
+    <span class="token punctuation">-</span> <span class="token key atrule">name</span><span class="token punctuation">:</span> pv<span class="token punctuation">-</span>container
+      <span class="token key atrule">image</span><span class="token punctuation">:</span> nginx
+      <span class="token key atrule">ports</span><span class="token punctuation">:</span>
+        <span class="token punctuation">-</span> <span class="token key atrule">containerPort</span><span class="token punctuation">:</span> <span class="token number">80</span>
+          <span class="token key atrule">name</span><span class="token punctuation">:</span> <span class="token string">"http-server"</span>
+      <span class="token key atrule">volumeMounts</span><span class="token punctuation">:</span>
+        <span class="token punctuation">-</span> <span class="token key atrule">mountPath</span><span class="token punctuation">:</span> <span class="token string">"/usr/share/nginx/html"</span>
+          <span class="token key atrule">name</span><span class="token punctuation">:</span> pv<span class="token punctuation">-</span>storage
+  <span class="token key atrule">volumes</span><span class="token punctuation">:</span>
+    <span class="token punctuation">-</span> <span class="token key atrule">name</span><span class="token punctuation">:</span> pv<span class="token punctuation">-</span>storage
+      <span class="token key atrule">persistentVolumeClaim</span><span class="token punctuation">:</span>
+        <span class="token key atrule">claimName</span><span class="token punctuation">:</span> pv<span class="token punctuation">-</span>claim<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>可以看到，在这个 Pod 的 Volumes 定义中，我们只需要声明它的类型是 persistentVolumeClaim，然后指定 PVC 的名字，而完全不必关心 Volume 本身的定义。</p>
+<p>这时候，只要我们创建这个 PVC 对象，Kubernetes 就会自动为它绑定一个符合条件的 Volume。可是，这些符合条件的 Volume 又是从哪里来的呢？</p>
+<p>答案是，它们来自于由运维人员维护的 PV（Persistent Volume）对象。接下来，我们一起看一个常见的 PV 对象的 YAML 文件：</p>
+<pre class="line-numbers language-yaml" data-language="yaml"><code class="language-yaml"><span class="token key atrule">kind</span><span class="token punctuation">:</span> PersistentVolume
+<span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> v1
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> pv<span class="token punctuation">-</span>volume
+  <span class="token key atrule">labels</span><span class="token punctuation">:</span>
+    <span class="token key atrule">type</span><span class="token punctuation">:</span> local
+<span class="token key atrule">spec</span><span class="token punctuation">:</span>
+  <span class="token key atrule">capacity</span><span class="token punctuation">:</span>
+    <span class="token key atrule">storage</span><span class="token punctuation">:</span> 10Gi
+  <span class="token key atrule">rbd</span><span class="token punctuation">:</span>
+    <span class="token key atrule">monitors</span><span class="token punctuation">:</span>
+    <span class="token punctuation">-</span> <span class="token string">'10.16.154.78:6789'</span>
+    <span class="token punctuation">-</span> <span class="token string">'10.16.154.82:6789'</span>
+    <span class="token punctuation">-</span> <span class="token string">'10.16.154.83:6789'</span>
+    <span class="token key atrule">pool</span><span class="token punctuation">:</span> kube
+    <span class="token key atrule">image</span><span class="token punctuation">:</span> foo
+    <span class="token key atrule">fsType</span><span class="token punctuation">:</span> ext4
+    <span class="token key atrule">readOnly</span><span class="token punctuation">:</span> <span class="token boolean important">true</span>
+    <span class="token key atrule">user</span><span class="token punctuation">:</span> admin
+    <span class="token key atrule">keyring</span><span class="token punctuation">:</span> /etc/ceph/keyring
+    <span class="token key atrule">imageformat</span><span class="token punctuation">:</span> <span class="token string">"2"</span>
+    <span class="token key atrule">imagefeatures</span><span class="token punctuation">:</span> <span class="token string">"layering"</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>可以看到，这个 PV 对象的 spec.rbd 字段，正是我们前面介绍过的 Ceph RBD Volume 的详细定义。而且，它还声明了这个 PV 的容量是 10 GiB。这样，Kubernetes 就会为我们刚刚创建的 PVC 对象绑定这个 PV。</p>
+<p>所以，Kubernetes 中 PVC 和 PV 的设计， <strong>实际上类似于”接口”和”实现”的思想</strong> 。开发者只要知道并会使用”接口”，即：PVC；而运维人员则负责给”接口”绑定具体的实现，即：PV。</p>
+<p>这种解耦，就避免了因为向开发者暴露过多的存储系统细节而带来的隐患。此外，这种职责的分离，往往也意味着出现事故时可以更容易定位问题和明确责任，从而避免”扯皮”现象的出现。</p>
+<p><strong>而 PVC、PV 的设计，也使得 StatefulSet 对存储状态的管理成为了可能。</strong> 我们还是以上一篇文章中用到的 StatefulSet 为例（你也可以借此再回顾一下 <strong>《深入理解 StatefulSet（一）：拓扑状态》</strong> 中的相关内容）：</p>
+<pre class="line-numbers language-yaml" data-language="yaml"><code class="language-yaml"><span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> apps/v1
+<span class="token key atrule">kind</span><span class="token punctuation">:</span> StatefulSet
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> web
+<span class="token key atrule">spec</span><span class="token punctuation">:</span>
+  <span class="token key atrule">serviceName</span><span class="token punctuation">:</span> <span class="token string">"nginx"</span>
+  <span class="token key atrule">replicas</span><span class="token punctuation">:</span> <span class="token number">2</span>
+  <span class="token key atrule">selector</span><span class="token punctuation">:</span>
+    <span class="token key atrule">matchLabels</span><span class="token punctuation">:</span>
+      <span class="token key atrule">app</span><span class="token punctuation">:</span> nginx
+  <span class="token key atrule">template</span><span class="token punctuation">:</span>
+    <span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+      <span class="token key atrule">labels</span><span class="token punctuation">:</span>
+        <span class="token key atrule">app</span><span class="token punctuation">:</span> nginx
+    <span class="token key atrule">spec</span><span class="token punctuation">:</span>
+      <span class="token key atrule">containers</span><span class="token punctuation">:</span>
+      <span class="token punctuation">-</span> <span class="token key atrule">name</span><span class="token punctuation">:</span> nginx
+        <span class="token key atrule">image</span><span class="token punctuation">:</span> nginx<span class="token punctuation">:</span>1.9.1
+        <span class="token key atrule">ports</span><span class="token punctuation">:</span>
+        <span class="token punctuation">-</span> <span class="token key atrule">containerPort</span><span class="token punctuation">:</span> <span class="token number">80</span>
+          <span class="token key atrule">name</span><span class="token punctuation">:</span> web
+        <span class="token key atrule">volumeMounts</span><span class="token punctuation">:</span>
+        <span class="token punctuation">-</span> <span class="token key atrule">name</span><span class="token punctuation">:</span> www
+          <span class="token key atrule">mountPath</span><span class="token punctuation">:</span> /usr/share/nginx/html
+  <span class="token key atrule">volumeClaimTemplates</span><span class="token punctuation">:</span>
+  <span class="token punctuation">-</span> <span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+      <span class="token key atrule">name</span><span class="token punctuation">:</span> www
+    <span class="token key atrule">spec</span><span class="token punctuation">:</span>
+      <span class="token key atrule">accessModes</span><span class="token punctuation">:</span>
+      <span class="token punctuation">-</span> ReadWriteOnce
+      <span class="token key atrule">resources</span><span class="token punctuation">:</span>
+        <span class="token key atrule">requests</span><span class="token punctuation">:</span>
+          <span class="token key atrule">storage</span><span class="token punctuation">:</span> 1Gi<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>这次，我们为这个 StatefulSet 额外添加了一个 volumeClaimTemplates 字段。从名字就可以看出来，它跟 Deployment 里 Pod 模板（PodTemplate）的作用类似。也就是说，凡是被这个 StatefulSet 管理的 Pod，都会声明一个对应的 PVC；而这个 PVC 的定义，就来自于 volumeClaimTemplates 这个模板字段。更重要的是， <strong>这个 PVC 的名字，会被分配一个与这个 Pod 完全一致的编号。</strong></p>
+<p>这个自动创建的 PVC，与 PV 绑定成功后，就会进入 Bound 状态，这就意味着这个 Pod 可以挂载并使用这个 PV 了。</p>
+<p>如果你还是不太理解 PVC 的话，可以先记住这样一个结论： <strong>PVC 其实就是一种特殊的 Volume</strong> 。只不过一个 PVC 具体是什么类型的 Volume，要在跟某个 PV 绑定之后才知道。关于 PV、PVC 更详细的知识，我会在容器存储部分做进一步解读。</p>
+<p>当然，PVC 与 PV 的绑定得以实现的前提是，运维人员已经在系统里创建好了符合条件的 PV（比如，我们在前面用到的 pv-volume）；或者，你的 Kubernetes 集群运行在公有云上，这样 Kubernetes 就会通过 Dynamic Provisioning 的方式，自动为你创建与 PVC 匹配的 PV。</p>
+<p>所以，我们在使用 kubectl create 创建了 StatefulSet 之后，就会看到 Kubernetes 集群里出现了两个 PVC：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ kubectl create -f statefulset.yaml
+$ kubectl get pvc -l <span class="token assign-left variable">app</span><span class="token operator">=</span>nginx
+NAME        STATUS    VOLUME                                     CAPACITY   ACCESSMODES   AGE
+www-web-0   Bound     pvc-15c268c7-b507-11e6-932f-42010a800002   1Gi        RWO           48s
+www-web-1   Bound     pvc-15c79307-b507-11e6-932f-42010a800002   1Gi        RWO           48s<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>可以看到，这些 PVC，都以 <code>&lt;PVC 名字 &gt;-&lt;StatefulSet 名字 &gt;-&lt; 编号 &gt;</code> 的方式命名，并且处于 Bound 状态。</p>
+<p>我们前面已经讲到过，这个 StatefulSet 创建出来的所有 Pod，都会声明使用编号的 PVC。比如，在名叫 web-0 的 Pod 的 volumes 字段，它会声明使用名叫 www-web-0 的 PVC，从而挂载到这个 PVC 所绑定的 PV。</p>
+<p>所以，我们就可以使用如下所示的指令，在 Pod 的 Volume 目录里写入一个文件，来验证一下上述 Volume 的分配情况：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token keyword">for</span> <span class="token for-or-select variable">i</span> <span class="token keyword">in</span> <span class="token number">0</span> <span class="token number">1</span><span class="token punctuation">;</span> <span class="token keyword">do</span> kubectl <span class="token builtin class-name">exec</span> web-<span class="token variable">$i</span> -- <span class="token function">sh</span> -c <span class="token string">'echo hello <span class="token variable"><span class="token variable">$(</span><span class="token function">hostname</span><span class="token variable">)</span></span> &gt; /usr/share/nginx/html/index.html'</span><span class="token punctuation">;</span> <span class="token keyword">done</span><span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>如上所示，通过 kubectl exec 指令，我们在每个 Pod 的 Volume 目录里，写入了一个 index.html 文件。这个文件的内容，正是 Pod 的 hostname。比如，我们在 web-0 的 index.html 里写入的内容就是 “hello web-0”。</p>
+<p>此时，如果你在这个 Pod 容器里访问 <a target="_blank" rel="noopener" href="http://localhost">http://localhost</a> ，你实际访问到的就是 Pod 里 Nginx 服务器进程，而它会为你返回 /usr/share/nginx/html/index.html 里的内容。这个操作的执行方法如下所示：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ <span class="token keyword">for</span> <span class="token for-or-select variable">i</span> <span class="token keyword">in</span> <span class="token number">0</span> <span class="token number">1</span><span class="token punctuation">;</span> <span class="token keyword">do</span> kubectl <span class="token builtin class-name">exec</span> -it web-<span class="token variable">$i</span> -- <span class="token function">curl</span> localhost<span class="token punctuation">;</span> <span class="token keyword">done</span>
+hello web-0
+hello web-1<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span></span></code></pre>
+<p>现在，关键来了。</p>
+<p>如果你使用 kubectl delete 命令删除这两个 Pod，这些 Volume 里的文件会不会丢失呢？</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ kubectl delete pod -l <span class="token assign-left variable">app</span><span class="token operator">=</span>nginx
+pod <span class="token string">"web-0"</span> deleted
+pod <span class="token string">"web-1"</span> deleted<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span></span></code></pre>
+<p>可以看到，正如我们前面介绍过的，在被删除之后，这两个 Pod 会被按照编号的顺序被重新创建出来。而这时候，如果你在新创建的容器里通过访问 <a target="_blank" rel="noopener" href="http://localhost">http://localhost</a> 的方式去访问 web-0 里的 Nginx 服务：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token comment"># 在被重新创建出来的 Pod 容器里访问 http://localhost</span>
+$ kubectl <span class="token builtin class-name">exec</span> -it web-0 -- <span class="token function">curl</span> localhost
+hello web-0<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span></span></code></pre>
+<p>就会发现，这个请求依然会返回：hello web-0。也就是说，原先与名叫 web-0 的 Pod 绑定的 PV，在这个 Pod 被重新创建之后，依然同新的名叫 web-0 的 Pod 绑定在了一起。对于 Pod web-1 来说，也是完全一样的情况。</p>
+<p><strong>这是怎么做到的呢？</strong></p>
+<p>其实，我和你分析一下 StatefulSet 控制器恢复这个 Pod 的过程，你就可以很容易理解了。</p>
+<p>首先，当你把一个 Pod，比如 web-0，删除之后，这个 Pod 对应的 PVC 和 PV，并不会被删除，而这个 Volume 里已经写入的数据，也依然会保存在远程存储服务里（比如，我们在这个例子里用到的 Ceph 服务器）。</p>
+<p>此时，StatefulSet 控制器发现，一个名叫 web-0 的 Pod 消失了。所以，控制器就会重新创建一个新的、名字还是叫作 web-0 的 Pod 来，”纠正”这个不一致的情况。</p>
+<p>需要注意的是，在这个新的 Pod 对象的定义里，它声明使用的 PVC 的名字，还是叫作：www-web-0。这个 PVC 的定义，还是来自于 PVC 模板（volumeClaimTemplates），这是 StatefulSet 创建 Pod 的标准流程。</p>
+<p>所以，在这个新的 web-0 Pod 被创建出来之后，Kubernetes 为它查找名叫 www-web-0 的 PVC 时，就会直接找到旧 Pod 遗留下来的同名的 PVC，进而找到跟这个 PVC 绑定在一起的 PV。</p>
+<p>这样，新的 Pod 就可以挂载到旧 Pod 对应的那个 Volume，并且获取到保存在 Volume 里的数据。</p>
+<p><strong>通过这种方式，Kubernetes 的 StatefulSet 就实现了对应用存储状态的管理。</strong></p>
+<p>看到这里，你是不是已经大致理解了 StatefulSet 的工作原理呢？现在，我再为你详细梳理一下吧。</p>
+<ol>
+<li><p><strong>首先，StatefulSet 的控制器直接管理的是 Pod。</strong> 这是因为，StatefulSet 里的不同 Pod 实例，不再像 ReplicaSet 中那样都是完全一样的，而是有了细微区别的。比如，每个 Pod 的 hostname、名字等都是不同的、携带了编号的。而 StatefulSet 区分这些实例的方式，就是通过在 Pod 的名字里加上事先约定好的编号。</p>
+</li>
+<li><p><strong>其次，Kubernetes 通过 Headless Service，为这些有编号的 Pod，在 DNS 服务器中生成带有同样编号的 DNS 记录。</strong> 只要 StatefulSet 能够保证这些 Pod 名字里的编号不变，那么 Service 里类似于 web-0.nginx.default.svc.cluster.local 这样的 DNS 记录也就不会变，而这条记录解析出来的 Pod 的 IP 地址，则会随着后端 Pod 的删除和再创建而自动更新。这当然是 Service 机制本身的能力，不需要 StatefulSet 操心。</p>
+</li>
+<li><p><strong>最后，StatefulSet 还为每一个 Pod 分配并创建一个同样编号的 PVC。</strong> 这样，Kubernetes 就可以通过 Persistent Volume 机制为这个 PVC 绑定上对应的 PV，从而保证了每一个 Pod 都拥有一个独立的 Volume。</p>
+<p> 在这种情况下，即使 Pod 被删除，它所对应的 PVC 和 PV 依然会保留下来。所以当这个 Pod 被重新创建出来之后，Kubernetes 会为它找到同样编号的 PVC，挂载这个 PVC 对应的 Volume，从而获取到以前保存在 Volume 里的数据。</p>
+</li>
+</ol>
+<h4 id="19-1-总结"><a href="#19-1-总结" class="headerlink" title="19.1 总结"></a>19.1 总结</h4><p>StatefulSet 的设计思想： StatefulSet 其实就是一种特殊的 Deployment，而其独特之处在于，它的每个 Pod 都被编号了。而且，这个编号会体现在 Pod 的名字和 hostname 等标识信息上，这不仅代表了 Pod 的创建顺序，也是 Pod 的重要网络标识（即：在整个集群里唯一的、可被的访问身份）。</p>
+<p>有了这个编号后，StatefulSet 就使用 Kubernetes 里的两个标准功能：Headless Service 和 PV/PVC，实现了对 Pod 的拓扑状态和存储状态的维护。</p>
+<p>实际上，在下一篇文章的”有状态应用”实践环节，以及后续的讲解中，你就会逐渐意识到，StatefulSet 可以说是 Kubernetes 中作业编排的”集大成者”。</p>
+<p>因为，几乎每一种 Kubernetes 的编排功能，都可以在编写 StatefulSet 的 YAML 文件时被用到。</p>
 <h2 id="Kubernetes容器持久化存储"><a href="#Kubernetes容器持久化存储" class="headerlink" title="Kubernetes容器持久化存储"></a>Kubernetes容器持久化存储</h2><h2 id="Kubernetes容器网络"><a href="#Kubernetes容器网络" class="headerlink" title="Kubernetes容器网络"></a>Kubernetes容器网络</h2><h2 id="Kubernetes作业调度与资源管理"><a href="#Kubernetes作业调度与资源管理" class="headerlink" title="Kubernetes作业调度与资源管理"></a>Kubernetes作业调度与资源管理</h2><h2 id="Kubernetes容器运行时"><a href="#Kubernetes容器运行时" class="headerlink" title="Kubernetes容器运行时"></a>Kubernetes容器运行时</h2><h2 id="Kubernetes容器监控与日志"><a href="#Kubernetes容器监控与日志" class="headerlink" title="Kubernetes容器监控与日志"></a>Kubernetes容器监控与日志</h2><h2 id="再谈开源与社区"><a href="#再谈开源与社区" class="headerlink" title="再谈开源与社区"></a>再谈开源与社区</h2><h2 id="答疑文章"><a href="#答疑文章" class="headerlink" title="答疑文章"></a>答疑文章</h2>
                 
             </div>
@@ -3178,7 +3539,7 @@ nginx-3196763511   <span class="token number">3</span>         <span class="toke
             <br>
             
             &nbsp;<i class="fas fa-chart-area"></i>&nbsp;站点总字数:&nbsp;<span
-                class="white-color">1105.9k</span>&nbsp;字
+                class="white-color">1112.5k</span>&nbsp;字
             
             
             
