@@ -453,21 +453,21 @@
                 
                 <div class="post-date info-break-policy">
                     <i class="far fa-calendar-check fa-fw"></i>更新日期:&nbsp;&nbsp;
-                    2022-07-27
+                    2022-07-28
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-file-word fa-fw"></i>文章字数:&nbsp;&nbsp;
-                    65.3k
+                    89.5k
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-clock fa-fw"></i>阅读时长:&nbsp;&nbsp;
-                    246 分
+                    341 分
                 </div>
                 
 
@@ -3134,6 +3134,1456 @@ hello web-0<span aria-hidden="true" class="line-numbers-rows"><span></span><span
 <p>有了这个编号后，StatefulSet 就使用 Kubernetes 里的两个标准功能：Headless Service 和 PV/PVC，实现了对 Pod 的拓扑状态和存储状态的维护。</p>
 <p>实际上，在下一篇文章的”有状态应用”实践环节，以及后续的讲解中，你就会逐渐意识到，StatefulSet 可以说是 Kubernetes 中作业编排的”集大成者”。</p>
 <p>因为，几乎每一种 Kubernetes 的编排功能，都可以在编写 StatefulSet 的 YAML 文件时被用到。</p>
+<h3 id="20-深入理解StatefulSet（三）：有状态应用实践"><a href="#20-深入理解StatefulSet（三）：有状态应用实践" class="headerlink" title="20 | 深入理解StatefulSet（三）：有状态应用实践"></a>20 | 深入理解StatefulSet（三）：有状态应用实践</h3><p>在今天这篇文章中，我将通过一个实际的例子，再次为你深入解读一下部署一个 StatefulSet 的完整流程。</p>
+<p>今天我选择的实例是部署一个 MySQL 集群，这也是 Kubernetes 官方文档里的一个经典案例。</p>
+<p><a target="_blank" rel="noopener" href="https://github.com/kibaamor/deep-study-k8s/tree/master/mysql-cluster">https://github.com/kibaamor/deep-study-k8s/tree/master/mysql-cluster</a></p>
+<h3 id="21-容器化守护进程的意义：DaemonSet"><a href="#21-容器化守护进程的意义：DaemonSet" class="headerlink" title="21 | 容器化守护进程的意义：DaemonSet"></a>21 | 容器化守护进程的意义：DaemonSet</h3><p>在上一篇文章中，我和你详细分享了使用 StatefulSet 编排”有状态应用”的过程。从中不难看出，StatefulSet 其实就是对现有典型运维业务的容器化抽象。也就是说，你一定有方法在不使用 Kubernetes、甚至不使用容器的情况下，自己 DIY 一个类似的方案出来。但是，一旦涉及到升级、版本管理等更工程化的能力，Kubernetes 的好处，才会更加凸现。</p>
+<p>比如，如何对 StatefulSet 进行”滚动更新”（rolling update）？</p>
+<p>很简单。你只要修改 StatefulSet 的 Pod 模板，就会自动触发”滚动更新”:</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ kubectl patch statefulset mysql --type<span class="token operator">=</span><span class="token string">'json'</span> -p<span class="token operator">=</span><span class="token string">'[{"op": "replace", "path": "/spec/template/spec/containers/0/image", "value":"mysql:5.7.23"}]'</span>
+statefulset.apps/mysql patched<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre>
+<p>在这里，我使用了 kubectl patch 命令。它的意思是，以”补丁”的方式（JSON 格式的）修改一个 API 对象的指定字段，也就是我在后面指定的”spec/template/spec/containers/0/image”。</p>
+<p>这样，StatefulSet Controller 就会按照与 Pod 编号相反的顺序，从最后一个 Pod 开始，逐一更新这个 StatefulSet 管理的每个 Pod。而如果更新发生了错误，这次”滚动更新”就会停止。此外，StatefulSet 的”滚动更新”还允许我们进行更精细的控制，比如金丝雀发布（Canary Deploy）或者灰度发布， <strong>这意味着应用的多个实例中被指定的一部分不会被更新到最新的版本。</strong></p>
+<p>这个字段，正是 StatefulSet 的 spec.updateStrategy.rollingUpdate 的 partition 字段。</p>
+<p>比如，现在我将前面这个 StatefulSet 的 partition 字段设置为 2：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ kubectl patch statefulset mysql -p <span class="token string">'{"spec":{"updateStrategy":{"type":"RollingUpdate","rollingUpdate":{"partition":2}}}}'</span>
+statefulset.apps/mysql patched<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre>
+<p>其中，kubectl patch 命令后面的参数（JSON 格式的），就是 partition 字段在 API 对象里的路径。所以，上述操作等同于直接使用 kubectl edit 命令，打开这个对象，把 partition 字段修改为 2。</p>
+<p>这样，我就指定了当 Pod 模板发生变化的时候，比如 MySQL 镜像更新到 5.7.23，那么只有序号大于或者等于 2 的 Pod 会被更新到这个版本。并且，如果你删除或者重启了序号小于 2 的 Pod，等它再次启动后，也会保持原先的 5.7.2 版本，绝不会被升级到 5.7.23 版本。</p>
+<p>StatefulSet 可以说是 Kubernetes 项目中最为复杂的编排对象，希望你课后能认真消化，动手实践一下这个例子。</p>
+<p>而在今天这篇文章中，我会为你重点讲解一个相对轻松的知识点：DaemonSet。</p>
+<p>顾名思义，DaemonSet 的主要作用，是让你在 Kubernetes 集群里，运行一个 Daemon Pod。 所以，这个 Pod 有如下三个特征：</p>
+<ol>
+<li>这个 Pod 运行在 Kubernetes 集群里的每一个节点（Node）上；</li>
+<li>每个节点上只有一个这样的 Pod 实例；</li>
+<li>当有新的节点加入 Kubernetes 集群后，该 Pod 会自动地在新节点上被创建出来；而当旧节点被删除后，它上面的 Pod 也相应地会被回收掉。</li>
+</ol>
+<p>这个机制听起来很简单，但 Daemon Pod 的意义确实是非常重要的。我随便给你列举几个例子：</p>
+<ol>
+<li>各种网络插件的 Agent 组件，都必须运行在每一个节点上，用来处理这个节点上的容器网络；</li>
+<li>各种存储插件的 Agent 组件，也必须运行在每一个节点上，用来在这个节点上挂载远程存储目录，操作容器的 Volume 目录；</li>
+<li>各种监控组件和日志组件，也必须运行在每一个节点上，负责这个节点上的监控信息和日志搜集。</li>
+</ol>
+<p>更重要的是，跟其他编排对象不一样，DaemonSet 开始运行的时机，很多时候比整个 Kubernetes 集群出现的时机都要早。</p>
+<p>这个乍一听起来可能有点儿奇怪。但其实你来想一下：如果这个 DaemonSet 正是一个网络插件的 Agent 组件呢？</p>
+<p>这个时候，整个 Kubernetes 集群里还没有可用的容器网络，所有 Worker 节点的状态都是 NotReady（NetworkReady=false）。这种情况下，普通的 Pod 肯定不能运行在这个集群上。所以，这也就意味着 DaemonSet 的设计，必须要有某种”过人之处”才行。</p>
+<p>为了弄清楚 DaemonSet 的工作原理，我们还是按照老规矩，先从它的 API 对象的定义说起。</p>
+<pre class="line-numbers language-yaml" data-language="yaml"><code class="language-yaml"><span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> apps/v1
+<span class="token key atrule">kind</span><span class="token punctuation">:</span> DaemonSet
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> fluentd<span class="token punctuation">-</span>elasticsearch
+  <span class="token key atrule">namespace</span><span class="token punctuation">:</span> kube<span class="token punctuation">-</span>system
+  <span class="token key atrule">labels</span><span class="token punctuation">:</span>
+    <span class="token key atrule">k8s-app</span><span class="token punctuation">:</span> fluentd<span class="token punctuation">-</span>logging
+<span class="token key atrule">spec</span><span class="token punctuation">:</span>
+  <span class="token key atrule">selector</span><span class="token punctuation">:</span>
+    <span class="token key atrule">matchLabels</span><span class="token punctuation">:</span>
+      <span class="token key atrule">name</span><span class="token punctuation">:</span> fluentd<span class="token punctuation">-</span>elasticsearch
+  <span class="token key atrule">template</span><span class="token punctuation">:</span>
+    <span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+      <span class="token key atrule">labels</span><span class="token punctuation">:</span>
+        <span class="token key atrule">name</span><span class="token punctuation">:</span> fluentd<span class="token punctuation">-</span>elasticsearch
+    <span class="token key atrule">spec</span><span class="token punctuation">:</span>
+      <span class="token key atrule">tolerations</span><span class="token punctuation">:</span>
+      <span class="token punctuation">-</span> <span class="token key atrule">key</span><span class="token punctuation">:</span> node<span class="token punctuation">-</span>role.kubernetes.io/master
+        <span class="token key atrule">effect</span><span class="token punctuation">:</span> NoSchedule
+      <span class="token key atrule">containers</span><span class="token punctuation">:</span>
+      <span class="token punctuation">-</span> <span class="token key atrule">name</span><span class="token punctuation">:</span> fluentd<span class="token punctuation">-</span>elasticsearch
+        <span class="token key atrule">image</span><span class="token punctuation">:</span> k8s.gcr.io/fluentd<span class="token punctuation">-</span>elasticsearch<span class="token punctuation">:</span><span class="token number">1.20</span>
+        <span class="token key atrule">resources</span><span class="token punctuation">:</span>
+          <span class="token key atrule">limits</span><span class="token punctuation">:</span>
+            <span class="token key atrule">memory</span><span class="token punctuation">:</span> 200Mi
+          <span class="token key atrule">requests</span><span class="token punctuation">:</span>
+            <span class="token key atrule">cpu</span><span class="token punctuation">:</span> 100m
+            <span class="token key atrule">memory</span><span class="token punctuation">:</span> 200Mi
+        <span class="token key atrule">volumeMounts</span><span class="token punctuation">:</span>
+        <span class="token punctuation">-</span> <span class="token key atrule">name</span><span class="token punctuation">:</span> varlog
+          <span class="token key atrule">mountPath</span><span class="token punctuation">:</span> /var/log
+        <span class="token punctuation">-</span> <span class="token key atrule">name</span><span class="token punctuation">:</span> varlibdockercontainers
+          <span class="token key atrule">mountPath</span><span class="token punctuation">:</span> /var/lib/docker/containers
+          <span class="token key atrule">readOnly</span><span class="token punctuation">:</span> <span class="token boolean important">true</span>
+      <span class="token key atrule">terminationGracePeriodSeconds</span><span class="token punctuation">:</span> <span class="token number">30</span>
+      <span class="token key atrule">volumes</span><span class="token punctuation">:</span>
+      <span class="token punctuation">-</span> <span class="token key atrule">name</span><span class="token punctuation">:</span> varlog
+        <span class="token key atrule">hostPath</span><span class="token punctuation">:</span>
+          <span class="token key atrule">path</span><span class="token punctuation">:</span> /var/log
+      <span class="token punctuation">-</span> <span class="token key atrule">name</span><span class="token punctuation">:</span> varlibdockercontainers
+        <span class="token key atrule">hostPath</span><span class="token punctuation">:</span>
+          <span class="token key atrule">path</span><span class="token punctuation">:</span> /var/lib/docker/containers<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>这个 DaemonSet，管理的是一个 fluentd-elasticsearch 镜像的 Pod。这个镜像的功能非常实用：通过 fluentd 将 Docker 容器里的日志转发到 ElasticSearch 中。</p>
+<p>可以看到，DaemonSet 跟 Deployment 其实非常相似，只不过是没有 replicas 字段；它也使用 selector 选择管理所有携带了 name=fluentd-elasticsearch 标签的 Pod。</p>
+<p>而这些 Pod 的模板，也是用 template 字段定义的。在这个字段中，我们定义了一个使用 fluentd-elasticsearch:1.20 镜像的容器，而且这个容器挂载了两个 hostPath 类型的 Volume，分别对应宿主机的 /var/log 目录和 /var/lib/docker/containers 目录。</p>
+<p>显然，fluentd 启动之后，它会从这两个目录里搜集日志信息，并转发给 ElasticSearch 保存。这样，我们通过 ElasticSearch 就可以很方便地检索这些日志了。</p>
+<p>需要注意的是，Docker 容器里应用的日志，默认会保存在宿主机的 <code>/var/lib/docker/containers/{{. 容器 ID}}/{{. 容器 ID}}-json.log</code> 文件里，所以这个目录正是 fluentd 的搜集目标。</p>
+<p>那么， <strong>DaemonSet 又是如何保证每个 Node 上有且只有一个被管理的 Pod 呢？</strong></p>
+<p>显然，这是一个典型的”控制器模型”能够处理的问题。</p>
+<p>DaemonSet Controller，首先从 Etcd 里获取所有的 Node 列表，然后遍历所有的 Node。这时，它就可以很容易地去检查，当前这个 Node 上是不是有一个携带了 name=fluentd-elasticsearch 标签的 Pod 在运行。</p>
+<p>而检查的结果，可能有这么三种情况：</p>
+<p>没有这种 Pod，那么就意味着要在这个 Node 上创建这样一个 Pod；</p>
+<p>有这种 Pod，但是数量大于 1，那就说明要把多余的 Pod 从这个 Node 上删除掉；</p>
+<p>正好只有一个这种 Pod，那说明这个节点是正常的。</p>
+<p>其中，删除节点（Node）上多余的 Pod 非常简单，直接调用 Kubernetes API 就可以了。</p>
+<p>但是， <strong>如何在指定的 Node 上创建新 Pod 呢？</strong></p>
+<p>如果你已经熟悉了 Pod API 对象的话，那一定可以立刻说出答案：用 nodeSelector，选择 Node 的名字即可。</p>
+<pre class="line-numbers language-yaml" data-language="yaml"><code class="language-yaml"><span class="token key atrule">nodeSelector</span><span class="token punctuation">:</span>
+    <span class="token key atrule">name</span><span class="token punctuation">:</span> &lt;Node 名字 <span class="token punctuation">&gt;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre>
+<p>没错。</p>
+<p>不过，在 Kubernetes 项目里，nodeSelector 其实已经是一个将要被废弃的字段了。因为，现在有了一个新的、功能更完善的字段可以代替它，即：nodeAffinity。我来举个例子：</p>
+<pre class="line-numbers language-yaml" data-language="yaml"><code class="language-yaml"><span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> v1
+<span class="token key atrule">kind</span><span class="token punctuation">:</span> Pod
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> with<span class="token punctuation">-</span>node<span class="token punctuation">-</span>affinity
+<span class="token key atrule">spec</span><span class="token punctuation">:</span>
+  <span class="token key atrule">affinity</span><span class="token punctuation">:</span>
+    <span class="token key atrule">nodeAffinity</span><span class="token punctuation">:</span>
+      <span class="token key atrule">requiredDuringSchedulingIgnoredDuringExecution</span><span class="token punctuation">:</span>
+        <span class="token key atrule">nodeSelectorTerms</span><span class="token punctuation">:</span>
+        <span class="token punctuation">-</span> <span class="token key atrule">matchExpressions</span><span class="token punctuation">:</span>
+          <span class="token punctuation">-</span> <span class="token key atrule">key</span><span class="token punctuation">:</span> metadata.name
+            <span class="token key atrule">operator</span><span class="token punctuation">:</span> In
+            <span class="token key atrule">values</span><span class="token punctuation">:</span>
+            <span class="token punctuation">-</span> node<span class="token punctuation">-</span>geektime<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>在这个 Pod 里，我声明了一个 spec.affinity 字段，然后定义了一个 nodeAffinity。其中，spec.affinity 字段，是 Pod 里跟调度相关的一个字段。关于它的完整内容，我会在讲解调度策略的时候再详细阐述。</p>
+<p>而在这里，我定义的 nodeAffinity 的含义是：</p>
+<ol>
+<li>requiredDuringSchedulingIgnoredDuringExecution：它的意思是说，这个 nodeAffinity 必须在每次调度的时候予以考虑。同时，这也意味着你可以设置在某些情况下不考虑这个 nodeAffinity；</li>
+<li>这个 Pod，将来只允许运行在”metadata.name”是”node-geektime”的节点上。</li>
+</ol>
+<p>在这里，你应该注意到 nodeAffinity 的定义，可以支持更加丰富的语法，比如 operator: In（即：部分匹配；如果你定义 operator: Equal，就是完全匹配），这也正是 nodeAffinity 会取代 nodeSelector 的原因之一。</p>
+<blockquote>
+<p>备注：其实在大多数时候，这些 Operator 语义没啥用处。所以说，在学习开源项目的时候，一定要学会抓住”主线”。不要顾此失彼。</p>
+</blockquote>
+<p>所以， <strong>我们的 DaemonSet Controller 会在创建 Pod 的时候，自动在这个 Pod 的 API 对象里，加上这样一个 nodeAffinity 定义。</strong> 其中，需要绑定的节点名字，正是当前正在遍历的这个 Node。</p>
+<p>当然，DaemonSet 并不需要修改用户提交的 YAML 文件里的 Pod 模板，而是在向 Kubernetes 发起请求之前，直接修改根据模板生成的 Pod 对象。这个思路，也正是我在前面讲解 Pod 对象时介绍过的。</p>
+<p>此外，DaemonSet 还会给这个 Pod 自动加上另外一个与调度相关的字段，叫作 tolerations。这个字段意味着这个 Pod，会”容忍”（Toleration）某些 Node 的”污点”（Taint）。</p>
+<p>而 DaemonSet 自动加上的 tolerations 字段，格式如下所示：</p>
+<pre class="line-numbers language-yaml" data-language="yaml"><code class="language-yaml"><span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> v1
+<span class="token key atrule">kind</span><span class="token punctuation">:</span> Pod
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> with<span class="token punctuation">-</span>toleration
+<span class="token key atrule">spec</span><span class="token punctuation">:</span>
+  <span class="token key atrule">tolerations</span><span class="token punctuation">:</span>
+  <span class="token punctuation">-</span> <span class="token key atrule">key</span><span class="token punctuation">:</span> node.kubernetes.io/unschedulable
+    <span class="token key atrule">operator</span><span class="token punctuation">:</span> Exists
+    <span class="token key atrule">effect</span><span class="token punctuation">:</span> NoSchedule<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>这个 Toleration 的含义是：”容忍”所有被标记为 unschedulable”污点”的 Node；”容忍”的效果是允许调度。</p>
+<blockquote>
+<p>备注：关于如何给一个 Node 标记上”污点”，以及这里具体的语法定义，我会在后面介绍调度器的时候做详细介绍。这里，你可以简单地把”污点”理解为一种特殊的 Label。</p>
+</blockquote>
+<p>而在正常情况下，被标记了 unschedulable”污点”的 Node，是不会有任何 Pod 被调度上去的（effect: NoSchedule）。可是，DaemonSet 自动地给被管理的 Pod 加上了这个特殊的 Toleration，就使得这些 Pod 可以忽略这个限制，继而保证每个节点上都会被调度一个 Pod。当然，如果这个节点有故障的话，这个 Pod 可能会启动失败，而 DaemonSet 则会始终尝试下去，直到 Pod 启动成功。</p>
+<p>这时，你应该可以猜到，我在前面介绍到的 <strong>DaemonSet 的”过人之处”，其实就是依靠 Toleration 实现的。</strong></p>
+<p>假如当前 DaemonSet 管理的，是一个网络插件的 Agent Pod，那么你就必须在这个 DaemonSet 的 YAML 文件里，给它的 Pod 模板加上一个能够”容忍”node.kubernetes.io/network-unavailable”污点”的 Toleration。正如下面这个例子所示：</p>
+<pre class="line-numbers language-yaml" data-language="yaml"><code class="language-yaml"><span class="token punctuation">...</span>
+<span class="token key atrule">template</span><span class="token punctuation">:</span>
+    <span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+      <span class="token key atrule">labels</span><span class="token punctuation">:</span>
+        <span class="token key atrule">name</span><span class="token punctuation">:</span> network<span class="token punctuation">-</span>plugin<span class="token punctuation">-</span>agent
+    <span class="token key atrule">spec</span><span class="token punctuation">:</span>
+      <span class="token key atrule">tolerations</span><span class="token punctuation">:</span>
+      <span class="token punctuation">-</span> <span class="token key atrule">key</span><span class="token punctuation">:</span> node.kubernetes.io/network<span class="token punctuation">-</span>unavailable
+        <span class="token key atrule">operator</span><span class="token punctuation">:</span> Exists
+        <span class="token key atrule">effect</span><span class="token punctuation">:</span> NoSchedule<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>在 Kubernetes 项目中，当一个节点的网络插件尚未安装时，这个节点就会被自动加上名为node.kubernetes.io/network-unavailable的”污点”。</p>
+<p><strong>而通过这样一个 Toleration，调度器在调度这个 Pod 的时候，就会忽略当前节点上的”污点”，从而成功地将网络插件的 Agent 组件调度到这台机器上启动起来。</strong></p>
+<p>这种机制，正是我们在部署 Kubernetes 集群的时候，能够先部署 Kubernetes 本身、再部署网络插件的根本原因：因为当时我们所创建的 Weave 的 YAML，实际上就是一个 DaemonSet。</p>
+<p>至此，通过上面这些内容，你应该能够明白， <strong>DaemonSet 其实是一个非常简单的控制器</strong> 。在它的控制循环中，只需要遍历所有节点，然后根据节点上是否有被管理 Pod 的情况，来决定是否要创建或者删除一个 Pod。</p>
+<p>只不过，在创建每个 Pod 的时候，DaemonSet 会自动给这个 Pod 加上一个 nodeAffinity，从而保证这个 Pod 只会在指定节点上启动。同时，它还会自动给这个 Pod 加上一个 Toleration，从而忽略节点的 unschedulable”污点”。</p>
+<p>当然， <strong>你也可以在 Pod 模板里加上更多种类的 Toleration，从而利用 DaemonSet 实现自己的目的。</strong> 比如，在这个 fluentd-elasticsearch DaemonSet 里，我就给它加上了这样的 Toleration：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">tolerations:
+- key: node-role.kubernetes.io/master
+  effect: NoSchedule<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span></span></code></pre>
+<p>这是因为在默认情况下，Kubernetes 集群不允许用户在 Master 节点部署 Pod。因为，Master 节点默认携带了一个叫作node-role.kubernetes.io/master的”污点”。所以，为了能在 Master 节点上部署 DaemonSet 的 Pod，我就必须让这个 Pod”容忍”这个”污点”。</p>
+<p>在理解了 DaemonSet 的工作原理之后，接下来我就通过一个具体的实践来帮你更深入地掌握 DaemonSet 的使用方法。</p>
+<blockquote>
+<p>备注：需要注意的是，在 Kubernetes v1.11 之前，由于调度器尚不完善，DaemonSet 是由 DaemonSet Controller 自行调度的，即它会直接设置 Pod 的 spec.nodename 字段，这样就可以跳过调度器了。但是，这样的做法很快就会被废除，所以在这里我也不推荐你再花时间学习这个流程了。</p>
+</blockquote>
+<p><strong>首先，创建这个 DaemonSet 对象：</strong></p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">kubectl create -f fluentd-elasticsearch.yaml<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>需要注意的是，在 DaemonSet 上，我们一般都应该加上 resources 字段，来限制它的 CPU 和内存使用，防止它占用过多的宿主机资源。</p>
+<p>而创建成功后，你就能看到，如果有 N 个节点，就会有 N 个 fluentd-elasticsearch Pod 在运行。比如在我们的例子里，会有两个 Pod，如下所示：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ kubectl get pod -n kube-system -l <span class="token assign-left variable">name</span><span class="token operator">=</span>fluentd-elasticsearch
+NAME                          READY     STATUS    RESTARTS   AGE
+fluentd-elasticsearch-dqfv9   <span class="token number">1</span>/1       Running   <span class="token number">0</span>          53m
+fluentd-elasticsearch-pf9z5   <span class="token number">1</span>/1       Running   <span class="token number">0</span>          53m<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span></span></code></pre>
+<p>而如果你此时通过 kubectl get 查看一下 Kubernetes 集群里的 DaemonSet 对象：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ kubectl get ds -n kube-system fluentd-elasticsearch
+NAME                    DESIRED   CURRENT   READY     UP-TO-DATE   AVAILABLE   NODE SELECTOR   AGE
+fluentd-elasticsearch   <span class="token number">2</span>         <span class="token number">2</span>         <span class="token number">2</span>         <span class="token number">2</span>            <span class="token number">2</span>           <span class="token operator">&lt;</span>none<span class="token operator">&gt;</span>          1h<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span></span></code></pre>
+<blockquote>
+<p>备注：Kubernetes 里比较长的 API 对象都有短名字，比如 DaemonSet 对应的是 ds，Deployment 对应的是 deploy。</p>
+</blockquote>
+<p>就会发现 DaemonSet 和 Deployment 一样，也有 DESIRED、CURRENT 等多个状态字段。这也就意味着，DaemonSet 可以像 Deployment 那样，进行版本管理。这个版本，可以使用 kubectl rollout history 看到：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ kubectl rollout <span class="token function">history</span> daemonset fluentd-elasticsearch -n kube-system
+daemonsets <span class="token string">"fluentd-elasticsearch"</span>
+REVISION  CHANGE-CAUSE
+<span class="token number">1</span>         <span class="token operator">&lt;</span>none<span class="token operator">&gt;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span></span></code></pre>
+<p><strong>接下来，我们来把这个 DaemonSet 的容器镜像版本到 v2.2.0：</strong></p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">kubectl <span class="token builtin class-name">set</span> image ds/fluentd-elasticsearch fluentd-elasticsearch<span class="token operator">=</span>k8s.gcr.io/fluentd-elasticsearch:v2.2.0 --record -n<span class="token operator">=</span>kube-system<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>这个 kubectl set image 命令里，第一个 fluentd-elasticsearch 是 DaemonSet 的名字，第二个 fluentd-elasticsearch 是容器的名字。</p>
+<p>这时候，我们可以使用 kubectl rollout status 命令看到这个”滚动更新”的过程，如下所示：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ kubectl rollout status ds/fluentd-elasticsearch -n kube-system
+Waiting <span class="token keyword">for</span> daemon <span class="token builtin class-name">set</span> <span class="token string">"fluentd-elasticsearch"</span> rollout to finish: <span class="token number">0</span> out of <span class="token number">2</span> new pods have been updated<span class="token punctuation">..</span>.
+Waiting <span class="token keyword">for</span> daemon <span class="token builtin class-name">set</span> <span class="token string">"fluentd-elasticsearch"</span> rollout to finish: <span class="token number">0</span> out of <span class="token number">2</span> new pods have been updated<span class="token punctuation">..</span>.
+Waiting <span class="token keyword">for</span> daemon <span class="token builtin class-name">set</span> <span class="token string">"fluentd-elasticsearch"</span> rollout to finish: <span class="token number">1</span> of <span class="token number">2</span> updated pods are available<span class="token punctuation">..</span>.
+daemon <span class="token builtin class-name">set</span> <span class="token string">"fluentd-elasticsearch"</span> successfully rolled out<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>注意，由于这一次我在升级命令后面加上了–record 参数，所以这次升级使用到的指令就会自动出现在 DaemonSet 的 rollout history 里面，如下所示：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ kubectl rollout <span class="token function">history</span> daemonset fluentd-elasticsearch -n kube-system
+daemonsets <span class="token string">"fluentd-elasticsearch"</span>
+REVISION  CHANGE-CAUSE
+<span class="token number">1</span>         <span class="token operator">&lt;</span>none<span class="token operator">&gt;</span>
+<span class="token number">2</span>         kubectl <span class="token builtin class-name">set</span> image ds/fluentd-elasticsearch fluentd-elasticsearch<span class="token operator">=</span>k8s.gcr.io/fluentd-elasticsearch:v2.2.0 --namespace<span class="token operator">=</span>kube-system --record<span class="token operator">=</span>true<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>有了版本号，你也就可以像 Deployment 一样，将 DaemonSet 回滚到某个指定的历史版本了。</p>
+<p>而我在前面的文章中讲解 Deployment 对象的时候，曾经提到过，Deployment 管理这些版本，靠的是”一个版本对应一个 ReplicaSet 对象”。可是，DaemonSet 控制器操作的直接就是 Pod，不可能有 ReplicaSet 这样的对象参与其中。 <strong>那么，它的这些版本又是如何维护的呢？</strong></p>
+<p>所谓，一切皆对象！</p>
+<p>在 Kubernetes 项目中，任何你觉得需要记录下来的状态，都可以被用 API 对象的方式实现。当然，”版本”也不例外。</p>
+<p>Kubernetes v1.7 之后添加了一个 API 对象，名叫 <strong>ControllerRevision</strong> ，专门用来记录某种 Controller 对象的版本。比如，你可以通过如下命令查看 fluentd-elasticsearch 对应的 ControllerRevision：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ kubectl get controllerrevision -n kube-system -l <span class="token assign-left variable">name</span><span class="token operator">=</span>fluentd-elasticsearch
+NAME                               CONTROLLER                             REVISION   AGE
+fluentd-elasticsearch-64dc6799c9   daemonset.apps/fluentd-elasticsearch   <span class="token number">2</span>          1h<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span></span></code></pre>
+<p>而如果你使用 kubectl describe 查看这个 ControllerRevision 对象：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ kubectl describe controllerrevision fluentd-elasticsearch-64dc6799c9 -n kube-system
+Name:         fluentd-elasticsearch-64dc6799c9
+Namespace:    kube-system
+Labels:       controller-revision-hash<span class="token operator">=</span><span class="token number">2087235575</span>
+              <span class="token assign-left variable">name</span><span class="token operator">=</span>fluentd-elasticsearch
+Annotations:  deprecated.daemonset.template.generation<span class="token operator">=</span><span class="token number">2</span>
+              kubernetes.io/change-cause<span class="token operator">=</span>kubectl <span class="token builtin class-name">set</span> image ds/fluentd-elasticsearch fluentd-elasticsearch<span class="token operator">=</span>k8s.gcr.io/fluentd-elasticsearch:v2.2.0 --record<span class="token operator">=</span>true --namespace<span class="token operator">=</span>kube-system
+API Version:  apps/v1
+Data:
+  Spec:
+    Template:
+      $ Patch:  replace
+      Metadata:
+        Creation Timestamp:  <span class="token operator">&lt;</span>nil<span class="token operator">&gt;</span>
+        Labels:
+          Name:  fluentd-elasticsearch
+      Spec:
+        Containers:
+          Image:              k8s.gcr.io/fluentd-elasticsearch:v2.2.0
+          Image Pull Policy:  IfNotPresent
+          Name:               fluentd-elasticsearch
+<span class="token punctuation">..</span>.
+Revision:                  <span class="token number">2</span>
+Events:                    <span class="token operator">&lt;</span>none<span class="token operator">&gt;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>就会看到，这个 ControllerRevision 对象，实际上是在 Data 字段保存了该版本对应的完整的 DaemonSet 的 API 对象。并且，在 Annotation 字段保存了创建这个对象所使用的 kubectl 命令。</p>
+<p>接下来，我们可以尝试将这个 DaemonSet 回滚到 Revision=1 时的状态：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ kubectl rollout undo daemonset fluentd-elasticsearch --to-revision<span class="token operator">=</span><span class="token number">1</span> -n kube-system
+daemonset.extensions/fluentd-elasticsearch rolled back<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre>
+<p>这个 kubectl rollout undo 操作，实际上相当于读取到了 Revision=1 的 ControllerRevision 对象保存的 Data 字段。而这个 Data 字段里保存的信息，就是 Revision=1 时这个 DaemonSet 的完整 API 对象。</p>
+<p>所以，现在 DaemonSet Controller 就可以使用这个历史 API 对象，对现有的 DaemonSet 做一次 PATCH 操作（等价于执行一次 kubectl apply -f “旧的 DaemonSet 对象”），从而把这个 DaemonSet”更新”到一个旧版本。</p>
+<p>这也是为什么，在执行完这次回滚完成后，你会发现，DaemonSet 的 Revision 并不会从 Revision=2 退回到 1，而是会增加成 Revision=3。这是因为，一个新的 ControllerRevision 被创建了出来。</p>
+<h4 id="21-1-总结"><a href="#21-1-总结" class="headerlink" title="21.1 总结"></a>21.1 总结</h4><p>相比于 Deployment，DaemonSet 只管理 Pod 对象，然后通过 nodeAffinity 和 Toleration 这两个调度器的小功能，保证了每个节点上有且只有一个 Pod。这个控制器的实现原理简单易懂，希望你能够快速掌握。</p>
+<p>与此同时，DaemonSet 使用 ControllerRevision，来保存和管理自己对应的”版本”。这种”面向 API 对象”的设计思路，大大简化了控制器本身的逻辑，也正是 Kubernetes 项目”声明式 API”的优势所在。</p>
+<p>而且，相信聪明的你此时已经想到了，StatefulSet 也是直接控制 Pod 对象的，那么它是不是也在使用 ControllerRevision 进行版本管理呢？</p>
+<p>没错。在 Kubernetes 项目里，ControllerRevision 其实是一个通用的版本管理对象。这样，Kubernetes 项目就巧妙地避免了每种控制器都要维护一套冗余的代码和逻辑的问题。</p>
+<h3 id="22-撬动离线业务：Job与CronJob"><a href="#22-撬动离线业务：Job与CronJob" class="headerlink" title="22 | 撬动离线业务：Job与CronJob"></a>22 | 撬动离线业务：Job与CronJob</h3><p>在前面的几篇文章中，我和你详细分享了 Deployment、StatefulSet，以及 DaemonSet 这三个编排概念。你有没有发现它们的共同之处呢？</p>
+<p>实际上，它们主要编排的对象，都是”在线业务”，即：Long Running Task（长作业）。比如，我在前面举例时常用的 Nginx、Tomcat，以及 MySQL 等等。这些应用一旦运行起来，除非出错或者停止，它的容器进程会一直保持在 Running 状态。</p>
+<p>但是，有一类作业显然不满足这样的条件，这就是”离线业务”，或者叫作 Batch Job（计算业务）。这种业务在计算完成后就直接退出了，而此时如果你依然用 Deployment 来管理这种业务的话，就会发现 Pod 会在计算结束后退出，然后被 Deployment Controller 不断地重启；而像”滚动更新”这样的编排功能，更无从谈起了。</p>
+<p>所以，早在 Borg 项目中，Google 就已经对作业进行了分类处理，提出了 LRS（Long Running Service）和 Batch Jobs 两种作业形态，对它们进行”分别管理”和”混合调度”。</p>
+<p>不过，在 2015 年 Borg 论文刚刚发布的时候，Kubernetes 项目并不支持对 Batch Job 的管理。直到 v1.4 版本之后，社区才逐步设计出了一个用来描述离线业务的 API 对象，它的名字就是：Job。</p>
+<p><strong>Job API 对象的定义非常简单，我来举个例子</strong> ，如下所示：</p>
+<pre class="line-numbers language-yaml" data-language="yaml"><code class="language-yaml"><span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> batch/v1
+<span class="token key atrule">kind</span><span class="token punctuation">:</span> Job
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> pi
+<span class="token key atrule">spec</span><span class="token punctuation">:</span>
+  <span class="token key atrule">template</span><span class="token punctuation">:</span>
+    <span class="token key atrule">spec</span><span class="token punctuation">:</span>
+      <span class="token key atrule">containers</span><span class="token punctuation">:</span>
+      <span class="token punctuation">-</span> <span class="token key atrule">name</span><span class="token punctuation">:</span> pi
+        <span class="token key atrule">image</span><span class="token punctuation">:</span> resouer/ubuntu<span class="token punctuation">-</span>bc
+        <span class="token key atrule">command</span><span class="token punctuation">:</span> <span class="token punctuation">[</span><span class="token string">"sh"</span><span class="token punctuation">,</span> <span class="token string">"-c"</span><span class="token punctuation">,</span> <span class="token string">"echo 'scale=10000; 4*a(1)' | bc -l "</span><span class="token punctuation">]</span>
+      <span class="token key atrule">restartPolicy</span><span class="token punctuation">:</span> Never
+  <span class="token key atrule">backoffLimit</span><span class="token punctuation">:</span> <span class="token number">4</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>此时，相信你对 Kubernetes 的 API 对象已经不再陌生了。在这个 Job 的 YAML 文件里，你肯定一眼就会看到一位”老熟人”：Pod 模板，即 spec.template 字段。</p>
+<p>在这个 Pod 模板中，我定义了一个 Ubuntu 镜像的容器（准确地说，是一个安装了 bc 命令的 Ubuntu 镜像），它运行的程序是：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token builtin class-name">echo</span> <span class="token string">"scale=10000; 4*a(1)"</span> <span class="token operator">|</span> <span class="token function">bc</span> -l<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>其中，bc 命令是 Linux 里的”计算器”；-l 表示，我现在要使用标准数学库；而 a(1)，则是调用数学库中的 arctangent 函数，计算 atan(1)。这是什么意思呢？</p>
+<p>中学知识告诉我们：tan(π/4) = 1。所以，4*atan(1)正好就是π，也就是 3.1415926…。</p>
+<p>所以，这其实就是一个计算π值的容器。而通过 scale=10000，我指定了输出的小数点后的位数是 10000。在我的计算机上，这个计算大概用时 1 分 54 秒。</p>
+<p>但是，跟其他控制器不同的是，Job 对象并不要求你定义一个 spec.selector 来描述要控制哪些 Pod。具体原因，我马上会讲解到。</p>
+<p>现在，我们就可以创建这个 Job 了：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">kubectl create -f job.yaml<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>在成功创建后，我们来查看一下这个 Job 对象，如下所示：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ kubectl describe jobs/pi
+Name:             pi
+Namespace:        default
+Selector:         controller-uid<span class="token operator">=</span>c2db599a-2c9d-11e6-b324-0209dc45a495
+Labels:           controller-uid<span class="token operator">=</span>c2db599a-2c9d-11e6-b324-0209dc45a495
+                  job-name<span class="token operator">=</span>pi
+Annotations:      <span class="token operator">&lt;</span>none<span class="token operator">&gt;</span>
+Parallelism:      <span class="token number">1</span>
+Completions:      <span class="token number">1</span>
+<span class="token punctuation">..</span>
+Pods Statuses:    <span class="token number">0</span> Running / <span class="token number">1</span> Succeeded / <span class="token number">0</span> Failed
+Pod Template:
+  Labels:       controller-uid<span class="token operator">=</span>c2db599a-2c9d-11e6-b324-0209dc45a495
+                job-name<span class="token operator">=</span>pi
+  Containers:
+   <span class="token punctuation">..</span>.
+  Volumes:              <span class="token operator">&lt;</span>none<span class="token operator">&gt;</span>
+Events:
+  FirstSeen    LastSeen    Count    From            SubobjectPath    Type        Reason            Message
+  ---------    --------    -----    ----            -------------    --------    ------            -------
+  1m           1m          <span class="token number">1</span>        <span class="token punctuation">{</span>job-controller <span class="token punctuation">}</span>                Normal      SuccessfulCreate  Created pod: pi-rq5rl<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>可以看到，这个 Job 对象在创建后，它的 Pod 模板，被自动加上了一个 controller-uid=&lt; 一个随机字符串 &gt; 这样的 Label。而这个 Job 对象本身，则被自动加上了这个 Label 对应的 Selector，从而 保证了 Job 与它所管理的 Pod 之间的匹配关系。</p>
+<p>而 Job Controller 之所以要使用这种携带了 UID 的 Label，就是为了避免不同 Job 对象所管理的 Pod 发生重合。需要注意的是， <strong>这种自动生成的 Label 对用户来说并不友好，所以不太适合推广到 Deployment 等长作业编排对象上。</strong></p>
+<p>接下来，我们可以看到这个 Job 创建的 Pod 进入了 Running 状态，这意味着它正在计算 Pi 的值。</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ kubectl get pods
+NAME                                READY     STATUS    RESTARTS   AGE
+pi-rq5rl                            <span class="token number">1</span>/1       Running   <span class="token number">0</span>          10s<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span></span></code></pre>
+<p>而几分钟后计算结束，这个 Pod 就会进入 Completed 状态：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ kubectl get pods
+NAME                                READY     STATUS      RESTARTS   AGE
+pi-rq5rl                            <span class="token number">0</span>/1       Completed   <span class="token number">0</span>          4m<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span></span></code></pre>
+<p>这也是我们需要在 Pod 模板中定义 restartPolicy=Never 的原因：离线计算的 Pod 永远都不应该被重启，否则它们会再重新计算一遍。</p>
+<blockquote>
+<p>事实上，restartPolicy 在 Job 对象里只允许被设置为 Never 和 OnFailure；而在 Deployment 对象里，restartPolicy 则只允许被设置为 Always。</p>
+</blockquote>
+<p>此时，我们通过 kubectl logs 查看一下这个 Pod 的日志，就可以看到计算得到的 Pi 值已经被打印了出来：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ kubectl logs pi-rq5rl
+<span class="token number">3.141592653589793238462643383279</span><span class="token punctuation">..</span>.<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre>
+<p>这时候，你一定会想到这样一个问题， <strong>如果这个离线作业失败了要怎么办？</strong></p>
+<p>比如，我们在这个例子中 <strong>定义了 restartPolicy=Never，那么离线作业失败后 Job Controller 就会不断地尝试创建一个新 Pod</strong> ，如下所示：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ kubectl get pods
+NAME                                READY     STATUS              RESTARTS   AGE
+pi-55h89                            <span class="token number">0</span>/1       ContainerCreating   <span class="token number">0</span>          2s
+pi-tqbcz                            <span class="token number">0</span>/1       Error               <span class="token number">0</span>          5s<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span></span></code></pre>
+<p>可以看到，这时候会不断地有新 Pod 被创建出来。</p>
+<p>当然，这个尝试肯定不能无限进行下去。所以，我们就在 Job 对象的 spec.backoffLimit 字段里定义了重试次数为 4（即，backoffLimit=4），而这个字段的默认值是 6。</p>
+<p>需要注意的是，Job Controller 重新创建 Pod 的间隔是呈指数增加的，即下一次重新创建 Pod 的动作会分别发生在 10 s、20 s、40 s …后。</p>
+<p>而如果你 <strong>定义的 restartPolicy=OnFailure，那么离线作业失败后，Job Controller 就不会去尝试创建新的 Pod。但是，它会不断地尝试重启 Pod 里的容器。</strong> 这也正好对应了 restartPolicy 的含义。</p>
+<p>如前所述，当一个 Job 的 Pod 运行结束后，它会进入 Completed 状态。但是，如果这个 Pod 因为某种原因一直不肯结束呢？</p>
+<p>在 Job 的 API 对象里，有一个 spec.activeDeadlineSeconds 字段可以设置最长运行时间，比如：</p>
+<pre class="line-numbers language-yaml" data-language="yaml"><code class="language-yaml"><span class="token key atrule">spec</span><span class="token punctuation">:</span>
+ <span class="token key atrule">backoffLimit</span><span class="token punctuation">:</span> <span class="token number">5</span>
+ <span class="token key atrule">activeDeadlineSeconds</span><span class="token punctuation">:</span> <span class="token number">100</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span></span></code></pre>
+<p>一旦运行超过了 100 s，这个 Job 的所有 Pod 都会被终止。并且，你可以在 Pod 的状态里看到终止的原因是 reason: DeadlineExceeded。</p>
+<p>以上，就是一个 Job API 对象最主要的概念和用法了。不过，离线业务之所以被称为 Batch Job，当然是因为它们可以以”Batch”，也就是并行的方式去运行。</p>
+<p>接下来，我就来为你讲解一下 <strong>Job Controller 对并行作业的控制方法。</strong></p>
+<p>在 Job 对象中，负责并行控制的参数有两个：</p>
+<p>spec.parallelism，它定义的是一个 Job 在任意时间最多可以启动多少个 Pod 同时运行；</p>
+<p>spec.completions，它定义的是 Job 至少要完成的 Pod 数目，即 Job 的最小完成数。</p>
+<p>这两个参数听起来有点儿抽象，所以我准备了一个例子来帮助你理解。</p>
+<p>现在，我在之前计算 Pi 值的 Job 里，添加这两个参数：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">apiVersion: batch/v1
+kind: Job
+metadata:
+  name: pi
+spec:
+  parallelism: <span class="token number">2</span>
+  completions: <span class="token number">4</span>
+  template:
+    spec:
+      containers:
+      - name: pi
+        image: resouer/ubuntu-bc
+        command: <span class="token punctuation">[</span><span class="token string">"sh"</span>, <span class="token string">"-c"</span>, <span class="token string">"echo 'scale=5000; 4*a(1)' | bc -l "</span><span class="token punctuation">]</span>
+      restartPolicy: Never
+  backoffLimit: <span class="token number">4</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>这样，我们就指定了这个 Job 最大的并行数是 2，而最小的完成数是 4。</p>
+<p>接下来，我们来创建这个 Job 对象：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">kubectl create -f job.yaml<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>可以看到，这个 Job 其实也维护了两个状态字段，即 DESIRED 和 SUCCESSFUL，如下所示：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ kubectl get job
+NAME      DESIRED   SUCCESSFUL   AGE
+pi        <span class="token number">4</span>         <span class="token number">0</span>            3s<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span></span></code></pre>
+<p>其中，DESIRED 的值，正是 completions 定义的最小完成数。</p>
+<p>然后，我们可以看到，这个 Job 首先创建了两个并行运行的 Pod 来计算 Pi：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ kubectl get pods
+NAME       READY     STATUS    RESTARTS   AGE
+pi-5mt88   <span class="token number">1</span>/1       Running   <span class="token number">0</span>          6s
+pi-gmcq5   <span class="token number">1</span>/1       Running   <span class="token number">0</span>          6s<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span></span></code></pre>
+<p>而在 40 s 后，这两个 Pod 相继完成计算。</p>
+<p>这时我们可以看到，每当有一个 Pod 完成计算进入 Completed 状态时，就会有一个新的 Pod 被自动创建出来，并且快速地从 Pending 状态进入到 ContainerCreating 状态：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ kubectl get pods
+NAME       READY     STATUS    RESTARTS   AGE
+pi-gmcq5   <span class="token number">0</span>/1       Completed   <span class="token number">0</span>         40s
+pi-84ww8   <span class="token number">0</span>/1       Pending   <span class="token number">0</span>         0s
+pi-5mt88   <span class="token number">0</span>/1       Completed   <span class="token number">0</span>         41s
+pi-62rbt   <span class="token number">0</span>/1       Pending   <span class="token number">0</span>         0s
+
+$ kubectl get pods
+NAME       READY     STATUS    RESTARTS   AGE
+pi-gmcq5   <span class="token number">0</span>/1       Completed   <span class="token number">0</span>         40s
+pi-84ww8   <span class="token number">0</span>/1       ContainerCreating   <span class="token number">0</span>         0s
+pi-5mt88   <span class="token number">0</span>/1       Completed   <span class="token number">0</span>         41s
+pi-62rbt   <span class="token number">0</span>/1       ContainerCreating   <span class="token number">0</span>         0s<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>紧接着，Job Controller 第二次创建出来的两个并行的 Pod 也进入了 Running 状态：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ kubectl get pods
+NAME       READY     STATUS      RESTARTS   AGE
+pi-5mt88   <span class="token number">0</span>/1       Completed   <span class="token number">0</span>          54s
+pi-62rbt   <span class="token number">1</span>/1       Running     <span class="token number">0</span>          13s
+pi-84ww8   <span class="token number">1</span>/1       Running     <span class="token number">0</span>          14s
+pi-gmcq5   <span class="token number">0</span>/1       Completed   <span class="token number">0</span>          54s<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>最终，后面创建的这两个 Pod 也完成了计算，进入了 Completed 状态。</p>
+<p>这时，由于所有的 Pod 均已经成功退出，这个 Job 也就执行完了，所以你会看到它的 SUCCESSFUL 字段的值变成了 4：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ kubectl get pods
+NAME       READY     STATUS      RESTARTS   AGE
+pi-5mt88   <span class="token number">0</span>/1       Completed   <span class="token number">0</span>          5m
+pi-62rbt   <span class="token number">0</span>/1       Completed   <span class="token number">0</span>          4m
+pi-84ww8   <span class="token number">0</span>/1       Completed   <span class="token number">0</span>          4m
+pi-gmcq5   <span class="token number">0</span>/1       Completed   <span class="token number">0</span>          5m
+
+$ kubectl get job
+NAME      DESIRED   SUCCESSFUL   AGE
+pi        <span class="token number">4</span>         <span class="token number">4</span>            5m<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>通过上述 Job 的 DESIRED 和 SUCCESSFUL 字段的关系，我们就可以很容易地理解 <strong>Job Controller 的工作原理</strong> 了。</p>
+<p>首先，Job Controller 控制的对象，直接就是 Pod。</p>
+<p>其次，Job Controller 在控制循环中进行的调谐（Reconcile）操作，是根据实际在 Running 状态 Pod 的数目、已经成功退出的 Pod 的数目，以及 parallelism、completions 参数的值共同计算出在这个周期里，应该创建或者删除的 Pod 数目，然后调用 Kubernetes API 来执行这个操作。</p>
+<p>以创建 Pod 为例。在上面计算 Pi 值的这个例子中，当 Job 一开始创建出来时，实际处于 Running 状态的 Pod 数目 =0，已经成功退出的 Pod 数目 =0，而用户定义的 completions，也就是最终用户需要的 Pod 数目 =4。</p>
+<p>所以，在这个时刻，需要创建的 Pod 数目 = 最终需要的 Pod 数目 - 实际在 Running 状态 Pod 数目 - 已经成功退出的 Pod 数目 = 4 - 0 - 0= 4。也就是说，Job Controller 需要创建 4 个 Pod 来纠正这个不一致状态。</p>
+<p>可是，我们又定义了这个 Job 的 parallelism=2。也就是说，我们规定了每次并发创建的 Pod 个数不能超过 2 个。所以，Job Controller 会对前面的计算结果做一个修正，修正后的期望创建的 Pod 数目应该是：2 个。</p>
+<p>这时候，Job Controller 就会并发地向 kube-apiserver 发起两个创建 Pod 的请求。</p>
+<p>类似地，如果在这次调谐周期里，Job Controller 发现实际在 Running 状态的 Pod 数目，比 parallelism 还大，那么它就会删除一些 Pod，使两者相等。</p>
+<p>综上所述，Job Controller 实际上控制了，作业执行的 <strong>并行度</strong> ，以及总共需要完成的 <strong>任务数</strong> 这两个重要参数。而在实际使用时，你需要根据作业的特性，来决定并行度（parallelism）和任务数（completions）的合理取值。</p>
+<p>接下来， <strong>我再和你分享三种常用的、使用 Job 对象的方法。</strong></p>
+<ol>
+<li><p><strong>第一种用法，也是最简单粗暴的用法：外部管理器 +Job 模板。</strong></p>
+<p> 这种模式的特定用法是：把 Job 的 YAML 文件定义为一个”模板”，然后用一个外部工具控制这些”模板”来生成 Job。这时，Job 的定义方式如下所示：</p>
+ <pre class="line-numbers language-yaml" data-language="yaml"><code class="language-yaml"><span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> batch/v1
+<span class="token key atrule">kind</span><span class="token punctuation">:</span> Job
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+<span class="token key atrule">name</span><span class="token punctuation">:</span> process<span class="token punctuation">-</span>item<span class="token punctuation">-</span>$ITEM
+<span class="token key atrule">labels</span><span class="token punctuation">:</span>
+    <span class="token key atrule">jobgroup</span><span class="token punctuation">:</span> jobexample
+<span class="token key atrule">spec</span><span class="token punctuation">:</span>
+<span class="token key atrule">template</span><span class="token punctuation">:</span>
+    <span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+    <span class="token key atrule">name</span><span class="token punctuation">:</span> jobexample
+    <span class="token key atrule">labels</span><span class="token punctuation">:</span>
+        <span class="token key atrule">jobgroup</span><span class="token punctuation">:</span> jobexample
+    <span class="token key atrule">spec</span><span class="token punctuation">:</span>
+    <span class="token key atrule">containers</span><span class="token punctuation">:</span>
+    <span class="token punctuation">-</span> <span class="token key atrule">name</span><span class="token punctuation">:</span> c
+        <span class="token key atrule">image</span><span class="token punctuation">:</span> busybox
+        <span class="token key atrule">command</span><span class="token punctuation">:</span> <span class="token punctuation">[</span><span class="token string">"sh"</span><span class="token punctuation">,</span> <span class="token string">"-c"</span><span class="token punctuation">,</span> <span class="token string">"echo Processing item $ITEM &amp;&amp; sleep 5"</span><span class="token punctuation">]</span>
+    <span class="token key atrule">restartPolicy</span><span class="token punctuation">:</span> Never<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p> 可以看到，我们在这个 Job 的 YAML 里，定义了 $ITEM 这样的”变量”。</p>
+<p> 所以，在控制这种 Job 时，我们只要注意如下两个方面即可：</p>
+<ol>
+<li>创建 Job 时，替换掉 $ITEM 这样的变量；</li>
+<li><p>所有来自于同一个模板的 Job，都有一个 jobgroup: jobexample 标签，也就是说这一组 Job 使用这样一个相同的标识。</p>
+<p>而做到第一点非常简单。比如，你可以通过这样一句 shell 把 $ITEM 替换掉：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ <span class="token function">mkdir</span> ./jobs
+$ <span class="token keyword">for</span> <span class="token for-or-select variable">i</span> <span class="token keyword">in</span> apple banana cherry
+<span class="token keyword">do</span>
+<span class="token function">cat</span> job-tmpl.yaml <span class="token operator">|</span> <span class="token function">sed</span> <span class="token string">"s/\<span class="token variable">$ITEM</span>/<span class="token variable">$i</span>/"</span> <span class="token operator">&gt;</span> ./jobs/job-<span class="token variable">$i</span>.yaml
+<span class="token keyword">done</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>这样，一组来自于同一个模板的不同 Job 的 yaml 就生成了。接下来，你就可以通过一句 kubectl create 指令创建这些 Job 了：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ kubectl create -f ./jobs
+$ kubectl get pods -l <span class="token assign-left variable">jobgroup</span><span class="token operator">=</span>jobexample
+NAME                        READY     STATUS      RESTARTS   AGE
+process-item-apple-kixwv    <span class="token number">0</span>/1       Completed   <span class="token number">0</span>          4m
+process-item-banana-wrsf7   <span class="token number">0</span>/1       Completed   <span class="token number">0</span>          4m
+process-item-cherry-dnfu9   <span class="token number">0</span>/1       Completed   <span class="token number">0</span>          4m<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>这个模式看起来虽然很”傻”，但却是 Kubernetes 社区里使用 Job 的一个很普遍的模式。</p>
+<p>原因很简单：大多数用户在需要管理 Batch Job 的时候，都已经有了一套自己的方案，需要做的往往就是集成工作。这时候，Kubernetes 项目对这些方案来说最有价值的，就是 Job 这个 API 对象。所以，你只需要编写一个外部工具（等同于我们这里的 for 循环）来管理这些 Job 即可。</p>
+<p>这种模式最典型的应用，就是 TensorFlow 社区的 KubeFlow 项目。</p>
+<p>很容易理解，在这种模式下使用 Job 对象，completions 和 parallelism 这两个字段都应该使用默认值 1，而不应该由我们自行设置。而作业 Pod 的并行控制，应该完全交由外部工具来进行管理（比如，KubeFlow）。</p>
+</li>
+</ol>
+</li>
+<li><p><strong>第二种用法：拥有固定任务数目的并行 Job。</strong></p>
+<p> 这种模式下，我只关心最后是否有指定数目（spec.completions）个任务成功退出。至于执行时的并行度是多少，我并不关心。</p>
+<p> 比如，我们这个计算 Pi 值的例子，就是这样一个典型的、拥有固定任务数目（completions=4）的应用场景。 它的 parallelism 值是 2；或者，你可以干脆不指定 parallelism，直接使用默认的并行度（即：1）。</p>
+<p> 此外，你还可以使用一个工作队列（Work Queue）进行任务分发。这时，Job 的 YAML 文件定义如下所示：</p>
+ <pre class="line-numbers language-yaml" data-language="yaml"><code class="language-yaml"><span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> batch/v1
+<span class="token key atrule">kind</span><span class="token punctuation">:</span> Job
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+<span class="token key atrule">name</span><span class="token punctuation">:</span> job<span class="token punctuation">-</span>wq<span class="token punctuation">-</span><span class="token number">1</span>
+<span class="token key atrule">spec</span><span class="token punctuation">:</span>
+<span class="token key atrule">completions</span><span class="token punctuation">:</span> <span class="token number">8</span>
+<span class="token key atrule">parallelism</span><span class="token punctuation">:</span> <span class="token number">2</span>
+<span class="token key atrule">template</span><span class="token punctuation">:</span>
+    <span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+    <span class="token key atrule">name</span><span class="token punctuation">:</span> job<span class="token punctuation">-</span>wq<span class="token punctuation">-</span><span class="token number">1</span>
+    <span class="token key atrule">spec</span><span class="token punctuation">:</span>
+    <span class="token key atrule">containers</span><span class="token punctuation">:</span>
+    <span class="token punctuation">-</span> <span class="token key atrule">name</span><span class="token punctuation">:</span> c
+        <span class="token key atrule">image</span><span class="token punctuation">:</span> myrepo/job<span class="token punctuation">-</span>wq<span class="token punctuation">-</span><span class="token number">1</span>
+        <span class="token key atrule">env</span><span class="token punctuation">:</span>
+        <span class="token punctuation">-</span> <span class="token key atrule">name</span><span class="token punctuation">:</span> BROKER_URL
+        <span class="token key atrule">value</span><span class="token punctuation">:</span> amqp<span class="token punctuation">:</span>//guest<span class="token punctuation">:</span>guest@rabbitmq<span class="token punctuation">-</span>service<span class="token punctuation">:</span><span class="token number">5672</span>
+        <span class="token punctuation">-</span> <span class="token key atrule">name</span><span class="token punctuation">:</span> QUEUE
+        <span class="token key atrule">value</span><span class="token punctuation">:</span> job1
+    <span class="token key atrule">restartPolicy</span><span class="token punctuation">:</span> OnFailure<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p> 我们可以看到，它的 completions 的值是：8，这意味着我们总共要处理的任务数目是 8 个。也就是说，总共会有 8 个任务会被逐一放入工作队列里（你可以运行一个外部小程序作为生产者，来提交任务）。</p>
+<p> 在这个实例中，我选择充当工作队列的是一个运行在 Kubernetes 里的 RabbitMQ。所以，我们需要在 Pod 模板里定义 BROKER_URL，来作为消费者。</p>
+<p> 所以，一旦你用 kubectl create 创建了这个 Job，它就会以并发度为 2 的方式，每两个 Pod 一组，创建出 8 个 Pod。每个 Pod 都会去连接 BROKER_URL，从 RabbitMQ 里读取任务，然后各自进行处理。这个 Pod 里的执行逻辑，我们可以用这样一段伪代码来表示：</p>
+ <pre class="line-numbers language-go" data-language="go"><code class="language-go"><span class="token comment">/* job-wq-1 的伪代码 */</span>
+queue <span class="token operator">:=</span> <span class="token function">newQueue</span><span class="token punctuation">(</span>$BROKER_URL<span class="token punctuation">,</span> $QUEUE<span class="token punctuation">)</span>
+task <span class="token operator">:=</span> queue<span class="token punctuation">.</span><span class="token function">Pop</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+<span class="token function">process</span><span class="token punctuation">(</span>task<span class="token punctuation">)</span>
+exit<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p> 可以看到，每个 Pod 只需要将任务信息读取出来，处理完成，然后退出即可。而作为用户，我只关心最终一共有 8 个计算任务启动并且退出，只要这个目标达到，我就认为整个 Job 处理完成了。所以说，这种用法，对应的就是”任务总数固定”的场景。</p>
+</li>
+<li><p><strong>第三种用法，也是很常用的一个用法：指定并行度（parallelism），但不设置固定的 completions 的值。</strong></p>
+<p> 此时，你就必须自己想办法，来决定什么时候启动新 Pod，什么时候 Job 才算执行完成。在这种情况下，任务的总数是未知的，所以你不仅需要一个工作队列来负责任务分发，还需要能够判断工作队列已经为空（即：所有的工作已经结束了）。</p>
+<p> 这时候，Job 的定义基本上没变化，只不过是不再需要定义 completions 的值了而已：</p>
+ <pre class="line-numbers language-yaml" data-language="yaml"><code class="language-yaml"><span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> batch/v1
+<span class="token key atrule">kind</span><span class="token punctuation">:</span> Job
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+<span class="token key atrule">name</span><span class="token punctuation">:</span> job<span class="token punctuation">-</span>wq<span class="token punctuation">-</span><span class="token number">2</span>
+<span class="token key atrule">spec</span><span class="token punctuation">:</span>
+<span class="token key atrule">parallelism</span><span class="token punctuation">:</span> <span class="token number">2</span>
+<span class="token key atrule">template</span><span class="token punctuation">:</span>
+    <span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+    <span class="token key atrule">name</span><span class="token punctuation">:</span> job<span class="token punctuation">-</span>wq<span class="token punctuation">-</span><span class="token number">2</span>
+    <span class="token key atrule">spec</span><span class="token punctuation">:</span>
+    <span class="token key atrule">containers</span><span class="token punctuation">:</span>
+    <span class="token punctuation">-</span> <span class="token key atrule">name</span><span class="token punctuation">:</span> c
+        <span class="token key atrule">image</span><span class="token punctuation">:</span> gcr.io/myproject/job<span class="token punctuation">-</span>wq<span class="token punctuation">-</span><span class="token number">2</span>
+        <span class="token key atrule">env</span><span class="token punctuation">:</span>
+        <span class="token punctuation">-</span> <span class="token key atrule">name</span><span class="token punctuation">:</span> BROKER_URL
+        <span class="token key atrule">value</span><span class="token punctuation">:</span> amqp<span class="token punctuation">:</span>//guest<span class="token punctuation">:</span>guest@rabbitmq<span class="token punctuation">-</span>service<span class="token punctuation">:</span><span class="token number">5672</span>
+        <span class="token punctuation">-</span> <span class="token key atrule">name</span><span class="token punctuation">:</span> QUEUE
+        <span class="token key atrule">value</span><span class="token punctuation">:</span> job2
+    <span class="token key atrule">restartPolicy</span><span class="token punctuation">:</span> OnFailure<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p> 而对应的 Pod 的逻辑会稍微复杂一些，我可以用这样一段伪代码来描述：</p>
+ <pre class="line-numbers language-go" data-language="go"><code class="language-go"><span class="token comment">/* job-wq-2 的伪代码 */</span>
+<span class="token keyword">for</span> <span class="token operator">!</span>queue<span class="token punctuation">.</span><span class="token function">IsEmpty</span><span class="token punctuation">(</span>$BROKER_URL<span class="token punctuation">,</span> $QUEUE<span class="token punctuation">)</span> <span class="token punctuation">{</span>
+task <span class="token operator">:=</span> queue<span class="token punctuation">.</span><span class="token function">Pop</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+<span class="token function">process</span><span class="token punctuation">(</span>task<span class="token punctuation">)</span>
+<span class="token punctuation">}</span>
+<span class="token function">print</span><span class="token punctuation">(</span><span class="token string">"Queue empty, exiting"</span><span class="token punctuation">)</span>
+exit<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p> 由于任务数目的总数不固定，所以每一个 Pod 必须能够知道，自己什么时候可以退出。比如，在这个例子中，我简单地以”队列为空”，作为任务全部完成的标志。所以说，这种用法，对应的是”任务总数不固定”的场景。</p>
+<p> 不过，在实际的应用中，你需要处理的条件往往会非常复杂。比如，任务完成后的输出、每个任务 Pod 之间是不是有资源的竞争和协同等等。</p>
+<p> 所以，在今天这篇文章中，我就不再展开 Job 的用法了。因为，在实际场景里，要么干脆就用第一种用法来自己管理作业；要么，这些任务 Pod 之间的关系就不那么”单纯”，甚至还是”有状态应用”（比如，任务的输入 / 输出是在持久化数据卷里）。在这种情况下，我在后面要重点讲解的 Operator，加上 Job 对象一起，可能才能更好的满足实际离线任务的编排需求。</p>
+</li>
+</ol>
+<p><strong>最后，我再来和你分享一个非常有用的 Job 对象，叫作：CronJob。</strong></p>
+<p>顾名思义，CronJob 描述的，正是定时任务。它的 API 对象，如下所示：</p>
+<pre class="line-numbers language-yaml" data-language="yaml"><code class="language-yaml"><span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> batch/v1beta1
+<span class="token key atrule">kind</span><span class="token punctuation">:</span> CronJob
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> hello
+<span class="token key atrule">spec</span><span class="token punctuation">:</span>
+  <span class="token key atrule">schedule</span><span class="token punctuation">:</span> <span class="token string">"*/1 * * * *"</span>
+  <span class="token key atrule">jobTemplate</span><span class="token punctuation">:</span>
+    <span class="token key atrule">spec</span><span class="token punctuation">:</span>
+      <span class="token key atrule">template</span><span class="token punctuation">:</span>
+        <span class="token key atrule">spec</span><span class="token punctuation">:</span>
+          <span class="token key atrule">containers</span><span class="token punctuation">:</span>
+          <span class="token punctuation">-</span> <span class="token key atrule">name</span><span class="token punctuation">:</span> hello
+            <span class="token key atrule">image</span><span class="token punctuation">:</span> busybox
+            <span class="token key atrule">args</span><span class="token punctuation">:</span>
+            <span class="token punctuation">-</span> /bin/sh
+            <span class="token punctuation">-</span> <span class="token punctuation">-</span>c
+            <span class="token punctuation">-</span> date; echo Hello from the Kubernetes cluster
+          <span class="token key atrule">restartPolicy</span><span class="token punctuation">:</span> OnFailure<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>在这个 YAML 文件中，最重要的关键词就是jobTemplate。看到它，你一定恍然大悟，原来 CronJob 是一个 Job 对象的控制器（Controller）！</p>
+<p>没错，CronJob 与 Job 的关系，正如同 Deployment 与 Pod 的关系一样。CronJob 是一个专门用来管理 Job 对象的控制器。只不过，它创建和删除 Job 的依据，是 schedule 字段定义的、一个标准的 <a target="_blank" rel="noopener" href="https://en.wikipedia.org/wiki/Cron">Unix Cron</a> 格式的表达式。</p>
+<p>比如，<code>*/1 * * * *</code>。</p>
+<p>这个 Cron 表达式里 <code>*/1</code> 中的 <code>*</code> 表示从 0 开始，/ 表示”每”，1 表示偏移量。所以，它的意思就是：从 0 开始，每 1 个时间单位执行一次。</p>
+<p>Cron 表达式中的五个部分分别代表：分钟、小时、日、月、星期。</p>
+<p>所以，上面这句 Cron 表达式的意思是：从当前开始，每分钟执行一次。</p>
+<p>而这里要执行的内容，就是 jobTemplate 定义的 Job 了。</p>
+<p>所以，这个 CronJob 对象在创建 1 分钟后，就会有一个 Job 产生了，如下所示：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ kubectl create -f ./cronjob.yaml
+cronjob <span class="token string">"hello"</span> created
+
+<span class="token comment"># 一分钟后</span>
+$ kubectl get <span class="token function">jobs</span>
+NAME               DESIRED   SUCCESSFUL   AGE
+hello-4111706356   <span class="token number">1</span>         <span class="token number">1</span>         2s<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>此时，CronJob 对象会记录下这次 Job 执行的时间：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ kubectl get cronjob hello
+NAME      SCHEDULE      SUSPEND   ACTIVE    LAST-SCHEDULE
+hello     */1 * * * *   False     <span class="token number">0</span>         Thu, <span class="token number">6</span> Sep <span class="token number">2018</span> <span class="token number">14</span>:34:00 -070<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span></span></code></pre>
+<p>需要注意的是，由于定时任务的特殊性，很可能某个 Job 还没有执行完，另外一个新 Job 就产生了。这时候，你可以通过 spec.concurrencyPolicy 字段来定义具体的处理策略。比如：</p>
+<ol>
+<li>concurrencyPolicy=Allow，这也是默认情况，这意味着这些 Job 可以同时存在；</li>
+<li>concurrencyPolicy=Forbid，这意味着不会创建新的 Pod，该创建周期被跳过；</li>
+<li>concurrencyPolicy=Replace，这意味着新产生的 Job 会替换旧的、没有执行完的 Job。</li>
+</ol>
+<p>而如果某一次 Job 创建失败，这次创建就会被标记为”miss”。当在指定的时间窗口内，miss 的数目达到 100 时，那么 CronJob 会停止再创建这个 Job。</p>
+<p>这个时间窗口，可以由 spec.startingDeadlineSeconds 字段指定。比如 startingDeadlineSeconds=200，意味着在过去 200 s 里，如果 miss 的数目达到了 100 次，那么这个 Job 就不会被创建执行了。</p>
+<h3 id="23-声明式API与Kubernetes编程范式"><a href="#23-声明式API与Kubernetes编程范式" class="headerlink" title="23 | 声明式API与Kubernetes编程范式"></a>23 | 声明式API与Kubernetes编程范式</h3><p>在前面的几篇文章中，我和你分享了很多 Kubernetes 的 API 对象。这些 API 对象，有的是用来描述应用，有的则是为应用提供各种各样的服务。但是，无一例外地，为了使用这些 API 对象提供的能力，你都需要编写一个对应的 YAML 文件交给 Kubernetes。</p>
+<p>这个 YAML 文件，正是 Kubernetes 声明式 API 所必须具备的一个要素。不过，是不是只要用 YAML 文件代替了命令行操作，就是声明式 API 了呢？</p>
+<p>举个例子。我们知道，Docker Swarm 的编排操作都是基于命令行的，比如：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">docker <span class="token function">service</span> create --name nginx --replicas <span class="token number">2</span>  nginx
+docker <span class="token function">service</span> update --image nginx:1.7.9 nginx<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre>
+<p>像这样的两条命令，就是用 Docker Swarm 启动了两个 Nginx 容器实例。其中，第一条 create 命令创建了这两个容器，而第二条 update 命令则把它们”滚动更新”为了一个新的镜像。</p>
+<p>对于这种使用方式，我们称为命令式命令行操作。</p>
+<p>那么，像上面这样的创建和更新两个 Nginx 容器的操作，在 Kubernetes 里又该怎么做呢？</p>
+<p>这个流程，相信你已经非常熟悉了：我们需要在本地编写一个 Deployment 的 YAML 文件：</p>
+<pre class="line-numbers language-yaml" data-language="yaml"><code class="language-yaml"><span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> apps/v1
+<span class="token key atrule">kind</span><span class="token punctuation">:</span> Deployment
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> nginx<span class="token punctuation">-</span>deployment
+<span class="token key atrule">spec</span><span class="token punctuation">:</span>
+  <span class="token key atrule">selector</span><span class="token punctuation">:</span>
+    <span class="token key atrule">matchLabels</span><span class="token punctuation">:</span>
+      <span class="token key atrule">app</span><span class="token punctuation">:</span> nginx
+  <span class="token key atrule">replicas</span><span class="token punctuation">:</span> <span class="token number">2</span>
+  <span class="token key atrule">template</span><span class="token punctuation">:</span>
+    <span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+      <span class="token key atrule">labels</span><span class="token punctuation">:</span>
+        <span class="token key atrule">app</span><span class="token punctuation">:</span> nginx
+    <span class="token key atrule">spec</span><span class="token punctuation">:</span>
+      <span class="token key atrule">containers</span><span class="token punctuation">:</span>
+      <span class="token punctuation">-</span> <span class="token key atrule">name</span><span class="token punctuation">:</span> nginx
+        <span class="token key atrule">image</span><span class="token punctuation">:</span> nginx
+        <span class="token key atrule">ports</span><span class="token punctuation">:</span>
+        <span class="token punctuation">-</span> <span class="token key atrule">containerPort</span><span class="token punctuation">:</span> <span class="token number">80</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>然后，我们还需要使用 kubectl create 命令在 Kubernetes 里创建这个 Deployment 对象：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">kubectl create -f nginx.yaml<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>这样，两个 Nginx 的 Pod 就会运行起来了。</p>
+<p>而如果要更新这两个 Pod 使用的 Nginx 镜像，该怎么办呢？</p>
+<p>我们前面曾经使用过 kubectl set image 和 kubectl edit 命令，来直接修改 Kubernetes 里的 API 对象。不过，相信很多人都有这样的想法，我能不能通过修改本地 YAML 文件来完成这个操作呢？这样我的改动就会体现在这个本地 YAML 文件里了。</p>
+<p>当然可以。</p>
+<p>比如，我们可以修改这个 YAML 文件里的 Pod 模板部分，把 Nginx 容器的镜像改成 1.7.9，如下所示：</p>
+<pre class="line-numbers language-yaml" data-language="yaml"><code class="language-yaml"><span class="token punctuation">...</span>
+    <span class="token key atrule">spec</span><span class="token punctuation">:</span>
+      <span class="token key atrule">containers</span><span class="token punctuation">:</span>
+      <span class="token punctuation">-</span> <span class="token key atrule">name</span><span class="token punctuation">:</span> nginx
+        <span class="token key atrule">image</span><span class="token punctuation">:</span> nginx<span class="token punctuation">:</span>1.7.9<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>而接下来，我们就可以执行一句 kubectl replace 操作，来完成这个 Deployment 的更新：</p>
+<pre class="line-numbers language-yaml" data-language="yaml"><code class="language-yaml">kubectl replace <span class="token punctuation">-</span>f nginx.yaml<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>可是，上面这种基于 YAML 文件的操作方式，是”声明式 API”吗？</p>
+<p>并不是。</p>
+<p>对于上面这种先 kubectl create，再 replace 的操作，我们称为 <strong>命令式配置文件操作</strong> 。</p>
+<p>也就是说，它的处理方式，其实跟前面 Docker Swarm 的两句命令，没什么本质上的区别。只不过，它是把 Docker 命令行里的参数，写在了配置文件里而已。</p>
+<p><strong>那么，到底什么才是”声明式 API”呢？</strong></p>
+<p>答案是，kubectl apply 命令。</p>
+<p>在前面的文章中，我曾经提到过这个 kubectl apply 命令，并推荐你使用它来代替 kubectl create 命令。</p>
+<p>现在，我就使用 kubectl apply 命令来创建这个 Deployment：</p>
+<pre class="line-numbers language-yaml" data-language="yaml"><code class="language-yaml">kubectl apply <span class="token punctuation">-</span>f nginx.yaml<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>这样，Nginx 的 Deployment 就被创建了出来，这看起来跟 kubectl create 的效果一样。</p>
+<p>然后，我再修改一下 nginx.yaml 里定义的镜像：</p>
+<pre class="line-numbers language-yaml" data-language="yaml"><code class="language-yaml"><span class="token punctuation">...</span>
+    <span class="token key atrule">spec</span><span class="token punctuation">:</span>
+      <span class="token key atrule">containers</span><span class="token punctuation">:</span>
+      <span class="token punctuation">-</span> <span class="token key atrule">name</span><span class="token punctuation">:</span> nginx
+        <span class="token key atrule">image</span><span class="token punctuation">:</span> nginx<span class="token punctuation">:</span>1.7.9<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>这时候，关键来了。</p>
+<p>在修改完这个 YAML 文件之后，我不再使用 kubectl replace 命令进行更新，而是继续执行一条 kubectl apply 命令，即：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">kubectl apply -f nginx.yaml<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>这时，Kubernetes 就会立即触发这个 Deployment 的”滚动更新”。</p>
+<p>可是，它跟 kubectl replace 命令有什么本质区别吗？</p>
+<p>实际上，你可以简单地理解为，kubectl replace 的执行过程，是使用新的 YAML 文件中的 API 对象， <strong>替换原有的 API 对象</strong> ；而 kubectl apply，则是执行了一个 <strong>对原有 API 对象的 PATCH 操作</strong> 。</p>
+<blockquote>
+<p>类似地，kubectl set image 和 kubectl edit 也是对已有 API 对象的修改。</p>
+</blockquote>
+<p>更进一步地，这意味着 kube-apiserver 在响应命令式请求（比如，kubectl replace）的时候，一次只能处理一个写请求，否则会有产生冲突的可能。而对于声明式请求（比如，kubectl apply）， <strong>一次能处理多个写操作，并且具备 Merge 能力。</strong></p>
+<p>这种区别，可能乍一听起来没那么重要。而且，正是由于要照顾到这样的 API 设计，做同样一件事情，Kubernetes 需要的步骤往往要比其他项目多不少。</p>
+<p>但是，如果你仔细思考一下 Kubernetes 项目的工作流程，就不难体会到这种声明式 API 的独到之处。</p>
+<p>接下来，我就以 Istio 项目为例，来为你讲解一下声明式 API 在实际使用时的重要意义。</p>
+<p>在 2017 年 5 月，Google、IBM 和 Lyft 公司，共同宣布了 Istio 开源项目的诞生。很快，这个项目就在技术圈儿里，掀起了一阵名叫”微服务”的热潮，把 Service Mesh 这个新的编排概念推到了风口浪尖。</p>
+<p>而 Istio 项目，实际上就是一个基于 Kubernetes 项目的微服务治理框架。它的架构非常清晰，如下所示：</p>
+<p><img src="/images/《深入剖析Kubernetes》学习笔记/Istio项目架构图.png" alt="Istio项目架构图"></p>
+<p>在上面这个架构图中，我们不难看到 Istio 项目架构的核心所在。 <strong>Istio 最根本的组件，是运行在每一个应用 Pod 里的 Envoy 容器。</strong></p>
+<p>这个 Envoy 项目是 Lyft 公司推出的一个高性能 C++ 网络代理，也是 Lyft 公司对 Istio 项目的唯一贡献。</p>
+<p>而 Istio 项目，则把这个代理服务以 sidecar 容器的方式，运行在了每一个被治理的应用 Pod 中。我们知道，Pod 里的所有容器都共享同一个 Network Namespace。所以，Envoy 容器就能够通过配置 Pod 里的 iptables 规则，把整个 Pod 的进出流量接管下来。</p>
+<p>这时候，Istio 的控制层（Control Plane）里的 Pilot 组件，就能够通过调用每个 Envoy 容器的 API，对这个 Envoy 代理进行配置，从而实现微服务治理。</p>
+<p>我们一起来看一个例子。</p>
+<p>假设这个 Istio 架构图左边的 Pod 是已经在运行的应用，而右边的 Pod 则是我们刚刚上线的应用的新版本。这时候，Pilot 通过调节这两 Pod 里的 Envoy 容器的配置，从而将 90% 的流量分配给旧版本的应用，将 10% 的流量分配给新版本应用，并且，还可以在后续的过程中随时调整。这样，一个典型的”灰度发布”的场景就完成了。比如，Istio 可以调节这个流量从 90%-10%，改到 80%-20%，再到 50%-50%，最后到 0%-100%，就完成了这个灰度发布的过程。</p>
+<p>更重要的是，在整个微服务治理的过程中，无论是对 Envoy 容器的部署，还是像上面这样对 Envoy 代理的配置，用户和应用都是完全”无感”的。</p>
+<p>这时候，你可能会有所疑惑：Istio 项目明明需要在每个 Pod 里安装一个 Envoy 容器，又怎么能做到”无感”的呢？</p>
+<p>实际上， <strong>Istio 项目使用的，是 Kubernetes 中的一个非常重要的功能，叫作 Dynamic Admission Control。</strong></p>
+<p>在 Kubernetes 项目中，当一个 Pod 或者任何一个 API 对象被提交给 APIServer 之后，总有一些”初始化”性质的工作需要在它们被 Kubernetes 项目正式处理之前进行。比如，自动为所有 Pod 加上某些标签（Labels）。</p>
+<p>而这个”初始化”操作的实现，借助的是一个叫作 Admission 的功能。它其实是 Kubernetes 项目里一组被称为 Admission Controller 的代码，可以选择性地被编译进 APIServer 中，在 API 对象创建之后会被立刻调用到。</p>
+<p>但这就意味着，如果你现在想要添加一些自己的规则到 Admission Controller，就会比较困难。因为，这要求重新编译并重启 APIServer。显然，这种使用方法对 Istio 来说，影响太大了。</p>
+<p>所以，Kubernetes 项目为我们额外提供了一种”热插拔”式的 Admission 机制，它就是 <strong>Dynamic Admission Control，也叫作：Initializer。</strong></p>
+<p>现在，我给你举个例子。比如，我有如下所示的一个应用 Pod：</p>
+<pre class="line-numbers language-yaml" data-language="yaml"><code class="language-yaml"><span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> v1
+<span class="token key atrule">kind</span><span class="token punctuation">:</span> Pod
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> myapp<span class="token punctuation">-</span>pod
+  <span class="token key atrule">labels</span><span class="token punctuation">:</span>
+    <span class="token key atrule">app</span><span class="token punctuation">:</span> myapp
+<span class="token key atrule">spec</span><span class="token punctuation">:</span>
+  <span class="token key atrule">containers</span><span class="token punctuation">:</span>
+  <span class="token punctuation">-</span> <span class="token key atrule">name</span><span class="token punctuation">:</span> myapp<span class="token punctuation">-</span>container
+    <span class="token key atrule">image</span><span class="token punctuation">:</span> busybox
+    <span class="token key atrule">command</span><span class="token punctuation">:</span> <span class="token punctuation">[</span><span class="token string">'sh'</span><span class="token punctuation">,</span> <span class="token string">'-c'</span><span class="token punctuation">,</span> <span class="token string">'echo Hello Kubernetes! &amp;&amp; sleep 3600'</span><span class="token punctuation">]</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>可以看到，这个 Pod 里面只有一个用户容器，叫作：myapp-container。</p>
+<p>接下来，Istio 项目要做的，就是在这个 Pod YAML 被提交给 Kubernetes 之后，在它对应的 API 对象里自动加上 Envoy 容器的配置，使这个对象变成如下所示的样子：</p>
+<pre class="line-numbers language-yaml" data-language="yaml"><code class="language-yaml"><span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> v1
+<span class="token key atrule">kind</span><span class="token punctuation">:</span> Pod
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> myapp<span class="token punctuation">-</span>pod
+  <span class="token key atrule">labels</span><span class="token punctuation">:</span>
+    <span class="token key atrule">app</span><span class="token punctuation">:</span> myapp
+<span class="token key atrule">spec</span><span class="token punctuation">:</span>
+  <span class="token key atrule">containers</span><span class="token punctuation">:</span>
+  <span class="token punctuation">-</span> <span class="token key atrule">name</span><span class="token punctuation">:</span> myapp<span class="token punctuation">-</span>container
+    <span class="token key atrule">image</span><span class="token punctuation">:</span> busybox
+    <span class="token key atrule">command</span><span class="token punctuation">:</span> <span class="token punctuation">[</span><span class="token string">'sh'</span><span class="token punctuation">,</span> <span class="token string">'-c'</span><span class="token punctuation">,</span> <span class="token string">'echo Hello Kubernetes! &amp;&amp; sleep 3600'</span><span class="token punctuation">]</span>
+  <span class="token punctuation">-</span> <span class="token key atrule">name</span><span class="token punctuation">:</span> envoy
+    <span class="token key atrule">image</span><span class="token punctuation">:</span> lyft/envoy<span class="token punctuation">:</span>845747b88f102c0fd262ab234308e9e22f693a1
+    <span class="token key atrule">command</span><span class="token punctuation">:</span> <span class="token punctuation">[</span><span class="token string">"/usr/local/bin/envoy"</span><span class="token punctuation">]</span>
+    <span class="token punctuation">...</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>可以看到，被 Istio 处理后的这个 Pod 里，除了用户自己定义的 myapp-container 容器之外，多出了一个叫作 envoy 的容器，它就是 Istio 要使用的 Envoy 代理。</p>
+<p>那么，Istio 又是如何在用户完全不知情的前提下完成这个操作的呢？</p>
+<p>Istio 要做的，就是编写一个用来为 Pod”自动注入”Envoy 容器的 Initializer。</p>
+<p><strong>首先，Istio 会将这个 Envoy 容器本身的定义，以 ConfigMap 的方式保存在 Kubernetes 当中。</strong> 这个 ConfigMap（名叫：envoy-initializer）的定义如下所示：</p>
+<pre class="line-numbers language-yaml" data-language="yaml"><code class="language-yaml"><span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> v1
+<span class="token key atrule">kind</span><span class="token punctuation">:</span> ConfigMap
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> envoy<span class="token punctuation">-</span>initializer
+<span class="token key atrule">data</span><span class="token punctuation">:</span>
+  <span class="token key atrule">config</span><span class="token punctuation">:</span> <span class="token punctuation">|</span><span class="token scalar string">
+    containers:
+      - name: envoy
+        image: lyft/envoy:845747db88f102c0fd262ab234308e9e22f693a1
+        command: ["/usr/local/bin/envoy"]
+        args:
+          - "--concurrency 4"
+          - "--config-path /etc/envoy/envoy.json"
+          - "--mode serve"
+        ports:
+          - containerPort: 80
+            protocol: TCP
+        resources:
+          limits:
+            cpu: "1000m"
+            memory: "512Mi"
+          requests:
+            cpu: "100m"
+            memory: "64Mi"
+        volumeMounts:
+          - name: envoy-conf
+            mountPath: /etc/envoy
+    volumes:
+      - name: envoy-conf
+        configMap:
+          name: envoy</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>相信你已经注意到了，这个 ConfigMap 的 data 部分，正是一个 Pod 对象的一部分定义。其中，我们可以看到 Envoy 容器对应的 containers 字段，以及一个用来声明 Envoy 配置文件的 volumes 字段。</p>
+<p>不难想到，Initializer 要做的工作，就是把这部分 Envoy 相关的字段，自动添加到用户提交的 Pod 的 API 对象里。可是，用户提交的 Pod 里本来就有 containers 字段和 volumes 字段，所以 Kubernetes 在处理这样的更新请求时，就必须使用类似于 git merge 这样的操作，才能将这两部分内容合并在一起。</p>
+<p>所以说，在 Initializer 更新用户的 Pod 对象的时候，必须使用 PATCH API 来完成。而这种 PATCH API，正是声明式 API 最主要的能力。</p>
+<p>接下来，Istio 将一个编写好的 Initializer，作为一个 Pod 部署在 Kubernetes 中。这个 Pod 的定义非常简单，如下所示：</p>
+<pre class="line-numbers language-yaml" data-language="yaml"><code class="language-yaml"><span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> v1
+<span class="token key atrule">kind</span><span class="token punctuation">:</span> Pod
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+  <span class="token key atrule">labels</span><span class="token punctuation">:</span>
+    <span class="token key atrule">app</span><span class="token punctuation">:</span> envoy<span class="token punctuation">-</span>initializer
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> envoy<span class="token punctuation">-</span>initializer
+<span class="token key atrule">spec</span><span class="token punctuation">:</span>
+  <span class="token key atrule">containers</span><span class="token punctuation">:</span>
+    <span class="token punctuation">-</span> <span class="token key atrule">name</span><span class="token punctuation">:</span> envoy<span class="token punctuation">-</span>initializer
+      <span class="token key atrule">image</span><span class="token punctuation">:</span> envoy<span class="token punctuation">-</span>initializer<span class="token punctuation">:</span>0.0.1
+      <span class="token key atrule">imagePullPolicy</span><span class="token punctuation">:</span> Always<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>我曾在第 16 篇文章 <a target="_blank" rel="noopener" href="https://time.geekbang.org/column/article/40583">《编排其实很简单：谈谈”控制器”模型》</a> 中和你分享过，一个 Kubernetes 的控制器，实际上就是一个”死循环”：它不断地获取”实际状态”，然后与”期望状态”作对比，并以此为依据决定下一步的操作。</p>
+<p>而 Initializer 的控制器，不断获取到的”实际状态”，就是用户新创建的 Pod。而它的”期望状态”，则是：这个 Pod 里被添加了 Envoy 容器的定义。</p>
+<p>我还是用一段 Go 语言风格的伪代码，来为你描述这个控制逻辑，如下所示：</p>
+<pre class="line-numbers language-go" data-language="go"><code class="language-go"><span class="token keyword">for</span> <span class="token punctuation">{</span>
+  <span class="token comment">// 获取新创建的 Pod</span>
+  pod <span class="token operator">:=</span> client<span class="token punctuation">.</span><span class="token function">GetLatestPod</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+  <span class="token comment">// Diff 一下，检查是否已经初始化过</span>
+  <span class="token keyword">if</span> <span class="token operator">!</span><span class="token function">isInitialized</span><span class="token punctuation">(</span>pod<span class="token punctuation">)</span> <span class="token punctuation">{</span>
+    <span class="token comment">// 没有？那就来初始化一下</span>
+    <span class="token function">doSomething</span><span class="token punctuation">(</span>pod<span class="token punctuation">)</span>
+  <span class="token punctuation">}</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<ul>
+<li>如果这个 Pod 里面已经添加过 Envoy 容器，那么就”放过”这个 Pod，进入下一个检查周期。</li>
+<li>而如果还没有添加过 Envoy 容器的话，它就要进行 Initialize 操作了，即：修改该 Pod 的 API 对象（doSomething 函数）。</li>
+</ul>
+<p>这时候，你应该立刻能想到，Istio 要往这个 Pod 里合并的字段，正是我们之前保存在 envoy-initializer 这个 ConfigMap 里的数据（即：它的 data 字段的值）。</p>
+<p>所以，在 Initializer 控制器的工作逻辑里，它首先会从 APIServer 中拿到这个 ConfigMap：</p>
+<pre class="line-numbers language-go" data-language="go"><code class="language-go"><span class="token keyword">func</span> <span class="token function">doSomething</span><span class="token punctuation">(</span>pod<span class="token punctuation">)</span> <span class="token punctuation">{</span>
+  cm <span class="token operator">:=</span> client<span class="token punctuation">.</span><span class="token function">Get</span><span class="token punctuation">(</span>ConfigMap<span class="token punctuation">,</span> <span class="token string">"envoy-initializer"</span><span class="token punctuation">)</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span></span></code></pre>
+<p>然后，把这个 ConfigMap 里存储的 containers 和 volumes 字段，直接添加进一个空的 Pod 对象里：</p>
+<pre class="line-numbers language-go" data-language="go"><code class="language-go"><span class="token keyword">func</span> <span class="token function">doSomething</span><span class="token punctuation">(</span>pod<span class="token punctuation">)</span> <span class="token punctuation">{</span>
+  cm <span class="token operator">:=</span> client<span class="token punctuation">.</span><span class="token function">Get</span><span class="token punctuation">(</span>ConfigMap<span class="token punctuation">,</span> <span class="token string">"envoy-initializer"</span><span class="token punctuation">)</span>
+
+  newPod <span class="token operator">:=</span> Pod<span class="token punctuation">{</span><span class="token punctuation">}</span>
+  newPod<span class="token punctuation">.</span>Spec<span class="token punctuation">.</span>Containers <span class="token operator">=</span> cm<span class="token punctuation">.</span>Containers
+  newPod<span class="token punctuation">.</span>Spec<span class="token punctuation">.</span>Volumes <span class="token operator">=</span> cm<span class="token punctuation">.</span>Volumes
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>现在，关键来了。</p>
+<p>Kubernetes 的 API 库，为我们提供了一个方法，使得我们可以直接使用新旧两个 Pod 对象，生成一个 TwoWayMergePatch：</p>
+<pre class="line-numbers language-go" data-language="go"><code class="language-go"><span class="token keyword">func</span> <span class="token function">doSomething</span><span class="token punctuation">(</span>pod<span class="token punctuation">)</span> <span class="token punctuation">{</span>
+  cm <span class="token operator">:=</span> client<span class="token punctuation">.</span><span class="token function">Get</span><span class="token punctuation">(</span>ConfigMap<span class="token punctuation">,</span> <span class="token string">"envoy-initializer"</span><span class="token punctuation">)</span>
+
+  newPod <span class="token operator">:=</span> Pod<span class="token punctuation">{</span><span class="token punctuation">}</span>
+  newPod<span class="token punctuation">.</span>Spec<span class="token punctuation">.</span>Containers <span class="token operator">=</span> cm<span class="token punctuation">.</span>Containers
+  newPod<span class="token punctuation">.</span>Spec<span class="token punctuation">.</span>Volumes <span class="token operator">=</span> cm<span class="token punctuation">.</span>Volumes
+
+  <span class="token comment">// 生成 patch 数据</span>
+  patchBytes <span class="token operator">:=</span> strategicpatch<span class="token punctuation">.</span><span class="token function">CreateTwoWayMergePatch</span><span class="token punctuation">(</span>pod<span class="token punctuation">,</span> newPod<span class="token punctuation">)</span>
+
+  <span class="token comment">// 发起 PATCH 请求，修改这个 pod 对象</span>
+  client<span class="token punctuation">.</span><span class="token function">Patch</span><span class="token punctuation">(</span>pod<span class="token punctuation">.</span>Name<span class="token punctuation">,</span> patchBytes<span class="token punctuation">)</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p><strong>有了这个 TwoWayMergePatch 之后，Initializer 的代码就可以使用这个 patch 的数据，调用 Kubernetes 的 Client，发起一个 PATCH 请求。</strong></p>
+<p>这样，一个用户提交的 Pod 对象里，就会被自动加上 Envoy 容器相关的字段。</p>
+<p>当然，Kubernetes 还允许你通过配置，来指定要对什么样的资源进行这个 Initialize 操作，比如下面这个例子：</p>
+<pre class="line-numbers language-yaml" data-language="yaml"><code class="language-yaml"><span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> admissionregistration.k8s.io/v1alpha1
+<span class="token key atrule">kind</span><span class="token punctuation">:</span> InitializerConfiguration
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> envoy<span class="token punctuation">-</span>config
+<span class="token key atrule">initializers</span><span class="token punctuation">:</span>
+  // 这个名字必须至少包括两个 "."
+  <span class="token punctuation">-</span> <span class="token key atrule">name</span><span class="token punctuation">:</span> envoy.initializer.kubernetes.io
+    <span class="token key atrule">rules</span><span class="token punctuation">:</span>
+      <span class="token punctuation">-</span> <span class="token key atrule">apiGroups</span><span class="token punctuation">:</span>
+          <span class="token punctuation">-</span> "" // 前面说过， "" 就是 core API Group 的意思
+        <span class="token key atrule">apiVersions</span><span class="token punctuation">:</span>
+          <span class="token punctuation">-</span> v1
+        <span class="token key atrule">resources</span><span class="token punctuation">:</span>
+          <span class="token punctuation">-</span> pods<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>这个配置，就意味着 Kubernetes 要对所有的 Pod 进行这个 Initialize 操作，并且，我们指定了负责这个操作的 Initializer，名叫：envoy-initializer。</p>
+<p>而一旦这个 InitializerConfiguration 被创建，Kubernetes 就会把这个 Initializer 的名字，加在所有新创建的 Pod 的 Metadata 上，格式如下所示：</p>
+<pre class="line-numbers language-yaml" data-language="yaml"><code class="language-yaml"><span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> v1
+<span class="token key atrule">kind</span><span class="token punctuation">:</span> Pod
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+  <span class="token key atrule">initializers</span><span class="token punctuation">:</span>
+    <span class="token key atrule">pending</span><span class="token punctuation">:</span>
+      <span class="token punctuation">-</span> <span class="token key atrule">name</span><span class="token punctuation">:</span> envoy.initializer.kubernetes.io
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> myapp<span class="token punctuation">-</span>pod
+  <span class="token key atrule">labels</span><span class="token punctuation">:</span>
+    <span class="token key atrule">app</span><span class="token punctuation">:</span> myapp
+<span class="token punctuation">...</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>可以看到，每一个新创建的 Pod，都会自动携带了 metadata.initializers.pending 的 Metadata 信息。</p>
+<p>这个 Metadata，正是接下来 Initializer 的控制器判断这个 Pod 有没有执行过自己所负责的初始化操作的重要依据（也就是前面伪代码中 isInitialized() 方法的含义）。</p>
+<p><strong>这也就意味着，当你在 Initializer 里完成了要做的操作后，一定要记得将这个 metadata.initializers.pending 标志清除掉。这一点，你在编写 Initializer 代码的时候一定要非常注意。</strong></p>
+<p>此外，除了上面的配置方法，你还可以在具体的 Pod 的 Annotation 里添加一个如下所示的字段，从而声明要使用某个 Initializer：</p>
+<pre class="line-numbers language-yaml" data-language="yaml"><code class="language-yaml"><span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> v1
+<span class="token key atrule">kind</span><span class="token punctuation">:</span> Pod
+metadata
+  <span class="token key atrule">annotations</span><span class="token punctuation">:</span>
+    <span class="token key atrule">"initializer.kubernetes.io/envoy"</span><span class="token punctuation">:</span> <span class="token string">"true"</span>
+    <span class="token punctuation">...</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>在这个 Pod 里，我们添加了一个 Annotation，写明： initializer.kubernetes.io/envoy=true。这样，就会使用到我们前面所定义的 envoy-initializer 了。</p>
+<p>以上，就是关于 Initializer 最基本的工作原理和使用方法了。相信你此时已经明白， <strong>Istio 项目的核心，就是由无数个运行在应用 Pod 中的 Envoy 容器组成的服务代理网格。</strong> 这也正是 Service Mesh 的含义。</p>
+<blockquote>
+<p>备注：如果你对这个 Demo 感兴趣，可以在 <a target="_blank" rel="noopener" href="https://github.com/resouer/kubernetes-initializer-tutorial">这个 GitHub 链接</a> 里找到它的所有源码和文档。这个 Demo，是我 fork 自 Kelsey Hightower 的一个同名的 Demo。</p>
+</blockquote>
+<p>而这个机制得以实现的原理，正是借助了 Kubernetes 能够对 API 对象进行在线更新的能力，这也正是 <strong>Kubernetes”声明式 API”的独特之处：</strong></p>
+<ul>
+<li>首先，所谓”声明式”，指的就是我只需要提交一个定义好的 API 对象来”声明”，我所期望的状态是什么样子。</li>
+<li>其次，”声明式 API”允许有多个 API 写端，以 PATCH 的方式对 API 对象进行修改，而无需关心本地原始 YAML 文件的内容。</li>
+<li>最后，也是最重要的，有了上述两个能力，Kubernetes 项目才可以基于对 API 对象的增、删、改、查，在完全无需外界干预的情况下，完成对”实际状态”和”期望状态”的调谐（Reconcile）过程。</li>
+</ul>
+<p>所以说， <strong>声明式 API，才是 Kubernetes 项目编排能力”赖以生存”的核心所在，希望你能够认真理解。</strong></p>
+<p>此外，不难看到，无论是对 sidecar 容器的巧妙设计，还是对 Initializer 的合理利用，Istio 项目的设计与实现，其实都依托于 Kubernetes 的声明式 API 和它所提供的各种编排能力。可以说，Istio 是在 Kubernetes 项目使用上的一位”集大成者”。</p>
+<blockquote>
+<p>要知道，一个 Istio 项目部署完成后，会在 Kubernetes 里创建大约 43 个 API 对象。</p>
+</blockquote>
+<p>所以，Kubernetes 社区也看得很明白：Istio 项目有多火热，就说明 Kubernetes 这套”声明式 API”有多成功。这，既是 Google Cloud 喜闻乐见的事情，也是 Istio 项目一推出就被 Google 公司和整个技术圈儿热捧的重要原因。</p>
+<p>而在使用 Initializer 的流程中，最核心的步骤，莫过于 Initializer”自定义控制器”的编写过程。它遵循的，正是标准的”Kubernetes 编程范式”，即：</p>
+<blockquote>
+<p><strong>如何使用控制器模式，同 Kubernetes 里 API 对象的”增、删、改、查”进行协作，进而完成用户业务逻辑的编写过程。</strong></p>
+</blockquote>
+<p>这，也正是我要在后面文章中为你详细讲解的内容。</p>
+<h4 id="23-1-总结"><a href="#23-1-总结" class="headerlink" title="23.1 总结"></a>23.1 总结</h4><p>在今天这篇文章中，我为你重点讲解了 Kubernetes 声明式 API 的含义。并且，通过对 Istio 项目的剖析，我为你说明了它使用 Kubernetes 的 Initializer 特性，完成 Envoy 容器”自动注入”的原理。</p>
+<p>事实上，从”使用 Kubernetes 部署代码”，到”使用 Kubernetes 编写代码”的蜕变过程，正是你从一个 Kubernetes 用户，到 Kubernetes 玩家的晋级之路。</p>
+<p>而，如何理解”Kubernetes 编程范式”，如何为 Kubernetes 添加自定义 API 对象，编写自定义控制器，正是这个晋级过程中的关键点，也是我要在后面几篇文章中分享的核心内容。</p>
+<p>此外，基于今天这篇文章所讲述的 Istio 的工作原理，尽管 Istio 项目一直宣称它可以运行在非 Kubernetes 环境中，但我并不建议你花太多时间去做这个尝试。</p>
+<p>毕竟，无论是从技术实现还是在社区运作上，Istio 与 Kubernetes 项目之间都是紧密的、唇齿相依的关系。如果脱离了 Kubernetes 项目这个基础，那么这条原本就不算平坦的”微服务”之路，恐怕会更加困难重重。</p>
+<h3 id="24-深入解析声明式API（一）：API对象的奥秘"><a href="#24-深入解析声明式API（一）：API对象的奥秘" class="headerlink" title="24 | 深入解析声明式API（一）：API对象的奥秘"></a>24 | 深入解析声明式API（一）：API对象的奥秘</h3><p>在今天这篇文章中，我就来为你讲解一下 Kubernetes 声明式 API 的工作原理，以及如何利用这套 API 机制，在 Kubernetes 里添加自定义的 API 对象。</p>
+<p>你可能一直就很好奇：当我把一个 YAML 文件提交给 Kubernetes 之后，它究竟是如何创建出一个 API 对象的呢？</p>
+<p>这得从声明式 API 的设计谈起了。</p>
+<p>在 Kubernetes 项目中，一个 API 对象在 Etcd 里的完整资源路径，是由：Group（API 组）、Version（API 版本）和 Resource（API 资源类型）三个部分组成的。</p>
+<p>通过这样的结构，整个 Kubernetes 里的所有 API 对象，实际上就可以用如下的树形结构表示出来：</p>
+<p><img src="/images/《深入剖析Kubernetes》学习笔记/kubernetes里API对象的组织方式.png" alt="kubernetes里API对象的组织方式"></p>
+<p>在这幅图中，你可以很清楚地看到 <strong>Kubernetes 里 API 对象的组织方式，其实是层层递进的。</strong></p>
+<p>比如，现在我要声明要创建一个 CronJob 对象，那么我的 YAML 文件的开始部分会这么写：</p>
+<pre class="line-numbers language-yaml" data-language="yaml"><code class="language-yaml"><span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> batch/v2alpha1
+<span class="token key atrule">kind</span><span class="token punctuation">:</span> CronJob
+<span class="token punctuation">...</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span></span></code></pre>
+<p>在这个 YAML 文件中，”CronJob”就是这个 API 对象的资源类型（Resource），”batch”就是它的组（Group），v2alpha1 就是它的版本（Version）。</p>
+<p>当我们提交了这个 YAML 文件之后，Kubernetes 就会把这个 YAML 文件里描述的内容，转换成 Kubernetes 里的一个 CronJob 对象。</p>
+<p>那么， <strong>Kubernetes 是如何对 Resource、Group 和 Version 进行解析，从而在 Kubernetes 项目里找到 CronJob 对象的定义呢？</strong></p>
+<ol>
+<li><p><strong>首先，Kubernetes 会匹配 API 对象的组。</strong></p>
+<p> 需要明确的是， <strong>对于 Kubernetes 里的核心 API 对象，比如：Pod、Node 等，是不需要 Group 的（即：它们 Group 是””）。</strong> 所以，对于这些 API 对象来说，Kubernetes 会直接在 /api 这个层级进行下一步的匹配过程。</p>
+<p> 而对于 CronJob 等非核心 API 对象来说，Kubernetes 就必须在 /apis 这个层级里查找它对应的 Group，进而根据”batch”这个 Group 的名字，找到 /apis/batch。</p>
+<p> 不难发现，这些 API Group 的分类是以对象功能为依据的，比如 Job 和 CronJob 就都属于”batch” （离线业务）这个 Group。</p>
+</li>
+<li><p><strong>然后，Kubernetes 会进一步匹配到 API 对象的版本号。</strong></p>
+<p> 对于 CronJob 这个 API 对象来说，Kubernetes 在 batch 这个 Group 下，匹配到的版本号就是 v2alpha1。</p>
+<p> 在 Kubernetes 中，同一种 API 对象可以有多个版本，这正是 Kubernetes 进行 API 版本化管理的重要手段。这样，比如在 CronJob 的开发过程中，对于会影响到用户的变更就可以通过升级新版本来处理，从而保证了向后兼容。</p>
+</li>
+<li><p><strong>最后，Kubernetes 会匹配 API 对象的资源类型。</strong></p>
+<p> 在前面匹配到正确的版本之后，Kubernetes 就知道，我要创建的原来是一个 /apis/batch/v2alpha1 下的 CronJob 对象。</p>
+</li>
+</ol>
+<p>这时候，APIServer 就可以继续创建这个 CronJob 对象了。为了方便理解，我为你总结了一个如下所示流程图来阐述这个创建过程：</p>
+<p><img src="/images/《深入剖析Kubernetes》学习笔记/APIServer创建CronJob对象流程图.png" alt="APIServer创建CronJob对象流程图"></p>
+<ol>
+<li><p>首先，当我们发起了创建 CronJob 的 POST 请求之后，我们编写的 YAML 的信息就被提交给了 APIServer。</p>
+<p> 而 APIServer 的第一个功能，就是过滤这个请求，并完成一些前置性的工作，比如授权、超时处理、审计等。</p>
+</li>
+<li><p>然后，请求会进入 MUX 和 Routes 流程。如果你编写过 Web Server 的话就会知道，MUX 和 Routes 是 APIServer 完成 URL 和 Handler 绑定的场所。而 APIServer 的 Handler 要做的事情，就是按照我刚刚介绍的匹配过程，找到对应的 CronJob 类型定义。</p>
+</li>
+<li><p>接着，APIServer 最重要的职责就来了：根据这个 CronJob 类型定义，使用用户提交的 YAML 文件里的字段，创建一个 CronJob 对象。</p>
+<p> 而在这个过程中，APIServer 会进行一个 Convert 工作，即：把用户提交的 YAML 文件，转换成一个叫作 Super Version 的对象，它正是该 API 资源类型所有版本的字段全集。这样用户提交的不同版本的 YAML 文件，就都可以用这个 Super Version 对象来进行处理了。</p>
+</li>
+<li><p>接下来，APIServer 会先后进行 Admission() 和 Validation() 操作。比如，我在上一篇文章中提到的 Admission Controller 和 Initializer，就都属于 Admission 的内容。</p>
+<p> 而 Validation，则负责验证这个对象里的各个字段是否合法。这个被验证过的 API 对象，都保存在了 APIServer 里一个叫作 Registry 的数据结构中。也就是说，只要一个 API 对象的定义能在 Registry 里查到，它就是一个有效的 Kubernetes API 对象。</p>
+</li>
+<li><p>最后，APIServer 会把验证过的 API 对象转换成用户最初提交的版本，进行序列化操作，并调用 Etcd 的 API 把它保存起来。</p>
+</li>
+</ol>
+<p>由此可见，声明式 API 对于 Kubernetes 来说非常重要。所以， <strong>APIServer 这样一个在其他项目里”平淡无奇”的组件，却成了 Kubernetes 项目的重中之重。</strong> 它不仅是 Google Borg 设计思想的集中体现，也是 Kubernetes 项目里唯一一个被 Google 公司和 RedHat 公司双重控制、其他势力根本无法参与其中的组件。</p>
+<p>此外，由于同时要兼顾性能、API 完备性、版本化、向后兼容等很多工程化指标，所以 Kubernetes 团队在 APIServer 项目里大量使用了 Go 语言的代码生成功能，来自动化诸如 Convert、DeepCopy 等与 API 资源相关的操作。这部分自动生成的代码，曾一度占到 Kubernetes 项目总代码的 20%~30%。</p>
+<p>这也是为何，在过去很长一段时间里，在这样一个极其”复杂”的 APIServer 中，添加一个 Kubernetes 风格的 API 资源类型，是一个非常困难的工作。</p>
+<p>不过，在 Kubernetes v1.7 之后，这个工作就变得轻松得多了。这，当然得益于一个全新的 API 插件机制：CRD。</p>
+<p>CRD 的全称是 Custom Resource Definition。顾名思义，它指的就是，允许用户在 Kubernetes 中添加一个跟 Pod、Node 类似的、新的 API 资源类型，即：自定义 API 资源。</p>
+<p>举个例子， <strong>我现在要为 Kubernetes 添加一个名叫 Network 的 API 资源类型。</strong></p>
+<p>它的作用是，一旦用户创建一个 Network 对象，那么 Kubernetes 就应该使用这个对象定义的网络参数，调用真实的网络插件，比如 Neutron 项目，为用户创建一个真正的”网络”。这样，将来用户创建的 Pod，就可以声明使用这个”网络”了。</p>
+<p>这个 Network 对象的 YAML 文件，名叫 example-network.yaml，它的内容如下所示：</p>
+<pre class="line-numbers language-yaml" data-language="yaml"><code class="language-yaml"><span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> samplecrd.k8s.io/v1
+<span class="token key atrule">kind</span><span class="token punctuation">:</span> Network
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> example<span class="token punctuation">-</span>network
+<span class="token key atrule">spec</span><span class="token punctuation">:</span>
+  <span class="token key atrule">cidr</span><span class="token punctuation">:</span> <span class="token string">"192.168.0.0/16"</span>
+  <span class="token key atrule">gateway</span><span class="token punctuation">:</span> <span class="token string">"192.168.0.1"</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>可以看到，我想要描述”网络”的 API 资源类型是 Network；API 组是samplecrd.k8s.io；API 版本是 v1。</p>
+<p>那么， <strong>Kubernetes 又该如何知道这个 API（samplecrd.k8s.io/v1/network）的存在呢？</strong></p>
+<p>其实，上面的这个 YAML 文件，就是一个具体的”自定义 API 资源”实例，也叫 CR（Custom Resource）。而为了能够让 Kubernetes 认识这个 CR，你就需要让 Kubernetes 明白这个 CR 的宏观定义是什么，也就是 CRD（Custom Resource Definition）。</p>
+<p>这就好比，你想让计算机认识各种兔子的照片，就得先让计算机明白，兔子的普遍定义是什么。比如，兔子”是哺乳动物””有长耳朵，三瓣嘴”。</p>
+<p>所以，接下来，我就先需编写一个 CRD 的 YAML 文件，它的名字叫作 network.yaml，内容如下所示：</p>
+<pre class="line-numbers language-yaml" data-language="yaml"><code class="language-yaml"><span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> apiextensions.k8s.io/v1beta1
+<span class="token key atrule">kind</span><span class="token punctuation">:</span> CustomResourceDefinition
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> networks.samplecrd.k8s.io
+<span class="token key atrule">spec</span><span class="token punctuation">:</span>
+  <span class="token key atrule">group</span><span class="token punctuation">:</span> samplecrd.k8s.io
+  <span class="token key atrule">version</span><span class="token punctuation">:</span> v1
+  <span class="token key atrule">names</span><span class="token punctuation">:</span>
+    <span class="token key atrule">kind</span><span class="token punctuation">:</span> Network
+    <span class="token key atrule">plural</span><span class="token punctuation">:</span> networks
+  <span class="token key atrule">scope</span><span class="token punctuation">:</span> Namespaced<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>可以看到，在这个 CRD 中，我指定了”group: samplecrd.k8s.io””version: v1”这样的 API 信息，也指定了这个 CR 的资源类型叫作 Network，复数（plural）是 networks。</p>
+<p>然后，我还声明了它的 scope 是 Namespaced，即：我们定义的这个 Network 是一个属于 Namespace 的对象，类似于 Pod。</p>
+<p>这就是一个 Network API 资源类型的 API 部分的宏观定义了。这就等同于告诉了计算机：”兔子是哺乳动物”。所以这时候，Kubernetes 就能够认识和处理所有声明了 API 类型是”samplecrd.k8s.io/v1/network”的 YAML 文件了。</p>
+<p>接下来，我还需要让 Kubernetes”认识”这种 YAML 文件里描述的”网络”部分，比如”cidr”（网段），”gateway”（网关）这些字段的含义。这就相当于我要告诉计算机：”兔子有长耳朵和三瓣嘴”。</p>
+<p>这时候呢，我就需要稍微做些代码工作了。</p>
+<ol>
+<li><p><strong>首先，我要在 GOPATH 下，创建一个结构如下的项目：</strong></p>
+ <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ tree <span class="token variable">$GOPATH</span>/src/github.com/<span class="token operator">&lt;</span>your-name<span class="token operator">&gt;</span>/k8s-controller-custom-resource
+<span class="token builtin class-name">.</span>
+├── controller.go
+├── crd
+│   └── network.yaml
+├── example
+│   └── example-network.yaml
+├── main.go
+└── pkg
+    └── apis
+        └── samplecrd
+            ├── register.go
+            └── v1
+                ├── doc.go
+                ├── register.go
+                └── types.go<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p> 其中，pkg/apis/samplecrd 就是 API 组的名字，v1 是版本，而 v1 下面的 types.go 文件里，则定义了 Network 对象的完整描述。我已经把这个项目 <a target="_blank" rel="noopener" href="https://github.com/resouer/k8s-controller-custom-resource">上传到了 GitHub 上</a> ，你可以随时参考。</p>
+<blockquote>
+<p>注： k8s 官方的 example 项目地址是： <a target="_blank" rel="noopener" href="https://github.com/kubernetes/sample-controller">https://github.com/kubernetes/sample-controller</a></p>
+</blockquote>
+</li>
+<li><p><strong>然后，我在 pkg/apis/samplecrd 目录下创建了一个 register.go 文件，用来放置后面要用到的全局变量。</strong> 这个文件的内容如下所示：</p>
+ <pre class="line-numbers language-go" data-language="go"><code class="language-go"><span class="token keyword">package</span> samplecrd
+
+<span class="token keyword">const</span> <span class="token punctuation">(</span>
+GroupName <span class="token operator">=</span> <span class="token string">"samplecrd.k8s.io"</span>
+Version   <span class="token operator">=</span> <span class="token string">"v1"</span>
+<span class="token punctuation">)</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre></li>
+<li><p><strong>接着，我需要在 pkg/apis/samplecrd 目录下添加一个 doc.go 文件（Golang 的文档源文件）。</strong> 这个文件里的内容如下所示：</p>
+ <pre class="line-numbers language-go" data-language="go"><code class="language-go"><span class="token comment">// +k8s:deepcopy-gen=package</span>
+
+<span class="token comment">// +groupName=samplecrd.k8s.io</span>
+<span class="token keyword">package</span> v1<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span></span></code></pre>
+<p> 在这个文件中，你会看到 +<tag_name>[=value] 格式的注释，这就是 Kubernetes 进行代码生成要用的 Annotation 风格的注释。</tag_name></p>
+<p> 其中，+k8s:deepcopy-gen=package 意思是，请为整个 v1 包里的所有类型定义自动生成 DeepCopy 方法；而+groupName=samplecrd.k8s.io，则定义了这个包对应的 API 组的名字。</p>
+<p> 可以看到，这些定义在 doc.go 文件的注释，起到的是全局的代码生成控制的作用，所以也被称为 Global Tags。</p>
+</li>
+<li><p><strong>接下来，我需要添加 types.go 文件。</strong> 顾名思义，它的作用就是定义一个 Network 类型到底有哪些字段（比如，spec 字段里的内容）。这个文件的主要内容如下所示：</p>
+ <pre class="line-numbers language-go" data-language="go"><code class="language-go"><span class="token keyword">package</span> v1
+<span class="token operator">...</span>
+<span class="token comment">// +genclient</span>
+<span class="token comment">// +genclient:noStatus</span>
+<span class="token comment">// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object</span>
+
+<span class="token comment">// Network describes a Network resource</span>
+<span class="token keyword">type</span> Network <span class="token keyword">struct</span> <span class="token punctuation">{</span>
+<span class="token comment">// TypeMeta is the metadata for the resource, like kind and apiversion</span>
+metav1<span class="token punctuation">.</span>TypeMeta <span class="token string">`json:",inline"`</span>
+<span class="token comment">// ObjectMeta contains the metadata for the particular object, including</span>
+<span class="token comment">// things like...</span>
+<span class="token comment">//  - name</span>
+<span class="token comment">//  - namespace</span>
+<span class="token comment">//  - self link</span>
+<span class="token comment">//  - labels</span>
+<span class="token comment">//  - ... etc ...</span>
+metav1<span class="token punctuation">.</span>ObjectMeta <span class="token string">`json:"metadata,omitempty"`</span>
+
+Spec networkspec <span class="token string">`json:"spec"`</span>
+<span class="token punctuation">}</span>
+<span class="token comment">// networkspec is the spec for a Network resource</span>
+<span class="token keyword">type</span> networkspec <span class="token keyword">struct</span> <span class="token punctuation">{</span>
+Cidr    <span class="token builtin">string</span> <span class="token string">`json:"cidr"`</span>
+Gateway <span class="token builtin">string</span> <span class="token string">`json:"gateway"`</span>
+<span class="token punctuation">}</span>
+
+<span class="token comment">// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object</span>
+
+<span class="token comment">// NetworkList is a list of Network resources</span>
+<span class="token keyword">type</span> NetworkList <span class="token keyword">struct</span> <span class="token punctuation">{</span>
+metav1<span class="token punctuation">.</span>TypeMeta <span class="token string">`json:",inline"`</span>
+metav1<span class="token punctuation">.</span>ListMeta <span class="token string">`json:"metadata"`</span>
+
+Items <span class="token punctuation">[</span><span class="token punctuation">]</span>Network <span class="token string">`json:"items"`</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p> 在上面这部分代码里，你可以看到 Network 类型定义方法跟标准的 Kubernetes 对象一样，都包括了 TypeMeta（API 元数据）和 ObjectMeta（对象元数据）字段。</p>
+<p> 而其中的 Spec 字段，就是需要我们自己定义的部分。所以，在 networkspec 里，我定义了 Cidr 和 Gateway 两个字段。其中，每个字段最后面的部分比如json:”cidr”，指的就是这个字段被转换成 JSON 格式之后的名字，也就是 YAML 文件里的字段名字。</p>
+<p> 此外，除了定义 Network 类型，你还需要定义一个 NetworkList 类型，用来描述 <strong>一组 Network 对象</strong> 应该包括哪些字段。之所以需要这样一个类型，是因为在 Kubernetes 中，获取所有 X 对象的 List() 方法，返回值都是List 类型，而不是 X 类型的数组。这是不一样的。</p>
+<p> 同样地，在 Network 和 NetworkList 类型上，也有代码生成注释。</p>
+<p> 其中，+genclient 的意思是：请为下面这个 API 资源类型生成对应的 Client 代码（这个 Client，我马上会讲到）。而 +genclient:noStatus 的意思是：这个 API 资源类型定义里，没有 Status 字段。否则，生成的 Client 就会自动带上 UpdateStatus 方法。</p>
+<p> 如果你的类型定义包括了 Status 字段的话，就不需要这句 +genclient:noStatus 注释了。比如下面这个例子：</p>
+ <pre class="line-numbers language-go" data-language="go"><code class="language-go"><span class="token comment">// +genclient</span>
+
+<span class="token comment">// Network is a specification for a Network resource</span>
+<span class="token keyword">type</span> Network <span class="token keyword">struct</span> <span class="token punctuation">{</span>
+metav1<span class="token punctuation">.</span>TypeMeta   <span class="token string">`json:",inline"`</span>
+metav1<span class="token punctuation">.</span>ObjectMeta <span class="token string">`json:"metadata,omitempty"`</span>
+
+Spec   NetworkSpec   <span class="token string">`json:"spec"`</span>
+Status NetworkStatus <span class="token string">`json:"status"`</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p> 需要注意的是，+genclient 只需要写在 Network 类型上，而不用写在 NetworkList 上。因为 NetworkList 只是一个返回值类型，Network 才是”主类型”。</p>
+<p> 而由于我在 Global Tags 里已经定义了为所有类型生成 DeepCopy 方法，所以这里就不需要再显式地加上 +k8s:deepcopy-gen=true 了。当然，这也就意味着你可以用 +k8s:deepcopy-gen=false 来阻止为某些类型生成 DeepCopy。</p>
+<p> 你可能已经注意到，在这两个类型上面还有一句+k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object的注释。它的意思是，请在生成 DeepCopy 的时候，实现 Kubernetes 提供的 runtime.Object 接口。否则，在某些版本的 Kubernetes 里，你的这个类型定义会出现编译错误。这是一个固定的操作，记住即可。</p>
+<p> 不过，你或许会有这样的顾虑：这些代码生成注释这么灵活，我该怎么掌握呢？</p>
+<p> 其实，上面我所讲述的内容，已经足以应对 99% 的场景了。当然，如果你对代码生成感兴趣的话，我推荐你阅读 <a target="_blank" rel="noopener" href="https://blog.openshift.com/kubernetes-deep-dive-code-generation-customresources/">这篇博客</a> ，它详细地介绍了 Kubernetes 的代码生成语法。</p>
+</li>
+<li><p><strong>*最后，我需要再编写的一个 pkg/apis/samplecrd/v1/register.go 文件。</strong></p>
+<p> 在前面对 APIServer 工作原理的讲解中，我已经提到，”registry”的作用就是注册一个类型（Type）给 APIServer。其中，Network 资源类型在服务器端的注册的工作，APIServer 会自动帮我们完成。但与之对应的，我们还需要让客户端也能”知道”Network 资源类型的定义。这就需要我们在项目里添加一个 register.go 文件。它最主要的功能，就是定义了如下所示的 addKnownTypes() 方法：</p>
+ <pre class="line-numbers language-go" data-language="go"><code class="language-go"><span class="token keyword">package</span> v1
+<span class="token operator">...</span>
+<span class="token comment">// addKnownTypes adds our types to the API scheme by registering</span>
+<span class="token comment">// Network and NetworkList</span>
+<span class="token keyword">func</span> <span class="token function">addKnownTypes</span><span class="token punctuation">(</span>scheme <span class="token operator">*</span>runtime<span class="token punctuation">.</span>Scheme<span class="token punctuation">)</span> <span class="token builtin">error</span> <span class="token punctuation">{</span>
+ scheme<span class="token punctuation">.</span><span class="token function">AddKnownTypes</span><span class="token punctuation">(</span>
+  SchemeGroupVersion<span class="token punctuation">,</span>
+  <span class="token operator">&amp;</span>Network<span class="token punctuation">{</span><span class="token punctuation">}</span><span class="token punctuation">,</span>
+  <span class="token operator">&amp;</span>NetworkList<span class="token punctuation">{</span><span class="token punctuation">}</span><span class="token punctuation">,</span>
+ <span class="token punctuation">)</span>
+
+ <span class="token comment">// register the type in the scheme</span>
+ metav1<span class="token punctuation">.</span><span class="token function">AddToGroupVersion</span><span class="token punctuation">(</span>scheme<span class="token punctuation">,</span> SchemeGroupVersion<span class="token punctuation">)</span>
+ <span class="token keyword">return</span> <span class="token boolean">nil</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p> 有了这个方法，Kubernetes 就能够在后面生成客户端的时候，”知道”Network 以及 NetworkList 类型的定义了。</p>
+<p> 像上面这种 <strong>register.go 文件里的内容其实是非常固定的，你以后可以直接使用我提供的这部分代码做模板，然后把其中的资源类型、GroupName 和 Version 替换成你自己的定义即可。</strong></p>
+<p> 这样，Network 对象的定义工作就全部完成了。可以看到，它其实定义了两部分内容：</p>
+<ol>
+<li>这样，Network 对象的定义工作就全部完成了。可以看到，它其实定义了两部分内容：</li>
+<li>第二部分是，自定义资源类型的对象描述，包括：Spec、Status 等。这相当于告诉了计算机：兔子有长耳朵和三瓣嘴。</li>
+</ol>
+</li>
+<li><p><strong>接下来，我就要使用 Kubernetes 提供的代码生成工具，为上面定义的 Network 资源类型自动生成 clientset、informer 和 lister。</strong> 其中，clientset 就是操作 Network 对象所需要使用的客户端，而 informer 和 lister 这两个包的主要功能，我会在下一篇文章中重点讲解。</p>
+<p> 这个代码生成工具名叫k8s.io/code-generator，使用方法如下所示：</p>
+ <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token comment"># 代码生成的工作目录，也就是我们的项目路径</span>
+$ <span class="token assign-left variable">ROOT_PACKAGE</span><span class="token operator">=</span><span class="token string">"github.com/resouer/k8s-controller-custom-resource"</span>
+<span class="token comment"># API Group</span>
+$ <span class="token assign-left variable">CUSTOM_RESOURCE_NAME</span><span class="token operator">=</span><span class="token string">"samplecrd"</span>
+<span class="token comment"># API Version</span>
+$ <span class="token assign-left variable">CUSTOM_RESOURCE_VERSION</span><span class="token operator">=</span><span class="token string">"v1"</span>
+
+<span class="token comment"># 安装 k8s.io/code-generator</span>
+$ go get -u k8s.io/code-generator/<span class="token punctuation">..</span>.
+$ <span class="token builtin class-name">cd</span> <span class="token variable">$GOPATH</span>/src/k8s.io/code-generator
+
+<span class="token comment"># 执行代码自动生成，其中 pkg/client 是生成目标目录，pkg/apis 是类型定义目录</span>
+$ ./generate-groups.sh all <span class="token string">"<span class="token variable">$ROOT_PACKAGE</span>/pkg/client"</span> <span class="token string">"<span class="token variable">$ROOT_PACKAGE</span>/pkg/apis"</span> <span class="token string">"<span class="token variable">$CUSTOM_RESOURCE_NAME</span>:<span class="token variable">$CUSTOM_RESOURCE_VERSION</span>"</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p> 代码生成工作完成之后，我们再查看一下这个项目的目录结构：</p>
+ <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ tree
+<span class="token builtin class-name">.</span>
+├── controller.go
+├── crd
+│   └── network.yaml
+├── example
+│   └── example-network.yaml
+├── main.go
+└── pkg
+    ├── apis
+    │   └── samplecrd
+    │       ├── constants.go
+    │       └── v1
+    │           ├── doc.go
+    │           ├── register.go
+    │           ├── types.go
+    │           └── zz_generated.deepcopy.go
+    └── client
+        ├── clientset
+        ├── informers
+        └── listers<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p> 其中，pkg/apis/samplecrd/v1 下面的 zz_generated.deepcopy.go 文件，就是自动生成的 DeepCopy 代码文件。</p>
+<p> 而整个 client 目录，以及下面的三个包（clientset、informers、 listers），都是 Kubernetes 为 Network 类型生成的客户端库，这些库会在后面编写自定义控制器的时候用到。</p>
+</li>
+</ol>
+<p>可以看到，到目前为止的这些工作，其实并不要求你写多少代码，主要考验的是”复制、粘贴、替换”这样的”基本功”。</p>
+<p>而有了这些内容，现在你就可以在 Kubernetes 集群里创建一个 Network 类型的 API 对象了。我们不妨一起来实验一下。</p>
+<ol>
+<li><p>首先，使用 network.yaml 文件，在 Kubernetes 中创建 Network 对象的 CRD（Custom Resource Definition）：</p>
+ <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ kubectl apply -f crd/network.yaml
+customresourcedefinition.apiextensions.k8s.io/networks.samplecrd.k8s.io created<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre>
+<p> 这个操作，就告诉了 Kubernetes，我现在要添加一个自定义的 API 对象。而这个对象的 API 信息，正是 network.yaml 里定义的内容。我们可以通过 kubectl get 命令，查看这个 CRD：</p>
+ <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ kubectl get crd
+NAME                        CREATED AT
+networks.samplecrd.k8s.io   <span class="token number">2018</span>-09-15T10:57:12Z<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span></span></code></pre></li>
+<li><p>然后，我们就可以创建一个 Network 对象了，这里用到的是 example-network.yaml：</p>
+ <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ kubectl apply -f example/example-network.yaml
+network.samplecrd.k8s.io/example-network created<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre>
+<p> 通过这个操作，你就在 Kubernetes 集群里创建了一个 Network 对象。它的 API 资源路径是samplecrd.k8s.io/v1/networks。</p>
+<p> 这时候，你就可以通过 kubectl get 命令，查看到新创建的 Network 对象：</p>
+ <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ kubectl get network
+NAME              AGE
+example-network   8s<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span></span></code></pre>
+<p> 你还可以通过 kubectl describe 命令，看到这个 Network 对象的细节：</p>
+ <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ kubectl describe network example-network
+Name:         example-network
+Namespace:    default
+Labels:       <span class="token operator">&lt;</span>none<span class="token operator">&gt;</span>
+<span class="token punctuation">..</span>.API Version:  samplecrd.k8s.io/v1
+Kind:         Network
+Metadata:
+<span class="token punctuation">..</span>.
+Generation:          <span class="token number">1</span>
+Resource Version:    <span class="token number">468239</span>
+<span class="token punctuation">..</span>.
+Spec:
+Cidr:     <span class="token number">192.168</span>.0.0/16
+Gateway:  <span class="token number">192.168</span>.0.1<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p> 当然 ，你也可以编写更多的 YAML 文件来创建更多的 Network 对象，这和创建 Pod、Deployment 的操作，没有任何区别。</p>
+</li>
+</ol>
+<h4 id="24-1-总结"><a href="#24-1-总结" class="headerlink" title="24.1 总结"></a>24.1 总结</h4><p>在今天这篇文章中，我为你详细解析了 Kubernetes 声明式 API 的工作原理，讲解了如何遵循声明式 API 的设计，为 Kubernetes 添加一个名叫 Network 的 API 资源类型。从而达到了通过标准的 kubectl create 和 get 操作，来管理自定义 API 对象的目的。</p>
+<p>不过，创建出这样一个自定义 API 对象，我们只是完成了 Kubernetes 声明式 API 的一半工作。</p>
+<p>接下来的另一半工作是：为这个 API 对象编写一个自定义控制器（Custom Controller）。这样， Kubernetes 才能根据 Network API 对象的”增、删、改”操作，在真实环境中做出相应的响应。比如，”创建、删除、修改”真正的 Neutron 网络。</p>
+<p>而这，正是 Network 这个 API 对象所关注的”业务逻辑”。</p>
+<p>这个业务逻辑的实现过程，以及它所使用的 Kubernetes API 编程库的工作原理，就是我要在下一篇文章中讲解的主要内容。</p>
+<h3 id="25-深入解析声明式API（二）：编写自定义控制器"><a href="#25-深入解析声明式API（二）：编写自定义控制器" class="headerlink" title="25 | 深入解析声明式API（二）：编写自定义控制器"></a>25 | 深入解析声明式API（二）：编写自定义控制器</h3><p>在上一篇文章中，我和你详细分享了 Kubernetes 中声明式 API 的实现原理，并且通过一个添加 Network 对象的实例，为你讲述了在 Kubernetes 里添加 API 资源的过程。</p>
+<p>在今天的这篇文章中，我就继续和你一起完成剩下一半的工作，即：为 Network 这个自定义 API 对象编写一个自定义控制器（Custom Controller）。</p>
+<p>正如我在上一篇文章结尾处提到的，”声明式 API”并不像”命令式 API”那样有着明显的执行逻辑。这就使得 <strong>基于声明式 API 的业务功能实现，往往需要通过控制器模式来”监视”API 对象的变化（比如，创建或者删除 Network），然后以此来决定实际要执行的具体工作。</strong></p>
+<p>总得来说，编写自定义控制器代码的过程包括：编写 main 函数、编写自定义控制器的定义，以及编写控制器里的业务逻辑三个部分。</p>
+<p><strong>首先，我们来编写这个自定义控制器的 main 函数。</strong></p>
+<p>main 函数的主要工作就是，定义并初始化一个自定义控制器（Custom Controller），然后启动它。这部分代码的主要内容如下所示：</p>
+<pre class="line-numbers language-go" data-language="go"><code class="language-go"><span class="token keyword">func</span> <span class="token function">main</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+<span class="token operator">...</span>
+
+cfg<span class="token punctuation">,</span> err <span class="token operator">:=</span> clientcmd<span class="token punctuation">.</span><span class="token function">BuildConfigFromFlags</span><span class="token punctuation">(</span>masterURL<span class="token punctuation">,</span> kubeconfig<span class="token punctuation">)</span>
+<span class="token operator">...</span>
+kubeClient<span class="token punctuation">,</span> err <span class="token operator">:=</span> kubernetes<span class="token punctuation">.</span><span class="token function">NewForConfig</span><span class="token punctuation">(</span>cfg<span class="token punctuation">)</span>
+<span class="token operator">...</span>
+networkClient<span class="token punctuation">,</span> err <span class="token operator">:=</span> clientset<span class="token punctuation">.</span><span class="token function">NewForConfig</span><span class="token punctuation">(</span>cfg<span class="token punctuation">)</span>
+<span class="token operator">...</span>
+
+networkInformerFactory <span class="token operator">:=</span> informers<span class="token punctuation">.</span><span class="token function">NewSharedInformerFactory</span><span class="token punctuation">(</span>networkClient<span class="token punctuation">,</span> <span class="token operator">...</span><span class="token punctuation">)</span>
+
+controller <span class="token operator">:=</span> <span class="token function">NewController</span><span class="token punctuation">(</span>kubeClient<span class="token punctuation">,</span> networkClient<span class="token punctuation">,</span>
+networkInformerFactory<span class="token punctuation">.</span><span class="token function">Samplecrd</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">V1</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">Networks</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span>
+
+<span class="token keyword">go</span> networkInformerFactory<span class="token punctuation">.</span><span class="token function">Start</span><span class="token punctuation">(</span>stopCh<span class="token punctuation">)</span>
+
+<span class="token keyword">if</span> err <span class="token operator">=</span> controller<span class="token punctuation">.</span><span class="token function">Run</span><span class="token punctuation">(</span><span class="token number">2</span><span class="token punctuation">,</span> stopCh<span class="token punctuation">)</span><span class="token punctuation">;</span> err <span class="token operator">!=</span> <span class="token boolean">nil</span> <span class="token punctuation">{</span>
+    glog<span class="token punctuation">.</span><span class="token function">Fatalf</span><span class="token punctuation">(</span><span class="token string">"Error running controller: %s"</span><span class="token punctuation">,</span> err<span class="token punctuation">.</span><span class="token function">Error</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span>
+<span class="token punctuation">}</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>可以看到，这个 main 函数主要通过三步完成了初始化并启动一个自定义控制器的工作。</p>
+<ol>
+<li><p>第一步：main 函数根据我提供的 Master 配置（APIServer 的地址端口和 kubeconfig 的路径），创建一个 Kubernetes 的 client（kubeClient）和 Network 对象的 client（networkClient）。</p>
+<p> 但是，如果我没有提供 Master 配置呢？</p>
+<p> 这时，main 函数会直接使用一种名叫InClusterConfig的方式来创建这个 client。这个方式，会假设你的自定义控制器是以 Pod 的方式运行在 Kubernetes 集群里的。</p>
+<p> 而我在第 15 篇文章 <a target="_blank" rel="noopener" href="https://time.geekbang.org/column/article/40466">《深入解析 Pod 对象（二）：使用进阶》</a> 中曾经提到过，Kubernetes 里所有的 Pod 都会以 Volume 的方式自动挂载 Kubernetes 的默认 ServiceAccount。所以，这个控制器就会直接使用默认 ServiceAccount 数据卷里的授权信息，来访问 APIServer。</p>
+</li>
+<li><p>第二步：main 函数为 Network 对象创建一个叫作 InformerFactory（即：networkInformerFactory）的工厂，并使用它生成一个 Network 对象的 Informer，传递给控制器。</p>
+</li>
+<li><p>第三步：main 函数启动上述的 Informer，然后执行 controller.Run，启动自定义控制器。</p>
+</li>
+</ol>
+<p>至此，main 函数就结束了。</p>
+<p>看到这，你可能会感到非常困惑：编写自定义控制器的过程难道就这么简单吗？这个 Informer 又是个什么东西呢？</p>
+<p>接下来，我就为你 <strong>详细解释一下这个自定义控制器的工作原理。</strong></p>
+<p>在 Kubernetes 项目中，一个自定义控制器的工作原理，可以用下面这样一幅流程图来表示（在后面的叙述中，我会用”示意图”来指代它）：</p>
+<p><img src="/images/《深入剖析Kubernetes》学习笔记/自定义控制器的工作流程示意图.png" alt="自定义控制器的工作流程示意图"></p>
+<p>我们先从这幅示意图的最左边看起。</p>
+<ol>
+<li><p><strong>这个控制器要做的第一件事，是从 Kubernetes 的 APIServer 里获取它所关心的对象，也就是我定义的 Network 对象。</strong></p>
+<p> 这个操作，依靠的是一个叫作 Informer（可以翻译为：通知器）的代码库完成的。Informer 与 API 对象是一一对应的，所以我传递给自定义控制器的，正是一个 Network 对象的 Informer（Network Informer）。</p>
+<p> 不知你是否已经注意到，我在创建这个 Informer 工厂的时候，需要给它传递一个 networkClient。</p>
+<p> 事实上，Network Informer 正是使用这个 networkClient，跟 APIServer 建立了连接。不过，真正负责维护这个连接的，则是 Informer 所使用的 Reflector 包。</p>
+<p> 更具体地说，Reflector 使用的是一种叫作 <strong>ListAndWatch</strong> 的方法，来”获取”并”监听”这些 Network 对象实例的变化。</p>
+<p> 在 ListAndWatch 机制下，一旦 APIServer 端有新的 Network 实例被创建、删除或者更新，Reflector 都会收到”事件通知”。这时，该事件及它对应的 API 对象这个组合，就被称为增量（Delta），它会被放进一个 Delta FIFO Queue（即：增量先进先出队列）中。</p>
+<p> 而另一方面，Informe 会不断地从这个 Delta FIFO Queue 里读取（Pop）增量。每拿到一个增量，Informer 就会判断这个增量里的事件类型，然后创建或者更新本地对象的缓存。这个缓存，在 Kubernetes 里一般被叫作 Store。</p>
+<p> 比如，如果事件类型是 Added（添加对象），那么 Informer 就会通过一个叫作 Indexer 的库把这个增量里的 API 对象保存在本地缓存中，并为它创建索引。相反地，如果增量的事件类型是 Deleted（删除对象），那么 Informer 就会从本地缓存中删除这个对象。</p>
+<p> 这个 <strong>同步本地缓存的工作，是 Informer 的第一个职责，也是它最重要的职责。</strong></p>
+</li>
+<li><p>而 <strong>Informer 的第二个职责，则是根据这些事件的类型，触发事先注册好的 ResourceEventHandler。</strong> 这些 Handler，需要在创建控制器的时候注册给它对应的 Informer。</p>
+</li>
+</ol>
+<p>接下来，我们就来 <strong>编写这个控制器的定义</strong> ，它的主要内容如下所示：</p>
+<pre class="line-numbers language-go" data-language="go"><code class="language-go"><span class="token keyword">func</span> <span class="token function">NewController</span><span class="token punctuation">(</span>
+  kubeclientset kubernetes<span class="token punctuation">.</span>Interface<span class="token punctuation">,</span>
+  networkclientset clientset<span class="token punctuation">.</span>Interface<span class="token punctuation">,</span>
+  networkInformer informers<span class="token punctuation">.</span>NetworkInformer<span class="token punctuation">)</span> <span class="token operator">*</span>Controller <span class="token punctuation">{</span>
+  <span class="token operator">...</span>
+  controller <span class="token operator">:=</span> <span class="token operator">&amp;</span>Controller<span class="token punctuation">{</span>
+    kubeclientset<span class="token punctuation">:</span>    kubeclientset<span class="token punctuation">,</span>
+    networkclientset<span class="token punctuation">:</span> networkclientset<span class="token punctuation">,</span>
+    networksLister<span class="token punctuation">:</span>   networkInformer<span class="token punctuation">.</span><span class="token function">Lister</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">,</span>
+    networksSynced<span class="token punctuation">:</span>   networkInformer<span class="token punctuation">.</span><span class="token function">Informer</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">.</span>HasSynced<span class="token punctuation">,</span>
+    workqueue<span class="token punctuation">:</span>        workqueue<span class="token punctuation">.</span><span class="token function">NewNamedRateLimitingQueue</span><span class="token punctuation">(</span><span class="token operator">...</span><span class="token punctuation">,</span>  <span class="token string">"Networks"</span><span class="token punctuation">)</span><span class="token punctuation">,</span>
+    <span class="token operator">...</span>
+  <span class="token punctuation">}</span>
+    networkInformer<span class="token punctuation">.</span><span class="token function">Informer</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">AddEventHandler</span><span class="token punctuation">(</span>cache<span class="token punctuation">.</span>ResourceEventHandlerFuncs<span class="token punctuation">{</span>
+    AddFunc<span class="token punctuation">:</span> controller<span class="token punctuation">.</span>enqueueNetwork<span class="token punctuation">,</span>
+    UpdateFunc<span class="token punctuation">:</span> <span class="token keyword">func</span><span class="token punctuation">(</span>old<span class="token punctuation">,</span> <span class="token builtin">new</span> <span class="token keyword">interface</span><span class="token punctuation">{</span><span class="token punctuation">}</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+      oldNetwork <span class="token operator">:=</span> old<span class="token punctuation">.</span><span class="token punctuation">(</span><span class="token operator">*</span>samplecrdv1<span class="token punctuation">.</span>Network<span class="token punctuation">)</span>
+      newNetwork <span class="token operator">:=</span> <span class="token builtin">new</span><span class="token punctuation">.</span><span class="token punctuation">(</span><span class="token operator">*</span>samplecrdv1<span class="token punctuation">.</span>Network<span class="token punctuation">)</span>
+      <span class="token keyword">if</span> oldNetwork<span class="token punctuation">.</span>ResourceVersion <span class="token operator">==</span> newNetwork<span class="token punctuation">.</span>ResourceVersion <span class="token punctuation">{</span>
+        <span class="token keyword">return</span>
+      <span class="token punctuation">}</span>
+      controller<span class="token punctuation">.</span><span class="token function">enqueueNetwork</span><span class="token punctuation">(</span><span class="token builtin">new</span><span class="token punctuation">)</span>
+    <span class="token punctuation">}</span><span class="token punctuation">,</span>
+    DeleteFunc<span class="token punctuation">:</span> controller<span class="token punctuation">.</span>enqueueNetworkForDelete<span class="token punctuation">,</span>
+ <span class="token keyword">return</span> controller
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p><strong>我前面在 main 函数里创建了两个 client（kubeclientset 和 networkclientset），然后在这段代码里，使用这两个 client 和前面创建的 Informer，初始化了自定义控制器。</strong></p>
+<p>值得注意的是，在这个自定义控制器里，我还设置了一个工作队列（work queue），它正是处于示意图中间位置的 WorkQueue。这个工作队列的作用是，负责同步 Informer 和控制循环之间的数据。</p>
+<blockquote>
+<p>实际上，Kubernetes 项目为我们提供了很多个工作队列的实现，你可以根据需要选择合适的库直接使用。</p>
+</blockquote>
+<p><strong>然后，我为 networkInformer 注册了三个 Handler（AddFunc、UpdateFunc 和 DeleteFunc），分别对应 API 对象的”添加””更新”和”删除”事件。而具体的处理操作，都是将该事件对应的 API 对象加入到工作队列中。</strong></p>
+<p>需要注意的是，实际入队的并不是 API 对象本身，而是它们的 Key，即：该 API 对象的<namespace>/<name>。</name></namespace></p>
+<p>而我们后面即将编写的控制循环，则会不断地从这个工作队列里拿到这些 Key，然后开始执行真正的控制逻辑。</p>
+<p>综合上面的讲述，你现在应该就能明白， <strong>所谓 Informer，其实就是一个带有本地缓存和索引机制的、可以注册 EventHandler 的 client。</strong> 它是自定义控制器跟 APIServer 进行数据同步的重要组件。</p>
+<p>更具体地说，Informer 通过一种叫作 ListAndWatch 的方法，把 APIServer 中的 API 对象缓存在了本地，并负责更新和维护这个缓存。</p>
+<p>其中，ListAndWatch 方法的含义是：首先，通过 APIServer 的 LIST API”获取”所有最新版本的 API 对象；然后，再通过 WATCH API 来”监听”所有这些 API 对象的变化。</p>
+<p>而通过监听到的事件变化，Informer 就可以实时地更新本地缓存，并且调用这些事件对应的 EventHandler 了。</p>
+<p>此外，在这个过程中，每经过 resyncPeriod 指定的时间，Informer 维护的本地缓存，都会使用最近一次 LIST 返回的结果强制更新一次，从而保证缓存的有效性。在 Kubernetes 中，这个缓存强制更新的操作就叫作：resync。</p>
+<p>需要注意的是，这个定时 resync 操作，也会触发 Informer 注册的”更新”事件。但此时，这个”更新”事件对应的 Network 对象实际上并没有发生变化，即：新、旧两个 Network 对象的 ResourceVersion 是一样的。在这种情况下，Informer 就不需要对这个更新事件再做进一步的处理了。</p>
+<p>这也是为什么我在上面的 UpdateFunc 方法里，先判断了一下新、旧两个 Network 对象的版本（ResourceVersion）是否发生了变化，然后才开始进行的入队操作。</p>
+<p>以上，就是 Kubernetes 中的 Informer 库的工作原理了。</p>
+<p>接下来，我们就来到了示意图中最后面的控制循环（Control Loop）部分，也正是我在 main 函数最后调用 controller.Run() 启动的”控制循环”。它的主要内容如下所示：</p>
+<pre class="line-numbers language-go" data-language="go"><code class="language-go"><span class="token keyword">func</span> <span class="token punctuation">(</span>c <span class="token operator">*</span>Controller<span class="token punctuation">)</span> <span class="token function">Run</span><span class="token punctuation">(</span>threadiness <span class="token builtin">int</span><span class="token punctuation">,</span> stopCh <span class="token operator">&lt;-</span><span class="token keyword">chan</span> <span class="token keyword">struct</span><span class="token punctuation">{</span><span class="token punctuation">}</span><span class="token punctuation">)</span> <span class="token builtin">error</span> <span class="token punctuation">{</span>
+ <span class="token operator">...</span>
+  <span class="token keyword">if</span> ok <span class="token operator">:=</span> cache<span class="token punctuation">.</span><span class="token function">WaitForCacheSync</span><span class="token punctuation">(</span>stopCh<span class="token punctuation">,</span> c<span class="token punctuation">.</span>networksSynced<span class="token punctuation">)</span><span class="token punctuation">;</span> <span class="token operator">!</span>ok <span class="token punctuation">{</span>
+    <span class="token keyword">return</span> fmt<span class="token punctuation">.</span><span class="token function">Errorf</span><span class="token punctuation">(</span><span class="token string">"failed to wait for caches to sync"</span><span class="token punctuation">)</span>
+  <span class="token punctuation">}</span>
+
+  <span class="token operator">...</span>
+  <span class="token keyword">for</span> i <span class="token operator">:=</span> <span class="token number">0</span><span class="token punctuation">;</span> i <span class="token operator">&lt;</span> threadiness<span class="token punctuation">;</span> i<span class="token operator">++</span> <span class="token punctuation">{</span>
+    <span class="token keyword">go</span> wait<span class="token punctuation">.</span><span class="token function">Until</span><span class="token punctuation">(</span>c<span class="token punctuation">.</span>runWorker<span class="token punctuation">,</span> time<span class="token punctuation">.</span>Second<span class="token punctuation">,</span> stopCh<span class="token punctuation">)</span>
+  <span class="token punctuation">}</span>
+
+  <span class="token operator">...</span>
+  <span class="token keyword">return</span> <span class="token boolean">nil</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>可以看到，启动控制循环的逻辑非常简单：</p>
+<ul>
+<li>首先，等待 Informer 完成一次本地缓存的数据同步操作；</li>
+<li>然后，直接通过 goroutine 启动一个（或者并发启动多个）”无限循环”的任务。</li>
+</ul>
+<p>而这个”无限循环”任务的每一个循环周期，执行的正是我们真正关心的业务逻辑。</p>
+<p>所以接下来，我们就来 <strong>编写这个自定义控制器的业务逻辑</strong> ，它的主要内容如下所示：</p>
+<pre class="line-numbers language-go" data-language="go"><code class="language-go"><span class="token keyword">func</span> <span class="token punctuation">(</span>c <span class="token operator">*</span>Controller<span class="token punctuation">)</span> <span class="token function">runWorker</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+  <span class="token keyword">for</span> c<span class="token punctuation">.</span><span class="token function">processNextWorkItem</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+  <span class="token punctuation">}</span>
+<span class="token punctuation">}</span>
+
+<span class="token keyword">func</span> <span class="token punctuation">(</span>c <span class="token operator">*</span>Controller<span class="token punctuation">)</span> <span class="token function">processNextWorkItem</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token builtin">bool</span> <span class="token punctuation">{</span>
+  obj<span class="token punctuation">,</span> shutdown <span class="token operator">:=</span> c<span class="token punctuation">.</span>workqueue<span class="token punctuation">.</span><span class="token function">Get</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+
+  <span class="token operator">...</span>
+
+  err <span class="token operator">:=</span> <span class="token keyword">func</span><span class="token punctuation">(</span>obj <span class="token keyword">interface</span><span class="token punctuation">{</span><span class="token punctuation">}</span><span class="token punctuation">)</span> <span class="token builtin">error</span> <span class="token punctuation">{</span>
+    <span class="token operator">...</span>
+    <span class="token keyword">if</span> err <span class="token operator">:=</span> c<span class="token punctuation">.</span><span class="token function">syncHandler</span><span class="token punctuation">(</span>key<span class="token punctuation">)</span><span class="token punctuation">;</span> err <span class="token operator">!=</span> <span class="token boolean">nil</span> <span class="token punctuation">{</span>
+     <span class="token keyword">return</span> fmt<span class="token punctuation">.</span><span class="token function">Errorf</span><span class="token punctuation">(</span><span class="token string">"error syncing '%s': %s"</span><span class="token punctuation">,</span> key<span class="token punctuation">,</span> err<span class="token punctuation">.</span><span class="token function">Error</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span>
+    <span class="token punctuation">}</span>
+
+    c<span class="token punctuation">.</span>workqueue<span class="token punctuation">.</span><span class="token function">Forget</span><span class="token punctuation">(</span>obj<span class="token punctuation">)</span>
+    <span class="token operator">...</span>
+    <span class="token keyword">return</span> <span class="token boolean">nil</span>
+  <span class="token punctuation">}</span><span class="token punctuation">(</span>obj<span class="token punctuation">)</span>
+
+  <span class="token operator">...</span>
+
+  <span class="token keyword">return</span> <span class="token boolean">true</span>
+<span class="token punctuation">}</span>
+
+<span class="token keyword">func</span> <span class="token punctuation">(</span>c <span class="token operator">*</span>Controller<span class="token punctuation">)</span> <span class="token function">syncHandler</span><span class="token punctuation">(</span>key <span class="token builtin">string</span><span class="token punctuation">)</span> <span class="token builtin">error</span> <span class="token punctuation">{</span>
+
+  namespace<span class="token punctuation">,</span> name<span class="token punctuation">,</span> err <span class="token operator">:=</span> cache<span class="token punctuation">.</span><span class="token function">SplitMetaNamespaceKey</span><span class="token punctuation">(</span>key<span class="token punctuation">)</span>
+  <span class="token operator">...</span>
+
+  network<span class="token punctuation">,</span> err <span class="token operator">:=</span> c<span class="token punctuation">.</span>networksLister<span class="token punctuation">.</span><span class="token function">Networks</span><span class="token punctuation">(</span>namespace<span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">Get</span><span class="token punctuation">(</span>name<span class="token punctuation">)</span>
+  <span class="token keyword">if</span> err <span class="token operator">!=</span> <span class="token boolean">nil</span> <span class="token punctuation">{</span>
+    <span class="token keyword">if</span> errors<span class="token punctuation">.</span><span class="token function">IsNotFound</span><span class="token punctuation">(</span>err<span class="token punctuation">)</span> <span class="token punctuation">{</span>
+      glog<span class="token punctuation">.</span><span class="token function">Warningf</span><span class="token punctuation">(</span><span class="token string">"Network does not exist in local cache: %s/%s, will delete it from Neutron ..."</span><span class="token punctuation">,</span>
+      namespace<span class="token punctuation">,</span> name<span class="token punctuation">)</span>
+
+      glog<span class="token punctuation">.</span><span class="token function">Warningf</span><span class="token punctuation">(</span><span class="token string">"Network: %s/%s does not exist in local cache, will delete it from Neutron ..."</span><span class="token punctuation">,</span>
+    namespace<span class="token punctuation">,</span> name<span class="token punctuation">)</span>
+
+     <span class="token comment">// FIX ME: call Neutron API to delete this network by name.</span>
+     <span class="token comment">//</span>
+     <span class="token comment">// neutron.Delete(namespace, name)</span>
+
+     <span class="token keyword">return</span> <span class="token boolean">nil</span>
+  <span class="token punctuation">}</span>
+    <span class="token operator">...</span>
+
+    <span class="token keyword">return</span> err
+  <span class="token punctuation">}</span>
+
+  glog<span class="token punctuation">.</span><span class="token function">Infof</span><span class="token punctuation">(</span><span class="token string">"[Neutron] Try to process network: %#v ..."</span><span class="token punctuation">,</span> network<span class="token punctuation">)</span>
+
+  <span class="token comment">// FIX ME: Do diff().</span>
+  <span class="token comment">//</span>
+  <span class="token comment">// actualNetwork, exists := neutron.Get(namespace, name)</span>
+  <span class="token comment">//</span>
+  <span class="token comment">// if !exists {</span>
+  <span class="token comment">//   neutron.Create(namespace, name)</span>
+  <span class="token comment">// } else if !reflect.DeepEqual(actualNetwork, network) {</span>
+  <span class="token comment">//   neutron.Update(namespace, name)</span>
+  <span class="token comment">// }</span>
+
+  <span class="token keyword">return</span> <span class="token boolean">nil</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>可以看到，在这个执行周期里（processNextWorkItem），我们 <strong>首先</strong> 从工作队列里出队（workqueue.Get）了一个成员，也就是一个 Key（Network 对象的：namespace/name）。</p>
+<p><strong>然后</strong> ，在 syncHandler 方法中，我使用这个 Key，尝试从 Informer 维护的缓存中拿到了它所对应的 Network 对象。</p>
+<p>可以看到，在这里，我使用了 networksLister 来尝试获取这个 Key 对应的 Network 对象。这个操作，其实就是在访问本地缓存的索引。实际上，在 Kubernetes 的源码中，你会经常看到控制器从各种 Lister 里获取对象，比如：podLister、nodeLister 等等，它们使用的都是 Informer 和缓存机制。</p>
+<p>而如果控制循环从缓存中拿不到这个对象（即：networkLister 返回了 IsNotFound 错误），那就意味着这个 Network 对象的 Key 是通过前面的”删除”事件添加进工作队列的。所以，尽管队列里有这个 Key，但是对应的 Network 对象已经被删除了。</p>
+<p>这时候，我就需要调用 Neutron 的 API，把这个 Key 对应的 Neutron 网络从真实的集群里删除掉。</p>
+<p><strong>而如果能够获取到对应的 Network 对象，我就可以执行控制器模式里的对比”期望状态”和”实际状态”的逻辑了。</strong></p>
+<p>其中，自定义控制器”千辛万苦”拿到的这个 Network 对象，正是 APIServer 里保存的”期望状态”，即：用户通过 YAML 文件提交到 APIServer 里的信息。当然，在我们的例子里，它已经被 Informer 缓存在了本地。</p>
+<p><strong>那么，”实际状态”又从哪里来呢？</strong></p>
+<p>当然是来自于实际的集群了。</p>
+<p>所以，我们的控制循环需要通过 Neutron API 来查询实际的网络情况。</p>
+<p>比如，我可以先通过 Neutron 来查询这个 Network 对象对应的真实网络是否存在。</p>
+<ul>
+<li>如果不存在，这就是一个典型的”期望状态”与”实际状态”不一致的情形。这时，我就需要使用这个 Network 对象里的信息（比如：CIDR 和 Gateway），调用 Neutron API 来创建真实的网络。</li>
+<li>如果存在，那么，我就要读取这个真实网络的信息，判断它是否跟 Network 对象里的信息一致，从而决定我是否要通过 Neutron 来更新这个已经存在的真实网络。</li>
+</ul>
+<p>这样，我就通过对比”期望状态”和”实际状态”的差异，完成了一次调协（Reconcile）的过程。</p>
+<p>至此，一个完整的自定义 API 对象和它所对应的自定义控制器，就编写完毕了。</p>
+<blockquote>
+<p>备注：与 Neutron 相关的业务代码并不是本篇文章的重点，所以我仅仅通过注释里的伪代码为你表述了这部分内容。如果你对这些代码感兴趣的话，可以自行完成。最简单的情况，你可以自己编写一个 Neutron Mock，然后输出对应的操作日志。</p>
+</blockquote>
+<p>接下来， <strong>我们就一起来把这个项目运行起来，查看一下它的工作情况。</strong></p>
+<p>你可以自己编译这个项目，也可以直接使用我编译好的二进制文件（samplecrd-controller）。编译并启动这个项目的具体流程如下所示：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token comment"># Clone repo</span>
+$ <span class="token function">git</span> clone https://github.com/resouer/k8s-controller-custom-resource$ <span class="token builtin class-name">cd</span> k8s-controller-custom-resource
+
+<span class="token comment">### Skip this part if you don't want to build</span>
+<span class="token comment"># Install dependency</span>
+$ go get github.com/tools/godep
+$ godep restore
+<span class="token comment"># Build</span>
+$ go build -o samplecrd-controller <span class="token builtin class-name">.</span>
+
+$ ./samplecrd-controller -kubeconfig<span class="token operator">=</span><span class="token environment constant">$HOME</span>/.kube/config -alsologtostderr<span class="token operator">=</span>true
+I0915 <span class="token number">12</span>:50:29.051349   <span class="token number">27159</span> controller.go:84<span class="token punctuation">]</span> Setting up event handlers
+I0915 <span class="token number">12</span>:50:29.051615   <span class="token number">27159</span> controller.go:113<span class="token punctuation">]</span> Starting Network control loop
+I0915 <span class="token number">12</span>:50:29.051630   <span class="token number">27159</span> controller.go:116<span class="token punctuation">]</span> Waiting <span class="token keyword">for</span> informer caches to <span class="token function">sync</span>
+E0915 <span class="token number">12</span>:50:29.066745   <span class="token number">27159</span> reflector.go:134<span class="token punctuation">]</span> github.com/resouer/k8s-controller-custom-resource/pkg/client/informers/externalversions/factory.go:117: Failed to list *v1.Network: the server could not <span class="token function">find</span> the requested resource <span class="token punctuation">(</span>get networks.samplecrd.k8s.io<span class="token punctuation">)</span>
+<span class="token punctuation">..</span>.<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>你可以看到，自定义控制器被启动后，一开始会报错。</p>
+<p>这是因为，此时 Network 对象的 CRD 还没有被创建出来，所以 Informer 去 APIServer 里”获取”（List）Network 对象时，并不能找到 Network 这个 API 资源类型的定义，即：</p>
+<pre class="line-numbers language-txt" data-language="txt"><code class="language-txt">Failed to list *v1.Network: the server could not find the requested resource (get networks.samplecrd.k8s.io)<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>所以，接下来我就需要创建 Network 对象的 CRD，这个操作在上一篇文章里已经介绍过了。</p>
+<p>在另一个 shell 窗口里执行：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">kubectl apply -f crd/network.yaml<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>这时候，你就会看到控制器的日志恢复了正常，控制循环启动成功：</p>
+<pre class="line-numbers language-txt" data-language="txt"><code class="language-txt">...
+I0915 12:50:29.051630   27159 controller.go:116] Waiting for informer caches to sync
+...
+I0915 12:52:54.346854   25245 controller.go:121] Starting workers
+I0915 12:52:54.346914   25245 controller.go:127] Started workers<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>接下来，我就可以进行 Network 对象的增删改查操作了。</p>
+<p>首先，创建一个 Network 对象：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ <span class="token function">cat</span> example/example-network.yaml
+apiVersion: samplecrd.k8s.io/v1
+kind: Network
+metadata:
+  name: example-network
+spec:
+  cidr: <span class="token string">"192.168.0.0/16"</span>
+  gateway: <span class="token string">"192.168.0.1"</span>
+
+$ kubectl apply -f example/example-network.yaml
+network.samplecrd.k8s.io/example-network created<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>这时候，查看一下控制器的输出：</p>
+<pre class="line-numbers language-txt" data-language="txt"><code class="language-txt">...
+I0915 12:50:29.051349   27159 controller.go:84] Setting up event handlers
+I0915 12:50:29.051615   27159 controller.go:113] Starting Network control loop
+I0915 12:50:29.051630   27159 controller.go:116] Waiting for informer caches to sync
+...
+I0915 12:52:54.346854   25245 controller.go:121] Starting workers
+I0915 12:52:54.346914   25245 controller.go:127] Started workers
+I0915 12:53:18.064409   25245 controller.go:229] [Neutron] Try to process network: &amp;v1.Network{TypeMeta:v1.TypeMeta{Kind:"", APIVersion:""}, ObjectMeta:v1.ObjectMeta{Name:"example-network", GenerateName:"", Namespace:"default", ... ResourceVersion:"479015", ... Spec:v1.NetworkSpec{Cidr:"192.168.0.0/16", Gateway:"192.168.0.1"}} ...
+I0915 12:53:18.064650   25245 controller.go:183] Successfully synced 'default/example-network'
+...<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>可以看到，我们上面创建 example-network 的操作，触发了 EventHandler 的”添加”事件，从而被放进了工作队列。</p>
+<p>紧接着，控制循环就从队列里拿到了这个对象，并且打印出了正在”处理”这个 Network 对象的日志。</p>
+<p>可以看到，这个 Network 的 ResourceVersion，也就是 API 对象的版本号，是 479015，而它的 Spec 字段的内容，跟我提交的 YAML 文件一摸一样，比如，它的 CIDR 网段是：192.168.0.0/16。</p>
+<p>这时候，我来修改一下这个 YAML 文件的内容，如下所示：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ <span class="token function">cat</span> example/example-network.yaml
+apiVersion: samplecrd.k8s.io/v1
+kind: Network
+metadata:
+  name: example-network
+spec:
+  cidr: <span class="token string">"192.168.1.0/16"</span>
+  gateway: <span class="token string">"192.168.1.1"</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>可以看到，我把这个 YAML 文件里的 CIDR 和 Gateway 字段的修改成了 192.168.1.0/16 网段。</p>
+<p>然后，我们执行了 kubectl apply 命令来提交这次更新，如下所示：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ kubectl apply -f example/example-network.yaml
+network.samplecrd.k8s.io/example-network configured<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre>
+<p>这时候，我们就可以观察一下控制器的输出：</p>
+<pre class="line-numbers language-txt" data-language="txt"><code class="language-txt">...
+I0915 12:53:51.126029   25245 controller.go:229] [Neutron] Try to process network: &amp;v1.Network{TypeMeta:v1.TypeMeta{Kind:"", APIVersion:""}, ObjectMeta:v1.ObjectMeta{Name:"example-network", GenerateName:"", Namespace:"default", ...  ResourceVersion:"479062", ... Spec:v1.NetworkSpec{Cidr:"192.168.1.0/16", Gateway:"192.168.1.1"}} ...
+I0915 12:53:51.126348   25245 controller.go:183] Successfully synced 'default/example-network'<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span></span></code></pre>
+<p>可以看到，这一次，Informer 注册的”更新”事件被触发，更新后的 Network 对象的 Key 被添加到了工作队列之中。</p>
+<p>所以，接下来控制循环从工作队列里拿到的 Network 对象，与前一个对象是不同的：它的 ResourceVersion 的值变成了 479062；而 Spec 里的字段，则变成了 192.168.1.0/16 网段。</p>
+<p>最后，我再把这个对象删除掉：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">kubectl delete -f example/example-network.yaml<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>这一次，在控制器的输出里，我们就可以看到，Informer 注册的”删除”事件被触发，并且控制循环”调用”Neutron API”删除”了真实环境里的网络。这个输出如下所示：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">W0915 <span class="token number">12</span>:54:09.738464   <span class="token number">25245</span> controller.go:212<span class="token punctuation">]</span> Network: default/example-network does not exist <span class="token keyword">in</span> <span class="token builtin class-name">local</span> cache, will delete it from Neutron <span class="token punctuation">..</span>.
+I0915 <span class="token number">12</span>:54:09.738832   <span class="token number">25245</span> controller.go:215<span class="token punctuation">]</span> <span class="token punctuation">[</span>Neutron<span class="token punctuation">]</span> Deleting network: default/example-network <span class="token punctuation">..</span>.
+I0915 <span class="token number">12</span>:54:09.738854   <span class="token number">25245</span> controller.go:183<span class="token punctuation">]</span> Successfully synced <span class="token string">'default/example-network'</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span></span></code></pre>
+<p>以上，就是编写和使用自定义控制器的全部流程了。</p>
+<p>实际上， <strong>这套流程不仅可以用在自定义 API 资源上，也完全可以用在 Kubernetes 原生的默认 API 对象上。</strong></p>
+<p>比如，我们在 main 函数里，除了创建一个 Network Informer 外，还可以初始化一个 Kubernetes 默认 API 对象的 Informer 工厂，比如 Deployment 对象的 Informer。这个具体做法如下所示：</p>
+<pre class="line-numbers language-go" data-language="go"><code class="language-go"><span class="token keyword">func</span> <span class="token function">main</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+  <span class="token operator">...</span>
+
+  kubeInformerFactory <span class="token operator">:=</span> kubeinformers<span class="token punctuation">.</span><span class="token function">NewSharedInformerFactory</span><span class="token punctuation">(</span>kubeClient<span class="token punctuation">,</span> time<span class="token punctuation">.</span>Second<span class="token operator">*</span><span class="token number">30</span><span class="token punctuation">)</span>
+
+  controller <span class="token operator">:=</span> <span class="token function">NewController</span><span class="token punctuation">(</span>kubeClient<span class="token punctuation">,</span> exampleClient<span class="token punctuation">,</span>
+  kubeInformerFactory<span class="token punctuation">.</span><span class="token function">Apps</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">V1</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">Deployments</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">,</span>
+  networkInformerFactory<span class="token punctuation">.</span><span class="token function">Samplecrd</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">V1</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">Networks</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span>
+
+  <span class="token keyword">go</span> kubeInformerFactory<span class="token punctuation">.</span><span class="token function">Start</span><span class="token punctuation">(</span>stopCh<span class="token punctuation">)</span>
+  <span class="token operator">...</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>在这段代码中，我们 <strong>首先</strong> 使用 Kubernetes 的 client（kubeClient）创建了一个工厂；</p>
+<p><strong>然后</strong> ，我用跟 Network 类似的处理方法，生成了一个 Deployment Informer；</p>
+<p><strong>接着</strong> ，我把 Deployment Informer 传递给了自定义控制器；当然，我也要调用 Start 方法来启动这个 Deployment Informer。</p>
+<p>而有了这个 Deployment Informer 后，这个控制器也就持有了所有 Deployment 对象的信息。接下来，它既可以通过 deploymentInformer.Lister() 来获取 Etcd 里的所有 Deployment 对象，也可以为这个 Deployment Informer 注册具体的 Handler 来。</p>
+<p>更重要的是， <strong>这就使得在这个自定义控制器里面，我可以通过对自定义 API 对象和默认 API 对象进行协同，从而实现更加复杂的编排功能。</strong></p>
+<p>比如：用户每创建一个新的 Deployment，这个自定义控制器，就可以为它创建一个对应的 Network 供它使用。</p>
+<h4 id="25-1-总结"><a href="#25-1-总结" class="headerlink" title="25.1 总结"></a>25.1 总结</h4><p>这其中，有如下几个概念和机制，是你一定要理解清楚的：</p>
+<p>所谓的 Informer，就是一个自带缓存和索引机制，可以触发 Handler 的客户端库。这个本地缓存在 Kubernetes 中一般被称为 Store，索引一般被称为 Index。</p>
+<p>Informer 使用了 Reflector 包，它是一个可以通过 ListAndWatch 机制获取并监视 API 对象变化的客户端封装。</p>
+<p>Reflector 和 Informer 之间，用到了一个”增量先进先出队列”进行协同。而 Informer 与你要编写的控制循环之间，则使用了一个工作队列来进行协同。</p>
+<p>在实际应用中，除了控制循环之外的所有代码，实际上都是 Kubernetes 为你自动生成的，即：pkg/client/{informers, listers, clientset}里的内容。</p>
+<p>而这些自动生成的代码，就为我们提供了一个可靠而高效地获取 API 对象”期望状态”的编程库。</p>
+<p>所以，接下来，作为开发者，你就只需要关注如何拿到”实际状态”，然后如何拿它去跟”期望状态”做对比，从而决定接下来要做的业务逻辑即可。</p>
+<p>以上内容，就是 Kubernetes API 编程范式的核心思想。</p>
+<h4 id="25-2-思考题"><a href="#25-2-思考题" class="headerlink" title="25.2 思考题"></a>25.2 思考题</h4><p>请思考一下，为什么 Informer 和你编写的控制循环之间，一定要使用一个工作队列来进行协作呢？</p>
+<p>答： Informer 和控制循环分开是为了解耦，防止控制循环执行过慢把Informer 拖死。</p>
 <h2 id="Kubernetes容器持久化存储"><a href="#Kubernetes容器持久化存储" class="headerlink" title="Kubernetes容器持久化存储"></a>Kubernetes容器持久化存储</h2><h2 id="Kubernetes容器网络"><a href="#Kubernetes容器网络" class="headerlink" title="Kubernetes容器网络"></a>Kubernetes容器网络</h2><h2 id="Kubernetes作业调度与资源管理"><a href="#Kubernetes作业调度与资源管理" class="headerlink" title="Kubernetes作业调度与资源管理"></a>Kubernetes作业调度与资源管理</h2><h2 id="Kubernetes容器运行时"><a href="#Kubernetes容器运行时" class="headerlink" title="Kubernetes容器运行时"></a>Kubernetes容器运行时</h2><h2 id="Kubernetes容器监控与日志"><a href="#Kubernetes容器监控与日志" class="headerlink" title="Kubernetes容器监控与日志"></a>Kubernetes容器监控与日志</h2><h2 id="再谈开源与社区"><a href="#再谈开源与社区" class="headerlink" title="再谈开源与社区"></a>再谈开源与社区</h2><h2 id="答疑文章"><a href="#答疑文章" class="headerlink" title="答疑文章"></a>答疑文章</h2>
                 
             </div>
@@ -3539,7 +4989,7 @@ hello web-0<span aria-hidden="true" class="line-numbers-rows"><span></span><span
             <br>
             
             &nbsp;<i class="fas fa-chart-area"></i>&nbsp;站点总字数:&nbsp;<span
-                class="white-color">1112.5k</span>&nbsp;字
+                class="white-color">1136.7k</span>&nbsp;字
             
             
             
