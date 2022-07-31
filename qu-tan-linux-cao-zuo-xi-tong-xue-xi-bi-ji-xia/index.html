@@ -489,9 +489,9 @@
 <p>一台机器将自己想要表达的内容，按照某种约定好的格式发送出去，当另外一台机器收到这些信息后，也能够按照约定好的格式解析出来，从而准确、可靠地获得发送方想要表达的内容。这种约定好的格式就是<strong>网络协议（Networking Protocol）</strong>。</p>
 <h4 id="38-1-网络为什么要分层？"><a href="#38-1-网络为什么要分层？" class="headerlink" title="38.1 网络为什么要分层？"></a>38.1 网络为什么要分层？</h4><p>我们这里先构建一个相对简单的场景，之后几节内容，我们都要基于这个场景进行讲解。</p>
 <p>我们假设这里就涉及三台机器。Linux服务器A和Linux服务器B处于不同的网段，通过中间的Linux服务器作为路由器进行转发。</p>
-<p><img src="/images/《趣谈Linux操作系统》学习笔记/网络场景举例.png" alt="网络场景举例"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《趣谈Linux操作系统》学习笔记/网络场景举例.png" alt="网络场景举例"></p>
 <p>说到网络协议，我们还需要简要介绍一下两种网络协议模型，一种是<strong>OSI的标准七层模型</strong>，一种是<strong>业界标准的TCP/IP模型</strong>。它们的对应关系如下图所示：</p>
-<p><img src="/images/《趣谈Linux操作系统》学习笔记/网络协议模型.png" alt="网络协议模型"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《趣谈Linux操作系统》学习笔记/网络协议模型.png" alt="网络协议模型"></p>
 <p>为什么网络要分层呢？因为网络环境过于复杂，不是一个能够集中控制的体系。全球数以亿记的服务器和设备各有各的体系，但是都可以通过同一套网络协议栈通过切分成多个层次和组合，来满足不同服务器和设备的通信需求。</p>
 <p>我们这里简单介绍一下网络协议的几个层次。</p>
 <p>我们从哪一个层次开始呢？从第三层，网络层开始，因为这一层有我们熟悉的IP地址。也因此，这一层我们也叫IP层。</p>
@@ -518,7 +518,7 @@
 <h4 id="38-2-发送数据包"><a href="#38-2-发送数据包" class="headerlink" title="38.2 发送数据包"></a>38.2 发送数据包</h4><p>网络分完层之后，对于数据包的发送，就是层层封装的过程。</p>
 <p>就像下面的图中展示的一样，在Linux服务器B上部署的服务端Nginx和Tomcat，都是通过Socket监听80和8080端口。这个时候，内核的数据结构就知道了。如果遇到发送到这两个端口的，就发送给这两个进程。</p>
 <p>在Linux服务器A上的客户端，打开一个Firefox连接Ngnix。也是通过Socket，客户端会被分配一个随机端口12345。同理，打开一个Chrome连接Tomcat，同样通过Socket分配随机端口12346。</p>
-<p><img src="/images/《趣谈Linux操作系统》学习笔记/数据包发送的过程举例.jpeg" alt="数据包发送的过程举例"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《趣谈Linux操作系统》学习笔记/数据包发送的过程举例.jpeg" alt="数据包发送的过程举例"></p>
 <p>在客户端浏览器，我们将请求封装为HTTP协议，通过Socket发送到内核。内核的网络协议栈里面，在TCP层创建用于维护连接、序列号、重传、拥塞控制的数据结构，将HTTP包加上TCP头，发送给IP层，IP层加上IP头，发送给MAC层，MAC层加上MAC头，从硬件网卡发出去。</p>
 <p>网络包会先到达网络1的交换机。我们常称交换机为二层设备，这是因为，交换机只会处理到第二层，然后它会将网络包的MAC头拿下来，发现目标MAC是在自己右面的网口，于是就从这个网口发出去。</p>
 <p>网络包会到达中间的Linux路由器，它左面的网卡会收到网络包，发现MAC地址匹配，就交给IP层，在IP层根据IP头中的信息，在路由表中查找。下一跳在哪里，应该从哪个网口发出去？在这个例子中，最终会从右面的网口发出去。我们常把路由器称为三层设备，因为它只会处理到第三层。</p>
@@ -559,7 +559,7 @@
 <li>protocol表示的协议，包括IPPROTO_TCP、IPPTOTO_UDP。</li>
 </ul>
 <p>通信结束后，我们还要像关闭文件一样，关闭socket。</p>
-<h4 id="39-1-针对TCP应该如何编程？"><a href="#39-1-针对TCP应该如何编程？" class="headerlink" title="39.1 针对TCP应该如何编程？"></a>39.1 针对TCP应该如何编程？</h4><p><img src="/images/《趣谈Linux操作系统》学习笔记/TCP编程流程.png" alt="TCP编程流程"></p>
+<h4 id="39-1-针对TCP应该如何编程？"><a href="#39-1-针对TCP应该如何编程？" class="headerlink" title="39.1 针对TCP应该如何编程？"></a>39.1 针对TCP应该如何编程？</h4><p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《趣谈Linux操作系统》学习笔记/TCP编程流程.png" alt="TCP编程流程"></p>
 <p>TCP的服务端要先监听一个端口，一般是先调用bind函数，给这个socket赋予一个端口和IP地址。</p>
 <pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">int</span> <span class="token function">bind</span><span class="token punctuation">(</span><span class="token keyword">int</span> sockfd<span class="token punctuation">,</span> <span class="token keyword">const</span> <span class="token keyword">struct</span> <span class="token class-name">sockaddr</span> <span class="token operator">*</span>addr<span class="token punctuation">,</span>socklen_t addrlen<span class="token punctuation">)</span><span class="token punctuation">;</span>
 
@@ -583,7 +583,7 @@
 <p>假设，我们要在32位4 Bytes的一个空间存放整数1，很显然只要1 Byte放1，其他3 Bytes放0就可以了。那问题是，最后一个Byte放1呢，还是第一个Byte放1呢？或者说，1作为最低位，应该放在32位的最后一个位置呢，还是放在第一个位置呢？</p>
 <p>最低位放在最后一个位置，我们叫作小端，最低位放在第一个位置，叫作大端。TCP/IP栈是按照大端来设计的，而x86机器多按照小端来设计，因而发出去时需要做一个转换。</p>
 <p>接下来，就要建立TCP的连接了，也就是著名的三次握手，其实就是将客户端和服务端的状态通过三次网络交互，达到初始状态是协同的状态。下图就是三次握手的序列图以及对应的状态转换。</p>
-<p><img src="/images/《趣谈Linux操作系统》学习笔记/TCP三次握手过程.png" alt="TCP三次握手过程"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《趣谈Linux操作系统》学习笔记/TCP三次握手过程.png" alt="TCP三次握手过程"></p>
 <p>接下来，服务端要调用listen进入LISTEN状态，等待客户端进行连接。</p>
 <pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">int</span> <span class="token function">listen</span><span class="token punctuation">(</span><span class="token keyword">int</span> sockfd<span class="token punctuation">,</span> <span class="token keyword">int</span> backlog<span class="token punctuation">)</span><span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
 <p>连接的建立过程，也即三次握手，是TCP层的动作，是在内核完成的，应用层不需要参与。</p>
@@ -593,7 +593,7 @@
 <pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">int</span> <span class="token function">connect</span><span class="token punctuation">(</span><span class="token keyword">int</span> sockfd<span class="token punctuation">,</span> <span class="token keyword">const</span> <span class="token keyword">struct</span> <span class="token class-name">sockaddr</span> <span class="token operator">*</span>addr<span class="token punctuation">,</span> socklen_t addrlen<span class="token punctuation">)</span><span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
 <p>我们先在参数中指明要连接的IP地址和端口号，然后发起三次握手。内核会给客户端分配一个临时的端口。一旦握手成功，服务端的accept就会返回另一个socket。</p>
 <p>这里需要注意的是，监听的socket和真正用来传送数据的socket，是两个socket，一个叫作<strong>监听socket</strong>，一个叫作<strong>已连接socket</strong>。成功连接建立之后，双方开始通过read和write函数来读写数据，就像往一个文件流里面写东西一样。</p>
-<h4 id="39-2-针对UDP应该如何编程？"><a href="#39-2-针对UDP应该如何编程？" class="headerlink" title="39.2 针对UDP应该如何编程？"></a>39.2 针对UDP应该如何编程？</h4><p><img src="/images/《趣谈Linux操作系统》学习笔记/UDP编程流程.png" alt="UDP编程流程"></p>
+<h4 id="39-2-针对UDP应该如何编程？"><a href="#39-2-针对UDP应该如何编程？" class="headerlink" title="39.2 针对UDP应该如何编程？"></a>39.2 针对UDP应该如何编程？</h4><p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《趣谈Linux操作系统》学习笔记/UDP编程流程.png" alt="UDP编程流程"></p>
 <p>UDP是没有连接的，所以不需要三次握手，也就不需要调用listen和connect，但是UDP的交互仍然需要IP地址和端口号，因而也需要bind。</p>
 <p>对于UDP来讲，没有所谓的连接维护，也没有所谓的连接的发起方和接收方，甚至都不存在客户端和服务端的概念，大家就都是客户端，也同时都是服务端。只要有一个socket，多台机器就可以任意通信，不存在哪两台机器是属于一个连接的概念。因此，每一个UDP的socket都需要bind。每次通信时，调用sendto和recvfrom，都要传入IP地址和端口。</p>
 <pre class="line-numbers language-c" data-language="c"><code class="language-c">ssize_t <span class="token function">sendto</span><span class="token punctuation">(</span><span class="token keyword">int</span> sockfd<span class="token punctuation">,</span> <span class="token keyword">const</span> <span class="token keyword">void</span> <span class="token operator">*</span>buf<span class="token punctuation">,</span> size_t len<span class="token punctuation">,</span> <span class="token keyword">int</span> flags<span class="token punctuation">,</span> <span class="token keyword">const</span> <span class="token keyword">struct</span> <span class="token class-name">sockaddr</span> <span class="token operator">*</span>dest_addr<span class="token punctuation">,</span> socklen_t addrlen<span class="token punctuation">)</span><span class="token punctuation">;</span>
@@ -610,7 +610,7 @@ ssize_t <span class="token function">recvfrom</span><span class="token punctuati
 <li>客户端调用write写入数据；</li>
 <li>服务端调用read读取数据。</li>
 </ol>
-<p><img src="/images/《趣谈Linux操作系统》学习笔记/socket系统调用.png" alt="socket系统调用"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《趣谈Linux操作系统》学习笔记/socket系统调用.png" alt="socket系统调用"></p>
 <h3 id="40-Socket内核数据结构"><a href="#40-Socket内核数据结构" class="headerlink" title="40. Socket内核数据结构"></a>40. Socket内核数据结构</h3><h4 id="40-1-解析socket函数"><a href="#40-1-解析socket函数" class="headerlink" title="40.1 解析socket函数"></a>40.1 解析socket函数</h4><pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token function">SYSCALL_DEFINE3</span><span class="token punctuation">(</span>socket<span class="token punctuation">,</span> <span class="token keyword">int</span><span class="token punctuation">,</span> family<span class="token punctuation">,</span> <span class="token keyword">int</span><span class="token punctuation">,</span> type<span class="token punctuation">,</span> <span class="token keyword">int</span><span class="token punctuation">,</span> protocol<span class="token punctuation">)</span>
 <span class="token punctuation">{</span>
     <span class="token keyword">int</span> retval<span class="token punctuation">;</span>
@@ -1032,7 +1032,7 @@ lookup_protocol<span class="token operator">:</span>
 <p>inet_csk_accept的实现，印证了上面我们讲的两个队列的逻辑。如果icsk_accept_queue为空，则调用inet_csk_wait_for_connect进行等待；等待的时候，调用schedule_timeout，让出CPU，并且将进程状态设置为TASK_INTERRUPTIBLE。</p>
 <p>如果再次CPU醒来，我们会接着判断icsk_accept_queue是否为空，同时也会调用signal_pending看有没有信号可以处理。一旦icsk_accept_queue不为空，就从inet_csk_wait_for_connect中返回，在队列中取出一个struct sock对象赋值给newsk。</p>
 <h4 id="40-5-解析connect函数"><a href="#40-5-解析connect函数" class="headerlink" title="40.5 解析connect函数"></a>40.5 解析connect函数</h4><p>什么情况下，icsk_accept_queue才不为空呢？当然是三次握手结束才可以。接下来我们来分析三次握手的过程。</p>
-<p><img src="/images/《趣谈Linux操作系统》学习笔记/TCP三次握手内核流程.png" alt="TCP三次握手内核流程"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《趣谈Linux操作系统》学习笔记/TCP三次握手内核流程.png" alt="TCP三次握手内核流程"></p>
 <p>三次握手一般是由客户端调用connect发起。</p>
 <pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token function">SYSCALL_DEFINE3</span><span class="token punctuation">(</span>connect<span class="token punctuation">,</span> <span class="token keyword">int</span><span class="token punctuation">,</span> fd<span class="token punctuation">,</span> <span class="token keyword">struct</span> <span class="token class-name">sockaddr</span> __user <span class="token operator">*</span><span class="token punctuation">,</span> uservaddr<span class="token punctuation">,</span>
         <span class="token keyword">int</span><span class="token punctuation">,</span> addrlen<span class="token punctuation">)</span>
@@ -1297,7 +1297,7 @@ af_ops<span class="token operator">-&gt;</span><span class="token function">send
 <span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
 <!----fix markdown render issues---->
 <h4 id="40-6-总结"><a href="#40-6-总结" class="headerlink" title="40.6 总结"></a>40.6 总结</h4><p>这一节除了网络包的接收和发送，其他的系统调用我们都分析到了。可以看出来，它们有一个统一的数据结构和流程。具体如下图所示：</p>
-<p><img src="/images/《趣谈Linux操作系统》学习笔记/Socket内核数据结构总结.png" alt="Socket内核数据结构总结"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《趣谈Linux操作系统》学习笔记/Socket内核数据结构总结.png" alt="Socket内核数据结构总结"></p>
 <p>首先，Socket系统调用会有三级参数family、type、protocal，通过这三级参数，分别在net_proto_family表中找到type链表，在type链表中找到protocal对应的操作。这个操作分为两层，对于TCP协议来讲，第一层是inet_stream_ops层，第二层是tcp_prot层。</p>
 <p>于是，接下来的系统调用规律就都一样了：</p>
 <ul>
@@ -1519,7 +1519,7 @@ new_segment<span class="token operator">:</span>
 <p>要分配这样一个结构，sk_stream_alloc_skb会最终调用到__alloc_skb。在这个函数里面，除了分配一个sk_buff结构之外，还要分配sk_buff指向的数据区域。这段数据区域分为下面这几个部分。</p>
 <p>第一部分是连续的数据区域。紧接着是第二部分，一个struct skb_shared_info结构。这个结构是对于网络包发送过程的一个优化，因为传输层之上就是应用层了。按照TCP的定义，应用层感受不到下面的网络层的IP包是一个个独立的包的存在的。反正就是一个流，往里写就是了，可能一下子写多了，超过了一个IP包的承载能力，就会出现上面MSS的定义，拆分成一个个的Segment放在一个个的IP包里面，也可能一次写一点，一次写一点，这样数据是分散的，在IP层还要通过内存拷贝合成一个IP包。</p>
 <p>为了减少内存拷贝的代价，有的网络设备支持<strong>分散聚合（Scatter/Gather）I/O</strong>，顾名思义，就是IP层没必要通过内存拷贝进行聚合，让散的数据零散的放在原处，在设备层进行聚合。如果使用这种模式，网络包的数据就不会放在连续的数据区域，而是放在struct skb_shared_info结构里面指向的离散数据，skb_shared_info的成员变量skb_frag_t frags[MAX_SKB_FRAGS]，会指向一个数组的页面，就不能保证连续了。</p>
-<p><img src="/images/《趣谈Linux操作系统》学习笔记/sk_buff结构.png" alt="sk_buff结构"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《趣谈Linux操作系统》学习笔记/sk_buff结构.png" alt="sk_buff结构"></p>
 <p>于是我们就有了<strong>第四步</strong>。在注释<code>/* Where to copy to? */</code>后面有个if-else分支。if分支就是skb_add_data_nocache将数据拷贝到连续的数据区域。else分支就是skb_copy_to_page_nocache将数据拷贝到struct skb_shared_info结构指向的不需要连续的页面区域。</p>
 <p><strong>第五步</strong>，就是要发生网络包了。第一种情况是积累的数据报数目太多了，因而我们需要通过调用<code>__tcp_push_pending_frames</code>发送网络包。第二种情况是，这是第一个网络包，需要马上发送，调用tcp_push_one。无论<code>__tcp_push_pending_frames</code>还是tcp_push_one，都会调用tcp_write_xmit发送网络包。</p>
 <p>至此，tcp_sendmsg解析完了。</p>
@@ -1577,11 +1577,11 @@ repair<span class="token operator">:</span>
 <p>于是，调用函数tcp_mss_split_point，开始计算切分的limit。这里面会计算max_len = mss_now * max_segs，根据现在不切分来计算limit，所以下一步的判断中，大部分情况下tso_fragment不会被调用，等待到了底层网卡来切分。</p>
 <p>第二个概念是<strong>拥塞窗口</strong>的概念（cwnd，congestion window），也就是说为了避免拼命发包，把网络塞满了，定义一个窗口的概念，在这个窗口之内的才能发送，超过这个窗口的就不能发送，来控制发送的频率。</p>
 <p>那窗口大小是多少呢？就是遵循下面这个著名的拥塞窗口变化图。</p>
-<p><img src="/images/《趣谈Linux操作系统》学习笔记/著名的拥塞窗口变化图.png" alt="著名的拥塞窗口变化图"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《趣谈Linux操作系统》学习笔记/著名的拥塞窗口变化图.png" alt="著名的拥塞窗口变化图"></p>
 <p>一开始的窗口只有一个mss大小叫作slow start（慢启动）。一开始的增长速度的很快的，翻倍增长。一旦到达一个临界值ssthresh，就变成线性增长，我们就称为<strong>拥塞避免</strong>。什么时候算真正拥塞呢？就是出现了丢包。一旦丢包，一种方法是马上降回到一个mss，然后重复先翻倍再线性对的过程。如果觉得太过激进，也可以有第二种方法，就是降到当前cwnd的一半，然后进行线性增长。</p>
 <p>在代码中，tcp_cwnd_test会将当前的snd_cwnd，减去已经在窗口里面尚未发送完毕的网络包，那就是剩下的窗口大小cwnd_quota，也即就能发送这么多了。</p>
 <p>第三个概念就是<strong>接收窗口</strong>rwnd的概念（receive window），也叫滑动窗口。如果说拥塞窗口是为了怕把网络塞满，在出现丢包的时候减少发送速度，那么滑动窗口就是为了怕把接收方塞满，而控制发送速度。</p>
-<p><img src="/images/《趣谈Linux操作系统》学习笔记/滑动窗口的发送方.png" alt="滑动窗口的发送方"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《趣谈Linux操作系统》学习笔记/滑动窗口的发送方.png" alt="滑动窗口的发送方"></p>
 <p>滑动窗口，其实就是接收方告诉发送方自己的网络包的接收能力，超过这个能力，我就受不了了。因为滑动窗口的存在，将发送方的缓存分成了四个部分。</p>
 <ul>
 <li>第一部分：发送了并且已经确认的。这部分是已经发送完毕的网络包，这部分没有用了，可以回收。</li>
@@ -1589,7 +1589,7 @@ repair<span class="token operator">:</span>
 <li>第三部分：没有发送，但是已经等待发送的。这部分是接收方空闲的能力，可以马上发送，接收方收得了。</li>
 <li>第四部分：没有发送，并且暂时还不会发送的。这部分已经超过了接收方的接收能力，再发送接收方就收不了了。</li>
 </ul>
-<p><img src="/images/《趣谈Linux操作系统》学习笔记/滑动窗口的接收方.png" alt="滑动窗口的接收方"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《趣谈Linux操作系统》学习笔记/滑动窗口的接收方.png" alt="滑动窗口的接收方"></p>
 <p>因为滑动窗口的存在，接收方的缓存也要分成了三个部分。</p>
 <ul>
 <li>第一部分：接受并且确认过的任务。这部分完全接收成功了，可以交给应用层了。</li>
@@ -1662,7 +1662,7 @@ repair<span class="token operator">:</span>
 <span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
 <span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
 <p>tcp_transmit_skb这个函数比较长，主要做了两件事情，第一件事情就是填充TCP头，如果我们对着TCP头的格式。</p>
-<p><img src="/images/《趣谈Linux操作系统》学习笔记/TCP头格式.png" alt="TCP头格式"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《趣谈Linux操作系统》学习笔记/TCP头格式.png" alt="TCP头格式"></p>
 <p>这里面有源端口，设置为inet_sport，有目标端口，设置为inet_dport；有序列号，设置为tcb-&gt;seq；有确认序列号，设置为tp-&gt;rcv_nxt。我们把所有的flags设置为tcb-&gt;tcp_flags。设置选项为opts。设置窗口大小为tp-&gt;rcv_wnd。</p>
 <p>全部设置完毕之后，就会调用icsk_af_ops的queue_xmit方法，icsk_af_ops指向ipv4_specific，也即调用的是ip_queue_xmit函数。</p>
 <pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">const</span> <span class="token keyword">struct</span> <span class="token class-name">inet_connection_sock_af_ops</span> ipv4_specific <span class="token operator">=</span> <span class="token punctuation">{</span>
@@ -1681,7 +1681,7 @@ repair<span class="token operator">:</span>
 <span class="token punctuation">}</span><span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
 <!----fix markdown render issues---->
 <h4 id="41-4-总结"><a href="#41-4-总结" class="headerlink" title="41.4 总结"></a>41.4 总结</h4><p>这一节，我们解析了发送一个网络包的一部分过程，如下图所示。</p>
-<p><img src="/images/《趣谈Linux操作系统》学习笔记/发送一个网络包的一部分过程.png" alt="发送一个网络包的一部分过程"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《趣谈Linux操作系统》学习笔记/发送一个网络包的一部分过程.png" alt="发送一个网络包的一部分过程"></p>
 <p>这个过程分成几个层次。</p>
 <ul>
 <li>VFS层：write系统调用找到struct file，根据里面的file_operations的定义，调用sock_write_iter函数。sock_write_iter函数调用sock_sendmsg函数。</li>
@@ -1787,7 +1787,7 @@ make_route<span class="token operator">:</span>
 <p>路由表是一个什么样的结构呢？</p>
 <p>路由就是在Linux服务器上的路由表里面配置的一条一条规则。这些规则大概是这样的：想访问某个网段，从某个网卡出去，下一跳是某个IP。</p>
 <p>之前我们讲过一个简单的拓扑图，里面的三台Linux机器的路由表都可以通过ip route命令查看。</p>
-<p><img src="/images/《趣谈Linux操作系统》学习笔记/网络场景举例.png" alt="网络场景举例"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《趣谈Linux操作系统》学习笔记/网络场景举例.png" alt="网络场景举例"></p>
 <pre class="line-numbers language-text" data-language="text"><code class="language-text"># Linux服务器A
 default via 192.168.1.1 dev eth0
 192.168.1.0/24 dev eth0 proto kernel scope link src 192.168.1.100 metric 100
@@ -1802,7 +1802,7 @@ default via 192.168.2.1 dev eth0
 <p>其实，对于两端的服务器来讲，我们没有太多路由可以选，但是对于中间的Linux服务器做路由器来讲，这里有两条路可以选，一个是往左面转发，一个是往右面转发，就需要路由表的查找。</p>
 <p>fib_table_lookup的代码逻辑比较复杂，好在注释比较清楚。因为路由表要按照前缀进行查询，希望找到最长匹配的那一个，例如192.168.2.0/24和192.168.0.0/16都能匹配192.168.2.100/24。但是，我们应该使用192.168.2.0/24的这一条。</p>
 <p>为了更方面的做这个事情，我们使用了Trie树这种结构。比如我们有一系列的字符串：<code>{bcs#, badge#, baby#, back#, badger#, badness#}</code>。之所以每个字符串都加上#，是希望不要一个字符串成为另外一个字符串的前缀。然后我们把它们放在Trie树中，如下图所示：</p>
-<p><img src="/images/《趣谈Linux操作系统》学习笔记/路由表使用的Trie树举例.png" alt="路由表使用的Trie树举例"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《趣谈Linux操作系统》学习笔记/路由表使用的Trie树举例.png" alt="路由表使用的Trie树举例"></p>
 <p>对于将IP地址转成二进制放入trie树，也是同样的道理，可以很快进行路由的查询。</p>
 <p>找到了路由，就知道了应该从哪个网卡发出去。</p>
 <p>然后，ip_route_output_key_hash_rcu会调用__mkroute_output，创建一个struct rtable，表示找到的路由表项。这个结构是由rt_dst_alloc函数分配的。</p>
@@ -1838,7 +1838,7 @@ default via 192.168.2.1 dev eth0
 <span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
 <p>最终返回struct rtable实例，第一部分也就完成了。</p>
 <p>第二部分，就是准备IP层的头，往里面填充内容。这就要对着IP层的头的格式进行理解。</p>
-<p><img src="/images/《趣谈Linux操作系统》学习笔记/IP头格式.png" alt="IP头格式"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《趣谈Linux操作系统》学习笔记/IP头格式.png" alt="IP头格式"></p>
 <p>在这里面，服务类型设置为tos，标识位里面设置是否允许分片frag_off。如果不允许，而遇到MTU太小过不去的情况，就发送ICMP报错。TTL是这个包的存活时间，为了防止一个IP包迷路以后一直存活下去，每经过一个路由器TTL都减一，减为零则“死去”。设置protocol，指的是更上层的协议，这里是TCP。源地址和目标地址由ip_copy_addrs设置。最后，设置options。</p>
 <p>第三部分，就是调用ip_local_out发送IP包。</p>
 <pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">int</span> <span class="token function">ip_local_out</span><span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">net</span> <span class="token operator">*</span>net<span class="token punctuation">,</span> <span class="token keyword">struct</span> <span class="token class-name">sock</span> <span class="token operator">*</span>sk<span class="token punctuation">,</span> <span class="token keyword">struct</span> <span class="token class-name">sk_buff</span> <span class="token operator">*</span>skb<span class="token punctuation">)</span>
@@ -1864,7 +1864,7 @@ default via 192.168.2.1 dev eth0
 <span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
 <p>ip_local_out先是调用__ip_local_out，然后里面调用了nf_hook。这是什么呢？nf的意思是Netfilter，这是Linux内核的一个机制，用于在网络发送和转发的关键节点上加上hook函数，这些函数可以截获数据包，对数据包进行干预。</p>
 <p>一个著名的实现，就是内核模块ip_tables。在用户态，还有一个客户端程序iptables，用命令行来干预内核的规则。</p>
-<p><img src="/images/《趣谈Linux操作系统》学习笔记/ip_table内核模块.png" alt="ip_table内核模块"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《趣谈Linux操作系统》学习笔记/ip_table内核模块.png" alt="ip_table内核模块"></p>
 <p>iptables有表和链的概念，最终要的是两个表。</p>
 <p>filter表处理过滤功能，主要包含以下三个链。</p>
 <ul>
@@ -1878,7 +1878,7 @@ default via 192.168.2.1 dev eth0
 <li>OUTPUT链：可以改变本地产生的数据包的目标地址</li>
 <li>POSTROUTING链：在数据包离开时改变数据包的源地址</li>
 </ul>
-<p><img src="/images/《趣谈Linux操作系统》学习笔记/iptables的表和链.png" alt="iptables的表和链"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《趣谈Linux操作系统》学习笔记/iptables的表和链.png" alt="iptables的表和链"></p>
 <p>在这里，网络包马上就要发出去了，因而是NF_INET_LOCAL_OUT，也即ouput链，如果用户曾经在iptables里面写过某些规则，就会在nf_hook这个函数里面起作用。</p>
 <p>ip_local_out再调用dst_output，就是真正的发送数据。</p>
 <pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token comment">/* Output packet to network from transport.  */</span>
@@ -2168,7 +2168,7 @@ out_unlock_bh<span class="token operator">:</span>
 <p>三个波段的优先级也不相同。band 0的优先级最高，band 2的最低。如果band 0里面有数据包，系统就不会处理band 1里面的数据包，band 1和band 2之间也是一样。</p>
 <p>数据包是按照服务类型（Type of Service，TOS）被分配到三个波段里面的。TOS是IP头里面的一个字段，代表了当前的包是高优先级的，还是低优先级的。</p>
 <p>pfifo_fast分为三个先入先出的队列，我们能称为三个Band。根据网络包里面的TOS，看这个包到底应该进入哪个队列。TOS总共四位，每一位表示的意思不同，总共十六种类型。</p>
-<p><img src="/images/《趣谈Linux操作系统》学习笔记/pfifo_fast和TOS.png" alt="pfifo_fast和TOS"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《趣谈Linux操作系统》学习笔记/pfifo_fast和TOS.png" alt="pfifo_fast和TOS"></p>
 <p>通过命令行tc qdisc show dev eth0，我们可以输出结果priomap，也是十六个数字。在0到2之间，和TOS的十六种类型对应起来。不同的TOS对应不同的队列。其中Band 0优先级最高，发送完毕后才轮到Band 1发送，最后才是Band 2。</p>
 <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ tc qdisc show dev eth0
 qdisc pfifo_fast <span class="token number">0</span>: root refcnt <span class="token number">2</span> bands <span class="token number">3</span> priomap  <span class="token number">1</span> <span class="token number">2</span> <span class="token number">2</span> <span class="token number">2</span> <span class="token number">1</span> <span class="token number">2</span> <span class="token number">0</span> <span class="token number">0</span> <span class="token number">1</span> <span class="token number">1</span> <span class="token number">1</span> <span class="token number">1</span> <span class="token number">1</span> <span class="token number">1</span> <span class="token number">1</span> <span class="token number">1</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre>
@@ -2344,7 +2344,7 @@ qdisc pfifo_fast <span class="token number">0</span>: root refcnt <span class="t
 <p>在ixgb_xmit_frame中，我们会得到这个网卡对应的适配器，然后将其放入硬件网卡的队列中。</p>
 <p>至此，整个发送才算结束。</p>
 <h4 id="42-3-总结"><a href="#42-3-总结" class="headerlink" title="42.3 总结"></a>42.3 总结</h4><p>这一节，我们继续解析了发送一个网络包的过程，我们整个过程的图画在了下面。</p>
-<p><img src="/images/《趣谈Linux操作系统》学习笔记/发送一个网络包的完整过程.png" alt="发送一个网络包的完整过程"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《趣谈Linux操作系统》学习笔记/发送一个网络包的完整过程.png" alt="发送一个网络包的完整过程"></p>
 <p>这个过程分成几个层次。</p>
 <ul>
 <li>VFS层：write系统调用找到struct file，根据里面的file_operations的定义，调用sock_write_iter函数。sock_write_iter函数调用sock_sendmsg函数。</li>
@@ -2748,7 +2748,7 @@ qdisc pfifo_fast <span class="token number">0</span>: root refcnt <span class="t
 <li>在IP层，会处理iptables规则，然后调用ip_local_deliver，交给更上层TCP层。</li>
 <li>在TCP层调用tcp_v4_rcv。</li>
 </ul>
-<p><img src="/images/《趣谈Linux操作系统》学习笔记/接收网络包部分过程.png" alt="接收网络包部分过程"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《趣谈Linux操作系统》学习笔记/接收网络包部分过程.png" alt="接收网络包部分过程"></p>
 <h3 id="44-接收网络包（下）"><a href="#44-接收网络包（下）" class="headerlink" title="44. 接收网络包（下）"></a>44. 接收网络包（下）</h3><p>上一节，我们解析了网络包接收的上半部分，从硬件网卡到IP层。这一节，我们接着来解析TCP层和Socket层都做了哪些事情。</p>
 <h4 id="44-1-网络协议栈的TCP层"><a href="#44-1-网络协议栈的TCP层" class="headerlink" title="44.1 网络协议栈的TCP层"></a>44.1 网络协议栈的TCP层</h4><p>从tcp_v4_rcv函数开始，我们的处理逻辑就从IP层到了TCP层。</p>
 <pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">int</span> <span class="token function">tcp_v4_rcv</span><span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">sk_buff</span> <span class="token operator">*</span>skb<span class="token punctuation">)</span>
@@ -2876,7 +2876,7 @@ process<span class="token operator">:</span>
     <span class="token punctuation">}</span>
 <span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
 <p>在tcp_rcv_state_process中，如果我们对着TCP的状态图进行比对，能看到，对于TCP所有状态的处理，其中和连接建立相关的状态，咱们已经分析过，所以我们重点关注连接状态下的工作模式。</p>
-<p><img src="/images/《趣谈Linux操作系统》学习笔记/TCP的状态图.png" alt="TCP的状态图"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《趣谈Linux操作系统》学习笔记/TCP的状态图.png" alt="TCP的状态图"></p>
 <p>在连接状态下，我们会调用tcp_rcv_established。在这个函数里面，我们会调用tcp_data_queue，将其放入sk_receive_queue队列进行处理。</p>
 <pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">static</span> <span class="token keyword">void</span> <span class="token function">tcp_data_queue</span><span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">sock</span> <span class="token operator">*</span>sk<span class="token punctuation">,</span> <span class="token keyword">struct</span> <span class="token class-name">sk_buff</span> <span class="token operator">*</span>skb<span class="token punctuation">)</span>
 <span class="token punctuation">{</span>
@@ -3173,7 +3173,7 @@ do_prequeue<span class="token operator">:</span>
 <li>Sock层：从struct socket里面的sk得到struct sock，根据里面sk_prot的定义，调用tcp_recvmsg函数。</li>
 <li>TCP层：tcp_recvmsg函数会依次读取receive_queue队列、prequeue队列和backlog队列。</li>
 </ul>
-<p><img src="/images/《趣谈Linux操作系统》学习笔记/接收网络包完整过程.png" alt="接收网络包完整过程"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《趣谈Linux操作系统》学习笔记/接收网络包完整过程.png" alt="接收网络包完整过程"></p>
 <h2 id="八、虚拟化"><a href="#八、虚拟化" class="headerlink" title="八、虚拟化"></a>八、虚拟化</h2><h3 id="43-虚拟机"><a href="#43-虚拟机" class="headerlink" title="43. 虚拟机"></a>43. 虚拟机</h3><p>我们前面所有章节涉及的Linux操作系统原理，都是在一台Linux服务器上工作的.在前面的原理阐述中，我们一直把Linux当作一家外包公司的老板来看待。想要管理这么复杂、这么大的一个公司，需要配备咱们前面讲过的所有机制。</p>
 <p>Linux很强大，Linux服务器也随之变得越来越强大了。无论是计算、网络、存储，都越来越牛。例如，内存动不动就是百G内存，网络设备一个端口的带宽就能有几十G甚至上百G，存储在数据中心至少是PB级别的（一个P是1024个T，一个T是1024个G）。</p>
 <p>公司大有大了的好处，自然也有大的毛病，也就是咱们常见的“大公司病”——<strong>不灵活</strong>。这里面的不灵活，有下面这几种，我列一下，你看看你是不是都见过。</p>
@@ -3234,37 +3234,37 @@ do_prequeue<span class="token operator">:</span>
 <p>对于桌面虚拟化软件，我们多采用VirtualBox，如果使用服务器的虚拟化软件，则有另外的选型。</p>
 <p>服务器上的虚拟化软件，多使用qemu，其中关键字emu，全称是emulator，模拟器。所以，单纯使用qemu，采用的是完全虚拟化的模式。</p>
 <p>qemu向Guest OS模拟CPU，也模拟其他的硬件，GuestOS认为自己和硬件直接打交道，其实是同qemu模拟出来的硬件打交道，qemu会将这些指令转译给真正的硬件。由于所有的指令都要从qemu里面过一手，因而性能就会比较差。</p>
-<p><img src="/images/《趣谈Linux操作系统》学习笔记/qemu的完全虚拟化.png" alt="qemu的完全虚拟化"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《趣谈Linux操作系统》学习笔记/qemu的完全虚拟化.png" alt="qemu的完全虚拟化"></p>
 <p>按照上面的介绍，完全虚拟化是非常慢的，所以要使用硬件辅助虚拟化技术Intel-VT，AMD-V，所以需要CPU硬件开启这个标志位，一般在BIOS里面设置。</p>
 <p>当确认开始了标志位之后，通过KVM，GuestOS的CPU指令不用经过Qemu转译，直接运行，大大提高了速度。</p>
 <p>所以，KVM在内核里面需要有一个模块，来设置当前CPU是Guest OS在用，还是Host OS在用。</p>
 <p>下面，我们来查看内核模块中是否含有kvm, lsmod | grep kvm。</p>
 <p>KVM内核模块通过/dev/kvm暴露接口，用户态程序可以通过ioctl来访问这个接口。例如，你可以通过下面的流程编写程序。</p>
-<p><img src="/images/《趣谈Linux操作系统》学习笔记/使用kvm的流程.png" alt="使用kvm的流程"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《趣谈Linux操作系统》学习笔记/使用kvm的流程.png" alt="使用kvm的流程"></p>
 <p>Qemu将KVM整合进来，将有关CPU指令的部分交由内核模块来做，就是qemu-kvm (qemu-system-XXX)。</p>
 <p>qemu和kvm整合之后，CPU的性能问题解决了。另外Qemu还会模拟其他的硬件，如网络和硬盘。同样，全虚拟化的方式也会影响这些设备的性能。</p>
 <p>于是，qemu采取半虚拟化的方式，让Guest OS加载特殊的驱动来做这件事情。</p>
 <p>例如，网络需要加载virtio_net，存储需要加载virtio_blk，Guest需要安装这些半虚拟化驱动，GuestOS知道自己是虚拟机，所以数据会直接发送给半虚拟化设备，经过特殊处理（例如排队、缓存、批量处理等性能优化方式），最终发送给真正的硬件。这在一定程度上提高了性能。</p>
 <p>至此，整个关系如下图所示。</p>
-<p><img src="/images/《趣谈Linux操作系统》学习笔记/qemu的半虚拟化.png" alt="qemu的半虚拟化"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《趣谈Linux操作系统》学习笔记/qemu的半虚拟化.png" alt="qemu的半虚拟化"></p>
 <h4 id="43-2-创建虚拟机"><a href="#43-2-创建虚拟机" class="headerlink" title="43.2 创建虚拟机"></a>43.2 创建虚拟机</h4><p>了解了qemu-kvm的工作原理之后，下面我们来看一下，如何使用qemu-kvm创建一个能够上网的虚拟机。</p>
 <p>如果使用VirtualBox创建过虚拟机，通过界面点点就能创建一个能够上网的虚拟机。如果使用qemu-kvm，就没有这么简单了。一切都得自己来做，不过这个过程可以了解KVM虚拟机的创建原理。</p>
 <p>首先，我们要给虚拟机起一个名字，在KVM里面就是-name ubuntutest。</p>
-<p><img src="/images/《趣谈Linux操作系统》学习笔记/创建虚拟机一.png" alt="创建虚拟机一"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《趣谈Linux操作系统》学习笔记/创建虚拟机一.png" alt="创建虚拟机一"></p>
 <p>设置一个内存大小，在KVM里面就是-m 1024。</p>
-<p><img src="/images/《趣谈Linux操作系统》学习笔记/创建虚拟机二.png" alt="创建虚拟机二"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《趣谈Linux操作系统》学习笔记/创建虚拟机二.png" alt="创建虚拟机二"></p>
 <p>创建一个虚拟硬盘，对于VirtualBox是VDI格式，对于KVM则不同。</p>
-<p><img src="/images/《趣谈Linux操作系统》学习笔记/创建虚拟机三.png" alt="创建虚拟机三"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《趣谈Linux操作系统》学习笔记/创建虚拟机三.png" alt="创建虚拟机三"></p>
 <p>硬盘有两种格式，一个是动态分配，也即开始创建的时候，看起来很大，其实占用的空间很少，真实有多少数据，才真的占用多少空间。一个是固定大小，一开始就占用指定的大小。</p>
-<p><img src="/images/《趣谈Linux操作系统》学习笔记/创建虚拟机四.png" alt="创建虚拟机四"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《趣谈Linux操作系统》学习笔记/创建虚拟机四.png" alt="创建虚拟机四"></p>
 <p>比如，我这台电脑，硬盘的大小为8G。</p>
-<p><img src="/images/《趣谈Linux操作系统》学习笔记/创建虚拟机五.png" alt="创建虚拟机五"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《趣谈Linux操作系统》学习笔记/创建虚拟机五.png" alt="创建虚拟机五"></p>
 <p>在KVM中，创建一个虚拟机镜像，大小为8G，其中qcow2格式为动态分配，raw格式为固定大小。</p>
 <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">qemu-img create -f qcow2 ubuntutest.img 8G<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
 <p>我们将Ubuntu的ISO挂载为光盘，在KVM里面-cdrom ubuntu-xxx-server-amd64.iso</p>
-<p><img src="/images/《趣谈Linux操作系统》学习笔记/创建虚拟机六.png" alt="创建虚拟机六"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《趣谈Linux操作系统》学习笔记/创建虚拟机六.png" alt="创建虚拟机六"></p>
 <p>创建一个网络，有时候会选择桥接网络，有时候会选择NAT网络，这个在KVM里面只有自己配置了。</p>
-<p><img src="/images/《趣谈Linux操作系统》学习笔记/创建虚拟机七.png" alt="创建虚拟机七"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《趣谈Linux操作系统》学习笔记/创建虚拟机七.png" alt="创建虚拟机七"></p>
 <p>接下来Virtualbox就会有一个界面，可以看到安装的整个过程，在KVM里面，我们用VNC来做。参数为-vnc :19</p>
 <p>于是，我们也可以创建KVM虚拟机了，可以用下面的命令：</p>
 <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">qemu-system-x86_64 <span class="token punctuation">\</span>
@@ -3280,18 +3280,18 @@ do_prequeue<span class="token operator">:</span>
 <p>实际测试发现，直接运行上面的命令，在虚拟机里面就能正常访问网络。</p>
 </blockquote>
 <p>启动了虚拟机后，连接VNC，我们也能看到安装的过程。</p>
-<p><img src="/images/《趣谈Linux操作系统》学习笔记/创建虚拟机八.png" alt="创建虚拟机八"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《趣谈Linux操作系统》学习笔记/创建虚拟机八.png" alt="创建虚拟机八"></p>
 <p>按照普通安装Ubuntu的流程安装好Ubuntu，然后shutdown -h now，关闭虚拟机。</p>
 <p>接下来，我们可以对KVM创建桥接网络了。这个要模拟virtualbox的桥接网络模式。</p>
 <p>如果在桌面虚拟化软件上选择桥接网络，在你的笔记本电脑上，就会形成下面的结构。</p>
-<p><img src="/images/《趣谈Linux操作系统》学习笔记/虚拟机网络结构一.png" alt="虚拟机网络结构一"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《趣谈Linux操作系统》学习笔记/虚拟机网络结构一.png" alt="虚拟机网络结构一"></p>
 <p>每个虚拟机都会有虚拟网卡，在你的笔记本电脑上，会发现多了几个网卡，其实是虚拟交换机。这个虚拟交换机将虚拟机连接在一起。在桥接模式下，物理网卡也连接到这个虚拟交换机上。物理网卡在桌面虚拟化软件的“界面名称”那里选定。</p>
 <p>如果使用桥接网络，当你登录虚拟机里看IP地址时会发现，你的虚拟机的地址和你的笔记本电脑的地址，以及你旁边的同事的电脑的网段是一个网段。这是为什么呢？这其实相当于将物理机和虚拟机放在同一个网桥上，相当于这个网桥上有三台机器，是一个网段的，全部打平了。</p>
-<p><img src="/images/《趣谈Linux操作系统》学习笔记/虚拟机网络结构二.png" alt="虚拟机网络结构二"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《趣谈Linux操作系统》学习笔记/虚拟机网络结构二.png" alt="虚拟机网络结构二"></p>
 <p>在数据中心里面，采取的也是类似的技术，连接方式如下图所示，只不过是Linux在每台机器上都创建网桥br0，虚拟机的网卡都连到br0上，物理网卡也连到br0上，所有的br0都通过物理网卡连接到物理交换机上。</p>
-<p><img src="/images/《趣谈Linux操作系统》学习笔记/虚拟机网络结构三.png" alt="虚拟机网络结构三"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《趣谈Linux操作系统》学习笔记/虚拟机网络结构三.png" alt="虚拟机网络结构三"></p>
 <p>同样我们换一个角度看待这个拓扑图。同样是将网络打平，虚拟机会和物理网络具有相同的网段，就相当于两个虚拟交换机、一个物理交换机，一共三个交换机连在一起。两组四个虚拟机和两台物理机都是在一个二层网络里面的。</p>
-<p><img src="/images/《趣谈Linux操作系统》学习笔记/虚拟机网络结构四.png" alt="虚拟机网络结构四"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《趣谈Linux操作系统》学习笔记/虚拟机网络结构四.png" alt="虚拟机网络结构四"></p>
 <p>qemu-kvm如何才能创建一个这样的桥接网络呢？</p>
 <ol>
 <li><p>先安装 <code>brctl</code></p>
@@ -3725,7 +3725,7 @@ MachineClass <span class="token operator">*</span><span class="token function">f
 <p>至此，绕了这么大一圈，有关体系结构的对象才创建完毕，接下来很多的设备的初始化，包括CPU和内存的初始化，都是围绕着体系结构的对象来的，后面我们会常常看到current_machine。</p>
 <h4 id="44-4-总结"><a href="#44-4-总结" class="headerlink" title="44.4 总结"></a>44.4 总结</h4><p>这一节，我们学到，虚拟机对于设备的模拟是一件非常复杂的事情，需要用复杂的参数模拟各种各样的设备。为了能够适配这些设备，qemu定义了自己的模块管理机制，只有了解了这种机制，后面看每一种设备的虚拟化的时候，才有一个整体的思路。</p>
 <p>这里的MachineClass是我们遇到的第一个，我们需要掌握它里面各种定义之间的关系。</p>
-<p><img src="/images/《趣谈Linux操作系统》学习笔记/MachineClass与其他定义之间的关系.png" alt="MachineClass与其他定义之间的关系"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《趣谈Linux操作系统》学习笔记/MachineClass与其他定义之间的关系.png" alt="MachineClass与其他定义之间的关系"></p>
 <p>每个模块都会有一个定义TypeInfo，会通过type_init变为全局的TypeImpl。TypeInfo以及生成的TypeImpl有以下成员：</p>
 <ul>
 <li>name表示当前类型的名称</li>
@@ -4203,7 +4203,7 @@ out<span class="token operator">:</span>
 </ul>
 <p>接下来，对于VMCS，有两个重要的操作。</p>
 <p>VM-Entry，我们称为从根模式切换到非根模式，也即切换到guest上，这个时候CPU上运行的是虚拟机。VM-Exit我们称为CPU从非根模式切换到根模式，也即从guest切换到宿主机。例如，当要执行一些虚拟机没有权限的敏感指令时。</p>
-<p><img src="/images/《趣谈Linux操作系统》学习笔记/虚拟机管理系统.png" alt="虚拟机管理系统"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《趣谈Linux操作系统》学习笔记/虚拟机管理系统.png" alt="虚拟机管理系统"></p>
 <p>为了维护这两个动作，VMCS里面还有几项内容：</p>
 <ul>
 <li>VM-exit control fields，对VM Exit的行为进行控制。比如，VM Exit的时候对vCPU来说需要保存哪些MSR寄存器，对于主机CPU来说需要恢复哪些MSR寄存器。</li>
@@ -4425,7 +4425,7 @@ out<span class="token operator">:</span>
 </ul>
 <p>至此，CPU虚拟化就解析完了。</p>
 <h4 id="45-5-总结"><a href="#45-5-总结" class="headerlink" title="45.5 总结"></a>45.5 总结</h4><p>CPU的虚拟化过程还是很复杂的，我画了一张图总结了一下。</p>
-<p><img src="/images/《趣谈Linux操作系统》学习笔记/CPU的虚拟化过程.png" alt="CPU的虚拟化过程"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《趣谈Linux操作系统》学习笔记/CPU的虚拟化过程.png" alt="CPU的虚拟化过程"></p>
 <ul>
 <li>首先，我们要定义CPU这种类型的TypeInfo和TypeImpl、继承关系，并且声明它的类初始化函数。</li>
 <li>在qemu的main函数中调用MachineClass的init函数，这个函数既会初始化CPU，也会初始化内存。</li>
@@ -4897,7 +4897,7 @@ done<span class="token operator">:</span>
 <p>KVM 只需为每个客户机维护一套 EPT 页表，也大大减少了内存的开销。</p>
 <p>这里，我们重点看第二种方式。因为使用了EPT之后，客户机里面的页表映射，也即从GVA到GPA的转换，还是用传统的方式，和在内存管理那一章讲的没有什么区别。而EPT重点帮我们解决的就是从GPA到HPA的转换问题。因为要经过两次页表，所以EPT又tdp(two dimentional paging)。</p>
 <p>EPT的页表结构也是分为四层，EPT Pointer （EPTP）指向PML4的首地址。</p>
-<p><img src="/images/《趣谈Linux操作系统》学习笔记/EPT的页表结构.jpg" alt="EPT的页表结构"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《趣谈Linux操作系统》学习笔记/EPT的页表结构.jpg" alt="EPT的页表结构"></p>
 <p>管理物理页面的Page结构和咱们讲内存管理那一章是一样的。EPT页表也需要存放在一个页中，这些页要用kvm_mmu_page这个结构来管理。</p>
 <p>当一个虚拟机运行，进入客户机模式的时候，我们上一节解析过，它会调用vcpu_enter_guest函数，这里面会调用kvm_mmu_reload-&gt;kvm_mmu_load。</p>
 <pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">int</span> <span class="token function">kvm_mmu_load</span><span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">kvm_vcpu</span> <span class="token operator">*</span>vcpu<span class="token punctuation">)</span>
@@ -5088,7 +5088,7 @@ done<span class="token operator">:</span>
 <p>和用户态qemu对应的内核KVM，对于虚拟机有一个结构struct kvm表示这个虚拟机，这个结构会指向一个数组的struct kvm_memory_slot表示这个虚拟机的多个内存条，kvm_memory_slot中有起始页号，页面数目，表示这个虚拟机的物理内存空间。</p>
 <p>虚拟机的物理内存空间里面的页面当然不是一开始就映射到物理页面的，只有当虚拟机的内存被访问的时候，也即mmap分配的虚拟内存空间被访问的时候，先查看EPT页表，是否已经映射过，如果已经映射过，则经过四级页表映射，就能访问到物理页面。</p>
 <p>如果没有映射过，则虚拟机会通过VM-Exit指令回到宿主机模式，通过handle_ept_violation补充页表映射。先是通过handle_mm_fault为虚拟机的物理内存空间分配真正的物理页面，然后通过__direct_map添加EPT页表映射。</p>
-<p><img src="/images/《趣谈Linux操作系统》学习笔记/虚拟机的内存管理中的EPT技术.jpg" alt="虚拟机的内存管理中的EPT技术"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《趣谈Linux操作系统》学习笔记/虚拟机的内存管理中的EPT技术.jpg" alt="虚拟机的内存管理中的EPT技术"></p>
 <h3 id="47-存储虚拟化（上）"><a href="#47-存储虚拟化（上）" class="headerlink" title="47. 存储虚拟化（上）"></a>47. 存储虚拟化（上）</h3><p>前面几节，我们讲了CPU和内存的虚拟化。我们知道，完全虚拟化是很慢的，而通过内核的KVM技术和EPT技术，加速虚拟机对于物理CPU和内存的使用，我们称为硬件辅助虚拟化。</p>
 <p>对于一台虚拟机而言，除了要虚拟化CPU和内存，存储和网络也需要虚拟化，存储和网络都属于外部设备，这些外部设备应该如何虚拟化呢？</p>
 <p>当然一种方式还是完全虚拟化。比如，有什么样的硬盘设备或者网卡设备，我们就用qemu模拟一个一模一样的软件的硬盘和网卡设备，这样在虚拟机里面的操作系统看来，使用这些设备和使用物理设备是一样的。当然缺点就是，qemu模拟的设备又是一个翻译官的角色。虽然这个时候虚拟机里面的操作系统，意识不到自己是运行在虚拟机里面的，但是这种每个指令都翻译的方式，实在是太慢了。</p>
@@ -5102,7 +5102,7 @@ done<span class="token operator">:</span>
 <li>其次，在宿主机的qemu里面，实现virtio后端的逻辑，主要就是<strong>操作硬件的设备</strong>。例如通过写一个物理机硬盘上的文件来完成虚拟机写入硬盘的操作。再如向内核协议栈发送一个网络包完成虚拟机对于网络的操作。</li>
 <li>在virtio的前端和后端之间，有一个通信层，里面包含<strong>virtio层和virtio-ring层</strong>。virtio这一层实现的是虚拟队列接口，算是前后端通信的桥梁。而virtio-ring则是该桥梁的具体实现。</li>
 </ul>
-<p><img src="/images/《趣谈Linux操作系统》学习笔记/virtio的架构.png" alt="virtio的架构"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《趣谈Linux操作系统》学习笔记/virtio的架构.png" alt="virtio的架构"></p>
 <p>virtio使用virtqueue进行前端和后端的高速通信。不同类型的设备队列数目不同。virtio-net使用两个队列，一个用于接受，另一个用于发送；而 virtio-blk仅使用一个队列。</p>
 <p>如果客户机要向宿主机发送数据，宿主机会将数据的buffer添加到virtqueue中，然后通过写入寄存器通知宿主机。这样宿主机就可以从virtqueue 中收到的buffer里面的数据。</p>
 <p>了解了virtio的基本原理，接下来，我们以硬盘写入为例，具体看一下存储虚拟化的过程。</p>
@@ -5222,7 +5222,7 @@ done<span class="token operator">:</span>
 <span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
 <p>在每个VirtQueue中，都有一个vring，用来维护这个队列里面的数据；另外还有一个函数virtio_blk_handle_output，用于处理数据写入，这个函数我们后面会用到。</p>
 <p>至此，VirtIODevice，VirtQueue，vring之间的关系如下图所示。这是在qemu里面的对应关系，请你记好，后面我们还能看到类似的结构。</p>
-<p><img src="/images/《趣谈Linux操作系统》学习笔记/VirtIODevice与VirtQueue和vring之间的关系.jpg" alt="VirtIODevice与VirtQueue和vring之间的关系"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《趣谈Linux操作系统》学习笔记/VirtIODevice与VirtQueue和vring之间的关系.jpg" alt="VirtIODevice与VirtQueue和vring之间的关系"></p>
 <h4 id="47-3-qemu启动过程中的存储虚拟化"><a href="#47-3-qemu启动过程中的存储虚拟化" class="headerlink" title="47.3 qemu启动过程中的存储虚拟化"></a>47.3 qemu启动过程中的存储虚拟化</h4><p>初始化过程解析完毕以后，我们接下来从qemu的启动过程看起。</p>
 <p>对于硬盘的虚拟化，qemu的启动参数里面有关的是下面两行：</p>
 <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">-drive <span class="token assign-left variable">file</span><span class="token operator">=</span>/var/lib/nova/instances/1f8e6f7e-5a70-4780-89c1-464dc0e7f308/disk,if<span class="token operator">=</span>none,id<span class="token operator">=</span>drive-virtio-disk0,format<span class="token operator">=</span>qcow2,cache<span class="token operator">=</span>none
@@ -5417,7 +5417,7 @@ done<span class="token operator">:</span>
 <li>后端有后端的设备驱动Back-end driver，在宿主机的qemu进程中，当收到客户机的写入请求的时候，调用文件系统的write函数，写入宿主机的VFS文件系统，最终写到物理硬盘设备上的qcow2文件。</li>
 <li>中间的队列用于前端和后端之间传输数据，在前端的设备驱动和后端的设备驱动，都有类似的数据结构virt-queue来管理这些队列，这一部分这一节我们也没有讲，也放到下一节解析。</li>
 </ul>
-<p><img src="/images/《趣谈Linux操作系统》学习笔记/存储虚拟化（上）总结.jpg" alt="存储虚拟化（上）总结"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《趣谈Linux操作系统》学习笔记/存储虚拟化（上）总结.jpg" alt="存储虚拟化（上）总结"></p>
 <h3 id="48-存储虚拟化（下）"><a href="#48-存储虚拟化（下）" class="headerlink" title="48. 存储虚拟化（下）"></a>48. 存储虚拟化（下）</h3><p>上一节，我们讲了qemu启动过程中的存储虚拟化。好了，现在qemu启动了，硬盘设备文件已经打开了。那如果我们要往虚拟机的一个进程写入一个文件，该怎么做呢？最终这个文件又是如何落到宿主机上的硬盘文件的呢？这一节，我们一起来看一看。</p>
 <h4 id="48-1-前端设备驱动virtio-blk"><a href="#48-1-前端设备驱动virtio-blk" class="headerlink" title="48.1 前端设备驱动virtio_blk"></a>48.1 前端设备驱动virtio_blk</h4><p>虚拟机里面的进程写入一个文件，当然要通过文件系统。整个过程和咱们在<strong>文件系统</strong>那一节讲的过程没有区别。只是到了设备驱动层，我们看到的就不是普通的硬盘驱动了，而是virtio的驱动。</p>
 <p>virtio的驱动程序代码在Linux操作系统的源代码里面，文件名叫drivers/block/virtio_blk.c。</p>
@@ -5741,9 +5741,9 @@ done<span class="token operator">:</span>
     <span class="token function">virtio_queue_update_rings</span><span class="token punctuation">(</span>vdev<span class="token punctuation">,</span> n<span class="token punctuation">)</span><span class="token punctuation">;</span>
 <span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span></span></code></pre>
 <p>从这里我们可以看出，qemu后端的VirtIODevice的VirtQueue的vring的地址，被设置成了刚才给队列分配的内存的GPA。</p>
-<p><img src="/images/《趣谈Linux操作系统》学习笔记/virtio队列的相关定义.jpg" alt="virtio队列的相关定义"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《趣谈Linux操作系统》学习笔记/virtio队列的相关定义.jpg" alt="virtio队列的相关定义"></p>
 <p>接着，我们来看一下这个队列的格式。</p>
-<p><img src="/images/《趣谈Linux操作系统》学习笔记/virtio队列的格式.jpg" alt="virtio队列的格式"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《趣谈Linux操作系统》学习笔记/virtio队列的格式.jpg" alt="virtio队列的格式"></p>
 <pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token comment">/* Virtio ring descriptors: 16 bytes.  These can chain together via "next". */</span>
 <span class="token keyword">struct</span> <span class="token class-name">vring_desc</span> <span class="token punctuation">{</span>
     <span class="token comment">/* Address (guest-physical). */</span>
@@ -6168,7 +6168,7 @@ q<span class="token operator">-&gt;</span>mq_ops<span class="token operator">-&g
 <li>virtio_blk_handle_request会调用blk_aio_pwritev，通过BlockBackend驱动写入qcow2文件。</li>
 <li>写入完毕之后，virtio_blk_req_complete会调用virtio_notify通知虚拟机里面的驱动。数据写入完成，刚才注册的中断处理函数vp_interrupt会收到这个通知。</li>
 </ul>
-<p><img src="/images/《趣谈Linux操作系统》学习笔记/存储虚拟化的场景下整个写入的过程.jpg" alt="存储虚拟化的场景下整个写入的过程"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《趣谈Linux操作系统》学习笔记/存储虚拟化的场景下整个写入的过程.jpg" alt="存储虚拟化的场景下整个写入的过程"></p>
 <h3 id="49-网络虚拟化"><a href="#49-网络虚拟化" class="headerlink" title="49. 网络虚拟化"></a>49. 网络虚拟化</h3><p>上一节，我们讲了存储虚拟化，这一节我们来讲网络虚拟化。</p>
 <p>网络虚拟化有和存储虚拟化类似的地方，例如，它们都是基于virtio的，因而我们在看网络虚拟化的过程中，会看到和存储虚拟化很像的数据结构和原理。但是，网络虚拟化也有自己的特殊性。例如，存储虚拟化是将宿主机上的文件作为客户机上的硬盘，而网络虚拟化需要依赖于内核协议栈进行网络包的封装与解封装。那怎么实现客户机和宿主机之间的互通呢？我们就一起来看一看。</p>
 <h4 id="49-1-解析初始化过程"><a href="#49-1-解析初始化过程" class="headerlink" title="49.1 解析初始化过程"></a>49.1 解析初始化过程</h4><p>我们还是从Virtio Network Device这个设备的初始化讲起。</p>
@@ -6414,7 +6414,7 @@ q<span class="token operator">-&gt;</span>mq_ops<span class="token operator">-&g
     <span class="token keyword">return</span> fd<span class="token punctuation">;</span>
 <span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
 <p>在tap_open中，我们打开一个文件”/dev/net/tun”，然后通过ioctl操作这个文件。这是Linux内核的一项机制，和KVM机制很像。其实这就是一种通过打开这个字符设备文件，然后通过ioctl操作这个文件和内核打交道，来使用内核的能力。</p>
-<p><img src="/images/《趣谈Linux操作系统》学习笔记/网络虚拟化过程.png" alt="网络虚拟化过程"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《趣谈Linux操作系统》学习笔记/网络虚拟化过程.png" alt="网络虚拟化过程"></p>
 <p>为什么需要使用内核的机制呢？因为网络包需要从虚拟机里面发送到虚拟机外面，发送到宿主机上的时候，必须是一个正常的网络包才能被转发。要形成一个网络包，我们那就需要经过复杂的协议栈，协议栈的复杂咱们在<strong>发送网络包</strong>那一节讲过了。</p>
 <p>客户机会将网络包发送给qemu。qemu自己没有网络协议栈，现去实现一个也不可能，太复杂了。于是，它就要借助内核的力量。</p>
 <p>qemu会将客户机发送给它的网络包，然后转换成为文件流，写入”/dev/net/tun”字符设备。就像写一个文件一样。内核中TUN/TAP字符设备驱动会收到这个写入的文件流，然后交给TUN/TAP的虚拟网卡驱动。这个驱动会将文件流再次转成网络包，交给TCP/IP栈，最终从虚拟TAP网卡tap0发出来，成为标准的网络包。后面我们会看到这个过程。</p>
@@ -6636,7 +6636,7 @@ q<span class="token operator">-&gt;</span>mq_ops<span class="token operator">-&g
     <span class="token keyword">return</span> <span class="token number">0</span><span class="token punctuation">;</span>
 <span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
 <p>tun_set_iff创建了struct tun_struct和struct net_device，并且将这个tuntap网络设备通过register_netdevice注册到内核中。这样，我们就能在宿主机上通过ip addr看到这个网卡了。</p>
-<p><img src="/images/《趣谈Linux操作系统》学习笔记/网络虚拟化函数过程.png" alt="网络虚拟化函数过程"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《趣谈Linux操作系统》学习笔记/网络虚拟化函数过程.png" alt="网络虚拟化函数过程"></p>
 <p>至此宿主机上的内核的数据结构也完成了。</p>
 <h4 id="49-3-关联前端设备驱动和后端设备驱动"><a href="#49-3-关联前端设备驱动和后端设备驱动" class="headerlink" title="49.3 关联前端设备驱动和后端设备驱动"></a>49.3 关联前端设备驱动和后端设备驱动</h4><p>下面，我们来解析在客户机中发送一个网络包的时候，会发生哪些事情。</p>
 <p>虚拟机里面的进程发送一个网络包，通过文件系统和Socket调用网络协议栈，到达网络设备层。只不过这个不是普通的网络设备，而是virtio_net的驱动。</p>
@@ -6914,7 +6914,7 @@ bool <span class="token function">virtqueue_kick</span><span class="token punctu
 <li>在tun_chr_write_iter函数中，tun_get_user将要发送的网络包从qemu拷贝到宿主机内核里面来，然后调用netif_rx_ni开始调用宿主机内核协议栈进行处理。</li>
 <li>宿主机内核协议栈处理完毕之后，会发送给tap虚拟网卡，完成从虚拟机里面到宿主机的整个发送过程。</li>
 </ul>
-<p><img src="/images/《趣谈Linux操作系统》学习笔记/网络虚拟化场景下网络包的发送过程.jpg" alt="网络虚拟化场景下网络包的发送过程"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《趣谈Linux操作系统》学习笔记/网络虚拟化场景下网络包的发送过程.jpg" alt="网络虚拟化场景下网络包的发送过程"></p>
 <h2 id="九、容器化"><a href="#九、容器化" class="headerlink" title="九、容器化"></a>九、容器化</h2><h3 id="50-容器"><a href="#50-容器" class="headerlink" title="50. 容器"></a>50. 容器</h3><p>上一章，我们讲了虚拟化的原理。从一台物理机虚拟化出很多的虚拟机这种方式，一定程度上实现了资源创建的灵活性。但是你同时会发现，虚拟化的方式还是非常复杂的。</p>
 <p>那有没有一种更加灵活的方式，既可以隔离出一部分资源，专门用于某个进程，又不需要费劲周折的虚拟化这么多的硬件呢？毕竟最终我只想跑一个程序，而不是要一整个Linux系统。</p>
 <p>在Linux操作系统中，有一项新的技术，称为容器，它就可以做到这一点。</p>
@@ -6947,7 +6947,7 @@ bool <span class="token function">virtqueue_kick</span><span class="token punctu
 <p>为了运行Docker，有一个daemon进程Docker Daemon用于接收命令行。</p>
 <p>为了描述Docker里面运行的环境和应用，有一个Dockerfile，通过build命令称为容器镜像。容器镜像可以上传到镜像仓库，也可以通过pull命令从镜像仓库中下载现成的容器镜像。</p>
 <p>通过Docker run命令将容器镜像运行为容器，通过namespace和cgroup进行隔离，容器里面不包含内核，是共享宿主机的内核的。对比虚拟机，虚拟机在qemu进程里面是有客户机内核的，应用运行在客户机的用户态。</p>
-<p><img src="/images/《趣谈Linux操作系统》学习笔记/容器总结.jpg" alt="容器总结"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《趣谈Linux操作系统》学习笔记/容器总结.jpg" alt="容器总结"></p>
 <h3 id="51-Namespace技术"><a href="#51-Namespace技术" class="headerlink" title="51. Namespace技术"></a>51. Namespace技术</h3><p>为了隔离不同类型的资源，Linux内核里面实现了以下几种不同类型的namespace。</p>
 <ul>
 <li>UTS，对应的宏为CLONE_NEWUTS，表示不同的namespace可以配置不同的hostname。</li>
@@ -7298,7 +7298,7 @@ $ <span class="token builtin class-name">echo</span> <span class="token variable
 <p>还有两个常用的命令nsenter和unshare，主要用于操作Namespace，有三个常用的函数clone、setns和unshare。</p>
 <p>在内核里面，对于任何一个进程task_struct来讲，里面都会有一个成员struct nsproxy，用于保存namespace相关信息，里面有 struct uts_namespace、struct ipc_namespace、struct mnt_namespace、struct pid_namespace、struct net <em>net_ns和struct cgroup_namespace</em>cgroup_ns。</p>
 <p>创建namespace的时候，我们在内核中会调用copy_namespaces，调用顺序依次是copy_mnt_ns、copy_utsname、copy_ipcs、copy_pid_ns、copy_cgroup_ns和copy_net_ns，来复制namespace。</p>
-<p><img src="/images/《趣谈Linux操作系统》学习笔记/容器的namespace技术思维导图.png" alt="容器的namespace技术思维导图"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《趣谈Linux操作系统》学习笔记/容器的namespace技术思维导图.png" alt="容器的namespace技术思维导图"></p>
 <h3 id="52-CGroup技术"><a href="#52-CGroup技术" class="headerlink" title="52. CGroup技术"></a>52. CGroup技术</h3><p>我们前面说了，容器实现封闭的环境主要要靠两种技术，一种是“看起来是隔离”的技术Namespace，另一种是用起来是隔离的技术CGroup。</p>
 <p>上一节我们讲了“看起来隔离“的技术Namespace，这一节我们就来看一下“用起来隔离“的技术CGroup。</p>
 <p>CGroup全称是Control Group，顾名思义，它是用来做“控制”的。控制什么东西呢？当然是资源的使用了。那它都能控制哪些资源的使用呢？我们一起来看一看。</p>
@@ -7495,7 +7495,7 @@ memory.max_usage_in_bytes<span aria-hidden="true" class="line-numbers-rows"><spa
 <span class="token number">39528</span>
 <span class="token number">39529</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
 <p>至此，我们看到了cgroup对于Docker资源的控制，在用户态是如何表现的。我画了一张图总结一下。</p>
-<p><img src="/images/《趣谈Linux操作系统》学习笔记/cgroup对docker资源的控制.png" alt="cgroup对docker资源的控制"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《趣谈Linux操作系统》学习笔记/cgroup对docker资源的控制.png" alt="cgroup对docker资源的控制"></p>
 <p>在内核中，cgroup是如何实现的呢？</p>
 <p>首先，在系统初始化的时候，cgroup也会进行初始化，在start_kernel中，cgroup_init_early和cgroup_init都会进行初始化。</p>
 <pre class="line-numbers language-c" data-language="c"><code class="language-c">asmlinkage __visible <span class="token keyword">void</span> __init <span class="token function">start_kernel</span><span class="token punctuation">(</span><span class="token keyword">void</span><span class="token punctuation">)</span>
@@ -7945,7 +7945,7 @@ memory.max_usage_in_bytes<span aria-hidden="true" class="line-numbers-rows"><spa
 <p>在mem_cgroup_try_charge中，先是调用get_mem_cgroup_from_mm获得这个进程对应的mem_cgroup结构，然后在try_charge中，根据mem_cgroup的限制，看是否可以申请分配内存。</p>
 <p>至此，cgroup对于内存的限制才真正起作用。</p>
 <h4 id="52-1-总结"><a href="#52-1-总结" class="headerlink" title="52.1 总结"></a>52.1 总结</h4><p>内核中cgroup的工作机制，我们在这里总结一下。</p>
-<p><img src="/images/《趣谈Linux操作系统》学习笔记/cgroup的工作机制.png" alt="cgroup的工作机制"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《趣谈Linux操作系统》学习笔记/cgroup的工作机制.png" alt="cgroup的工作机制"></p>
 <p>第一步，系统初始化的时候，初始化cgroup的各个子系统的操作函数，分配各个子系统的数据结构。</p>
 <p>第二步，mount cgroup文件系统，创建文件系统的树形结构，以及操作函数。</p>
 <p>第三步，写入cgroup文件，设置cpu或者memory的相关参数，这个时候文件系统的操作函数会调用到cgroup子系统的操作函数，从而将参数设置到cgroup子系统的数据结构中。</p>
@@ -7960,7 +7960,7 @@ memory.max_usage_in_bytes<span aria-hidden="true" class="line-numbers-rows"><spa
 <p>因而对应到数据中心，我们也需要一个调度器，将运维人员从指定物理机或者虚拟机的痛苦中解放出来，实现对于物理资源的统一管理，这就是Kubernetes。</p>
 <p>Kubernetes究竟有哪些功能，可以解放运维人员呢？为什么它能做数据中心的操作系统呢？</p>
 <p>我列了两个表格，将操作系统的功能和模块与Kubernetes的功能和模块做了一个对比，你可以看看。</p>
-<p><img src="/images/《趣谈Linux操作系统》学习笔记/操作系统的功能和模块与Kubernetes的功能和模块对比.jpeg" alt="操作系统的功能和模块与Kubernetes的功能和模块对比"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《趣谈Linux操作系统》学习笔记/操作系统的功能和模块与Kubernetes的功能和模块对比.jpeg" alt="操作系统的功能和模块与Kubernetes的功能和模块对比"></p>
 <p>Kubernetes作为数据中心的操作系统还是主要管理数据中心里面的四种硬件资源：CPU、内存、存储、网络。</p>
 <p>对于CPU和内存这两种计算资源的管理，我们可以通过Docker技术完成。它可以将CPU和内存资源，通过namespace和cgroup，从大的资源池里面隔离出来，并通过镜像技术，实现计算资源在数据中心里面的自由漂移。</p>
 <p>就像我们上面说的一样，那没有操作系统的时候，汇编程序员需要指定程序运行的CPU和内存物理地址。同理，数据中心的管理员，原来还需要指定程序运行的服务器及使用的CPU和内存。现在，Kubernetes里面有一个调度器Scheduler，你只需要告诉它，你想运行10个4核8G的Java程序，它会自动帮你选择空闲的、有足够资源的服务器，去运行这些程序。</p>
@@ -8004,7 +8004,7 @@ memory.max_usage_in_bytes<span aria-hidden="true" class="line-numbers-rows"><spa
 <p>看，是不是很神奇？有了Kubernetes，我们就能像管理一台Linux服务器那样，去管理数据中心了。</p>
 <p>如果想深入了解Kubernetes这个数据中心的操作系统，你可以订阅极客时间的专栏“<a target="_blank" rel="noopener" href="https://time.geekbang.org/column/article/114197">深入剖析Kubernetes</a>”。</p>
 <h4 id="53-1-总结"><a href="#53-1-总结" class="headerlink" title="53.1 总结"></a>53.1 总结</h4><p>下面，你可以对照着这个图，来总结一下这个数据中心操作系统的功能。</p>
-<p><img src="/images/《趣谈Linux操作系统》学习笔记/数据中心操作系统的功能总结.jpg" alt="数据中心操作系统的功能总结"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《趣谈Linux操作系统》学习笔记/数据中心操作系统的功能总结.jpg" alt="数据中心操作系统的功能总结"></p>
 <h2 id="十、实战串讲篇"><a href="#十、实战串讲篇" class="headerlink" title="十、实战串讲篇"></a>十、实战串讲篇</h2><h3 id="54-搭建操作系统实验环境（上）"><a href="#54-搭建操作系统实验环境（上）" class="headerlink" title="54. 搭建操作系统实验环境（上）"></a>54. 搭建操作系统实验环境（上）</h3><p>操作系统的理论部分我们就讲完了，但是计算机这门学科是实验性的。为了更加深入地了解操作系统的本质，我们必须能够做一些上手实验。操作系统的实验，相比其他计算机课程的实验要更加复杂一些。</p>
 <p>我们做任何实验，都需要一个实验环境。这个实验环境要搭建在操作系统之上，但是，我们这个课程本身就是操作系统实验，难不成要自己debug自己？到底该咋整呢？</p>
 <p>我们有一个利器，那就是qemu啊，不知道你还记得吗？它可以在操作系统之上模拟一个操作系统，就像一个普通的进程。那我们是否可以像debug普通进程那样，通过qemu来debug虚拟机里面的操作系统呢？</p>
@@ -8385,7 +8385,7 @@ entry_SYSCALL_64 () at arch/x86/entry/entry_64.S:275
 <p>第三，听话，自控能力强，可以多任务并发执行，我们称为控制才能——也即指令寄存能力。</p>
 <p>到时候，你可以根据需求，看雇佣多少个‘CPU人才’。</p>
 <p>另外，人才得有个办公的地方，这一片呢，就是我们的办公区域，称为也就是内存区域。您可以包几个工位，或者包一片区域，或者几个会议室，让您公司的人才在里面做项目就可以了。这里面有的是地方，同时运行多少各项目都行。”</p>
-<p><img src="/images/《趣谈Linux操作系统》学习笔记/用一个创业故事串起操作系统原理（一）1.jpeg" alt="用一个创业故事串起操作系统原理（一）1"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《趣谈Linux操作系统》学习笔记/用一个创业故事串起操作系统原理（一）1.jpeg" alt="用一个创业故事串起操作系统原理（一）1"></p>
 <p>跟着工作人员的介绍，小马走在x86园区中，看着这一片片的内存办公区，脑子里已经浮现出将来热火朝天的办公场景了。</p>
 <p>“也许不到半年的时间，我肯定能够接两三个大项目，招聘十个八个CPU员工。那项目A的员工就坐在这片内存办公区，项目B的员工就坐在那片内存办公区。我根据积累的人脉，将接到的项目写成一个一个的项目执行计划书，里面是一行行项目执行的指令，这些指令操作数据产生一些结果，我们就可以叫程序啦。”小马这么想着。</p>
 <p>“然后呢，我把不同的项目执行计划书，交给不同的项目组去执行。那项目组就叫进程吧！两个项目组，进程A和B，会有独立的内存办公空间，互相隔离，程序会分别加载到进程A和进程B的内存办公空间里面，形成各自的代码段。要操作的数据和产生的结果，就放在数据段里面。“</p>
@@ -8398,7 +8398,7 @@ entry_SYSCALL_64 () at arch/x86/entry/entry_64.S:275
 <p>创业初期，小马的办公室肯定很小，只有有1M的内存办公空间。在1M空间最上面的0xF0000到0xFFFFF这64K映射给ROM，通过读这部分地址，可以访问这个BIOS小册子里面的指令。</p>
 <p>创业指导手册第一条，BIOS要检查一些系统的硬件是不是都好着呢。创业指导手册第二条，要有个办事大厅，只不过小马自己就是办事员。因为一旦开张营业，就会有人来找到这家公司，因而基本的中断向量表和中断服务程序还是需要的，至少要能够使用键盘和鼠标。</p>
 <p>BIOS这个手册空间有限，只能帮小马把公司建立起来，公司如何运转和经营，就需要另外一个东西——《企业经营宝典》，因而BIOS还要做的一件事情，就是帮助小马找到这个宝典，然后让小马以后根据这个宝典里面的方法来经营公司，这个《企业经营宝典》就是这家公司的内核。</p>
-<p><img src="/images/《趣谈Linux操作系统》学习笔记/系统启动过程.jpeg" alt="系统启动过程"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《趣谈Linux操作系统》学习笔记/系统启动过程.jpeg" alt="系统启动过程"></p>
 <p>运营一个企业非常的复杂，因而这本《企业经营宝典》也很厚，BIOS手册无法直接加载出来，而需要从门卫开始问起，不断打听这本内核的位置，然后才能加载他。</p>
 <p>门卫只有巴掌大的一块地方，在启动盘的第一个扇区，512K的大小，我们通常称为MBR（Master Boot Record，主引导记录/扇区）。这里保存了boot.img，BIOS手册会将他加载到内存中的0x7c00来运行。</p>
 <p>boot.img做不了太多的事情。他能做的最重要的一个事情，就是加载grub2的另一个镜像core.img。</p>
@@ -8408,11 +8408,11 @@ entry_SYSCALL_64 () at arch/x86/entry/entry_64.S:275
 <p>管理处听说小马要找宝典，知道他将来是要做老板的人。管理处就告诉小马，既然是老板，早晚都要雇人干活的。这不是个体户小打小闹，所以，你需要切换到老板角色，进入保护模式，把哪些是你的权限，哪些是你可以授权给别人的，都分得清清楚楚。</p>
 <p>这些，小马都铭记在心，此时此刻，虽然公司还是只有他一个人，但是小马的眼界放宽了，能够管理的内存空间大多了，也开始区分哪些是用户态，哪些是内核态了。</p>
 <p>接下来，kernel.img里面的grub_main会给小马展示一个《企业经营宝典》的列表，也即操作系统的列表，让小马进行选择。经营企业的方式也有很多种，到底是人性化的，还是强纪律的，这个时候你要做一个选择。</p>
-<p><img src="/images/《趣谈Linux操作系统》学习笔记/用一个创业故事串起操作系统原理（一）3.png" alt="用一个创业故事串起操作系统原理（一）3"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《趣谈Linux操作系统》学习笔记/用一个创业故事串起操作系统原理（一）3.png" alt="用一个创业故事串起操作系统原理（一）3"></p>
 <p>在这里，小马毫不犹豫地选择了《狼性文化》操作系统，至此grub才开始启动《狼性文化》操作系统内核。</p>
 <p>拿到了宝典的小马，开始越来越像一个老板了。他要开始以老板的思维，来建立这家公司。</p>
 <h4 id="56-3-初创公司有章法，请来兄弟做臂膀"><a href="#56-3-初创公司有章法，请来兄弟做臂膀" class="headerlink" title="56.3 初创公司有章法，请来兄弟做臂膀"></a>56.3 初创公司有章法，请来兄弟做臂膀</h4><p>这注定是一个不眠夜，办公室里面一片漆黑中，唯一亮着的台灯下，小马独自捧着《企业经营宝典》仔细研读，读着读着，小马若有所思，开始书写公司内核的初始化计划。</p>
-<p><img src="/images/《趣谈Linux操作系统》学习笔记/用一个创业故事串起操作系统原理（一）4.jpeg" alt="用一个创业故事串起操作系统原理（一）4"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《趣谈Linux操作系统》学习笔记/用一个创业故事串起操作系统原理（一）4.jpeg" alt="用一个创业故事串起操作系统原理（一）4"></p>
 <p>公司首先应该有个项目管理部门，咱们将来肯定要接各种各样的项目，因此，项目管理体系和项目管理流程首先要建立起来。虽然现在还没有项目，但是小马还是弄了一个项目模板init_task。这是公司的第一个项目（进程），是项目管理系统里面的项目列表中的第一个，我们能称为0号进程。这个项目是虚拟的，不对应一个真实的项目（也就是进程）。</p>
 <p>项目需要项目管理进行调度，还需要制定一些调度策略。</p>
 <p>另外，为了快速响应客户需求，为了各个项目组能够方便地使用公司的公共资源，还应该有一个办事大厅。这里面可以设置了很多中断门（Interrupt Gate），用于处理各种中断，以便快速响应突发事件；还可以提供系统调用，为项目组服务。</p>
@@ -8424,10 +8424,10 @@ entry_SYSCALL_64 () at arch/x86/entry/entry_64.S:275
 <p>三个人相谈甚欢，谈及往日友谊、未来前景、上市敲钟……</p>
 <p>第三天，周瑜早早就来到公司，开始了他的事业。小马拜托周瑜做的第一件事情是调用kernel_init运行1号项目（进程）。这个1号项目会在用户态运行init项目（进程）。这是第一个以外部项目的名义运行的，之所以叫init，就是做初始化的工作，周瑜根据自己多年的项目管理经验，将这个init项目立为标杆，以后所有外部项目的运行都要按照他来，是外部项目的祖先项目。</p>
 <p>下午，张昭也来到了公司，小马拜托张昭做的第一件事情是调用kthreadd运行2号项目（进程）。这个2号项目是内核项目的祖先。将来所有的项目都有父项目、祖先项目，会形成一棵项目树。公司大了之后，周瑜和张昭做的公司VP级别的任务，就可以坐在塔尖上了。</p>
-<p><img src="/images/《趣谈Linux操作系统》学习笔记/linux进程树.jpeg" alt="linux进程树"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《趣谈Linux操作系统》学习笔记/linux进程树.jpeg" alt="linux进程树"></p>
 <p>好了，这一节小马终于将公司的架子搭起来了，兄弟三人如当年桃园三结义一样，开始自己的创业生涯，小马的这家公司能不能顺利接到项目呢？欲知后事，且听下回分解。</p>
 <h3 id="57-用一个创业故事串起操作系统原理（二）"><a href="#57-用一个创业故事串起操作系统原理（二）" class="headerlink" title="57. 用一个创业故事串起操作系统原理（二）"></a>57. 用一个创业故事串起操作系统原理（二）</h3><p>上一节说到小马同学的公司已经创立了，还请来了周瑜和张昭作为帮手，所谓“兄弟齐心，其利断金”。可是，现在这家公司，还得从接第一个外部项目开始。</p>
-<h4 id="57-1-首个项目虽简单，项目管理成体系"><a href="#57-1-首个项目虽简单，项目管理成体系" class="headerlink" title="57.1 首个项目虽简单，项目管理成体系"></a>57.1 首个项目虽简单，项目管理成体系</h4><p><img src="/images/《趣谈Linux操作系统》学习笔记/进程从代码到二进制到运行的过程.jpeg" alt="进程从代码到二进制到运行的过程"></p>
+<h4 id="57-1-首个项目虽简单，项目管理成体系"><a href="#57-1-首个项目虽简单，项目管理成体系" class="headerlink" title="57.1 首个项目虽简单，项目管理成体系"></a>57.1 首个项目虽简单，项目管理成体系</h4><p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《趣谈Linux操作系统》学习笔记/进程从代码到二进制到运行的过程.jpeg" alt="进程从代码到二进制到运行的过程"></p>
 <p>这第一个项目，还是小马亲自去谈的。其实软件公司了解客户需求还是比较难的，因为客户都说着接近人类的语言，例如C/C++。这些咱们公司招聘的CPU小伙伴们可听不懂，需要有一个人将客户需求，转换为项目执行计划书，CPU小伙伴们才能执行，这个过程我们称为编译。</p>
 <p>编译其实是一个需求分析和需求转换的过程。这个过程会将接近人类的C/C++语言，转换为CPU小伙伴能够听懂的二进制语言，并且以一定的文档格式，写成项目执行计划书。这种文档格式是作为一个标准化的公司事先制定好的一种格式，是周瑜从大公司里面借鉴来的，称为ELF格式，这个项目执行计划书有总论ELF Header的部分，有包含指令的代码段的部分，有包含全局变量的数据段的部分。</p>
 <p>小马和客户聊了整整一天，确认了项目的每一个细节，保证编译能够通过，才写成项目执行计划书ELF文件，放到档案库中。此时已经半夜了。</p>
@@ -8435,18 +8435,18 @@ entry_SYSCALL_64 () at arch/x86/entry/entry_64.S:275
 <p>周瑜说，“没问题。”于是，周瑜从父项目开始，fork一个子项目，然后在子项目中，调用exec系统调用， 然后到了内核里面，通过load_elf_binary将项目执行计划书加载到子进程内存中，交给一个CPU执行。</p>
 <p>虽然这是第一个项目，以周瑜的项目管理经验，他告诉小马，项目的执行要保质保量，需要有一套项目管理系统来管理项目的状态，而不能靠脑子记。“项目管理系统？当然应该有了”，小马说。他在《企业经营宝典》中看到过。</p>
 <p>于是，项目管理系统就搭建起来了。在这里面，所有项目都放在一个task_struct列表中，对于每一个项目，都非常详细地登记了项目方方面面的信息。</p>
-<p><img src="/images/《趣谈Linux操作系统》学习笔记/fork复制结构.png" alt="fork复制结构"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《趣谈Linux操作系统》学习笔记/fork复制结构.png" alt="fork复制结构"></p>
 <p>每一个项目都应该有一个ID，作为这个项目的唯一标识。到时候排期啊、下发任务啊等等，都按ID来，就不会产生歧义。</p>
 <p>项目应该有运行中的状态，TASK_RUNNING并不是说进程正在运行，而是表示进程在时刻准备运行的状态。这个时候，要看CPU小伙伴有没有空，有空就运行他，没空就得等着。</p>
 <p>有时候，进程运行到一半，需要等待某个条件才能运行下去，这个时候只能睡眠。睡眠状态有两种。一种是TASK_INTERRUPTIBLE，可中断的睡眠状态。这是一种浅睡眠的状态，也就是说，虽然在睡眠，等条件成熟，进程可以被唤醒。</p>
 <p>另一种睡眠是TASK_UNINTERRUPTIBLE，不可中断的睡眠状态。这是一种深度睡眠状态，不可被唤醒，只能死等条件满足。有了一种新的进程睡眠状态，TASK_KILLABLE，可以终止的新睡眠状态。进程处于这种状态中，他的运行原理类似TASK_UNINTERRUPTIBLE，只不过可以响应致命信号，也即虽然在深度睡眠，但是可以被干掉。</p>
 <p>一旦一个进程要结束，先进入的是EXIT_ZOMBIE状态，但是这个时候他的父进程还没有使用wait()等系统调用来获知他的终止信息，此时进程就成了僵尸进程。</p>
 <p>EXIT_DEAD是进程的最终状态。</p>
-<p><img src="/images/《趣谈Linux操作系统》学习笔记/任务状态.jpeg" alt="任务状态"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《趣谈Linux操作系统》学习笔记/任务状态.jpeg" alt="任务状态"></p>
 <p>另外，项目运行的统计信息也非常重要。例如，有的员工很长时间都在做一个任务，这个时候你就需要特别关注一下；再如，有的员工的琐碎任务太多，这会大大影响他的工作效率。</p>
 <p>那如何才能知道这些员工的工作情况呢？在进程的运行过程中，会有一些统计量，例如进程在用户态和内核态消耗的时间、上下文切换的次数等等。</p>
 <p>项目之间的亲缘关系也需要维护，任何一个进程都有父进程。所以，整个进程其实就是一棵进程树。而拥有同一父进程的所有进程都具有兄弟关系。</p>
-<p><img src="/images/《趣谈Linux操作系统》学习笔记/进程亲缘关系.jpeg" alt="进程亲缘关系"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《趣谈Linux操作系统》学习笔记/进程亲缘关系.jpeg" alt="进程亲缘关系"></p>
 <p>另外，对于项目来讲，项目组权限的控制也很重要。什么是项目组权限控制呢？这么说吧，我这个项目组能否访问某个文件，能否访问其他的项目组，以及我这个项目组能否被其他项目组访问等等</p>
 <p>另外，项目运行过程中占用的公司的资源，例如会议室（内存）、档案库（文件系统）也需要在项目管理系统里面登记。</p>
 <p>周瑜同学将项目登记好，然后就分配给CPU同学们说，开始执行吧。</p>
@@ -8455,7 +8455,7 @@ entry_SYSCALL_64 () at arch/x86/entry/entry_64.S:275
 <p>小马把项目带回来，周瑜同学说，这个项目有点大，估计一个CPU同学干不过来了，估计要多个CPU同学一起协作了。</p>
 <p>为了完成这个大的项目（进程），就不能一个人从头干到尾了，这样肯定赶不上工期。于是，周瑜将一个大项目拆分成20个子项目，每个子项目完成10个页面，一个大项目组也分成20个小组，并行开发，都开发完了，再做一次整合，这肯定比依次开发200个页面快多了。如果项目叫进程，那子项目就叫线程。</p>
 <p>在Linux里面，无论是进程，还是线程，到了内核里面，我们统一都叫任务，由一个统一的结构task_struct进行管理。</p>
-<p><img src="/images/《趣谈Linux操作系统》学习笔记/Linux中的任务.jpeg" alt="Linux中的任务"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《趣谈Linux操作系统》学习笔记/Linux中的任务.jpeg" alt="Linux中的任务"></p>
 <p>不知道是好消息，还是坏消息，这么大一个项目还没有做完，新的项目又找上门了。看来有了前面的标杆客户，名声算是打出去了，一个项目接一个地不停。</p>
 <p>小马是既高兴，又犯愁，于是找周瑜和张昭商量应该咋办。要不多招人？多来几个CPU小伙伴，就不搞定了？可是咱们还是在创业阶段，养不起这么多人。另外的办法就是，人力复用，一个CPU小伙伴干多个项目，干不过来，就加加班，实在不行就996，这样应该就没问题了。</p>
 <p>一旦涉及一个CPU小伙伴同时参与多个项目，就非常考验项目管理的水平了。如何排期、如何调度，是一个大学问。例如，有的项目比较紧急，应该先进行排期；有的项目可以缓缓，但是也不能让客户等太久。所以这个过程非常复杂，需要平衡。</p>
@@ -8463,7 +8463,7 @@ entry_SYSCALL_64 () at arch/x86/entry/entry_64.S:275
 <p>如何调度呢？周瑜能够想到的方式就是排队。每一个CPU小伙伴旁边都有一个白板，上面写着自己需要完成的任务，来了新任务就写到白板上，做完了就擦掉。</p>
 <p>一个CPU上有一个队列，队列里面是一系列sched_entity，每个sched_entity都属于一个task_struct，代表进程或者线程。</p>
 <p>调度要解决的第一个问题是，每一个CPU小伙伴每过一段时间，都要想一下，白板上这么多项目，我应该干哪一个？CPU的队列里面有这么多的进程或者线程，应该取出哪一个来执行？</p>
-<p><img src="/images/《趣谈Linux操作系统》学习笔记/调度总结（上）.jpeg" alt="调度总结（上）"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《趣谈Linux操作系统》学习笔记/调度总结（上）.jpeg" alt="调度总结（上）"></p>
 <p>这就是调度规则或者调度算法的问题。</p>
 <p>周瑜说，他原来在大公司的时候，调度算法常用是这样设计的。</p>
 <p>一个是公平性，对于接到的多个项目，不能厚此薄彼。这个算法主要由fair_sched_class实现，fair就是公平的意思。</p>
@@ -8510,7 +8510,7 @@ entry_SYSCALL_64 () at arch/x86/entry/entry_64.S:275
 <p>第二，虚拟地址的管理，也即在项目组的视角，会议室的虚拟地址应该如何组织；</p>
 <p>第三，虚拟地址和物理地址如何映射的问题，也即会议室管理员如果管理映射表。</p>
 <p>我们先来盘点一下物理内存的情况。</p>
-<p><img src="/images/《趣谈Linux操作系统》学习笔记/SMP和NUMA.jpeg" alt="SMP和NUMA"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《趣谈Linux操作系统》学习笔记/SMP和NUMA.jpeg" alt="SMP和NUMA"></p>
 <p>不同的园区工位的安排和会议室的布局各不相同。</p>
 <p>第一种情况是，CPU小伙伴们坐在一起，会议室在楼层的另一面，大家到会议室里面去都要通过统一的过道，优点简单，缺点是通道会成为瓶颈。</p>
 <p>第二种情况是，会议室分成多个节点，离散地分布在CPU小伙伴周围。有的小伙伴去这个会议室近一些，有的小伙伴离另外一些会议室近一些。这样做的优点是，如果CPU小伙伴干活总是能够去离他最近的会议室，则速度非常快，但是一旦离他最近的会议室被占用了，他只能去其他会议室，这样就比较远了。</p>
@@ -8521,7 +8521,7 @@ entry_SYSCALL_64 () at arch/x86/entry/entry_64.S:275
 <p>物理页面分配的时候，也可以采取这样的思路，我们称为伙伴系统。</p>
 <p>空闲页放在struct free_area里面，每一页用struct page表示。</p>
 <p>把所有的空闲页分组为11个页块链表，每个块链表分别包含很多个大小的页块，有1、2、4、8、16、32、64、128、256、512和1024个连续页的页块。最大可以申请1024个连续页，对应4MB大小的连续内存。每个页块的第一个页的物理地址是该页块大小的整数倍。</p>
-<p><img src="/images/《趣谈Linux操作系统》学习笔记/物理内存的组织形式.jpeg" alt="物理内存的组织形式"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《趣谈Linux操作系统》学习笔记/物理内存的组织形式.jpeg" alt="物理内存的组织形式"></p>
 <p>例如，要请求一个128个页的页块时，我们要先检查128个页的页块链表是否有空闲块。如果没有，则查256个页的页块链表；如果有空闲块的话，则将256个页的页块分成两份，一份使用，一份插入128个页的页块链表中。如果还是没有，就查512个页的页块链表；如果有的话，就分裂为128、128、256三个页块，一个128的使用，剩余两个插入对应页块链表。</p>
 <p>把物理页面分成一块一块大小相同的页，这样带来的另一个好处是，当有的内存页面长时间不用了，可以暂时写到硬盘上，我们称为换出。一旦需要的时候，再加载进来，就叫作换入。这样可以扩大可用物理内存的大小，提高物理内存的利用率。在内核里面，也即张昭的管理下，有一个进程kswapd，可以根据物理页面的使用情况，对页面进行换入换出。</p>
 <p>小马觉得这种方式太好了，如此高效地使用会议室，公司不用租用多少会议室，就能解决当前的项目问题了。</p>
@@ -8532,7 +8532,7 @@ entry_SYSCALL_64 () at arch/x86/entry/entry_64.S:275
 <p>周瑜接着说：“现在，一个项目组觉得，会议室可比世界首富房子还大。虽然是虚拟的，下面尽情地去排列咱们要放的东西吧！请记住，现在我们是站在一个进程的角度，去看这个虚拟的空间，不用管其他进程。”</p>
 <p>首先，这么大的虚拟空间一切二，一部分用来放内核的东西，称为内核空间；一部分用来放进程的东西，称为用户空间。用户空间在下，在低地址，我们假设是0号到29号会议室；内核空间在上，在高地址，我们假设是30号到39号会议室。这两部分空间的分界线，因为32位和64位的不同而不同，我们这里不深究。</p>
 <p>对于普通进程来说，内核空间的那部分，虽然虚拟地址在那里，但是不能访问。这就像作为普通员工，你明明知道财务办公室在这个30号会议室门里面，但是门上挂着“闲人免进”，你只能在自己的用户空间里面折腾。</p>
-<p><img src="/images/《趣谈Linux操作系统》学习笔记/用一个创业故事串起操作系统原理（三）3.jpeg" alt="用一个创业故事串起操作系统原理（三）3"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《趣谈Linux操作系统》学习笔记/用一个创业故事串起操作系统原理（三）3.jpeg" alt="用一个创业故事串起操作系统原理（三）3"></p>
 <p>我们从最低位开始排起，先是Text Segment、Data Segment和BSS Segment。Text Segment是存放二进制可执行代码的位置，Data Segment存放静态常量，BSS Segment存放未初始化的静态变量。这些都是在项目执行计划书里面有的。</p>
 <p>接下来是堆段。堆是往高地址增长的，是用来动态分配内存的区域，malloc就是在这里面分配的。</p>
 <p>接下来的区域是Memory Mapping Segment。这块地址可以用来把文件映射进内存用的，如果二进制的执行文件依赖于某个动态链接库，就是在这个区域里面将so文件映射到了内存中。</p>
@@ -8540,7 +8540,7 @@ entry_SYSCALL_64 () at arch/x86/entry/entry_64.S:275
 <p>如果普通进程还想进一步访问内核空间，是没办法的，只能眼巴巴地看着。如果需要进行更高权限的工作，就需要调用系统调用，进入内核。</p>
 <p>一旦进入了内核，就换了一副视角。刚才是普通进程的视角，觉着整个空间是它独占的，没有其他进程存在。当然另一个进程也这样认为，因为它们互相看不到对方。这也就是说，不同进程的0号到29号会议室放的东西都不一样。</p>
 <p>但是，到了内核里面，无论是从哪个进程进来的，看到的是同一个内核空间，看到的是同一个进程列表。虽然内核栈是各用个的，但是如果想知道的话，还是能够知道每个进程的内核栈在哪里的。所以，如果要访问一些公共的数据结构，需要进行锁保护。也就是说，不同的进程进入到内核后，进入的30号到39号会议室是同一批会议室。</p>
-<p><img src="/images/《趣谈Linux操作系统》学习笔记/用一个创业故事串起操作系统原理（三）4.jpeg" alt="用一个创业故事串起操作系统原理（三）4"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《趣谈Linux操作系统》学习笔记/用一个创业故事串起操作系统原理（三）4.jpeg" alt="用一个创业故事串起操作系统原理（三）4"></p>
 <p>内核的代码访问内核的数据结构，大部分的情况下都是使用虚拟地址的。虽然内核代码权限很大，但是能够使用的虚拟地址范围也只能在内核空间，也即内核代码访问内核数据结构，只能用30号到39号这些编号，不能用0到29号，因为这些是被进程空间占用的。而且，进程有很多个。你现在在内核，但是你不知道当前指的0号是哪个进程的0号。</p>
 <p>在内核里面也会有内核的代码，同样有Text Segment、Data Segment和BSS Segment，内核代码也是ELF格式的。</p>
 <p>不过有了这个规定以后，项目执行计划书要写入数据的时候，就需要符合里面的规定了，数据不能随便乱放了。</p>
@@ -8548,20 +8548,20 @@ entry_SYSCALL_64 () at arch/x86/entry/entry_64.S:275
 <h4 id="58-3-管理系统全搞定，至此生存无问题"><a href="#58-3-管理系统全搞定，至此生存无问题" class="headerlink" title="58.3 管理系统全搞定，至此生存无问题"></a>58.3 管理系统全搞定，至此生存无问题</h4><p>周瑜接着说：“物理会议室和虚拟空间都分成大小相同的页，我们还得有一个会议室管理系统，将两者关联起来，这样项目组申请会议室的时候，也有个系统可以统一的管理，要不然会议室还不得老冲突呀。”</p>
 <p>对于虚拟内存的访问，也是有一个地址的，我们需要找到一种策略，实现从虚拟地址到物理地址的转换。</p>
 <p>为了能够定位和访问每个页，需要有个页表，保存每个页的起始地址，再加上在页内的偏移量，组成线性地址，就能对于内存中的每个位置进行访问了。</p>
-<p><img src="/images/《趣谈Linux操作系统》学习笔记/分页机制的原理.jpg" alt="分页机制的原理"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《趣谈Linux操作系统》学习笔记/分页机制的原理.jpg" alt="分页机制的原理"></p>
 <p>虚拟地址分为两部分，页号和页内偏移。页号作为页表的索引，页表包含物理页每页所在物理内存的基地址。这个基地址与页内偏移的组合就形成了物理内存地址。</p>
 <p>下面的图，举了一个简单的页表的例子，虚拟内存中的页通过页表映射对应到物理内存中的页。</p>
-<p><img src="/images/《趣谈Linux操作系统》学习笔记/用一个创业故事串起操作系统原理（三）6.jpg" alt="用一个创业故事串起操作系统原理（三）6"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《趣谈Linux操作系统》学习笔记/用一个创业故事串起操作系统原理（三）6.jpg" alt="用一个创业故事串起操作系统原理（三）6"></p>
 <p>32位环境下，虚拟地址空间共4GB。如果分成4KB一个页，那就是1M个页。每个页表项需要4个字节来存储，那么整个4GB空间的映射就需要4MB的内存来存储映射表。如果每个进程都有自己的映射表，100个进程就需要400MB的内存。对于内核来讲，有点大了 。</p>
 <p>页表中所有页表项必须提前建好，并且要求是连续的。如果不连续，就没有办法通过虚拟地址里面的页号找到对应的页表项了。</p>
 <p>那怎么办呢？我们可以试着将页表再分页，4G的空间需要4M的页表来存储映射。我们把这4M分成1K（1024）个4K，每个4K又能放在一页里面，这样1K个4K就是1K个页，这1K个页也需要一个表进行管理，我们称为页目录表，这个页目录表里面有1K项，每项4个字节，页目录表大小也是4K。</p>
 <p>页目录有1K项，用10位就可以表示访问页目录的哪一项。这一项其实对应的是一整页的页表项，也即4K的页表项。每个页表项也是4个字节，因而一整页的页表项是1k个。再用10位就可以表示访问页表项的哪一项，页表项中的一项对应的就是一个页，是存放数据的页，这个页的大小是4K，用12位可以定位这个页内的任何一个位置。</p>
 <p>这样加起来正好32位，也就是用前10位定位到页目录表中的一项。将这一项对应的页表取出来共1k项，再用中间10位定位到页表中的一项，将这一项对应的存放数据的页取出来，再用最后12位定位到页中的具体位置访问数据。</p>
-<p><img src="/images/《趣谈Linux操作系统》学习笔记/两级分页.jpg" alt="两级分页"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《趣谈Linux操作系统》学习笔记/两级分页.jpg" alt="两级分页"></p>
 <p>你可能会问，如果这样的话，映射4GB地址空间就需要4MB+4KB的内存，这样不是更大了吗？ 当然如果页是满的，当时是更大了，但是，我们往往不会为一个进程分配那么多内存。</p>
 <p>比如说，上面图中，我们假设只给这个进程分配了一个数据页。如果只使用页表，也需要完整的1M个页表项共4M的内存，但是如果使用了页目录，页目录需要1K个全部分配，占用内存4K，但是里面只有一项使用了。到了页表项，只需要分配能够管理那个数据页的页表项页就可以了，也就是说，最多4K，这样内存就节省多了。</p>
 <p>当然对于64位的系统，两级肯定不够了，就变成了四级目录，分别是全局页目录项PGD（Page Global Directory）、上层页目录项PUD（Page Upper Directory）、中间页目录项PMD（Page Middle Directory）和页表项PTE（Page Table Entry）。</p>
-<p><img src="/images/《趣谈Linux操作系统》学习笔记/四级分页.jpg" alt="四级分页"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《趣谈Linux操作系统》学习笔记/四级分页.jpg" alt="四级分页"></p>
 <p>设计完毕会议室管理系统，再加上前面的项目管理系统，对于一家外包公司来讲，无论接什么样的项目都能轻松搞定了。我们常把CPU和内存合称为计算。至此，计算的问题就算搞定了。解决了这两大问题，一家外包公司的生存问题，就算解决了。</p>
 <p>小马总算是可以松一口气了，他和周瑜、张昭好好地搓了一顿，喝得昏天黑地。周瑜和张昭纷纷感慨，幸亏当年跟了马哥，今日才有出头之日。</p>
 <p>生存问题虽然解决了，马哥可非池中之物，接下来要解决的就是发展问题，马哥能想出什么办法进一步壮大企业呢？欲知后事，且听下回分解。</p>
@@ -8576,18 +8576,18 @@ entry_SYSCALL_64 () at arch/x86/entry/entry_64.S:275
 <p>第二点，文件系统中也要有索引区，用来方便查找一个文件分成的多个块都存放在了什么位置。</p>
 <p>这就好比，图书馆的书太多了，为了方便查找，我们需要专门设置一排书架，这里面会写清楚整个档案库有哪些资料，资料在哪个架子的哪个格子上。这样找资料的时候就不用跑遍整个档案库，只要在这个书架上找到后，直奔目标书架就可以了。</p>
 <p>在Linux操作系统里面，每一个文件有一个Inode，inode的“i”是index的意思，其实就是“索引”。inode里面有文件的读写权限i_mode，属于哪个用户i_uid，哪个组i_gid，大小是多少i_size_io，占用多少个块i_blocks_io。“某个文件分成几块、每一块在哪里”，这些信息也在inode里面，保存在i_block里面。</p>
-<p><img src="/images/《趣谈Linux操作系统》学习笔记/用一个创业故事串起操作系统原理（四）1.png" alt="用一个创业故事串起操作系统原理（四）1"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《趣谈Linux操作系统》学习笔记/用一个创业故事串起操作系统原理（四）1.png" alt="用一个创业故事串起操作系统原理（四）1"></p>
 <p>第三点，如果文件系统中有的文件是热点文件，近期经常被读取和写入，文件系统应该有缓存层。</p>
 <p>这就相当于图书馆里面的热门图书区，这里面的书都是畅销书或者是常常被借还的图书。因为借还的次数比较多，那就没必要每次有人还了之后，还放回遥远的货架，我们可以专门开辟一个区域，放置这些借还频次高的图书。这样借还的效率就会提高。</p>
 <p>第四点，文件应该用文件夹的形式组织起来，方便管理和查询。</p>
 <p>这就像在图书馆里面，你可以给这些资料分门别类，比如分成计算机类、文学类、历史类等等。这样你也容易管理，项目组借阅的时候只要在某个类别中去找就可以了。</p>
 <p>在文件系统中，每个文件都有一个名字，我们访问一个文件，希望通过他的名字就可以找到。文件名就是一个普通的文本，所以文件名经常会冲突，不同用户取相同的名字的情况会经常出现的。</p>
 <p>要想把很多的文件有序地组织起来，我们就需要把他们做成目录或者文件夹。这样，一个文件夹里可以包含文件夹，也可以包含文件，这样就形成了一种树形结构。我们可以将不同的用户放在不同的用户目录下，就可以一定程度上避免了命名的冲突问题。</p>
-<p><img src="/images/《趣谈Linux操作系统》学习笔记/用一个创业故事串起操作系统原理（四）2.png" alt="用一个创业故事串起操作系统原理（四）2"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《趣谈Linux操作系统》学习笔记/用一个创业故事串起操作系统原理（四）2.png" alt="用一个创业故事串起操作系统原理（四）2"></p>
 <p>第五点，Linux内核要在自己的内存里面维护一套数据结构，来保存哪些文件被哪些进程打开和使用。</p>
 <p>这就好比，图书馆里会有个图书管理系统，记录哪些书被借阅了，被谁借阅了，借阅了多久，什么时候归还。</p>
 <p>这个图书管理系统尤为重要，如果不是很方便使用，以后项目中积累了经验，就没有人愿意往知识库里面放了。</p>
-<p><img src="/images/《趣谈Linux操作系统》学习笔记/虚拟文件系统.jpg" alt="虚拟文件系统"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《趣谈Linux操作系统》学习笔记/虚拟文件系统.jpg" alt="虚拟文件系统"></p>
 <p>无论哪个项目（进程），都可以通过write系统调用写入知识库。</p>
 <p>对于每一个进程，打开的文件都有一个文件描述符。files_struct里面会有文件描述符数组。每个一个文件描述符是这个数组的下标，里面的内容指向一个struct file结构，表示打开的文件。这个结构里面有这个文件对应的inode，最重要的是这个文件对应的操作file_operation。如果操作这个文件，就看这个file_operation里面的定义了。</p>
 <p>每一个打开的文件，都有一个dentry对应，虽然我们叫作directory entry，但是他不仅仅表示文件夹，也表示文件。他最重要的作用就是指向这个文件对应的inode。</p>
@@ -8599,7 +8599,7 @@ entry_SYSCALL_64 () at arch/x86/entry/entry_64.S:275
 <p>有了知识库，依赖于原来积累的体系，只要找到类似的旧项目，哪怕是普通的程序员，只要会照猫画虎，结果就不会太差。</p>
 <p>于是，马哥马上想到，现在公司只有百十来号人，能赚这些钱，现在招人门槛降低了，我要是招聘一万人，这能赚多少钱啊！</p>
 <p>鲁肃对马哥说，“你可先别急着招人，建立知识库，降低招人成本才是第一步。公司招聘太多人不容易管理。既然项目的执行可以照猫画虎，很多项目可以不用咱们公司来，我们可以建立渠道销售体系（输入和输出系统），让供应商、渠道帮我们卖，形成一个生态。这公司的盈利规模可就不是招一万人这么点儿了，这是指数级的增长啊！”</p>
-<p><img src="/images/《趣谈Linux操作系统》学习笔记/输入输出系统.jpg" alt="输入输出系统"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《趣谈Linux操作系统》学习笔记/输入输出系统.jpg" alt="输入输出系统"></p>
 <p>计算机系统的输入和输出系统都有哪些呢？我们能举出来的，例如键盘、鼠标、显示器、网卡、硬盘、打印机、CD/DVD等等，多种多样。这样，当然方便用户使用了，但是对于操作系统来讲，却是一件复杂的事情，因为这么多设备，形状、用法、功能都不一样，怎么才能统一管理起来呢？我们一层一层来看。</p>
 <p>第一层，用设备控制器屏蔽设备差异。</p>
 <p>马哥说，“把生意做到全国，我也想过，这个可不容易。咱们客户多种多样，众口难调，不同的地域不一样，不同的行业不一样。如果你不懂某个地方的规矩，根本卖不出去东西；如果你不懂某个具体行业的使用场景，也无法满足客户的需求。”</p>
@@ -8613,13 +8613,13 @@ entry_SYSCALL_64 () at arch/x86/entry/entry_64.S:275
 <p>那对于操作系统来讲，渠道管理部门就是用来对接各个设备控制器的设备驱动程序。</p>
 <p>这里需要注意的是，设备控制器不属于操作系统的一部分，但是设备驱动程序属于操作系统的一部分。操作系统的内核代码可以像调用本地代码一样调用驱动程序的代码，而驱动程序的代码需要发出特殊的面向设备控制器的指令，才能操作设备控制器。</p>
 <p>设备驱动程序中是一些面向特殊设备控制器的代码。不同的设备不同。但是对于操作系统其他部分的代码而言，设备驱动程序应该有统一的接口。就像下面图中的一样，不同的设备驱动程序，可以以同样的方式接入操作系统，而操作系统的其他部分的代码，也可以无视不同设备的区别，以同样的接口调用设备驱动程序。</p>
-<p><img src="/images/《趣谈Linux操作系统》学习笔记/用一个创业故事串起操作系统原理（四）5.png" alt="用一个创业故事串起操作系统原理（四）5"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《趣谈Linux操作系统》学习笔记/用一个创业故事串起操作系统原理（四）5.png" alt="用一个创业故事串起操作系统原理（四）5"></p>
 <p>第三，用中断控制器统一外部事件处理。</p>
 <p>马哥听了恍然大悟：“原来代理商也是五花八门，里面有这么多门道啊！”</p>
 <p>鲁肃说：“当咱们对接的代理商多了，代理商可能会有各种各样的问题找到我们，例如代理商有了新客户，客户有了新需求，客户交付完毕等事件，都需要有一种机制通知你们公司，当然是中断，那操作系统就需要有一个地方处理这个中断，既然设备驱动程序是用来对接设备控制器的，中断处理也应该在设备驱动里面完成。”</p>
 <p>然而，中断的触发最终会到达CPU，会中断操作系统当前运行的程序，所以操作系统也要有一个统一的流程来处理中断，使得不同设备的中断使用统一的流程。</p>
 <p>一般的流程是，一个设备驱动程序初始化的时候，要先注册一个该设备的中断处理函数。咱们讲进程切换的时候说过，中断返回的那一刻是进程切换的时机。中断的时候，触发的函数是do_IRQ。这个函数是中断处理的统一入口。在这个函数里面，我们可以找到设备驱动程序注册的中断处理函数Handler，然后执行他进行中断处理。</p>
-<p><img src="/images/《趣谈Linux操作系统》学习笔记/设备使用中断的流程.jpg" alt="设备使用中断的流程"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《趣谈Linux操作系统》学习笔记/设备使用中断的流程.jpg" alt="设备使用中断的流程"></p>
 <p>第四，用文件系统接口屏蔽驱动程序的差异。</p>
 <p>马哥又问了：“对接了这么多代理商，如果咱们内部的工程师要和他们打交道，有没有一种统一的方式呢？”</p>
 <p>鲁肃说：“当然应该了，我们内部员工操作外部设备，可以基于文件系统的接口，制定一个统一的标准。”</p>
@@ -8628,19 +8628,19 @@ entry_SYSCALL_64 () at arch/x86/entry/entry_64.S:275
 <p>有了文件系统接口之后，我们不但可以通过文件系统的命令行操作设备，也可以通过程序，调用read、write函数，像读写文件一样操作设备。</p>
 <p>对于块设备来讲，在驱动程序之上，文件系统之下，还需要一层通用设备层。比如，咱们讲的文件系统，里面的逻辑和磁盘设备没有什么关系，可以说是通用的逻辑。在写文件的最底层，我们看到了BIO字眼的函数，但是好像和设备驱动也没有什么关系。</p>
 <p>是的，因为块设备类型非常多，而Linux操作系统里面一切是文件。我们也不想文件系统以下，就直接对接各种各样的块设备驱动程序，这样会使得文件系统的复杂度非常高。所以，我们在中间加了一层通用块层，将与块设备相关的通用逻辑放在这一层，维护与设备无关的块的大小，然后通用块层下面对接各种各样的驱动程序。</p>
-<p><img src="/images/《趣谈Linux操作系统》学习笔记/用一个创业故事串起操作系统原理（四）7.png" alt="用一个创业故事串起操作系统原理（四）7"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《趣谈Linux操作系统》学习笔记/用一个创业故事串起操作系统原理（四）7.png" alt="用一个创业故事串起操作系统原理（四）7"></p>
 <p>鲁肃帮助马哥建立了这套体系之后，果真业务有了很大起色。原来公司只敢接华东区的项目，毕竟比较近，沟通交付都很方便。后来项目扩展到所有一线城市、二线城市、省会城市，项目数量实现了几十倍的增长。</p>
 <h4 id="59-3-千万项目难度大，集体合作可断金"><a href="#59-3-千万项目难度大，集体合作可断金" class="headerlink" title="59.3 千万项目难度大，集体合作可断金"></a>59.3 千万项目难度大，集体合作可断金</h4><p>项目接的多了，就不免有大型的项目，涉及多个行业多个领域，需要多个项目组进行合作才能完成。那两个项目组应该通过什么样的方式，进行沟通与合作呢？作为老板，马哥应该如何设计整个流程呢？</p>
 <p>马哥叫来周瑜、张昭、鲁肃，一起商量团队间的合作模式。大家一起献计献策。好在有很多成熟的项目管理流程可以参考。</p>
 <p>最最传统的模型就是软件开发的瀑布模型。所谓的瀑布模型，其实就是将整个软件开发过程分成多个阶段，往往是上一个阶段完全做完，才将输出结果交给下一个阶段。这种模型类似进程间通信的管道模型。</p>
 <p>所谓的管道，就是在两个进程之间建立一条单向的通道，其实是一段缓存，它会将前一个命令的输出，作为后一个命令的输入。</p>
-<p><img src="/images/《趣谈Linux操作系统》学习笔记/使用管道实现shell之间的通信结果.png" alt="使用管道实现shell之间的通信结果"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《趣谈Linux操作系统》学习笔记/使用管道实现shell之间的通信结果.png" alt="使用管道实现shell之间的通信结果"></p>
 <p>张昭说，瀑布模型的开发流程效率比较低下，现在大部分公司都不使用这种开发模式了，因为团队之间无法频繁地沟通。而且，管道的使用模式，也不适合进程间频繁的交换数据。</p>
 <p>于是，他们还得想其他的办法。是不是可以借鉴传统外企的沟通方式——邮件呢？邮件有一定的格式，例如抬头、正文、附件等。发送邮件可以建立收件人列表，所有在这个列表中的人，都可以反复地在此邮件基础上回复，达到频繁沟通的目的。这个啊，就是消息队列模型。</p>
-<p><img src="/images/《趣谈Linux操作系统》学习笔记/消息队列模型.png" alt="消息队列模型"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《趣谈Linux操作系统》学习笔记/消息队列模型.png" alt="消息队列模型"></p>
 <p>和管道将信息一股脑儿地从一个进程，倒给另一个进程不同，消息队列有点儿像邮件，发送数据时，会分成一个一个独立的数据单元，也就是消息体，每个消息体都是固定大小的存储块，在字节流上不连续。</p>
 <p>有了消息这种模型，两个进程之间的通信就像咱们平时发邮件一样，你来一封，我回一封，可以频繁沟通了。</p>
-<p><img src="/images/《趣谈Linux操作系统》学习笔记/用一个创业故事串起操作系统原理（四）10.png" alt="用一个创业故事串起操作系统原理（四）10"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《趣谈Linux操作系统》学习笔记/用一个创业故事串起操作系统原理（四）10.png" alt="用一个创业故事串起操作系统原理（四）10"></p>
 <p>但是有时候，项目组之间的沟通需要特别紧密，而且要分享一些比较大的数据。如果使用邮件，就发现，一方面邮件的来去不及时；另外一方面，附件大小也有限制，所以，这个时候，我们经常采取的方式就是，把两个项目组在需要合作的期间，拉到一个会议室进行合作开发，这样大家可以直接交流文档呀，架构图呀，直接在白板上画或者直接扔给对方，就可以直接看到。</p>
 <p>可以看出来，共享会议室这种模型，类似进程间通信的共享内存模型。前面咱们讲内存管理的时候，知道每个进程都有自己独立的虚拟内存空间，不同的进程的虚拟内存空间映射到不同的物理内存中去。这个进程访问A地址和另一个进程访问A地址，其实访问的是不同的物理内存地址，对于数据的增删查改互不影响。</p>
 <p>但是，咱们是不是可以变通一下，拿出一块虚拟地址空间来，映射到相同的物理内存中。这样这个进程写入的东西，另外一个进程马上就能看到了，都不需要拷贝来拷贝去，传来传去。</p>
@@ -8653,7 +8653,7 @@ entry_SYSCALL_64 () at arch/x86/entry/entry_64.S:275
 <p>马哥说：“有了上面的这些机制，基本常规状态下的工作模式，对应到咱们平时的工作交接，收发邮件、联合开发等。我还想到，如果发生了异常怎么办？例如出现线上系统故障，这个时候，什么流程都来不及了，不可能发邮件，也来不及开会，所有的架构师、开发、运维都要被通知紧急出动。所以，7乘24小时不间断执行的系统都需要有告警系统，一旦出事情，就要通知到人，哪怕是半夜，也要电话叫起来，处理故障。是不是应该还有一种异常情况下的工作模式。”</p>
 <p>张昭说：“当然应该有，我们可以建立像操作系统里面的信号机制。信号没有特别复杂的数据结构，就是用一个代号一样的数字。Linux提供了几十种信号，分别代表不同的意义。信号之间依靠它们的值来区分。这就像咱们看警匪片，对于紧急的行动，都是说，‘1号作战任务’开始执行，警察就开始行动了。情况紧急，不能啰里啰嗦了。”</p>
 <p>信号可以在任何时候发送给某一进程，进程需要为这个信号配置信号处理函数。当某个信号发生的时候，就默认执行这个函数就可以了。这就相当于咱们运维一个系统应急手册，当遇到什么情况，做什么事情，都事先准备好，出了事情照着做就可以了。</p>
-<p><img src="/images/《趣谈Linux操作系统》学习笔记/通过API注册一个信号处理函数的过程.png" alt="通过API注册一个信号处理函数的过程"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《趣谈Linux操作系统》学习笔记/通过API注册一个信号处理函数的过程.png" alt="通过API注册一个信号处理函数的过程"></p>
 <p>这些项目组合作的流程设计合理，因而推行起来十分顺畅，现在接个千万级别的项目没有任何问题，根据交易量估值市值，起码有十个亿。</p>
 <p>马哥有些小激动，原来自己身价这么高了，是不是也能上个市啥的，实现亿万富翁的梦想呢？于是马哥找了一些投资人聊了聊，投资人说，要想冲一把上市，还差点劲，目前的项目虽然大，但是想象力不够丰富。</p>
 <p>那接下来，马哥如何做才能满足市场的想象力，最终成功上市呢？预知后事，且听下回分解。</p>
@@ -8665,7 +8665,7 @@ entry_SYSCALL_64 () at arch/x86/entry/entry_64.S:275
 <p>鲁肃找来陆逊。陆逊说：“这个好办。公司间合作嘛，就是条款谈好，利益分好就行，关键是大家要遵守行规。大家都按统一的规则来，事情就好办。”</p>
 <p>这其实就像机器与机器之间合作，一台机器将自己想要表达的内容，按照某种约定好的格式发送出去。当另外一台机器收到这些信息后，也能够按照约定好的格式解析出来，从而准确、可靠地获得发送方想要表达的内容。这种约定好的格式就是网络协议。</p>
 <p>现在业内知名的有两种网络协议模型，一种是OSI的标准七层模型，一种是业界标准的TCP/IP模型。它们的对应关系如下图所示：</p>
-<p><img src="/images/《趣谈Linux操作系统》学习笔记/网络协议模型.png" alt="网络协议模型"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《趣谈Linux操作系统》学习笔记/网络协议模型.png" alt="网络协议模型"></p>
 <p>我们先从第三层网络层开始，因为这一层有我们熟悉的IP地址，所以这一层我们也叫IP层。</p>
 <p>连接到网络上的每一个设备都至少有一个IP地址，用于定位这个设备。无论是近在咫尺的、你旁边同学的电脑，还是远在天边的电商网站，都可以通过IP地址进行定位。因此，IP地址类似互联网上的邮寄地址，是有全局定位功能的。</p>
 <p>就算你要访问美国的一个地址，也可以从你身边的网络出发，通过不断地打听道儿，经过多个网络，最终到达目的地址，和快递员送包裹的过程差不多。打听道儿的协议也在第三层，我们称为路由协议。将网络包从一个网络转发给另一个网络的设备，我们称为路由器。</p>
@@ -8686,7 +8686,7 @@ entry_SYSCALL_64 () at arch/x86/entry/entry_64.S:275
 <p>如果公司想要和其他公司沟通，我们将请求封装为HTTP协议，通过Socket发送到内核。内核的网络协议栈里面，在TCP层创建用于维护连接、序列号、重传、拥塞控制的数据结构，将HTTP包加上TCP头，发送给IP层，IP层加上IP头，发送给MAC层，MAC层加上MAC头，从硬件网卡发出去。</p>
 <p>最终网络包会被转发到目标服务器，它发现MAC地址匹配，就将MAC头取下来，交给上一层。IP层发现IP地址匹配，将IP头取下来，交给上一层。TCP层会根据TCP头中的序列号等信息，发现它是一个正确的网络包，就会将网络包缓存起来，等待应用层的读取。</p>
 <p>应用层通过Socket监听某个端口，因而读取的时候，内核会根据TCP头中的端口号，将网络包发给相应的应用。</p>
-<p><img src="/images/《趣谈Linux操作系统》学习笔记/socket系统调用.png" alt="socket系统调用"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《趣谈Linux操作系统》学习笔记/socket系统调用.png" alt="socket系统调用"></p>
 <p>这样一个大项目中，各个公司都按协议来，别说两家公司合作，二十家也没有问题。</p>
 <p>于是陆逊带着马哥，到甲方那里，将自己的方案，以及和其他公司的合作模式讲述清楚。马哥成功入围。</p>
 <p>这次参与竞标的公司可不少，马哥公司的竞争力和专业性一点都不差，最后终于拿下了智慧生态合作平台的建设部分。这下不得了，一提马哥的公司，业内无人不知，无人不晓，大家纷纷称呼他为“马总”。</p>
@@ -8702,7 +8702,7 @@ entry_SYSCALL_64 () at arch/x86/entry/entry_64.S:275
 <p>要做到这件事情，第一种方式，完全虚拟化。其实说白了，这是一种“骗人”的方式。虚拟化软件会模拟假的CPU、内存、网络、硬盘给到虚拟机，让虚拟机里面的内核自我感觉良好，感觉他终于又像个内核了。在Linux上，一个叫作qemu的工具可以做到这一点。</p>
 <p>qemu向虚拟机里面的客户机操作系统模拟CPU和其他的硬件，骗客户机，GuestOS认为自己和硬件直接打交道，其实是同qemu模拟出来的硬件打交道，qemu会将这些指令转译给真正的硬件。由于所有的指令都要从qemu里面过一手，因而性能就会比较差。</p>
 <p>第二种方式，硬件辅助虚拟化。可以使用硬件CPU的Intel-VT和AMD-V技术，需要CPU硬件开启这个标志位（一般在BIOS里面设置）。当确认开始了标志位之后，通过内核模块KVM，GuestOS的CPU指令将不用经过Qemu转译，直接运行，大大提高了速度。qemu和KVM融合以后，就是qemu-kvm。</p>
-<p><img src="/images/《趣谈Linux操作系统》学习笔记/qemu的半虚拟化.png" alt="qemu的半虚拟化"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《趣谈Linux操作系统》学习笔记/qemu的半虚拟化.png" alt="qemu的半虚拟化"></p>
 <p>第三种方式称为半虚拟化。对于网络或者硬盘的访问，我们让虚拟机内核加载特殊的驱动，重新定位自己的身份。虚拟机操作系统的内核知道自己不是物理机内核，没那么高的权限。他很可能要和很多虚拟机共享物理资源，所以学会了排队。虚拟机写硬盘其实写的是一个物理机上的文件，那我的写文件的缓存方式是不是可以变一下。我发送网络包，根本就不是发给真正的网络设备，而是给虚拟的设备，我可不可以直接在内存里面拷贝给它，等等等等。</p>
 <p>网络半虚拟化方式是virtio_net，存储是virtio_blk。客户机需要安装这些半虚拟化驱动。客户机内核知道自己是虚拟机，所以会直接把数据发送给半虚拟化设备，然后经过特殊处理（例如排队、缓存、批量处理等性能优化方式），最终发送给真正的硬件。这在一定程度上提高了性能。</p>
 <p>有了虚拟化的技术，公司的状态改观了不少，在主要的经营方向之外，公司还推出了很多新的创新方向，都是通过虚拟机创建子公司的方式进行的，例如跨境电商、工业互联网、社交等。一方面，能够享受大公司的支持；一方面，也可以和灵活的创业公司进行竞争。</p>
@@ -8711,7 +8711,7 @@ entry_SYSCALL_64 () at arch/x86/entry/entry_64.S:275
 <p>穷则独善其身，达则兼济天下。马总的决策可能关系到产业的发展、地方的GDP和就业，甚至未来的国际竞争力。因此，即便是和原来相同的事情，现在来做，方式和层次都不一样了。</p>
 <p>就像对于单台Linux服务器，最重要的四种硬件资源是CPU、内存、存储和网络。面对整个数据中心成千上万台机器，我们只要重点关注这四种硬件资源就可以了。如果运维数据中心依然像的运维一台台物理机的前辈一样，天天关心哪个程序放在了哪台机器上，使用多少内存、多少硬盘，每台机器总共有多少内存、多少硬盘，还剩多少内存和硬盘，那头就大了。</p>
 <p>对于数据中心，我们需要一个调度器，将运维人员从指定物理机或者虚拟机的痛苦中解放出来，实现对于物理资源的统一管理，这就是Kubernetes，也就是数据中心的操作系统。</p>
-<p><img src="/images/《趣谈Linux操作系统》学习笔记/数据中心操作系统的功能总结.jpg" alt="数据中心操作系统的功能总结"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《趣谈Linux操作系统》学习笔记/数据中心操作系统的功能总结.jpg" alt="数据中心操作系统的功能总结"></p>
 <p>对于CPU和内存这两种计算资源的管理，我们可以通过Docker技术完成。</p>
 <p>容器实现封闭的环境主要要靠两种技术，一种是看起来是隔离的技术，称为namespace。在每个namespace中的应用看到的，都是不同的 IP地址、用户空间、进程ID等。另一种是用起来是隔离的技术，称为cgroup，即明明整台机器有很多的 CPU、内存，但是一个应用只能用其中的一部分。</p>
 <p>另外，容器里还有镜像。也就是说，在你焊好集装箱的那一刻，将集装箱的状态保存下来的样子。就像孙悟空说“定！”，集装箱里的状态就被“定”在了那一刻。然后，这一刻的状态会被保存成一系列文件。无论在哪里运行这个镜像，都能完整地还原当时的情况。</p>
