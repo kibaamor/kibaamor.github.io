@@ -460,14 +460,14 @@
                 
                 <div class="info-break-policy">
                     <i class="far fa-file-word fa-fw"></i>文章字数:&nbsp;&nbsp;
-                    140.3k
+                    149.5k
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-clock fa-fw"></i>阅读时长:&nbsp;&nbsp;
-                    539 分
+                    577 分
                 </div>
                 
 
@@ -1151,7 +1151,7 @@ lrwxrwxrwx <span class="token number">1</span> root root <span class="token numb
 <p>此外，Docker 还专门提供了一个参数，可以让你启动一个容器并”加入”到另一个容器的 Network Namespace 里，这个参数就是 -net，比如:</p>
 <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">docker run -it --net container:4ddf4638572d busybox <span class="token function">ifconfig</span><span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
 <p>这样，我们新启动的这个容器，就会直接加入到 ID=4ddf4638572d 的容器，也就是我们前面的创建的 Python 应用容器（PID=25686）的 Network Namespace 中。</p>
-<p>而如果我指定–net=host，就意味着这个容器不会为进程启用 Network Namespace。这就意味着，这个容器拆除了 Network Namespace 的”隔离墙”，所以，它会和宿主机上的其他普通进程一样，直接共享宿主机的网络栈。这就为容器直接操作和使用宿主机网络提供了一个渠道。</p>
+<p>而如果我指定-net=host，就意味着这个容器不会为进程启用 Network Namespace。这就意味着，这个容器拆除了 Network Namespace 的”隔离墙”，所以，它会和宿主机上的其他普通进程一样，直接共享宿主机的网络栈。这就为容器直接操作和使用宿主机网络提供了一个渠道。</p>
 <p><strong>转了一个大圈子，我其实是为你详细解读了 docker exec 这个操作背后，Linux Namespace 更具体的工作原理。</strong></p>
 <p><strong>这种通过操作系统进程相关的知识，逐步剖析 Docker 容器的方法，是理解容器的一个关键思路，希望你一定要掌握。</strong></p>
 <p>现在，我们再一起回到前面提交镜像的操作 docker commit 上来吧。</p>
@@ -1368,7 +1368,7 @@ text.txt<span aria-hidden="true" class="line-numbers-rows"><span></span><span></
 <p> 而如果现在 kubelet 本身就运行在一个容器里，那么直接操作宿主机就会变得很麻烦。对于网络配置来说还好，kubelet 容器可以通过不开启 Network Namespace（即 Docker 的 host network 模式）的方式，直接共享宿主机的网络栈。可是，要让 kubelet 隔着容器的 Mount Namespace 和文件系统，操作宿主机的文件系统，就有点儿困难了。</p>
 <p> 比如，如果用户想要使用 NFS 做容器的持久化数据卷，那么 kubelet 就需要在容器进行绑定挂载前，在宿主机的指定目录上，先挂载 NFS 的远程目录。</p>
 <p> 可是，这时候问题来了。由于现在 kubelet 是运行在容器里的，这就意味着它要做的这个”mount -F nfs”命令，被隔离在了一个单独的 Mount Namespace 中。即，kubelet 做的挂载操作，不能被”传播”到宿主机上。</p>
-<p> 对于这个问题，有人说，可以使用 setns() 系统调用，在宿主机的 Mount Namespace 中执行这些挂载操作；也有人说，应该让 Docker 支持一个–mnt=host 的参数。</p>
+<p> 对于这个问题，有人说，可以使用 setns() 系统调用，在宿主机的 Mount Namespace 中执行这些挂载操作；也有人说，应该让 Docker 支持一个-mnt=host 的参数。</p>
 <p> 但是，到目前为止，在容器里运行 kubelet，依然没有很好的解决办法，我也不推荐你用容器去部署 Kubernetes 项目。</p>
 <p> 正因为如此，kubeadm 选择了一种妥协方案：</p>
 <blockquote>
@@ -2610,7 +2610,7 @@ deployment.apps/nginx-deployment scaled<span aria-hidden="true" class="line-numb
 <p>接下来，我还以这个 Deployment 为例，来为你讲解”滚动更新”的过程。</p>
 <p>首先，我们来创建这个 nginx-deployment：</p>
 <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">kubectl create -f nginx-deployment.yaml --record<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
-<p>注意，在这里，我额外加了一个–record 参数。它的作用，是记录下你每次操作所执行的命令，以方便后面查看。</p>
+<p>注意，在这里，我额外加了一个-record 参数。它的作用，是记录下你每次操作所执行的命令，以方便后面查看。</p>
 <p>然后，我们来检查一下 nginx-deployment 创建后的状态信息：</p>
 <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ kubectl get deployments
 NAME               DESIRED   CURRENT   UP-TO-DATE   AVAILABLE   AGE
@@ -2729,7 +2729,7 @@ nginx-deployment-2156724341   <span class="token number">2</span>         <span 
 deployment.extensions/nginx-deployment<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre>
 <p>很容易想到，在具体操作上，Deployment 的控制器，其实就是让这个旧 ReplicaSet（hash=1764197365）再次”扩展”成 3 个 Pod，而让新的 ReplicaSet（hash=2156724341）重新”收缩”到 0 个 Pod。</p>
 <p>更进一步地，如果我想回滚到更早之前的版本，要怎么办呢？</p>
-<p><strong>首先，我需要使用 kubectl rollout history 命令，查看每次 Deployment 变更对应的版本。</strong> 而由于我们在创建这个 Deployment 的时候，指定了–record 参数，所以我们创建这些版本时执行的 kubectl 命令，都会被记录下来。这个操作的输出如下所示：</p>
+<p><strong>首先，我需要使用 kubectl rollout history 命令，查看每次 Deployment 变更对应的版本。</strong> 而由于我们在创建这个 Deployment 的时候，指定了-record 参数，所以我们创建这些版本时执行的 kubectl 命令，都会被记录下来。这个操作的输出如下所示：</p>
 <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ kubectl rollout <span class="token function">history</span> deployment/nginx-deployment
 deployments <span class="token string">"nginx-deployment"</span>
 REVISION    CHANGE-CAUSE
@@ -2891,7 +2891,7 @@ $ kubectl <span class="token builtin class-name">exec</span> web-1 -- <span clas
 web-1<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span></span></code></pre>
 <p>可以看到，这两个 Pod 的 hostname 与 Pod 名字是一致的，都被分配了对应的编号。接下来，我们再试着以 DNS 的方式，访问一下这个 Headless Service：</p>
 <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">kubectl run -i --tty --image busybox dns-test --restart<span class="token operator">=</span>Never --rm /bin/sh<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
-<p>通过这条命令，我们启动了一个一次性的 Pod，因为–rm 意味着 Pod 退出后就会被删除掉。然后，在这个 Pod 的容器里面，我们尝试用 nslookup 命令，解析一下 Pod 对应的 Headless Service：</p>
+<p>通过这条命令，我们启动了一个一次性的 Pod，因为-rm 意味着 Pod 退出后就会被删除掉。然后，在这个 Pod 的容器里面，我们尝试用 nslookup 命令，解析一下 Pod 对应的 Headless Service：</p>
 <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ kubectl run -i --tty --image busybox dns-test --restart<span class="token operator">=</span>Never --rm /bin/sh
 $ <span class="token function">nslookup</span> web-0.nginx
 Server:    <span class="token number">10.0</span>.0.10
@@ -3326,7 +3326,7 @@ Waiting <span class="token keyword">for</span> daemon <span class="token builtin
 Waiting <span class="token keyword">for</span> daemon <span class="token builtin class-name">set</span> <span class="token string">"fluentd-elasticsearch"</span> rollout to finish: <span class="token number">0</span> out of <span class="token number">2</span> new pods have been updated<span class="token punctuation">..</span>.
 Waiting <span class="token keyword">for</span> daemon <span class="token builtin class-name">set</span> <span class="token string">"fluentd-elasticsearch"</span> rollout to finish: <span class="token number">1</span> of <span class="token number">2</span> updated pods are available<span class="token punctuation">..</span>.
 daemon <span class="token builtin class-name">set</span> <span class="token string">"fluentd-elasticsearch"</span> successfully rolled out<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span></span></code></pre>
-<p>注意，由于这一次我在升级命令后面加上了–record 参数，所以这次升级使用到的指令就会自动出现在 DaemonSet 的 rollout history 里面，如下所示：</p>
+<p>注意，由于这一次我在升级命令后面加上了-record 参数，所以这次升级使用到的指令就会自动出现在 DaemonSet 的 rollout history 里面，如下所示：</p>
 <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ kubectl rollout <span class="token function">history</span> daemonset fluentd-elasticsearch -n kube-system
 daemonsets <span class="token string">"fluentd-elasticsearch"</span>
 REVISION  CHANGE-CAUSE
@@ -4939,13 +4939,13 @@ $ etcd --name infra2 --initial-advertise-peer-urls http://10.0.1.12:2380 <span c
   --initial-cluster <span class="token assign-left variable">infra0</span><span class="token operator">=</span>http://10.0.1.10:2380,infra1<span class="token operator">=</span>http://10.0.1.11:2380,infra2<span class="token operator">=</span>http://10.0.1.12:2380 <span class="token punctuation">\</span>
   --initial-cluster-state new<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
 <p>在这个例子中，我启动了三个 Etcd 进程，组成了一个三节点的 Etcd 集群。</p>
-<p>其中，这些节点启动参数里的–initial-cluster 参数，非常值得你关注。它的含义，正是 <strong>当前节点启动时集群的拓扑结构。说得更详细一点，就是当前这个节点启动时，需要跟哪些节点通信来组成集群。</strong></p>
-<p>举个例子，我们可以看一下上述 infra2 节点的–initial-cluster 的值，如下所示：</p>
+<p>其中，这些节点启动参数里的-initial-cluster 参数，非常值得你关注。它的含义，正是 <strong>当前节点启动时集群的拓扑结构。说得更详细一点，就是当前这个节点启动时，需要跟哪些节点通信来组成集群。</strong></p>
+<p>举个例子，我们可以看一下上述 infra2 节点的-initial-cluster 的值，如下所示：</p>
 <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token punctuation">..</span>.
 --initial-cluster <span class="token assign-left variable">infra0</span><span class="token operator">=</span>http://10.0.1.10:2380,infra1<span class="token operator">=</span>http://10.0.1.11:2380,infra2<span class="token operator">=</span>http://10.0.1.12:2380 <span class="token punctuation">\</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre>
-<p>可以看到，–initial-cluster 参数是由 <code>&lt; 节点名字 &gt;=&lt; 节点地址 &gt;</code> 格式组成的一个数组。而上面这个配置的意思就是，当 infra2 节点启动之后，这个 Etcd 集群里就会有 infra0、infra1 和 infra2 三个节点。</p>
-<p>同时，这些 Etcd 节点，需要通过 2380 端口进行通信以便组成集群，这也正是上述配置中–listen-peer-urls 字段的含义。</p>
-<p>此外，一个 Etcd 集群还需要用–initial-cluster-token 字段，来声明一个该集群独一无二的 Token 名字。</p>
+<p>可以看到，-initial-cluster 参数是由 <code>&lt; 节点名字 &gt;=&lt; 节点地址 &gt;</code> 格式组成的一个数组。而上面这个配置的意思就是，当 infra2 节点启动之后，这个 Etcd 集群里就会有 infra0、infra1 和 infra2 三个节点。</p>
+<p>同时，这些 Etcd 节点，需要通过 2380 端口进行通信以便组成集群，这也正是上述配置中-listen-peer-urls 字段的含义。</p>
+<p>此外，一个 Etcd 集群还需要用-initial-cluster-token 字段，来声明一个该集群独一无二的 Token 名字。</p>
 <p>像上述这样为每一个 Ectd 节点配置好它对应的启动参数之后把它们启动起来，一个 Etcd 集群就可以自动组建起来了。</p>
 <p><strong>而我们要编写的 Etcd Operator，就是要把上述过程自动化。</strong> 这其实等同于：用代码来生成每个 Etcd 节点 Pod 的启动命令，然后把它们启动起来。</p>
 <p>接下来，我们一起来实践一下这个流程。</p>
@@ -4971,16 +4971,16 @@ $ etcd --name infra2 --initial-advertise-peer-urls http://10.0.1.12:2380 <span c
 <p>可以看到，EtcdCluster 是一个有 Status 字段的 CRD。在这里，我们可以不必关心 ClusterSpec 里的其他字段，只关注 Size（即：Etcd 集群的大小）字段即可。</p>
 <p>Size 字段的存在，就意味着将来如果我们想要调整集群大小的话，应该直接修改 YAML 文件里 size 的值，并执行 kubectl apply -f。</p>
 <p>这样，Operator 就会帮我们完成 Etcd 节点的增删操作。这种”scale”能力，也是 Etcd Operator 自动化运维 Etcd 集群需要实现的主要功能。</p>
-<p>而为了能够支持这个功能，我们就不再像前面那样在–initial-cluster 参数里把拓扑结构固定死。</p>
+<p>而为了能够支持这个功能，我们就不再像前面那样在-initial-cluster 参数里把拓扑结构固定死。</p>
 <p>所以，Etcd Operator 的实现，虽然选择的也是静态集群，但这个集群具体的组建过程，是逐个节点动态添加的方式，即：</p>
 <p><strong>首先，Etcd Operator 会创建一个”种子节点”；</strong><br><strong>然后，Etcd Operator 会不断创建新的 Etcd 节点，然后将它们逐一加入到这个集群当中，直到集群的节点数等于 size。</strong></p>
 <p>这就意味着，在生成不同角色的 Etcd Pod 时，Operator 需要能够区分种子节点与普通节点。</p>
-<p>而这两种节点的不同之处，就在于一个名叫–initial-cluster-state 的启动参数：</p>
+<p>而这两种节点的不同之处，就在于一个名叫-initial-cluster-state 的启动参数：</p>
 <ul>
-<li>当这个参数值设为 new 时，就代表了该节点是种子节点。而我们前面提到过，种子节点还必须通过–initial-cluster-token 声明一个独一无二的 Token。</li>
+<li>当这个参数值设为 new 时，就代表了该节点是种子节点。而我们前面提到过，种子节点还必须通过-initial-cluster-token 声明一个独一无二的 Token。</li>
 <li>而如果这个参数值设为 existing，那就是说明这个节点是一个普通节点，Etcd Operator 需要把它加入到已有集群里。</li>
 </ul>
-<p>那么接下来的问题就是，每个 Etcd 节点的–initial-cluster 字段的值又是怎么生成的呢？</p>
+<p>那么接下来的问题就是，每个 Etcd 节点的-initial-cluster 字段的值又是怎么生成的呢？</p>
 <p>由于这个方案要求种子节点先启动，所以对于种子节点 infra0 来说，它启动后的集群只有它自己，即：<code>-initial-cluster=infra0=http://10.0.1.10:2380</code>。</p>
 <p>而对于接下来要加入的节点，比如 infra1 来说，它启动后的集群就有两个节点了，所以它的 <code>-initial-cluster</code> 参数的值应该是：<code>infra0=http://10.0.1.10:2380,infra1=http://10.0.1.11:2380</code>。</p>
 <p>其他节点，都以此类推。</p>
@@ -6195,8 +6195,8 @@ type VolumeAttachmentSpec struct {
 <p>至此，一个完整的持久化 Volume 的创建和挂载流程就结束了。</p>
 <h2 id="Kubernetes容器网络"><a href="#Kubernetes容器网络" class="headerlink" title="Kubernetes容器网络"></a>Kubernetes容器网络</h2><h3 id="32-浅谈容器网络"><a href="#32-浅谈容器网络" class="headerlink" title="32 | 浅谈容器网络"></a>32 | 浅谈容器网络</h3><p>在前面讲解容器基础时，我曾经提到过一个 Linux 容器能看见的”网络栈”，实际上是被隔离在它自己的 Network Namespace 当中的。</p>
 <p>而所谓”网络栈”，就包括了：网卡（Network Interface）、回环设备（Loopback Device）、路由表（Routing Table）和 iptables 规则。对于一个进程来说，这些要素，其实就构成了它发起和响应网络请求的基本环境。</p>
-<p>需要指出的是，作为一个容器，它可以声明直接使用宿主机的网络栈（–net=host），即：不开启 Network Namespace，比如：</p>
-<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">docker run –d –net<span class="token operator">=</span>host --name nginx-host nginx<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>需要指出的是，作为一个容器，它可以声明直接使用宿主机的网络栈（-net=host），即：不开启 Network Namespace，比如：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">docker run -d -net<span class="token operator">=</span>host --name nginx-host nginx<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
 <p>在这种情况下，这个容器启动后，直接监听的就是宿主机的 80 端口。</p>
 <p>像这样直接使用宿主机网络栈的方式，虽然可以为容器提供良好的网络性能，但也会不可避免地引入共享网络资源的问题，比如端口冲突。所以， <strong>在大多数情况下，我们都希望容器进程能使用自己 Network Namespace 里的网络栈，即：拥有属于自己的 IP 地址和端口。</strong></p>
 <p>这时候，一个显而易见的问题就是： <strong>这个被隔离的容器进程，该如何跟其他 Network Namespace 里的容器进程进行交互呢？</strong></p>
@@ -6210,7 +6210,7 @@ type VolumeAttachmentSpec struct {
 <p>Veth Pair 设备的特点是：它被创建出来后，总是以两张虚拟网卡（Veth Peer）的形式成对出现的。并且，从其中一个”网卡”发出的数据包，可以直接出现在与它对应的另一张”网卡”上，哪怕这两个”网卡”在不同的 Network Namespace 里。</p>
 <p>这就使得 Veth Pair 常常被用作连接不同 Network Namespace 的”网线”。</p>
 <p>比如，现在我们启动了一个叫作 nginx-1 的容器：</p>
-<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">docker run –d --name nginx-1 nginx<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">docker run -d --name nginx-1 nginx<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
 <p>然后进入到这个容器中查看一下它的网络设备：</p>
 <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token comment"># 在宿主机上</span>
 $ docker <span class="token builtin class-name">exec</span> -it nginx-1 /bin/bash
@@ -6974,7 +6974,7 @@ $ <span class="token function">ip</span> addr <span class="token function">add</
 <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">iptables -A FORWARD -d <span class="token variable">$podIP</span> -m physdev --physdev-is-bridged -j KUBE-POD-SPECIFIC-FW-CHAIN
 iptables -A FORWARD -d <span class="token variable">$podIP</span> -j KUBE-POD-SPECIFIC-FW-CHAIN
 <span class="token punctuation">..</span>.<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span></span></code></pre>
-<p>其中， <strong>第一条 FORWARD 链”拦截”的是一种特殊情况</strong> ：它对应的是同一台宿主机上容器之间经过 CNI 网桥进行通信的流入数据包。其中，–physdev-is-bridged 的意思就是，这个 FORWARD 链匹配的是，通过本机上的网桥设备，发往目的地址是 podIP 的 IP 包。</p>
+<p>其中， <strong>第一条 FORWARD 链”拦截”的是一种特殊情况</strong> ：它对应的是同一台宿主机上容器之间经过 CNI 网桥进行通信的流入数据包。其中，-physdev-is-bridged 的意思就是，这个 FORWARD 链匹配的是，通过本机上的网桥设备，发往目的地址是 podIP 的 IP 包。</p>
 <p>当然，如果是像 Calico 这样的非网桥模式的 CNI 插件，就不存在这个情况了。</p>
 <blockquote>
 <p>kube-router 其实是一个简化版的 Calico，它也使用 BGP 来维护路由信息，但是使用 CNI bridge 插件负责跟 Kubernetes 进行交互。</p>
@@ -6994,6 +6994,521 @@ iptables -A KUBE-POD-SPECIFIC-FW-CHAIN -j REJECT --reject-with icmp-port-unreach
 <p>所以说，Kubernetes 从底层的设计和实现上，更倾向于假设你已经有了一套完整的物理基础设施。然后，Kubernetes 负责在此基础上提供一种”弱多租户”（soft multi-tenancy）的能力。</p>
 <p>并且，基于上述思路，Kubernetes 将来也不大可能把 Namespace 变成一个具有实质意义的隔离机制，或者把它映射成为”子网”或者”租户”。毕竟你可以看到，NetworkPolicy 对象的描述能力，要比基于 Namespace 的划分丰富得多。</p>
 <p>这也是为什么，到目前为止，Kubernetes 项目在云计算生态里的定位，其实是基础设施与 PaaS 之间的中间层。这是非常符合”容器”这个本质上就是进程的抽象粒度的。</p>
+<h3 id="37-找到容器不容易：Service、DNS与服务发现"><a href="#37-找到容器不容易：Service、DNS与服务发现" class="headerlink" title="37 | 找到容器不容易：Service、DNS与服务发现"></a>37 | 找到容器不容易：Service、DNS与服务发现</h3><p>在前面的文章中，我们已经多次使用到了 Service 这个 Kubernetes 里重要的服务对象。而 Kubernetes 之所以需要 Service，一方面是因为 Pod 的 IP 不是固定的，另一方面则是因为一组 Pod 实例之间总会有负载均衡的需求。</p>
+<p>一个最典型的 Service 定义，如下所示：</p>
+<pre class="line-numbers language-yaml" data-language="yaml"><code class="language-yaml"><span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> v1
+<span class="token key atrule">kind</span><span class="token punctuation">:</span> Service
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> hostnames
+<span class="token key atrule">spec</span><span class="token punctuation">:</span>
+  <span class="token key atrule">selector</span><span class="token punctuation">:</span>
+    <span class="token key atrule">app</span><span class="token punctuation">:</span> hostnames
+  <span class="token key atrule">ports</span><span class="token punctuation">:</span>
+  <span class="token punctuation">-</span> <span class="token key atrule">name</span><span class="token punctuation">:</span> default
+    <span class="token key atrule">protocol</span><span class="token punctuation">:</span> TCP
+    <span class="token key atrule">port</span><span class="token punctuation">:</span> <span class="token number">80</span>
+    <span class="token key atrule">targetPort</span><span class="token punctuation">:</span> <span class="token number">9376</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>这个 Service 的例子，相信你不会陌生。其中，我使用了 selector 字段来声明这个 Service 只代理携带了 app=hostnames 标签的 Pod。并且，这个 Service 的 80 端口，代理的是 Pod 的 9376 端口。</p>
+<p>然后，我们的应用的 Deployment，如下所示：</p>
+<pre class="line-numbers language-yaml" data-language="yaml"><code class="language-yaml"><span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> apps/v1
+<span class="token key atrule">kind</span><span class="token punctuation">:</span> Deployment
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> hostnames
+<span class="token key atrule">spec</span><span class="token punctuation">:</span>
+  <span class="token key atrule">selector</span><span class="token punctuation">:</span>
+    <span class="token key atrule">matchLabels</span><span class="token punctuation">:</span>
+      <span class="token key atrule">app</span><span class="token punctuation">:</span> hostnames
+  <span class="token key atrule">replicas</span><span class="token punctuation">:</span> <span class="token number">3</span>
+  <span class="token key atrule">template</span><span class="token punctuation">:</span>
+    <span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+      <span class="token key atrule">labels</span><span class="token punctuation">:</span>
+        <span class="token key atrule">app</span><span class="token punctuation">:</span> hostnames
+    <span class="token key atrule">spec</span><span class="token punctuation">:</span>
+      <span class="token key atrule">containers</span><span class="token punctuation">:</span>
+      <span class="token punctuation">-</span> <span class="token key atrule">name</span><span class="token punctuation">:</span> hostnames
+        <span class="token key atrule">image</span><span class="token punctuation">:</span> k8s.gcr.io/serve_hostname
+        <span class="token key atrule">ports</span><span class="token punctuation">:</span>
+        <span class="token punctuation">-</span> <span class="token key atrule">containerPort</span><span class="token punctuation">:</span> <span class="token number">9376</span>
+          <span class="token key atrule">protocol</span><span class="token punctuation">:</span> TCP<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>这个应用的作用，就是每次访问 9376 端口时，返回它自己的 hostname。</p>
+<p>而被 selector 选中的 Pod，就称为 Service 的 Endpoints，你可以使用 kubectl get ep 命令看到它们，如下所示：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ kubectl get endpoints hostnames
+NAME        ENDPOINTS
+hostnames   <span class="token number">10.244</span>.0.5:9376,10.244.0.6:9376,10.244.0.7:9376<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span></span></code></pre>
+<p>需要注意的是，只有处于 Running 状态，且 readinessProbe 检查通过的 Pod，才会出现在 Service 的 Endpoints 列表里。并且，当某一个 Pod 出现问题时，Kubernetes 会自动把它从 Service 里摘除掉。</p>
+<p>而此时，通过该 Service 的 VIP 地址 10.0.1.175，你就可以访问到它所代理的 Pod 了：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ kubectl get svc hostnames
+NAME        TYPE        CLUSTER-IP   EXTERNAL-IP   PORT<span class="token punctuation">(</span>S<span class="token punctuation">)</span>   AGE
+hostnames   ClusterIP   <span class="token number">10.0</span>.1.175   <span class="token operator">&lt;</span>none<span class="token operator">&gt;</span>        <span class="token number">80</span>/TCP    5s
+
+$ <span class="token function">curl</span> <span class="token number">10.0</span>.1.175:80
+hostnames-0uton
+
+$ <span class="token function">curl</span> <span class="token number">10.0</span>.1.175:80
+hostnames-yp2kp
+
+$ <span class="token function">curl</span> <span class="token number">10.0</span>.1.175:80
+hostnames-bvc05<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>这个 VIP 地址是 Kubernetes 自动为 Service 分配的。而像上面这样，通过三次连续不断地访问 Service 的 VIP 地址和代理端口 80，它就为我们依次返回了三个 Pod 的 hostname。这也正印证了 Service 提供的是 Round Robin 方式的负载均衡。对于这种方式，我们称为：ClusterIP 模式的 Service。</p>
+<p>你可能一直比较好奇，Kubernetes 里的 Service 究竟是如何工作的呢？</p>
+<p>实际上， <strong>Service 是由 kube-proxy 组件，加上 iptables 来共同实现的。</strong></p>
+<p>举个例子，对于我们前面创建的名叫 hostnames 的 Service 来说，一旦它被提交给 Kubernetes，那么 kube-proxy 就可以通过 Service 的 Informer 感知到这样一个 Service 对象的添加。而作为对这个事件的响应，它就会在宿主机上创建这样一条 iptables 规则（你可以通过 iptables-save 看到它），如下所示：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">-A KUBE-SERVICES -d <span class="token number">10.0</span>.1.175/32 -p tcp -m comment --comment <span class="token string">"default/hostnames: cluster IP"</span> -m tcp --dport <span class="token number">80</span> -j KUBE-SVC-NWV5X2332I4OT4T3<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>可以看到，这条 iptables 规则的含义是：凡是目的地址是 10.0.1.175、目的端口是 80 的 IP 包，都应该跳转到另外一条名叫 KUBE-SVC-NWV5X2332I4OT4T3 的 iptables 链进行处理。</p>
+<p>而我们前面已经看到，10.0.1.175 正是这个 Service 的 VIP。所以这一条规则，就为这个 Service 设置了一个固定的入口地址。并且，由于 10.0.1.175 只是一条 iptables 规则上的配置，并没有真正的网络设备，所以你 ping 这个地址，是不会有任何响应的。</p>
+<p>那么，我们即将跳转到的 KUBE-SVC-NWV5X2332I4OT4T3 规则，又有什么作用呢？</p>
+<p>实际上，它是一组规则的集合，如下所示：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">-A KUBE-SVC-NWV5X2332I4OT4T3 -m comment --comment <span class="token string">"default/hostnames:"</span> -m statistic --mode random --probability <span class="token number">0.33332999982</span> -j KUBE-SEP-WNBA2IHDGP2BOBGZ
+-A KUBE-SVC-NWV5X2332I4OT4T3 -m comment --comment <span class="token string">"default/hostnames:"</span> -m statistic --mode random --probability <span class="token number">0.50000000000</span> -j KUBE-SEP-X3P2623AGDH6CDF3
+-A KUBE-SVC-NWV5X2332I4OT4T3 -m comment --comment <span class="token string">"default/hostnames:"</span> -j KUBE-SEP-57KPRZ3JQVENLNBR<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span></span></code></pre>
+<p>可以看到，这一组规则，实际上是一组随机模式（-mode random）的 iptables 链。</p>
+<p>而随机转发的目的地，分别是 KUBE-SEP-WNBA2IHDGP2BOBGZ、KUBE-SEP-X3P2623AGDH6CDF3 和 KUBE-SEP-57KPRZ3JQVENLNBR。</p>
+<p>而这三条链指向的最终目的地，其实就是这个 Service 代理的三个 Pod。所以这一组规则，就是 Service 实现负载均衡的位置。</p>
+<p>需要注意的是，iptables 规则的匹配是从上到下逐条进行的，所以为了保证上述三条规则每条被选中的概率都相同，我们应该将它们的 probability 字段的值分别设置为 1/3（0.333…）、1/2 和 1。</p>
+<p>这么设置的原理很简单：第一条规则被选中的概率就是 1/3；而如果第一条规则没有被选中，那么这时候就只剩下两条规则了，所以第二条规则的 probability 就必须设置为 1/2；类似地，最后一条就必须设置为 1。</p>
+<p>你可以想一下，如果把这三条规则的 probability 字段的值都设置成 1/3，最终每条规则被选中的概率会变成多少。</p>
+<p>通过查看上述三条链的明细，我们就很容易理解 Service 进行转发的具体原理了，如下所示：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">-A KUBE-SEP-57KPRZ3JQVENLNBR -s <span class="token number">10.244</span>.3.6/32 -m comment --comment <span class="token string">"default/hostnames:"</span> -j MARK --set-xmark 0x00004000/0x00004000
+-A KUBE-SEP-57KPRZ3JQVENLNBR -p tcp -m comment --comment <span class="token string">"default/hostnames:"</span> -m tcp -j DNAT --to-destination <span class="token number">10.244</span>.3.6:9376
+
+-A KUBE-SEP-WNBA2IHDGP2BOBGZ -s <span class="token number">10.244</span>.1.7/32 -m comment --comment <span class="token string">"default/hostnames:"</span> -j MARK --set-xmark 0x00004000/0x00004000
+-A KUBE-SEP-WNBA2IHDGP2BOBGZ -p tcp -m comment --comment <span class="token string">"default/hostnames:"</span> -m tcp -j DNAT --to-destination <span class="token number">10.244</span>.1.7:9376
+
+-A KUBE-SEP-X3P2623AGDH6CDF3 -s <span class="token number">10.244</span>.2.3/32 -m comment --comment <span class="token string">"default/hostnames:"</span> -j MARK --set-xmark 0x00004000/0x00004000
+-A KUBE-SEP-X3P2623AGDH6CDF3 -p tcp -m comment --comment <span class="token string">"default/hostnames:"</span> -m tcp -j DNAT --to-destination <span class="token number">10.244</span>.2.3:9376<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>可以看到，这三条链，其实是三条 DNAT 规则。但在 DNAT 规则之前，iptables 对流入的 IP 包还设置了一个”标志”（-set-xmark）。这个”标志”的作用，我会在下一篇文章再为你讲解。</p>
+<p>而 DNAT 规则的作用，就是在 PREROUTING 检查点之前，也就是在路由之前，将流入 IP 包的目的地址和端口，改成-to-destination 所指定的新的目的地址和端口。可以看到，这个目的地址和端口，正是被代理 Pod 的 IP 地址和端口。</p>
+<p>这样，访问 Service VIP 的 IP 包经过上述 iptables 处理之后，就已经变成了访问具体某一个后端 Pod 的 IP 包了。不难理解，这些 Endpoints 对应的 iptables 规则，正是 kube-proxy 通过监听 Pod 的变化事件，在宿主机上生成并维护的。</p>
+<p>以上，就是 Service 最基本的工作原理。</p>
+<p>此外，你可能已经听说过，Kubernetes 的 kube-proxy 还支持一种叫作 IPVS 的模式。这又是怎么一回事儿呢？</p>
+<p>其实，通过上面的讲解，你可以看到，kube-proxy 通过 iptables 处理 Service 的过程，其实需要在宿主机上设置相当多的 iptables 规则。而且，kube-proxy 还需要在控制循环里不断地刷新这些规则来确保它们始终是正确的。</p>
+<p>不难想到，当你的宿主机上有大量 Pod 的时候，成百上千条 iptables 规则不断地被刷新，会大量占用该宿主机的 CPU 资源，甚至会让宿主机”卡”在这个过程中。所以说， <strong>一直以来，基于 iptables 的 Service 实现，都是制约 Kubernetes 项目承载更多量级的 Pod 的主要障碍。</strong></p>
+<p>而 IPVS 模式的 Service，就是解决这个问题的一个行之有效的方法。</p>
+<p>IPVS 模式的工作原理，其实跟 iptables 模式类似。当我们创建了前面的 Service 之后，kube-proxy 首先会在宿主机上创建一个虚拟网卡（叫作：kube-ipvs0），并为它分配 Service VIP 作为 IP 地址，如下所示：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token comment"># ip addr</span>
+  <span class="token punctuation">..</span>.
+  <span class="token number">73</span>：kube-ipvs0：<span class="token operator">&lt;</span>BROADCAST,NOARP<span class="token operator">&gt;</span>  mtu <span class="token number">1500</span> qdisc noop state DOWN qlen <span class="token number">1000</span>
+  link/ether  1a:ce:f5:5f:c1:4d brd ff:ff:ff:ff:ff:ff
+  inet <span class="token number">10.0</span>.1.175/32  scope global kube-ipvs0
+  valid_lft forever  preferred_lft forever<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>而接下来，kube-proxy 就会通过 Linux 的 IPVS 模块，为这个 IP 地址设置三个 IPVS 虚拟主机，并设置这三个虚拟主机之间使用轮询模式 (rr) 来作为负载均衡策略。我们可以通过 ipvsadm 查看到这个设置，如下所示：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token comment"># ipvsadm -ln</span>
+ IP Virtual Server version <span class="token number">1.2</span>.1 <span class="token punctuation">(</span>size<span class="token operator">=</span><span class="token number">4096</span><span class="token punctuation">)</span>
+  Prot LocalAddress:Port Scheduler Flags
+    -<span class="token operator">&gt;</span>  RemoteAddress:Port           Forward  Weight ActiveConn InActConn
+  TCP  <span class="token number">10.102</span>.128.4:80 rr
+    -<span class="token operator">&gt;</span>  <span class="token number">10.244</span>.3.6:9376    Masq    <span class="token number">1</span>       <span class="token number">0</span>          <span class="token number">0</span>
+    -<span class="token operator">&gt;</span>  <span class="token number">10.244</span>.1.7:9376    Masq    <span class="token number">1</span>       <span class="token number">0</span>          <span class="token number">0</span>
+    -<span class="token operator">&gt;</span>  <span class="token number">10.244</span>.2.3:9376    Masq    <span class="token number">1</span>       <span class="token number">0</span>          <span class="token number">0</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>可以看到，这三个 IPVS 虚拟主机的 IP 地址和端口，对应的正是三个被代理的 Pod。</p>
+<p>这时候，任何发往 10.102.128.4:80 的请求，就都会被 IPVS 模块转发到某一个后端 Pod 上了。</p>
+<p>而相比于 iptables，IPVS 在内核中的实现其实也是基于 Netfilter 的 NAT 模式，所以在转发这一层上，理论上 IPVS 并没有显著的性能提升。但是，IPVS 并不需要在宿主机上为每个 Pod 设置 iptables 规则，而是把对这些”规则”的处理放到了内核态，从而极大地降低了维护这些规则的代价。这也正印证了我在前面提到过的，”将重要操作放入内核态”是提高性能的重要手段。</p>
+<blockquote>
+<p>备注：这里你可以再回顾下第 33 篇文章 <a target="_blank" rel="noopener" href="https://time.geekbang.org/column/article/65287">《深入解析容器跨主机网络》</a> 中的相关内容。</p>
+</blockquote>
+<p>不过需要注意的是，IPVS 模块只负责上述的负载均衡和代理功能。而一个完整的 Service 流程正常工作所需要的包过滤、SNAT 等操作，还是要靠 iptables 来实现。只不过，这些辅助性的 iptables 规则数量有限，也不会随着 Pod 数量的增加而增加。</p>
+<p>所以，在大规模集群里，我非常建议你为 kube-proxy 设置 -proxy-mode=ipvs 来开启这个功能。它为 Kubernetes 集群规模带来的提升，还是非常巨大的。</p>
+<p><strong>此外，我在前面的文章中还介绍过 Service 与 DNS 的关系。</strong></p>
+<p>在 Kubernetes 中，Service 和 Pod 都会被分配对应的 DNS A 记录（从域名解析 IP 的记录）。</p>
+<p>对于 ClusterIP 模式的 Service 来说（比如我们上面的例子），它的 A 记录的格式是：..svc.cluster.local。当你访问这条 A 记录的时候，它解析到的就是该 Service 的 VIP 地址。</p>
+<p>而对于指定了 clusterIP=None 的 Headless Service 来说，它的 A 记录的格式也是：..svc.cluster.local。但是，当你访问这条 A 记录的时候，它返回的是所有被代理的 Pod 的 IP 地址的集合。当然，如果你的客户端没办法解析这个集合的话，它可能会只会拿到第一个 Pod 的 IP 地址。</p>
+<p>此外，对于 ClusterIP 模式的 Service 来说，它代理的 Pod 被自动分配的 A 记录的格式是：..pod.cluster.local。这条记录指向 Pod 的 IP 地址。</p>
+<p>而对 Headless Service 来说，它代理的 Pod 被自动分配的 A 记录的格式是：…svc.cluster.local。这条记录也指向 Pod 的 IP 地址。</p>
+<p>但如果你为 Pod 指定了 Headless Service，并且 Pod 本身声明了 hostname 和 subdomain 字段，那么这时候 Pod 的 A 记录就会变成：<code>&lt;pod 的 hostname&gt;...svc.cluster.local</code> ，比如：</p>
+<pre class="line-numbers language-yaml" data-language="yaml"><code class="language-yaml"><span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> v1
+<span class="token key atrule">kind</span><span class="token punctuation">:</span> Service
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> default<span class="token punctuation">-</span>subdomain
+<span class="token key atrule">spec</span><span class="token punctuation">:</span>
+  <span class="token key atrule">selector</span><span class="token punctuation">:</span>
+    <span class="token key atrule">name</span><span class="token punctuation">:</span> busybox
+  <span class="token key atrule">clusterIP</span><span class="token punctuation">:</span> None
+  <span class="token key atrule">ports</span><span class="token punctuation">:</span>
+  <span class="token punctuation">-</span> <span class="token key atrule">name</span><span class="token punctuation">:</span> foo
+    <span class="token key atrule">port</span><span class="token punctuation">:</span> <span class="token number">1234</span>
+    <span class="token key atrule">targetPort</span><span class="token punctuation">:</span> <span class="token number">1234</span>
+<span class="token punctuation">---</span>
+<span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> v1
+<span class="token key atrule">kind</span><span class="token punctuation">:</span> Pod
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> busybox1
+  <span class="token key atrule">labels</span><span class="token punctuation">:</span>
+    <span class="token key atrule">name</span><span class="token punctuation">:</span> busybox
+<span class="token key atrule">spec</span><span class="token punctuation">:</span>
+  <span class="token key atrule">hostname</span><span class="token punctuation">:</span> busybox<span class="token punctuation">-</span><span class="token number">1</span>
+  <span class="token key atrule">subdomain</span><span class="token punctuation">:</span> default<span class="token punctuation">-</span>subdomain
+  <span class="token key atrule">containers</span><span class="token punctuation">:</span>
+  <span class="token punctuation">-</span> <span class="token key atrule">image</span><span class="token punctuation">:</span> busybox
+    <span class="token key atrule">command</span><span class="token punctuation">:</span>
+      <span class="token punctuation">-</span> sleep
+      <span class="token punctuation">-</span> <span class="token string">"3600"</span>
+    <span class="token key atrule">name</span><span class="token punctuation">:</span> busybox<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>在上面这个 Service 和 Pod 被创建之后，你就可以通过 busybox-1.default-subdomain.default.svc.cluster.local 解析到这个 Pod 的 IP 地址了。</p>
+<p>需要注意的是，在 Kubernetes 里，/etc/hosts 文件是单独挂载的，这也是为什么 kubelet 能够对 hostname 进行修改并且 Pod 重建后依然有效的原因。这跟 Docker 的 Init 层是一个原理。</p>
+<h4 id="37-1-总结"><a href="#37-1-总结" class="headerlink" title="37.1 总结"></a>37.1 总结</h4><p>在这篇文章里，我为你详细讲解了 Service 的工作原理。实际上，Service 机制，以及 Kubernetes 里的 DNS 插件，都是在帮助你解决同样一个问题，即：如何找到我的某一个容器？</p>
+<p>这个问题在平台级项目中，往往就被称作服务发现，即：当我的一个服务（Pod）的 IP 地址是不固定的且没办法提前获知时，我该如何通过一个固定的方式访问到这个 Pod 呢？</p>
+<p>而我在这里讲解的、ClusterIP 模式的 Service 为你提供的，就是一个 Pod 的稳定的 IP 地址，即 VIP。并且，这里 Pod 和 Service 的关系是可以通过 Label 确定的。</p>
+<p>而 Headless Service 为你提供的，则是一个 Pod 的稳定的 DNS 名字，并且，这个名字是可以通过 Pod 名字和 Service 名字拼接出来的。</p>
+<h3 id="38-从外界连通Service与Service调试”三板斧”"><a href="#38-从外界连通Service与Service调试”三板斧”" class="headerlink" title="38 | 从外界连通Service与Service调试”三板斧”"></a>38 | 从外界连通Service与Service调试”三板斧”</h3><p>在上一篇文章中，我为你介绍了 Service 机制的工作原理。通过这些讲解，你应该能够明白这样一个事实：Service 的访问信息在 Kubernetes 集群之外，其实是无效的。</p>
+<p>这其实也容易理解：所谓 Service 的访问入口，其实就是每台宿主机上由 kube-proxy 生成的 iptables 规则，以及 kube-dns 生成的 DNS 记录。而一旦离开了这个集群，这些信息对用户来说，也就自然没有作用了。</p>
+<p>所以，在使用 Kubernetes 的 Service 时，一个必须要面对和解决的问题就是： <strong>如何从外部（Kubernetes 集群之外），访问到 Kubernetes 里创建的 Service？</strong></p>
+<p>这里 <strong>最常用的一种方式就是：NodePort</strong> 。我来为你举个例子。</p>
+<pre class="line-numbers language-yaml" data-language="yaml"><code class="language-yaml"><span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> v1
+<span class="token key atrule">kind</span><span class="token punctuation">:</span> Service
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> my<span class="token punctuation">-</span>nginx
+  <span class="token key atrule">labels</span><span class="token punctuation">:</span>
+    <span class="token key atrule">run</span><span class="token punctuation">:</span> my<span class="token punctuation">-</span>nginx
+<span class="token key atrule">spec</span><span class="token punctuation">:</span>
+  <span class="token key atrule">type</span><span class="token punctuation">:</span> NodePort
+  <span class="token key atrule">ports</span><span class="token punctuation">:</span>
+  <span class="token punctuation">-</span> <span class="token key atrule">nodePort</span><span class="token punctuation">:</span> <span class="token number">8080</span>
+    <span class="token key atrule">targetPort</span><span class="token punctuation">:</span> <span class="token number">80</span>
+    <span class="token key atrule">protocol</span><span class="token punctuation">:</span> TCP
+    <span class="token key atrule">name</span><span class="token punctuation">:</span> http
+  <span class="token punctuation">-</span> <span class="token key atrule">nodePort</span><span class="token punctuation">:</span> <span class="token number">443</span>
+    <span class="token key atrule">protocol</span><span class="token punctuation">:</span> TCP
+    <span class="token key atrule">name</span><span class="token punctuation">:</span> https
+  <span class="token key atrule">selector</span><span class="token punctuation">:</span>
+    <span class="token key atrule">run</span><span class="token punctuation">:</span> my<span class="token punctuation">-</span>nginx<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>在这个 Service 的定义里，我们声明它的类型是，type=NodePort。然后，我在 ports 字段里声明了 Service 的 8080 端口代理 Pod 的 80 端口，Service 的 443 端口代理 Pod 的 443 端口。</p>
+<p>当然，如果你不显式地声明 nodePort 字段，Kubernetes 就会为你分配随机的可用端口来设置代理。这个端口的范围默认是 30000-32767，你可以通过 kube-apiserver 的-service-node-port-range 参数来修改它。</p>
+<p>那么这时候，要访问这个 Service，你只需要访问 <code>&lt; 任何一台宿主机的 IP 地址 &gt;:8080</code> 就可以访问到某一个被代理的 Pod 的 80 端口了。</p>
+<p>而在理解了我在上一篇文章中讲解的 Service 的工作原理之后，NodePort 模式也就非常容易理解了。显然，kube-proxy 要做的，就是在每台宿主机上生成这样一条 iptables 规则：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">-A KUBE-NODEPORTS -p tcp -m comment --comment <span class="token string">"default/my-nginx: nodePort"</span> -m tcp --dport <span class="token number">8080</span> -j KUBE-SVC-67RL4FN6JRUPOJYM<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>而我在上一篇文章中已经讲到，KUBE-SVC-67RL4FN6JRUPOJYM 其实就是一组随机模式的 iptables 规则。所以接下来的流程，就跟 ClusterIP 模式完全一样了。</p>
+<p>需要注意的是，在 NodePort 方式下，Kubernetes 会在 IP 包离开宿主机发往目的 Pod 时，对这个 IP 包做一次 SNAT 操作，如下所示：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">-A KUBE-POSTROUTING -m comment --comment <span class="token string">"kubernetes service traffic requiring SNAT"</span> -m mark --mark 0x4000/0x4000 -j MASQUERADE<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>可以看到，这条规则设置在 POSTROUTING 检查点，也就是说，它给即将离开这台主机的 IP 包，进行了一次 SNAT 操作，将这个 IP 包的源地址替换成了这台宿主机上的 CNI 网桥地址，或者宿主机本身的 IP 地址（如果 CNI 网桥不存在的话）。</p>
+<p>当然，这个 SNAT 操作只需要对 Service 转发出来的 IP 包进行（否则普通的 IP 包就被影响了）。而 iptables 做这个判断的依据，就是查看该 IP 包是否有一个”0x4000”的”标志”。你应该还记得，这个标志正是在 IP 包被执行 DNAT 操作之前被打上去的。</p>
+<p>可是， <strong>为什么一定要对流出的包做 SNAT操作呢？</strong></p>
+<p>这里的原理其实很简单，如下所示：</p>
+<pre class="line-numbers language-txt" data-language="txt"><code class="language-txt">          client
+            \ ^
+             \ \
+              v \
+  node 1 &lt;--- node 2
+   | ^   SNAT
+   | |   ---&gt;
+   v |
+endpoint<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>当一个外部的 client 通过 node 2 的地址访问一个 Service 的时候，node 2 上的负载均衡规则，就可能把这个 IP 包转发给一个在 node 1 上的 Pod。这里没有任何问题。</p>
+<p>而当 node 1 上的这个 Pod 处理完请求之后，它就会按照这个 IP 包的源地址发出回复。</p>
+<p>可是，如果没有做 SNAT 操作的话，这时候，被转发来的 IP 包的源地址就是 client 的 IP 地址。 <strong>所以此时，Pod 就会直接将回复发给client</strong> 。对于 client 来说，它的请求明明发给了 node 2，收到的回复却来自 node 1，这个 client 很可能会报错。</p>
+<p>所以，在上图中，当 IP 包离开 node 2 之后，它的源 IP 地址就会被 SNAT 改成 node 2 的 CNI 网桥地址或者 node 2 自己的地址。这样，Pod 在处理完成之后就会先回复给 node 2（而不是 client），然后再由 node 2 发送给 client。</p>
+<p>当然，这也就意味着这个 Pod 只知道该 IP 包来自于 node 2，而不是外部的 client。对于 Pod 需要明确知道所有请求来源的场景来说，这是不可以的。</p>
+<p>所以这时候，你就可以将 Service 的 spec.externalTrafficPolicy 字段设置为 local，这就保证了所有 Pod 通过 Service 收到请求之后，一定可以看到真正的、外部 client 的源地址。</p>
+<p>而这个机制的实现原理也非常简单： <strong>这时候，一台宿主机上的 iptables 规则，会设置为只将 IP 包转发给运行在这台宿主机上的 Pod</strong> 。所以这时候，Pod 就可以直接使用源地址将回复包发出，不需要事先进行 SNAT 了。这个流程，如下所示：</p>
+<pre class="line-numbers language-txt" data-language="txt"><code class="language-txt">      client
+      ^ /   \
+     / /     \
+    / v       X
+  node 1     node 2
+   ^ |
+   | |
+   | v
+endpoint<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>当然，这也就意味着如果在一台宿主机上，没有任何一个被代理的 Pod 存在，比如上图中的 node 2，那么你使用 node 2 的 IP 地址访问这个 Service，就是无效的。此时，你的请求会直接被 DROP 掉。</p>
+<p><strong>从外部访问 Service 的第二种方式，适用于公有云上的 Kubernetes 服务。这时候，你可以指定一个 LoadBalancer 类型的 Service</strong> ，如下所示：</p>
+<pre class="line-numbers language-yaml" data-language="yaml"><code class="language-yaml"><span class="token punctuation">---</span>
+<span class="token key atrule">kind</span><span class="token punctuation">:</span> Service
+<span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> v1
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> example<span class="token punctuation">-</span>service
+<span class="token key atrule">spec</span><span class="token punctuation">:</span>
+  <span class="token key atrule">ports</span><span class="token punctuation">:</span>
+  <span class="token punctuation">-</span> <span class="token key atrule">port</span><span class="token punctuation">:</span> <span class="token number">8765</span>
+    <span class="token key atrule">targetPort</span><span class="token punctuation">:</span> <span class="token number">9376</span>
+  <span class="token key atrule">selector</span><span class="token punctuation">:</span>
+    <span class="token key atrule">app</span><span class="token punctuation">:</span> example
+  <span class="token key atrule">type</span><span class="token punctuation">:</span> LoadBalancer<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>在公有云提供的 Kubernetes 服务里，都使用了一个叫作 CloudProvider 的转接层，来跟公有云本身的 API 进行对接。所以，在上述 LoadBalancer 类型的 Service 被提交后，Kubernetes 就会调用 CloudProvider 在公有云上为你创建一个负载均衡服务，并且把被代理的 Pod 的 IP 地址配置给负载均衡服务做后端。</p>
+<p><strong>而第三种方式，是 Kubernetes 在 1.7 之后支持的一个新特性，叫作 ExternalName</strong>。举个例子：</p>
+<pre class="line-numbers language-yaml" data-language="yaml"><code class="language-yaml"><span class="token key atrule">kind</span><span class="token punctuation">:</span> Service
+<span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> v1
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> my<span class="token punctuation">-</span>service
+<span class="token key atrule">spec</span><span class="token punctuation">:</span>
+  <span class="token key atrule">type</span><span class="token punctuation">:</span> ExternalName
+  <span class="token key atrule">externalName</span><span class="token punctuation">:</span> my.database.example.com<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>在上述 Service 的 YAML 文件中，我指定了一个 externalName=my.database.example.com 的字段。而且你应该会注意到，这个 YAML 文件里不需要指定 selector。</p>
+<p>这时候，当你通过 Service 的 DNS 名字访问它的时候，比如访问：my-service.default.svc.cluster.local。那么，Kubernetes 为你返回的就是my.database.example.com。所以说，ExternalName 类型的 Service，其实是在 kube-dns 里为你添加了一条 CNAME 记录。这时，访问 my-service.default.svc.cluster.local 就和访问 my.database.example.com 这个域名是一个效果了。</p>
+<p>此外，Kubernetes 的 Service 还允许你为 Service 分配公有 IP 地址，比如下面这个例子：</p>
+<pre class="line-numbers language-yaml" data-language="yaml"><code class="language-yaml"><span class="token key atrule">kind</span><span class="token punctuation">:</span> Service
+<span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> v1
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> my<span class="token punctuation">-</span>service
+<span class="token key atrule">spec</span><span class="token punctuation">:</span>
+  <span class="token key atrule">selector</span><span class="token punctuation">:</span>
+    <span class="token key atrule">app</span><span class="token punctuation">:</span> MyApp
+  <span class="token key atrule">ports</span><span class="token punctuation">:</span>
+  <span class="token punctuation">-</span> <span class="token key atrule">name</span><span class="token punctuation">:</span> http
+    <span class="token key atrule">protocol</span><span class="token punctuation">:</span> TCP
+    <span class="token key atrule">port</span><span class="token punctuation">:</span> <span class="token number">80</span>
+    <span class="token key atrule">targetPort</span><span class="token punctuation">:</span> <span class="token number">9376</span>
+  <span class="token key atrule">externalIPs</span><span class="token punctuation">:</span>
+  <span class="token punctuation">-</span> 80.11.12.10<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>在上述 Service 中，我为它指定的 externalIPs=80.11.12.10，那么此时，你就可以通过访问 80.11.12.10:80 访问到被代理的 Pod 了。不过，在这里 Kubernetes 要求 externalIPs 必须是至少能够路由到一个 Kubernetes 的节点。你可以想一想这是为什么。</p>
+<p>实际上， <strong>在理解了 Kubernetes Service 机制的工作原理之后，很多与 Service 相关的问题，其实都可以通过分析 Service 在宿主机上对应的 iptables 规则（或者 IPVS 配置）得到解决。</strong></p>
+<p>比如，当你的 Service 没办法通过 DNS 访问到的时候。你就需要区分到底是 Service 本身的配置问题，还是集群的 DNS 出了问题。一个行之有效的方法，就是检查 Kubernetes 自己的 Master 节点的 Service DNS 是否正常：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token comment"># 在一个 Pod 里执行</span>
+$ <span class="token function">nslookup</span> kubernetes.default
+Server:    <span class="token number">10.0</span>.0.10
+Address <span class="token number">1</span>: <span class="token number">10.0</span>.0.10 kube-dns.kube-system.svc.cluster.local
+
+Name:      kubernetes.default
+Address <span class="token number">1</span>: <span class="token number">10.0</span>.0.1 kubernetes.default.svc.cluster.local<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>如果上面访问 kubernetes.default 返回的值都有问题，那你就需要检查 kube-dns 的运行状态和日志了。否则的话，你应该去检查自己的 Service 定义是不是有问题。</p>
+<p>而如果你的 Service 没办法通过 ClusterIP 访问到的时候，你首先应该检查的是这个 Service 是否有 Endpoints：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ kubectl get endpoints hostnames
+NAME        ENDPOINTS
+hostnames   <span class="token number">10.244</span>.0.5:9376,10.244.0.6:9376,10.244.0.7:9376<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span></span></code></pre>
+<p>需要注意的是，如果你的 Pod 的 readniessProbe 没通过，它也不会出现在 Endpoints 列表里。</p>
+<p>而如果 Endpoints 正常，那么你就需要确认 kube-proxy 是否在正确运行。在我们通过 kubeadm 部署的集群里，你应该看到 kube-proxy 输出的日志如下所示：</p>
+<pre class="line-numbers language-txt" data-language="txt"><code class="language-txt">I1027 22:14:53.995134    5063 server.go:200] Running in resource-only container "/kube-proxy"
+I1027 22:14:53.998163    5063 server.go:247] Using iptables Proxier.
+I1027 22:14:53.999055    5063 server.go:255] Tearing down userspace rules. Errors here are acceptable.
+I1027 22:14:54.038140    5063 proxier.go:352] Setting endpoints for "kube-system/kube-dns:dns-tcp" to [10.244.1.3:53]
+I1027 22:14:54.038164    5063 proxier.go:352] Setting endpoints for "kube-system/kube-dns:dns" to [10.244.1.3:53]
+I1027 22:14:54.038209    5063 proxier.go:352] Setting endpoints for "default/kubernetes:https" to [10.240.0.2:443]
+I1027 22:14:54.038238    5063 proxier.go:429] Not syncing iptables until Services and Endpoints have been received from master
+I1027 22:14:54.040048    5063 proxier.go:294] Adding new service "default/kubernetes:https" at 10.0.0.1:443/TCP
+I1027 22:14:54.040154    5063 proxier.go:294] Adding new service "kube-system/kube-dns:dns" at 10.0.0.10:53/UDP
+I1027 22:14:54.040223    5063 proxier.go:294] Adding new service "kube-system/kube-dns:dns-tcp" at 10.0.0.10:53/TCP<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>如果 kube-proxy 一切正常，你就应该仔细查看宿主机上的 iptables 了。而 <strong>一个 iptables 模式的 Service 对应的规则，我在上一篇以及这一篇文章里已经全部介绍到了，它们包括：</strong></p>
+<ol>
+<li>KUBE-SERVICES 或者 KUBE-NODEPORTS 规则对应的 Service 的入口链，这个规则应该与 VIP 和 Service 端口一一对应；</li>
+<li>KUBE-SEP-(hash) 规则对应的 DNAT 链，这些规则应该与 Endpoints 一一对应；</li>
+<li>KUBE-SVC-(hash) 规则对应的负载均衡链，这些规则的数目应该与 Endpoints 数目一致；</li>
+<li>如果是 NodePort 模式的话，还有 POSTROUTING 处的 SNAT 链。</li>
+</ol>
+<p>通过查看这些链的数量、转发目的地址、端口、过滤条件等信息，你就能很容易发现一些异常的蛛丝马迹。</p>
+<p>当然， <strong>还有一种典型问题，就是 Pod 没办法通过 Service 访问到自己</strong> 。这往往就是因为 kubelet 的 hairpin-mode 没有被正确设置。关于 Hairpin 的原理我在前面已经介绍过，这里就不再赘述了。你只需要确保将 kubelet 的 hairpin-mode 设置为 hairpin-veth 或者 promiscuous-bridge 即可。</p>
+<blockquote>
+<p>这里，你可以再回顾下第 34 篇文章 <a target="_blank" rel="noopener" href="https://time.geekbang.org/column/article/67351">《Kubernetes 网络模型与 CNI 网络插件》</a> 中的相关内容。</p>
+</blockquote>
+<p>其中，在 hairpin-veth 模式下，你应该能看到 CNI 网桥对应的各个 VETH 设备，都将 Hairpin 模式设置为了 1，如下所示：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ <span class="token keyword">for</span> <span class="token for-or-select variable">d</span> <span class="token keyword">in</span> /sys/devices/virtual/net/cni0/brif/veth*/hairpin_mode<span class="token punctuation">;</span> <span class="token keyword">do</span> <span class="token builtin class-name">echo</span> <span class="token string">"<span class="token variable">$d</span> = <span class="token variable"><span class="token variable">$(</span><span class="token function">cat</span> $d<span class="token variable">)</span></span>"</span><span class="token punctuation">;</span> <span class="token keyword">done</span>
+/sys/devices/virtual/net/cni0/brif/veth4bfbfe74/hairpin_mode <span class="token operator">=</span> <span class="token number">1</span>
+/sys/devices/virtual/net/cni0/brif/vethfc2a18c5/hairpin_mode <span class="token operator">=</span> <span class="token number">1</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span></span></code></pre>
+<p>而如果是 promiscuous-bridge 模式的话，你应该看到 CNI 网桥的混杂模式（PROMISC）被开启，如下所示：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ <span class="token function">ifconfig</span> cni0 <span class="token operator">|</span><span class="token function">grep</span> PROMISC
+UP BROADCAST RUNNING PROMISC MULTICAST  MTU:1460  Metric:1<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre>
+<h4 id="38-1-总结"><a href="#38-1-总结" class="headerlink" title="38.1 总结"></a>38.1 总结</h4><p>通过上述讲解不难看出，所谓 Service，其实就是 Kubernetes 为 Pod 分配的、固定的、基于 iptables（或者 IPVS）的访问入口。而这些访问入口代理的 Pod 信息，则来自于 Etcd，由 kube-proxy 通过控制循环来维护。</p>
+<p>并且，你可以看到，Kubernetes 里面的 Service 和 DNS 机制，也都不具备强多租户能力。比如，在多租户情况下，每个租户应该拥有一套独立的 Service 规则（Service 只应该看到和代理同一个租户下的 Pod）。再比如 DNS，在多租户情况下，每个租户应该拥有自己的 kube-dns（kube-dns 只应该为同一个租户下的 Service 和 Pod 创建 DNS Entry）。</p>
+<p>当然，在 Kubernetes 中，kube-proxy 和 kube-dns 其实也是普通的插件而已。你完全可以根据自己的需求，实现符合自己预期的 Service。</p>
+<h3 id="39-谈谈Service与Ingress"><a href="#39-谈谈Service与Ingress" class="headerlink" title="39 | 谈谈Service与Ingress"></a>39 | 谈谈Service与Ingress</h3><p>在上一篇文章中，我为你详细讲解了将 Service 暴露给外界的三种方法。其中有一个叫作 LoadBalancer 类型的 Service，它会为你在 Cloud Provider（比如：Google Cloud 或者 OpenStack）里创建一个与该 Service 对应的负载均衡服务。</p>
+<p>但是，相信你也应该能感受到，由于每个 Service 都要有一个负载均衡服务，所以这个做法实际上既浪费成本又高。作为用户，我其实更希望看到 Kubernetes 为我内置一个全局的负载均衡器。然后，通过我访问的 URL，把请求转发给不同的后端 Service。</p>
+<p><strong>这种全局的、为了代理不同后端 Service 而设置的负载均衡服务，就是 Kubernetes 里的 Ingress 服务。</strong></p>
+<p>所以，Ingress 的功能其实很容易理解： <strong>所谓 Ingress，就是 Service 的”Service”。</strong></p>
+<p>举个例子，假如我现在有这样一个站点：<a target="_blank" rel="noopener" href="https://cafe.example.com">https://cafe.example.com</a> 。其中， <a target="_blank" rel="noopener" href="https://cafe.example.com/coffee">https://cafe.example.com/coffee</a> ，对应的是”咖啡点餐系统”。而， <a target="_blank" rel="noopener" href="https://cafe.example.com/tea">https://cafe.example.com/tea</a> ，对应的则是”茶水点餐系统”。这两个系统，分别由名叫 coffee 和 tea 这样两个 Deployment 来提供服务。</p>
+<p>那么现在， <strong>我如何能使用 Kubernetes 的 Ingress 来创建一个统一的负载均衡器，从而实现当用户访问不同的域名时，能够访问到不同的 Deployment 呢？</strong></p>
+<p>上述功能，在 Kubernetes 里就需要通过 Ingress 对象来描述，如下所示：</p>
+<pre class="line-numbers language-yaml" data-language="yaml"><code class="language-yaml"><span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> extensions/v1beta1
+<span class="token key atrule">kind</span><span class="token punctuation">:</span> Ingress
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> cafe<span class="token punctuation">-</span>ingress
+<span class="token key atrule">spec</span><span class="token punctuation">:</span>
+  <span class="token key atrule">tls</span><span class="token punctuation">:</span>
+  <span class="token punctuation">-</span> <span class="token key atrule">hosts</span><span class="token punctuation">:</span>
+    <span class="token punctuation">-</span> cafe.example.com
+    <span class="token key atrule">secretName</span><span class="token punctuation">:</span> cafe<span class="token punctuation">-</span>secret
+  <span class="token key atrule">rules</span><span class="token punctuation">:</span>
+  <span class="token punctuation">-</span> <span class="token key atrule">host</span><span class="token punctuation">:</span> cafe.example.com
+    <span class="token key atrule">http</span><span class="token punctuation">:</span>
+      <span class="token key atrule">paths</span><span class="token punctuation">:</span>
+      <span class="token punctuation">-</span> <span class="token key atrule">path</span><span class="token punctuation">:</span> /tea
+        <span class="token key atrule">backend</span><span class="token punctuation">:</span>
+          <span class="token key atrule">serviceName</span><span class="token punctuation">:</span> tea<span class="token punctuation">-</span>svc
+          <span class="token key atrule">servicePort</span><span class="token punctuation">:</span> <span class="token number">80</span>
+      <span class="token punctuation">-</span> <span class="token key atrule">path</span><span class="token punctuation">:</span> /coffee
+        <span class="token key atrule">backend</span><span class="token punctuation">:</span>
+          <span class="token key atrule">serviceName</span><span class="token punctuation">:</span> coffee<span class="token punctuation">-</span>svc
+          <span class="token key atrule">servicePort</span><span class="token punctuation">:</span> <span class="token number">80</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>在上面这个名叫 cafe-ingress.yaml 文件中，最值得我们关注的，是 rules 字段。在 Kubernetes 里，这个字段叫作： <strong>IngressRule</strong> 。</p>
+<p>IngressRule 的 Key，就叫做：host。它必须是一个标准的域名格式（Fully Qualified Domain Name）的字符串，而不能是 IP 地址。</p>
+<blockquote>
+<p>备注：Fully Qualified Domain Name 的具体格式，可以参考 <a target="_blank" rel="noopener" href="https://tools.ietf.org/html/rfc3986">RFC 3986</a> 标准。</p>
+</blockquote>
+<p>而 host 字段定义的值，就是这个 Ingress 的入口。这也就意味着，当用户访问 cafe.example.com 的时候，实际上访问到的是这个 Ingress 对象。这样，Kubernetes 就能使用 IngressRule 来对你的请求进行下一步转发。</p>
+<p>而接下来 IngressRule 规则的定义，则依赖于 path 字段。你可以简单地理解为，这里的每一个 path 都对应一个后端 Service。所以在我们的例子里，我定义了两个 path，它们分别对应 coffee 和 tea 这两个 Deployment 的 Service（即：coffee-svc 和 tea-svc）。</p>
+<p><strong>通过上面的讲解，不难看到，所谓 Ingress 对象，其实就是 Kubernetes 项目对”反向代理”的一种抽象。</strong></p>
+<p>一个 Ingress 对象的主要内容，实际上就是一个”反向代理”服务（比如：Nginx）的配置文件的描述。而这个代理服务对应的转发规则，就是 IngressRule。</p>
+<p>这就是为什么在每条 IngressRule 里，需要有一个 host 字段来作为这条 IngressRule 的入口，然后还需要有一系列 path 字段来声明具体的转发策略。这其实跟 Nginx、HAproxy 等项目的配置文件的写法是一致的。</p>
+<p>而有了 Ingress 这样一个统一的抽象，Kubernetes 的用户就无需关心 Ingress 的具体细节了。</p>
+<p>在实际的使用中，你只需要从社区里选择一个具体的 Ingress Controller，把它部署在 Kubernetes 集群里即可。</p>
+<p>然后，这个 Ingress Controller 会根据你定义的 Ingress 对象，提供对应的代理能力。目前，业界常用的各种反向代理项目，比如 Nginx、HAProxy、Envoy、Traefik 等，都已经为 Kubernetes 专门维护了对应的 Ingress Controller。</p>
+<p>接下来， <strong>我就以最常用的 Nginx Ingress Controller 为例，在我们前面用 kubeadm 部署的 Bare-metal 环境中，和你实践一下 Ingress 机制的使用过程。</strong></p>
+<p>部署 Nginx Ingress Controller 的方法非常简单，如下所示：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/master/deploy/mandatory.yaml<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>其中，在 <a target="_blank" rel="noopener" href="https://raw.githubusercontent.com/kubernetes/ingress-nginx/master/deploy/mandatory.yaml">mandatory.yaml</a> 这个文件里，正是 Nginx 官方为你维护的 Ingress Controller 的定义。我们来看一下它的内容：</p>
+<pre class="line-numbers language-yaml" data-language="yaml"><code class="language-yaml"><span class="token key atrule">kind</span><span class="token punctuation">:</span> ConfigMap
+<span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> v1
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> nginx<span class="token punctuation">-</span>configuration
+  <span class="token key atrule">namespace</span><span class="token punctuation">:</span> ingress<span class="token punctuation">-</span>nginx
+  <span class="token key atrule">labels</span><span class="token punctuation">:</span>
+    <span class="token key atrule">app.kubernetes.io/name</span><span class="token punctuation">:</span> ingress<span class="token punctuation">-</span>nginx
+    <span class="token key atrule">app.kubernetes.io/part-of</span><span class="token punctuation">:</span> ingress<span class="token punctuation">-</span>nginx
+<span class="token punctuation">---</span>
+<span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> extensions/v1beta1
+<span class="token key atrule">kind</span><span class="token punctuation">:</span> Deployment
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> nginx<span class="token punctuation">-</span>ingress<span class="token punctuation">-</span>controller
+  <span class="token key atrule">namespace</span><span class="token punctuation">:</span> ingress<span class="token punctuation">-</span>nginx
+  <span class="token key atrule">labels</span><span class="token punctuation">:</span>
+    <span class="token key atrule">app.kubernetes.io/name</span><span class="token punctuation">:</span> ingress<span class="token punctuation">-</span>nginx
+    <span class="token key atrule">app.kubernetes.io/part-of</span><span class="token punctuation">:</span> ingress<span class="token punctuation">-</span>nginx
+<span class="token key atrule">spec</span><span class="token punctuation">:</span>
+  <span class="token key atrule">replicas</span><span class="token punctuation">:</span> <span class="token number">1</span>
+  <span class="token key atrule">selector</span><span class="token punctuation">:</span>
+    <span class="token key atrule">matchLabels</span><span class="token punctuation">:</span>
+      <span class="token key atrule">app.kubernetes.io/name</span><span class="token punctuation">:</span> ingress<span class="token punctuation">-</span>nginx
+      <span class="token key atrule">app.kubernetes.io/part-of</span><span class="token punctuation">:</span> ingress<span class="token punctuation">-</span>nginx
+  <span class="token key atrule">template</span><span class="token punctuation">:</span>
+    <span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+      <span class="token key atrule">labels</span><span class="token punctuation">:</span>
+        <span class="token key atrule">app.kubernetes.io/name</span><span class="token punctuation">:</span> ingress<span class="token punctuation">-</span>nginx
+        <span class="token key atrule">app.kubernetes.io/part-of</span><span class="token punctuation">:</span> ingress<span class="token punctuation">-</span>nginx
+      <span class="token key atrule">annotations</span><span class="token punctuation">:</span>
+        <span class="token punctuation">...</span>
+    <span class="token key atrule">spec</span><span class="token punctuation">:</span>
+      <span class="token key atrule">serviceAccountName</span><span class="token punctuation">:</span> nginx<span class="token punctuation">-</span>ingress<span class="token punctuation">-</span>serviceaccount
+      <span class="token key atrule">containers</span><span class="token punctuation">:</span>
+        <span class="token punctuation">-</span> <span class="token key atrule">name</span><span class="token punctuation">:</span> nginx<span class="token punctuation">-</span>ingress<span class="token punctuation">-</span>controller
+          <span class="token key atrule">image</span><span class="token punctuation">:</span> quay.io/kubernetes<span class="token punctuation">-</span>ingress<span class="token punctuation">-</span>controller/nginx<span class="token punctuation">-</span>ingress<span class="token punctuation">-</span>controller<span class="token punctuation">:</span>0.20.0
+          <span class="token key atrule">args</span><span class="token punctuation">:</span>
+            <span class="token punctuation">-</span> /nginx<span class="token punctuation">-</span>ingress<span class="token punctuation">-</span>controller
+            <span class="token punctuation">-</span> <span class="token punctuation">-</span><span class="token punctuation">-</span>configmap=$(POD_NAMESPACE)/nginx<span class="token punctuation">-</span>configuration
+            <span class="token punctuation">-</span> <span class="token punctuation">-</span><span class="token punctuation">-</span>publish<span class="token punctuation">-</span>service=$(POD_NAMESPACE)/ingress<span class="token punctuation">-</span>nginx
+            <span class="token punctuation">-</span> <span class="token punctuation">-</span><span class="token punctuation">-</span>annotations<span class="token punctuation">-</span>prefix=nginx.ingress.kubernetes.io
+          <span class="token key atrule">securityContext</span><span class="token punctuation">:</span>
+            <span class="token key atrule">capabilities</span><span class="token punctuation">:</span>
+              <span class="token key atrule">drop</span><span class="token punctuation">:</span>
+                <span class="token punctuation">-</span> ALL
+              <span class="token key atrule">add</span><span class="token punctuation">:</span>
+                <span class="token punctuation">-</span> NET_BIND_SERVICE
+            <span class="token comment"># www-data -&gt; 33</span>
+            <span class="token key atrule">runAsUser</span><span class="token punctuation">:</span> <span class="token number">33</span>
+          <span class="token key atrule">env</span><span class="token punctuation">:</span>
+            <span class="token punctuation">-</span> <span class="token key atrule">name</span><span class="token punctuation">:</span> POD_NAME
+              <span class="token key atrule">valueFrom</span><span class="token punctuation">:</span>
+                <span class="token key atrule">fieldRef</span><span class="token punctuation">:</span>
+                  <span class="token key atrule">fieldPath</span><span class="token punctuation">:</span> metadata.name
+            <span class="token punctuation">-</span> <span class="token key atrule">name</span><span class="token punctuation">:</span> POD_NAMESPACE
+            <span class="token punctuation">-</span> <span class="token key atrule">name</span><span class="token punctuation">:</span> http
+              <span class="token key atrule">valueFrom</span><span class="token punctuation">:</span>
+                <span class="token key atrule">fieldRef</span><span class="token punctuation">:</span>
+                  <span class="token key atrule">fieldPath</span><span class="token punctuation">:</span> metadata.namespace
+          <span class="token key atrule">ports</span><span class="token punctuation">:</span>
+            <span class="token punctuation">-</span> <span class="token key atrule">name</span><span class="token punctuation">:</span> http
+              <span class="token key atrule">containerPort</span><span class="token punctuation">:</span> <span class="token number">80</span>
+            <span class="token punctuation">-</span> <span class="token key atrule">name</span><span class="token punctuation">:</span> https
+              <span class="token key atrule">containerPort</span><span class="token punctuation">:</span> <span class="token number">443</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>可以看到，在上述 YAML 文件中，我们定义了一个使用 nginx-ingress-controller 镜像的 Pod。需要注意的是，这个 Pod 的启动命令需要使用该 Pod 所在的 Namespace 作为参数。而这个信息，当然是通过 Downward API 拿到的，即：Pod 的 env 字段里的定义（env.valueFrom.fieldRef.fieldPath）。</p>
+<p>而这个 Pod 本身，就是一个监听 Ingress 对象以及它所代理的后端 Service 变化的控制器。</p>
+<p>当一个新的 Ingress 对象由用户创建后，nginx-ingress-controller 就会根据 Ingress 对象里定义的内容，生成一份对应的 Nginx 配置文件（/etc/nginx/nginx.conf），并使用这个配置文件启动一个 Nginx 服务。</p>
+<p>而一旦 Ingress 对象被更新，nginx-ingress-controller 就会更新这个配置文件。需要注意的是，如果这里只是被代理的 Service 对象被更新，nginx-ingress-controller 所管理的 Nginx 服务是不需要重新加载（reload）的。这当然是因为 nginx-ingress-controller 通过 <a target="_blank" rel="noopener" href="https://github.com/openresty/lua-nginx-module">Nginx Lua</a> 方案实现了 Nginx Upstream 的动态配置。</p>
+<p>此外，nginx-ingress-controller 还允许你通过 Kubernetes 的 ConfigMap 对象来对上述 Nginx 配置文件进行定制。这个 ConfigMap 的名字，需要以参数的方式传递给 nginx-ingress-controller。而你在这个 ConfigMap 里添加的字段，将会被合并到最后生成的 Nginx 配置文件当中。</p>
+<p><strong>可以看到，一个 Nginx Ingress Controller 为你提供的服务，其实是一个可以根据 Ingress 对象和被代理后端 Service 的变化，来自动进行更新的 Nginx 负载均衡器。</strong></p>
+<p>当然，为了让用户能够用到这个 Nginx，我们就需要创建一个 Service 来把 Nginx Ingress Controller 管理的 Nginx 服务暴露出去，如下所示：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/master/deploy/provider/baremetal/service-nodeport.yaml<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>由于我们使用的是 Bare-metal 环境，所以 service-nodeport.yaml 文件里的内容，就是一个 NodePort 类型的 Service，如下所示：</p>
+<pre class="line-numbers language-yaml" data-language="yaml"><code class="language-yaml"><span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> v1
+<span class="token key atrule">kind</span><span class="token punctuation">:</span> Service
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> ingress<span class="token punctuation">-</span>nginx
+  <span class="token key atrule">namespace</span><span class="token punctuation">:</span> ingress<span class="token punctuation">-</span>nginx
+  <span class="token key atrule">labels</span><span class="token punctuation">:</span>
+    <span class="token key atrule">app.kubernetes.io/name</span><span class="token punctuation">:</span> ingress<span class="token punctuation">-</span>nginx
+    <span class="token key atrule">app.kubernetes.io/part-of</span><span class="token punctuation">:</span> ingress<span class="token punctuation">-</span>nginx
+<span class="token key atrule">spec</span><span class="token punctuation">:</span>
+  <span class="token key atrule">type</span><span class="token punctuation">:</span> NodePort
+  <span class="token key atrule">ports</span><span class="token punctuation">:</span>
+    <span class="token punctuation">-</span> <span class="token key atrule">name</span><span class="token punctuation">:</span> http
+      <span class="token key atrule">port</span><span class="token punctuation">:</span> <span class="token number">80</span>
+      <span class="token key atrule">targetPort</span><span class="token punctuation">:</span> <span class="token number">80</span>
+      <span class="token key atrule">protocol</span><span class="token punctuation">:</span> TCP
+    <span class="token punctuation">-</span> <span class="token key atrule">name</span><span class="token punctuation">:</span> https
+      <span class="token key atrule">port</span><span class="token punctuation">:</span> <span class="token number">443</span>
+      <span class="token key atrule">targetPort</span><span class="token punctuation">:</span> <span class="token number">443</span>
+      <span class="token key atrule">protocol</span><span class="token punctuation">:</span> TCP
+  <span class="token key atrule">selector</span><span class="token punctuation">:</span>
+    <span class="token key atrule">app.kubernetes.io/name</span><span class="token punctuation">:</span> ingress<span class="token punctuation">-</span>nginx
+    <span class="token key atrule">app.kubernetes.io/part-of</span><span class="token punctuation">:</span> ingress<span class="token punctuation">-</span>nginx<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>可以看到，这个 Service 的唯一工作，就是将所有携带 ingress-nginx 标签的 Pod 的 80 和 433 端口暴露出去。</p>
+<blockquote>
+<p>而如果你是公有云上的环境，你需要创建的就是 LoadBalancer 类型的 Service 了。</p>
+</blockquote>
+<p>上述操作完成后，你一定要记录下这个 Service 的访问入口，即：宿主机的地址和 NodePort 的端口，如下所示：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ kubectl get svc -n ingress-nginx
+NAME            TYPE       CLUSTER-IP     EXTERNAL-IP   PORT<span class="token punctuation">(</span>S<span class="token punctuation">)</span>                      AGE
+ingress-nginx   NodePort   <span class="token number">10.105</span>.72.96   <span class="token operator">&lt;</span>none<span class="token operator">&gt;</span>        <span class="token number">80</span>:30044/TCP,443:31453/TCP   3h<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span></span></code></pre>
+<p>为了后面方便使用，我会把上述访问入口设置为环境变量：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token assign-left variable">IC_IP</span><span class="token operator">=</span><span class="token number">10.168</span>.0.2 <span class="token comment"># 任意一台宿主机的地址</span>
+<span class="token assign-left variable">IC_HTTPS_PORT</span><span class="token operator">=</span><span class="token number">31453</span> <span class="token comment"># NodePort 端口</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre>
+<p>在 Ingress Controller 和它所需要的 Service 部署完成后，我们就可以使用它了。</p>
+<blockquote>
+<p>备注：这个”咖啡厅”Ingress 的所有示例文件，都在 <a target="_blank" rel="noopener" href="https://github.com/resouer/kubernetes-ingress/tree/master/examples/complete-example">这里</a> 。</p>
+</blockquote>
+<p>首先，我们要在集群里部署我们的应用 Pod 和它们对应的 Service，如下所示：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">kubectl create -f cafe.yaml<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>然后，我们需要创建 Ingress 所需的 SSL 证书（tls.crt）和密钥（tls.key），这些信息都是通过 Secret 对象定义好的，如下所示：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">kubectl create -f cafe-secret.yaml<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>这一步完成后，我们就可以创建在本篇文章一开始定义的 Ingress 对象了，如下所示：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">kubectl create -f cafe-ingress.yaml<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>这时候，我们就可以查看一下这个 Ingress 对象的信息，如下所示：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ kubectl get ingress
+NAME           HOSTS              ADDRESS   PORTS     AGE
+cafe-ingress   cafe.example.com             <span class="token number">80</span>, <span class="token number">443</span>   2h
+
+$ kubectl describe ingress cafe-ingress
+Name:             cafe-ingress
+Namespace:        default
+Address:
+Default backend:  default-http-backend:80 <span class="token punctuation">(</span><span class="token operator">&lt;</span>none<span class="token operator">&gt;</span><span class="token punctuation">)</span>
+TLS:
+  cafe-secret terminates cafe.example.com
+Rules:
+  Host              Path  Backends
+  ----              ----  --------
+  cafe.example.com
+                    /tea      tea-svc:80 <span class="token punctuation">(</span><span class="token operator">&lt;</span>none<span class="token operator">&gt;</span><span class="token punctuation">)</span>
+                    /coffee   coffee-svc:80 <span class="token punctuation">(</span><span class="token operator">&lt;</span>none<span class="token operator">&gt;</span><span class="token punctuation">)</span>
+Annotations:
+Events:
+  Type    Reason  Age   From                      Message
+  ----    ------  ----  ----                      -------
+  Normal  CREATE  4m    nginx-ingress-controller  Ingress default/cafe-ingress<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>可以看到，这个 Ingress 对象最核心的部分，正是 Rules 字段。其中，我们定义的 Host 是cafe.example.com，它有两条转发规则（Path），分别转发给 tea-svc 和 coffee-svc。</p>
+<blockquote>
+<p>当然，在 Ingress 的 YAML 文件里，你还可以定义多个 Host，比如restaurant.example.com、movie.example.com等等，来为更多的域名提供负载均衡服务。</p>
+</blockquote>
+<p>接下来，我们就可以通过访问这个 Ingress 的地址和端口，访问到我们前面部署的应用了，比如，当我们访问 <a target="_blank" rel="noopener" href="https://cafe.example.com:443/coffee">https://cafe.example.com:443/coffee</a> 时，应该是 coffee 这个 Deployment 负责响应我的请求。我们可以来尝试一下：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ <span class="token function">curl</span> --resolve cafe.example.com:<span class="token variable">$IC_HTTPS_PORT</span><span class="token builtin class-name">:</span><span class="token variable">$IC_IP</span> https://cafe.example.com:<span class="token variable">$IC_HTTPS_PORT</span>/coffee --insecureServer address: <span class="token number">10.244</span>.1.56:80
+Server name: coffee-7dbb5795f6-vglbv
+Date: 03/Nov/2018:03:55:32 +0000
+URI: /coffee
+Request ID: e487e672673195c573147134167cf898<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>我们可以看到，访问这个 URL 得到的返回信息是：Server name: coffee-7dbb5795f6-vglbv。这正是 coffee 这个 Deployment 的名字。</p>
+<p>而当我访问 <a target="_blank" rel="noopener" href="https://cafe.example.com:433/tea">https://cafe.example.com:433/tea</a> 的时候，则应该是 tea 这个 Deployment 负责响应我的请求（Server name: tea-7d57856c44-lwbnp），如下所示：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ <span class="token function">curl</span> --resolve cafe.example.com:<span class="token variable">$IC_HTTPS_PORT</span><span class="token builtin class-name">:</span><span class="token variable">$IC_IP</span> https://cafe.example.com:<span class="token variable">$IC_HTTPS_PORT</span>/tea --insecure
+Server address: <span class="token number">10.244</span>.1.58:80
+Server name: tea-7d57856c44-lwbnp
+Date: 03/Nov/2018:03:55:52 +0000
+URI: /tea
+Request ID: 32191f7ea07cb6bb44a1f43b8299415c<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>可以看到，Nginx Ingress Controller 为我们创建的 Nginx 负载均衡器，已经成功地将请求转发给了对应的后端 Service。</p>
+<p>以上，就是 Kubernetes 里 Ingress 的设计思想和使用方法了。</p>
+<p>不过，你可能会有一个疑问， <strong>如果我的请求没有匹配到任何一条 IngressRule，那么会发生什么呢？</strong></p>
+<p>首先，既然 Nginx Ingress Controller 是用 Nginx 实现的，那么它当然会为你返回一个 Nginx 的 404 页面。</p>
+<p>不过，Ingress Controller 也允许你通过 Pod 启动命令里的-default-backend-service 参数，设置一条默认规则，比如：-default-backend-service=nginx-default-backend。</p>
+<p>这样，任何匹配失败的请求，就都会被转发到这个名叫 nginx-default-backend 的 Service。所以，你就可以通过部署一个专门的 Pod，来为用户返回自定义的 404 页面了。</p>
+<h4 id="39-1-总结"><a href="#39-1-总结" class="headerlink" title="39.1 总结"></a>39.1 总结</h4><p>在这篇文章里，我为你详细讲解了 Ingress 这个概念在 Kubernetes 里到底是怎么一回事儿。正如我在文章里所描述的，Ingress 实际上就是 Kubernetes 对”反向代理”的抽象。</p>
+<p>目前，Ingress 只能工作在七层，而 Service 只能工作在四层。所以当你想要在 Kubernetes 里为应用进行 TLS 配置等 HTTP 相关的操作时，都必须通过 Ingress 来进行。</p>
+<p>当然，正如同很多负载均衡项目可以同时提供七层和四层代理一样，将来 Ingress 的进化中，也会加入四层代理的能力。这样，一个比较完善的”反向代理”机制就比较成熟了。</p>
+<p>而 Kubernetes 提出 Ingress 概念的原因其实也非常容易理解，有了 Ingress 这个抽象，用户就可以根据自己的需求来自由选择 Ingress Controller。比如，如果你的应用对代理服务的中断非常敏感，那么你就应该考虑选择类似于 Traefik 这样支持”热加载”的 Ingress Controller 实现。</p>
+<p>更重要的是，一旦你对社区里现有的 Ingress 方案感到不满意，或者你已经有了自己的负载均衡方案时，你只需要做很少的编程工作，就可以实现一个自己的 Ingress Controller。</p>
 <h2 id="Kubernetes作业调度与资源管理"><a href="#Kubernetes作业调度与资源管理" class="headerlink" title="Kubernetes作业调度与资源管理"></a>Kubernetes作业调度与资源管理</h2><h2 id="Kubernetes容器运行时"><a href="#Kubernetes容器运行时" class="headerlink" title="Kubernetes容器运行时"></a>Kubernetes容器运行时</h2><h2 id="Kubernetes容器监控与日志"><a href="#Kubernetes容器监控与日志" class="headerlink" title="Kubernetes容器监控与日志"></a>Kubernetes容器监控与日志</h2><h2 id="再谈开源与社区"><a href="#再谈开源与社区" class="headerlink" title="再谈开源与社区"></a>再谈开源与社区</h2><h2 id="答疑文章"><a href="#答疑文章" class="headerlink" title="答疑文章"></a>答疑文章</h2>
                 
             </div>
@@ -7399,7 +7914,7 @@ iptables -A KUBE-POD-SPECIFIC-FW-CHAIN -j REJECT --reject-with icmp-port-unreach
             <br>
             
             &nbsp;<i class="fas fa-chart-area"></i>&nbsp;站点总字数:&nbsp;<span
-                class="white-color">1187.4k</span>&nbsp;字
+                class="white-color">1196.7k</span>&nbsp;字
             
             
             
