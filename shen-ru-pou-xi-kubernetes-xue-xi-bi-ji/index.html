@@ -453,21 +453,21 @@
                 
                 <div class="post-date info-break-policy">
                     <i class="far fa-calendar-check fa-fw"></i>更新日期:&nbsp;&nbsp;
-                    2022-08-11
+                    2022-08-12
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-file-word fa-fw"></i>文章字数:&nbsp;&nbsp;
-                    149.5k
+                    163.5k
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-clock fa-fw"></i>阅读时长:&nbsp;&nbsp;
-                    577 分
+                    629 分
                 </div>
                 
 
@@ -7509,7 +7509,501 @@ Request ID: 32191f7ea07cb6bb44a1f43b8299415c<span aria-hidden="true" class="line
 <p>当然，正如同很多负载均衡项目可以同时提供七层和四层代理一样，将来 Ingress 的进化中，也会加入四层代理的能力。这样，一个比较完善的”反向代理”机制就比较成熟了。</p>
 <p>而 Kubernetes 提出 Ingress 概念的原因其实也非常容易理解，有了 Ingress 这个抽象，用户就可以根据自己的需求来自由选择 Ingress Controller。比如，如果你的应用对代理服务的中断非常敏感，那么你就应该考虑选择类似于 Traefik 这样支持”热加载”的 Ingress Controller 实现。</p>
 <p>更重要的是，一旦你对社区里现有的 Ingress 方案感到不满意，或者你已经有了自己的负载均衡方案时，你只需要做很少的编程工作，就可以实现一个自己的 Ingress Controller。</p>
-<h2 id="Kubernetes作业调度与资源管理"><a href="#Kubernetes作业调度与资源管理" class="headerlink" title="Kubernetes作业调度与资源管理"></a>Kubernetes作业调度与资源管理</h2><h2 id="Kubernetes容器运行时"><a href="#Kubernetes容器运行时" class="headerlink" title="Kubernetes容器运行时"></a>Kubernetes容器运行时</h2><h2 id="Kubernetes容器监控与日志"><a href="#Kubernetes容器监控与日志" class="headerlink" title="Kubernetes容器监控与日志"></a>Kubernetes容器监控与日志</h2><h2 id="再谈开源与社区"><a href="#再谈开源与社区" class="headerlink" title="再谈开源与社区"></a>再谈开源与社区</h2><h2 id="答疑文章"><a href="#答疑文章" class="headerlink" title="答疑文章"></a>答疑文章</h2>
+<h2 id="Kubernetes作业调度与资源管理"><a href="#Kubernetes作业调度与资源管理" class="headerlink" title="Kubernetes作业调度与资源管理"></a>Kubernetes作业调度与资源管理</h2><h3 id="40-Kubernetes的资源模型与资源管理"><a href="#40-Kubernetes的资源模型与资源管理" class="headerlink" title="40 | Kubernetes的资源模型与资源管理"></a>40 | Kubernetes的资源模型与资源管理</h3><p>作为一个容器集群编排与管理项目，Kubernetes 为用户提供的基础设施能力，不仅包括了我在前面为你讲述的应用定义和描述的部分，还包括了对应用的资源管理和调度的处理。那么，从今天这篇文章开始，我就来为你详细讲解一下后面这部分内容。</p>
+<p><strong>而作为 Kubernetes 的资源管理与调度部分的基础，我们要从它的资源模型开始说起。</strong></p>
+<p>我在前面的文章中已经提到过，在 Kubernetes 里，Pod 是最小的原子调度单位。这也就意味着，所有跟调度和资源管理相关的属性都应该是属于 Pod 对象的字段。而这其中最重要的部分，就是 Pod 的 CPU 和内存配置，如下所示：</p>
+<pre class="line-numbers language-yaml" data-language="yaml"><code class="language-yaml"><span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> v1
+<span class="token key atrule">kind</span><span class="token punctuation">:</span> Pod
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> frontend
+<span class="token key atrule">spec</span><span class="token punctuation">:</span>
+  <span class="token key atrule">containers</span><span class="token punctuation">:</span>
+  <span class="token punctuation">-</span> <span class="token key atrule">name</span><span class="token punctuation">:</span> db
+    <span class="token key atrule">image</span><span class="token punctuation">:</span> mysql
+    <span class="token key atrule">env</span><span class="token punctuation">:</span>
+    <span class="token punctuation">-</span> <span class="token key atrule">name</span><span class="token punctuation">:</span> MYSQL_ROOT_PASSWORD
+      <span class="token key atrule">value</span><span class="token punctuation">:</span> <span class="token string">"password"</span>
+    <span class="token key atrule">resources</span><span class="token punctuation">:</span>
+      <span class="token key atrule">requests</span><span class="token punctuation">:</span>
+        <span class="token key atrule">memory</span><span class="token punctuation">:</span> <span class="token string">"64Mi"</span>
+        <span class="token key atrule">cpu</span><span class="token punctuation">:</span> <span class="token string">"250m"</span>
+      <span class="token key atrule">limits</span><span class="token punctuation">:</span>
+        <span class="token key atrule">memory</span><span class="token punctuation">:</span> <span class="token string">"128Mi"</span>
+        <span class="token key atrule">cpu</span><span class="token punctuation">:</span> <span class="token string">"500m"</span>
+  <span class="token punctuation">-</span> <span class="token key atrule">name</span><span class="token punctuation">:</span> wp
+    <span class="token key atrule">image</span><span class="token punctuation">:</span> wordpress
+    <span class="token key atrule">resources</span><span class="token punctuation">:</span>
+      <span class="token key atrule">requests</span><span class="token punctuation">:</span>
+        <span class="token key atrule">memory</span><span class="token punctuation">:</span> <span class="token string">"64Mi"</span>
+        <span class="token key atrule">cpu</span><span class="token punctuation">:</span> <span class="token string">"250m"</span>
+      <span class="token key atrule">limits</span><span class="token punctuation">:</span>
+        <span class="token key atrule">memory</span><span class="token punctuation">:</span> <span class="token string">"128Mi"</span>
+        <span class="token key atrule">cpu</span><span class="token punctuation">:</span> <span class="token string">"500m"</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<blockquote>
+<p>备注：关于哪些属性属于 Pod 对象，而哪些属性属于 Container，你可以在回顾一下第 14 篇文章 <a target="_blank" rel="noopener" href="https://time.geekbang.org/column/article/40366">《深入解析 Pod 对象（一）：基本概念》</a> 中的相关内容。</p>
+</blockquote>
+<p>在 Kubernetes 中，像 CPU 这样的资源被称作”可压缩资源”（compressible resources）。它的典型特点是，当可压缩资源不足时，Pod 只会”饥饿”，但不会退出。</p>
+<p>而像内存这样的资源，则被称作”不可压缩资源（incompressible resources）。当不可压缩资源不足时，Pod 就会因为 OOM（Out-Of-Memory）被内核杀掉。</p>
+<p>而由于 Pod 可以由多个 Container 组成，所以 CPU 和内存资源的限额，是要配置在每个 Container 的定义上的。这样，Pod 整体的资源配置，就由这些 Container 的配置值累加得到。</p>
+<p>其中，Kubernetes 里为 CPU 设置的单位是”CPU 的个数”。比如，cpu=1 指的就是，这个 Pod 的 CPU 限额是 1 个 CPU。当然，具体”1 个 CPU”在宿主机上如何解释，是 1 个 CPU 核心，还是 1 个 vCPU，还是 1 个 CPU 的超线程（Hyperthread），完全取决于宿主机的 CPU 实现方式。Kubernetes 只负责保证 Pod 能够使用到”1 个 CPU”的计算能力。</p>
+<p>此外，Kubernetes 允许你将 CPU 限额设置为分数，比如在我们的例子里，CPU limits 的值就是 500m。所谓 500m，指的就是 500 millicpu，也就是 0.5 个 CPU 的意思。这样，这个 Pod 就会被分配到 1 个 CPU 一半的计算能力。</p>
+<p>当然， <strong>你也可以直接把这个配置写成 cpu=0.5。但在实际使用时，我还是推荐你使用 500m 的写法，毕竟这才是 Kubernetes 内部通用的 CPU 表示方式。</strong></p>
+<p>而对于内存资源来说，它的单位自然就是 bytes。Kubernetes 支持你使用 Ei、Pi、Ti、Gi、Mi、Ki（或者 E、P、T、G、M、K）的方式来作为 bytes 的值。比如，在我们的例子里，Memory requests 的值就是 64MiB (2 的 26 次方 bytes) 。这里要注意区分 MiB（mebibyte）和 MB（megabyte）的区别。</p>
+<blockquote>
+<p>备注：1Mi=1024<em>1024；1M=1000</em>1000</p>
+</blockquote>
+<p>此外，不难看到， <strong>Kubernetes 里 Pod 的 CPU 和内存资源，实际上还要分为 limits 和 requests 两种情况</strong> ，如下所示：</p>
+<pre class="line-numbers language-txt" data-language="txt"><code class="language-txt">spec.containers[].resources.limits.cpu
+spec.containers[].resources.limits.memory
+spec.containers[].resources.requests.cpu
+spec.containers[].resources.requests.memory<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span></span></code></pre>
+<p>这两者的区别其实非常简单：在调度的时候，kube-scheduler 只会按照 requests 的值进行计算。而在真正设置 Cgroups 限制的时候，kubelet 则会按照 limits 的值来进行设置。</p>
+<p>更确切地说，当你指定了 requests.cpu=250m 之后，相当于将 Cgroups 的 cpu.shares 的值设置为 (250/1000)*1024。而当你没有设置 requests.cpu 的时候，cpu.shares 默认则是 1024。这样，Kubernetes 就通过 cpu.shares 完成了对 CPU 时间的按比例分配。</p>
+<p>而如果你指定了 limits.cpu=500m 之后，则相当于将 Cgroups 的 cpu.cfs_quota_us 的值设置为 (500/1000)*100ms，而 cpu.cfs_period_us 的值始终是 100ms。这样，Kubernetes 就为你设置了这个容器只能用到 CPU 的 50%。</p>
+<p>而对于内存来说，当你指定了 limits.memory=128Mi 之后，相当于将 Cgroups 的 memory.limit_in_bytes 设置为 <code>128 * 1024 * 1024</code> 。而需要注意的是，在调度的时候，调度器只会使用 requests.memory=64Mi 来进行判断。</p>
+<p><strong>Kubernetes 这种对 CPU 和内存资源限额的设计，实际上参考了 Borg 论文中对”动态资源边界”的定义</strong> ，既：容器化作业在提交时所设置的资源边界，并不一定是调度系统所必须严格遵守的，这是因为在实际场景中，大多数作业使用到的资源其实远小于它所请求的资源限额。</p>
+<p>基于这种假设，Borg 在作业被提交后，会主动减小它的资源限额配置，以便容纳更多的作业、提升资源利用率。而当作业资源使用量增加到一定阈值时，Borg 会通过”快速恢复”过程，还原作业原始的资源限额，防止出现异常情况。</p>
+<p>而 Kubernetes 的 requests+limits 的做法，其实就是上述思路的一个简化版：用户在提交 Pod 时，可以声明一个相对较小的 requests 值供调度器使用，而 Kubernetes 真正设置给容器 Cgroups 的，则是相对较大的 limits 值。不难看到，这跟 Borg 的思路相通的。</p>
+<p><strong>在理解了 Kubernetes 资源模型的设计之后，我再来和你谈谈 Kubernetes 里的 QoS 模型。</strong> 在 Kubernetes 中，不同的 requests 和 limits 的设置方式，其实会将这个 Pod 划分到不同的 QoS 级别当中。</p>
+<p><strong>当 Pod 里的每一个 Container 都同时设置了 requests 和 limits，并且 requests 和 limits 值相等的时候，这个 Pod 就属于 Guaranteed 类别</strong> ，如下所示：</p>
+<pre class="line-numbers language-yaml" data-language="yaml"><code class="language-yaml"><span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> v1
+<span class="token key atrule">kind</span><span class="token punctuation">:</span> Pod
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> qos<span class="token punctuation">-</span>demo
+  <span class="token key atrule">namespace</span><span class="token punctuation">:</span> qos<span class="token punctuation">-</span>example
+<span class="token key atrule">spec</span><span class="token punctuation">:</span>
+  <span class="token key atrule">containers</span><span class="token punctuation">:</span>
+  <span class="token punctuation">-</span> <span class="token key atrule">name</span><span class="token punctuation">:</span> qos<span class="token punctuation">-</span>demo<span class="token punctuation">-</span>ctr
+    <span class="token key atrule">image</span><span class="token punctuation">:</span> nginx
+    <span class="token key atrule">resources</span><span class="token punctuation">:</span>
+      <span class="token key atrule">limits</span><span class="token punctuation">:</span>
+        <span class="token key atrule">memory</span><span class="token punctuation">:</span> <span class="token string">"200Mi"</span>
+        <span class="token key atrule">cpu</span><span class="token punctuation">:</span> <span class="token string">"700m"</span>
+      <span class="token key atrule">requests</span><span class="token punctuation">:</span>
+        <span class="token key atrule">memory</span><span class="token punctuation">:</span> <span class="token string">"200Mi"</span>
+        <span class="token key atrule">cpu</span><span class="token punctuation">:</span> <span class="token string">"700m"</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>当这个 Pod 创建之后，它的 qosClass 字段就会被 Kubernetes 自动设置为 Guaranteed。 <strong>需要注意的是，当 Pod 仅设置了 limits 没有设置 requests 的时候，Kubernetes 会自动为它设置与 limits 相同的 requests 值，所以，这也属于 Guaranteed 情况。</strong></p>
+<p><strong>而当 Pod 不满足 Guaranteed 的条件，但至少有一个 Container 设置了 requests。那么这个 Pod 就会被划分到 Burstable 类别。</strong> 比如下面这个例子：</p>
+<pre class="line-numbers language-yaml" data-language="yaml"><code class="language-yaml"><span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> v1
+<span class="token key atrule">kind</span><span class="token punctuation">:</span> Pod
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> qos<span class="token punctuation">-</span>demo<span class="token punctuation">-</span><span class="token number">2</span>
+  <span class="token key atrule">namespace</span><span class="token punctuation">:</span> qos<span class="token punctuation">-</span>example
+<span class="token key atrule">spec</span><span class="token punctuation">:</span>
+  <span class="token key atrule">containers</span><span class="token punctuation">:</span>
+  <span class="token punctuation">-</span> <span class="token key atrule">name</span><span class="token punctuation">:</span> qos<span class="token punctuation">-</span>demo<span class="token punctuation">-</span>2<span class="token punctuation">-</span>ctr
+    <span class="token key atrule">image</span><span class="token punctuation">:</span> nginx
+    <span class="token key atrule">resources</span><span class="token punctuation">:</span>
+      limits
+        <span class="token key atrule">memory</span><span class="token punctuation">:</span> <span class="token string">"200Mi"</span>
+      <span class="token key atrule">requests</span><span class="token punctuation">:</span>
+        <span class="token key atrule">memory</span><span class="token punctuation">:</span> <span class="token string">"100Mi"</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p><strong>而如果一个 Pod 既没有设置 requests，也没有设置 limits，那么它的 QoS 类别就是 BestEffort。</strong> 比如下面这个例子：</p>
+<pre class="line-numbers language-yaml" data-language="yaml"><code class="language-yaml"><span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> v1
+<span class="token key atrule">kind</span><span class="token punctuation">:</span> Pod
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> qos<span class="token punctuation">-</span>demo<span class="token punctuation">-</span><span class="token number">3</span>
+  <span class="token key atrule">namespace</span><span class="token punctuation">:</span> qos<span class="token punctuation">-</span>example
+<span class="token key atrule">spec</span><span class="token punctuation">:</span>
+  <span class="token key atrule">containers</span><span class="token punctuation">:</span>
+  <span class="token punctuation">-</span> <span class="token key atrule">name</span><span class="token punctuation">:</span> qos<span class="token punctuation">-</span>demo<span class="token punctuation">-</span>3<span class="token punctuation">-</span>ctr
+    <span class="token key atrule">image</span><span class="token punctuation">:</span> nginx<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>那么，Kubernetes 为 Pod 设置这样三种 QoS 类别，具体有什么作用呢？</p>
+<p>实际上， <strong>QoS 划分的主要应用场景，是当宿主机资源紧张的时候，kubelet 对 Pod 进行 Eviction（即资源回收）时需要用到的。</strong></p>
+<p>具体地说，当 Kubernetes 所管理的宿主机上不可压缩资源短缺时，就有可能触发 Eviction。比如，可用内存（memory.available）、可用的宿主机磁盘空间（nodefs.available），以及容器运行时镜像存储空间（imagefs.available）等等。</p>
+<p>目前，Kubernetes 为你设置的 Eviction 的默认阈值如下所示：</p>
+<pre class="line-numbers language-txt" data-language="txt"><code class="language-txt">memory.available&lt;100Mi
+nodefs.available&lt;10%
+nodefs.inodesFree&lt;5%
+imagefs.available&lt;15%<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span></span></code></pre>
+<p>当然，上述各个触发条件在 kubelet 里都是可配置的。比如下面这个例子：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">kubelet --eviction-hard<span class="token operator">=</span>imagefs.available<span class="token operator">&lt;</span><span class="token number">10</span>%,memory.available<span class="token operator">&lt;</span>500Mi,nodefs.available<span class="token operator">&lt;</span><span class="token number">5</span>%,nodefs.inodesFree<span class="token operator">&lt;</span><span class="token number">5</span>% --eviction-soft<span class="token operator">=</span>imagefs.available<span class="token operator">&lt;</span><span class="token number">30</span>%,nodefs.available<span class="token operator">&lt;</span><span class="token number">10</span>% --eviction-soft-grace-period<span class="token operator">=</span>imagefs.available<span class="token operator">=</span>2m,nodefs.available<span class="token operator">=</span>2m --eviction-max-pod-grace-period<span class="token operator">=</span><span class="token number">600</span><span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>在这个配置中，你可以看到 <strong>Eviction 在 Kubernetes 里其实分为 Soft 和 Hard 两种模式。</strong></p>
+<p>其中，Soft Eviction 允许你为 Eviction 过程设置一段”优雅时间”，比如上面例子里的 imagefs.available=2m，就意味着当 imagefs 不足的阈值达到 2 分钟之后，kubelet 才会开始 Eviction 的过程。</p>
+<p>而 Hard Eviction 模式下，Eviction 过程就会在阈值达到之后立刻开始。</p>
+<blockquote>
+<p>Kubernetes 计算 Eviction 阈值的数据来源，主要依赖于从 Cgroups 读取到的值，以及使用 cAdvisor 监控到的数据。</p>
+</blockquote>
+<p>当宿主机的 Eviction 阈值达到后，就会进入 MemoryPressure 或者 DiskPressure 状态，从而避免新的 Pod 被调度到这台宿主机上。</p>
+<p>而当 Eviction 发生的时候，kubelet 具体会挑选哪些 Pod 进行删除操作，就需要参考这些 Pod 的 QoS 类别了。</p>
+<ul>
+<li>首当其冲的，自然是 BestEffort 类别的 Pod。</li>
+<li>其次，是属于 Burstable 类别、并且发生”饥饿”的资源使用量已经超出了 requests 的 Pod。</li>
+<li>最后，才是 Guaranteed 类别。并且，Kubernetes 会保证只有当 Guaranteed 类别的 Pod 的资源使用量超过了其 limits 的限制，或者宿主机本身正处于 Memory Pressure 状态时，Guaranteed 的 Pod 才可能被选中进行 Eviction 操作。</li>
+</ul>
+<p>当然，对于同 QoS 类别的 Pod 来说，Kubernetes 还会根据 Pod 的优先级来进行进一步地排序和选择。</p>
+<p>在理解了 Kubernetes 里的 QoS 类别的设计之后，我再来为你讲解一下 <strong>Kubernetes 里一个非常有用的特性：cpuset 的设置。</strong></p>
+<p>我们知道，在使用容器的时候，你可以通过设置 cpuset 把容器绑定到某个 CPU 的核上，而不是像 cpushare 那样共享 CPU 的计算能力。</p>
+<p>这种情况下，由于操作系统在 CPU 之间进行上下文切换的次数大大减少，容器里应用的性能会得到大幅提升。事实上， <strong>cpuset 方式，是生产环境里部署在线应用类型的 Pod 时，非常常用的一种方式。</strong></p>
+<p>可是，这样的需求在 Kubernetes 里又该如何实现呢？</p>
+<p>其实非常简单。</p>
+<ul>
+<li>首先，你的 Pod 必须是 Guaranteed 的 QoS 类型；</li>
+<li>然后，你只需要将 Pod 的 CPU 资源的 requests 和 limits 设置为同一个相等的整数值即可。</li>
+</ul>
+<p>比如下面这个例子：</p>
+<pre class="line-numbers language-yaml" data-language="yaml"><code class="language-yaml"><span class="token key atrule">spec</span><span class="token punctuation">:</span>
+  <span class="token key atrule">containers</span><span class="token punctuation">:</span>
+  <span class="token punctuation">-</span> <span class="token key atrule">name</span><span class="token punctuation">:</span> nginx
+    <span class="token key atrule">image</span><span class="token punctuation">:</span> nginx
+    <span class="token key atrule">resources</span><span class="token punctuation">:</span>
+      <span class="token key atrule">limits</span><span class="token punctuation">:</span>
+        <span class="token key atrule">memory</span><span class="token punctuation">:</span> <span class="token string">"200Mi"</span>
+        <span class="token key atrule">cpu</span><span class="token punctuation">:</span> <span class="token string">"2"</span>
+      <span class="token key atrule">requests</span><span class="token punctuation">:</span>
+        <span class="token key atrule">memory</span><span class="token punctuation">:</span> <span class="token string">"200Mi"</span>
+        <span class="token key atrule">cpu</span><span class="token punctuation">:</span> <span class="token string">"2"</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>这时候，该 Pod 就会被绑定在 2 个独占的 CPU 核上。当然，具体是哪两个 CPU 核，是由 kubelet 为你分配的。</p>
+<p>以上，就是 Kubernetes 的资源模型和 QoS 类别相关的主要内容。</p>
+<h4 id="40-1-总结"><a href="#40-1-总结" class="headerlink" title="40.1 总结"></a>40.1 总结</h4><p>在实际的使用中，我强烈建议你将 DaemonSet 的 Pod 都设置为 Guaranteed 的 QoS 类型。否则，一旦 DaemonSet 的 Pod 被回收，它又会立即在原宿主机上被重建出来，这就使得前面资源回收的动作，完全没有意义了。</p>
+<h3 id="41-十字路口上的Kubernetes默认调度器"><a href="#41-十字路口上的Kubernetes默认调度器" class="headerlink" title="41 | 十字路口上的Kubernetes默认调度器"></a>41 | 十字路口上的Kubernetes默认调度器</h3><p><strong>在 Kubernetes 项目中，默认调度器的主要职责，就是为一个新创建出来的 Pod，寻找一个最合适的节点（Node）。</strong></p>
+<p>而这里”最合适”的含义，包括两层：</p>
+<ol>
+<li>从集群所有的节点中，根据调度算法挑选出所有可以运行该 Pod 的节点；</li>
+<li>从第一步的结果中，再根据调度算法挑选一个最符合条件的节点作为最终结果。</li>
+</ol>
+<p>所以在具体的调度流程中，默认调度器会首先调用一组叫作 Predicate 的调度算法，来检查每个 Node。然后，再调用一组叫作 Priority 的调度算法，来给上一步得到的结果里的每个 Node 打分。最终的调度结果，就是得分最高的那个 Node。</p>
+<p>而我在前面的文章中曾经介绍过，调度器对一个 Pod 调度成功，实际上就是将它的 spec.nodeName 字段填上调度结果的节点名字。</p>
+<blockquote>
+<p>备注：这里你可以再回顾下第 14 篇文章 <a target="_blank" rel="noopener" href="https://time.geekbang.org/column/article/40366">《深入解析 Pod 对象（一）：基本概念》</a> 中的相关内容。</p>
+</blockquote>
+<p>在 Kubernetes 中，上述调度机制的工作原理，可以用如下所示的一幅示意图来表示。</p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《深入剖析Kubernetes》学习笔记/kubernetes中默认调度器的调度机制.png" alt="kubernetes中默认调度器的调度机制"></p>
+<p>可以看到，<strong>Kubernetes 的调度器的核心，实际上就是两个相互独立的控制循环。</strong></p>
+<p>其中， <strong>第一个控制循环，我们可以称之为 Informer Path</strong> 。它的主要目的，是启动一系列 Informer，用来监听（Watch）Etcd 中 Pod、Node、Service 等与调度相关的 API 对象的变化。比如，当一个待调度 Pod（即：它的 nodeName 字段是空的）被创建出来之后，调度器就会通过 Pod Informer 的 Handler，将这个待调度 Pod 添加进调度队列。</p>
+<p>在默认情况下，Kubernetes 的调度队列是一个 PriorityQueue（优先级队列），并且当某些集群信息发生变化的时候，调度器还会对调度队列里的内容进行一些特殊操作。这里的设计，主要是出于调度优先级和抢占的考虑，我会在后面的文章中再详细介绍这部分内容。</p>
+<p>此外，Kubernetes 的默认调度器还要负责对调度器缓存（即：scheduler cache）进行更新。事实上，Kubernetes 调度部分进行性能优化的一个最根本原则，就是尽最大可能将集群信息 Cache 化，以便从根本上提高 Predicate 和 Priority 调度算法的执行效率。</p>
+<p>而 <strong>第二个控制循环，是调度器负责 Pod 调度的主循环，我们可以称之为 Scheduling Path。</strong></p>
+<p>Scheduling Path 的主要逻辑，就是不断地从调度队列里出队一个 Pod。然后，调用 Predicates 算法进行”过滤”。这一步”过滤”得到的一组 Node，就是所有可以运行这个 Pod 的宿主机列表。当然，Predicates 算法需要的 Node 信息，都是从 Scheduler Cache 里直接拿到的，这是调度器保证算法执行效率的主要手段之一。</p>
+<p>接下来，调度器就会再调用 Priorities 算法为上述列表里的 Node 打分，分数从 0 到 10。得分最高的 Node，就会作为这次调度的结果。</p>
+<p>调度算法执行完成后，调度器就需要将 Pod 对象的 nodeName 字段的值，修改为上述 Node 的名字。 <strong>这个步骤在 Kubernetes 里面被称作 Bind。</strong></p>
+<p>但是，为了不在关键调度路径里远程访问 APIServer，Kubernetes 的默认调度器在 Bind 阶段，只会更新 Scheduler Cache 里的 Pod 和 Node 的信息。 <strong>这种基于”乐观”假设的 API 对象更新方式，在 Kubernetes 里被称作 Assume。</strong></p>
+<p>Assume 之后，调度器才会创建一个 Goroutine 来异步地向 APIServer 发起更新 Pod 的请求，来真正完成 Bind 操作。如果这次异步的 Bind 过程失败了，其实也没有太大关系，等 Scheduler Cache 同步之后一切就会恢复正常。</p>
+<p>当然，正是由于上述 Kubernetes 调度器的”乐观”绑定的设计，当一个新的 Pod 完成调度需要在某个节点上运行起来之前，该节点上的 kubelet 还会通过一个叫作 Admit 的操作来再次验证该 Pod 是否确实能够运行在该节点上。这一步 Admit 操作，实际上就是把一组叫作 GeneralPredicates 的、最基本的调度算法，比如：”资源是否可用””端口是否冲突”等再执行一遍，作为 kubelet 端的二次确认。</p>
+<blockquote>
+<p>备注：关于 Kubernetes 默认调度器的调度算法，我会在下一篇文章里为你讲解。</p>
+</blockquote>
+<p><strong>除了上述的”Cache 化”和”乐观绑定”，Kubernetes 默认调度器还有一个重要的设计，那就是”无锁化”。</strong></p>
+<p>在 Scheduling Path 上，调度器会启动多个 Goroutine 以节点为粒度并发执行 Predicates 算法，从而提高这一阶段的执行效率。而与之类似的，Priorities 算法也会以 MapReduce 的方式并行计算然后再进行汇总。而在这些所有需要并发的路径上，调度器会避免设置任何全局的竞争资源，从而免去了使用锁进行同步带来的巨大的性能损耗。</p>
+<p>所以，在这种思想的指导下，如果你再去查看一下前面的调度器原理图，你就会发现，Kubernetes 调度器只有对调度队列和 Scheduler Cache 进行操作时，才需要加锁。而这两部分操作，都不在 Scheduling Path 的算法执行路径上。</p>
+<p>当然，Kubernetes 调度器的上述设计思想，也是在集群规模不断增长的演进过程中逐步实现的。尤其是  <strong>“Cache 化”，这个变化其实是最近几年 Kubernetes 调度器性能得以提升的一个关键演化。</strong></p>
+<p>不过，随着 Kubernetes 项目发展到今天，它的默认调度器也已经来到了一个关键的十字路口。事实上，Kubernetes 现今发展的主旋律，是整个开源项目的”民主化”。也就是说，Kubernetes 下一步发展的方向，是组件的轻量化、接口化和插件化。所以，我们才有了 CRI、CNI、CSI、CRD、Aggregated APIServer、Initializer、Device Plugin 等各个层级的可扩展能力。可是，默认调度器，却成了 Kubernetes 项目里最后一个没有对外暴露出良好定义过的、可扩展接口的组件。</p>
+<p>当然，这是有一定的历史原因的。在过去几年，Kubernetes 发展的重点，都是以功能性需求的实现和完善为核心。在这个过程中，它的很多决策，还是以优先服务公有云的需求为主，而性能和规模则居于相对次要的位置。</p>
+<p>而现在，随着 Kubernetes 项目逐步趋于稳定，越来越多的用户开始把 Kubernetes 用在规模更大、业务更加复杂的私有集群当中。很多以前的 Mesos 用户，也开始尝试使用 Kubernetes 来替代其原有架构。 <strong>在这些场景下，对默认调度器进行扩展和重新实现，就成了社区对 Kubernetes 项目最主要的一个诉求。</strong></p>
+<p>所以，Kubernetes 的默认调度器，是目前这个项目里为数不多的、正在经历大量重构的核心组件之一。这些正在进行的重构的目的，一方面是将默认调度器里大量的”技术债”清理干净；另一方面，就是为默认调度器的可扩展性设计进行铺垫。</p>
+<p>而 Kubernetes 默认调度器的可扩展性设计，可以用如下所示的一幅示意图来描述：</p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《深入剖析Kubernetes》学习笔记/Kubernetes默认调度器的可扩展性设计.png" alt="Kubernetes默认调度器的可扩展性设计"></p>
+<p>可以看到，默认调度器的可扩展机制，在 Kubernetes 里面叫作 Scheduler Framework。顾名思义，这个设计的主要目的，就是在调度器生命周期的各个关键点上，为用户暴露出可以进行扩展和实现的接口，从而实现由用户自定义调度器的能力。</p>
+<p>上图中，每一个绿色的箭头都是一个可以插入自定义逻辑的接口。比如，上面的 Queue 部分，就意味着你可以在这一部分提供一个自己的调度队列的实现，从而控制每个 Pod 开始被调度（出队）的时机。</p>
+<p>而 Predicates 部分，则意味着你可以提供自己的过滤算法实现，根据自己的需求，来决定选择哪些机器。</p>
+<p><strong>需要注意的是，上述这些可插拔式逻辑，都是标准的 Go 语言插件机制（Go plugin 机制）</strong> ，也就是说，你需要在编译的时候选择把哪些插件编译进去。</p>
+<p>有了上述设计之后，扩展和自定义 Kubernetes 的默认调度器就变成了一件非常容易实现的事情。这也意味着默认调度器在后面的发展过程中，必然不会在现在的实现上再添加太多的功能，反而还会对现在的实现进行精简，最终成为 Scheduler Framework 的一个最小实现。而调度领域更多的创新和工程工作，就可以交给整个社区来完成了。这个思路，是完全符合我在前面提到的 Kubernetes 的”民主化”设计的。</p>
+<p>不过，这样的 Scheduler Framework 也有一个不小的问题，那就是一旦这些插入点的接口设计不合理，就会导致整个生态没办法很好地把这个插件机制使用起来。而与此同时，这些接口本身的变更又是一个费时费力的过程，一旦把控不好，就很可能会把社区推向另一个极端，即：Scheduler Framework 没法实际落地，大家只好都再次 fork kube-scheduler。</p>
+<h3 id="42-Kubernetes默认调度器调度策略解析"><a href="#42-Kubernetes默认调度器调度策略解析" class="headerlink" title="42 | Kubernetes默认调度器调度策略解析"></a>42 | Kubernetes默认调度器调度策略解析</h3><p>在上一篇文章中，我主要为你讲解了 Kubernetes 默认调度器的设计原理和架构。在今天这篇文章中，我们就专注在调度过程中 Predicates 和 Priorities 这两个调度策略主要发生作用的阶段。</p>
+<p><strong>首先，我们一起看看 Predicates。</strong></p>
+<p><strong>Predicates 在调度过程中的作用，可以理解为 Filter</strong> ，即：它按照调度策略，从当前集群的所有节点中，”过滤”出一系列符合条件的节点。这些节点，都是可以运行待调度 Pod 的宿主机。</p>
+<p>而在 Kubernetes 中，默认的调度策略有如下三种。</p>
+<ol>
+<li><p><strong>第一种类型，叫作 GeneralPredicates。</strong></p>
+<p> 顾名思义，这一组过滤规则，负责的是最基础的调度策略。比如，PodFitsResources 计算的就是宿主机的 CPU 和内存资源等是否够用。</p>
+<p> 当然，我在前面已经提到过，PodFitsResources 检查的只是 Pod 的 requests 字段。需要注意的是，Kubernetes 的调度器并没有为 GPU 等硬件资源定义具体的资源类型，而是统一用一种名叫 Extended Resource 的、Key-Value 格式的扩展字段来描述的。比如下面这个例子：</p>
+ <pre class="line-numbers language-yaml" data-language="yaml"><code class="language-yaml"><span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> v1
+<span class="token key atrule">kind</span><span class="token punctuation">:</span> Pod
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+<span class="token key atrule">name</span><span class="token punctuation">:</span> extended<span class="token punctuation">-</span>resource<span class="token punctuation">-</span>demo
+<span class="token key atrule">spec</span><span class="token punctuation">:</span>
+<span class="token key atrule">containers</span><span class="token punctuation">:</span>
+<span class="token punctuation">-</span> <span class="token key atrule">name</span><span class="token punctuation">:</span> extended<span class="token punctuation">-</span>resource<span class="token punctuation">-</span>demo<span class="token punctuation">-</span>ctr
+    <span class="token key atrule">image</span><span class="token punctuation">:</span> nginx
+    <span class="token key atrule">resources</span><span class="token punctuation">:</span>
+    <span class="token key atrule">requests</span><span class="token punctuation">:</span>
+        <span class="token key atrule">alpha.kubernetes.io/nvidia-gpu</span><span class="token punctuation">:</span> <span class="token number">2</span>
+    <span class="token key atrule">limits</span><span class="token punctuation">:</span>
+        <span class="token key atrule">alpha.kubernetes.io/nvidia-gpu</span><span class="token punctuation">:</span> <span class="token number">2</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p> 可以看到，我们这个 Pod 通过alpha.kubernetes.io/nvidia-gpu=2这样的定义方式，声明使用了两个 NVIDIA 类型的 GPU。</p>
+<p> 而在 PodFitsResources 里面，调度器其实并不知道这个字段 Key 的含义是 GPU，而是直接使用后面的 Value 进行计算。当然，在 Node 的 Capacity 字段里，你也得相应地加上这台宿主机上 GPU 的总数，比如：alpha.kubernetes.io/nvidia-gpu=4。这些流程，我在后面讲解 Device Plugin 的时候会详细介绍到。</p>
+<p> 而 PodFitsHost 检查的是，宿主机的名字是否跟 Pod 的 spec.nodeName 一致。</p>
+<p> PodFitsHostPorts 检查的是，Pod 申请的宿主机端口（spec.nodePort）是不是跟已经被使用的端口有冲突。</p>
+<p> PodMatchNodeSelector 检查的是，Pod 的 nodeSelector 或者 nodeAffinity 指定的节点，是否与待考察节点匹配，等等。</p>
+<p> 可以看到，像上面这样一组 GeneralPredicates，正是 Kubernetes 考察一个 Pod 能不能运行在一个 Node 上最基本的过滤条件。所以，GeneralPredicates 也会被其他组件（比如 kubelet）直接调用。</p>
+<p> 我在上一篇文章中已经提到过，kubelet 在启动 Pod 前，会执行一个 Admit 操作来进行二次确认。这里二次确认的规则，就是执行一遍 GeneralPredicates。</p>
+</li>
+<li><p><strong>第二种类型，是与 Volume 相关的过滤规则。</strong></p>
+<p> 这一组过滤规则，负责的是跟容器持久化 Volume 相关的调度策略。</p>
+<p> 其中，NoDiskConflict 检查的条件，是多个 Pod 声明挂载的持久化 Volume 是否有冲突。比如，AWS EBS 类型的 Volume，是不允许被两个 Pod 同时使用的。所以，当一个名叫 A 的 EBS Volume 已经被挂载在了某个节点上时，另一个同样声明使用这个 A Volume 的 Pod，就不能被调度到这个节点上了。</p>
+<p> 而 MaxPDVolumeCountPredicate 检查的条件，则是一个节点上某种类型的持久化 Volume 是不是已经超过了一定数目，如果是的话，那么声明使用该类型持久化 Volume 的 Pod 就不能再调度到这个节点了。</p>
+<p> 而 VolumeZonePredicate，则是检查持久化 Volume 的 Zone（高可用域）标签，是否与待考察节点的 Zone 标签相匹配。</p>
+<p> 此外，这里还有一个叫作 VolumeBindingPredicate 的规则。它负责检查的，是该 Pod 对应的 PV 的 nodeAffinity 字段，是否跟某个节点的标签相匹配。</p>
+<p> 在前面的第 29 篇文章 <a target="_blank" rel="noopener" href="https://time.geekbang.org/column/article/42819">《PV、PVC 体系是不是多此一举？从本地持久化卷谈起》</a> 中，我曾经为你讲解过，Local Persistent Volume（本地持久化卷），必须使用 nodeAffinity 来跟某个具体的节点绑定。这其实也就意味着，在 Predicates 阶段，Kubernetes 就必须能够根据 Pod 的 Volume 属性来进行调度。</p>
+<p> 此外，如果该 Pod 的 PVC 还没有跟具体的 PV 绑定的话，调度器还要负责检查所有待绑定 PV，当有可用的 PV 存在并且该 PV 的 nodeAffinity 与待考察节点一致时，这条规则才会返回”成功”。比如下面这个例子：</p>
+ <pre class="line-numbers language-yaml" data-language="yaml"><code class="language-yaml"><span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> v1
+<span class="token key atrule">kind</span><span class="token punctuation">:</span> PersistentVolume
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+<span class="token key atrule">name</span><span class="token punctuation">:</span> example<span class="token punctuation">-</span>local<span class="token punctuation">-</span>pv
+<span class="token key atrule">spec</span><span class="token punctuation">:</span>
+<span class="token key atrule">capacity</span><span class="token punctuation">:</span>
+    <span class="token key atrule">storage</span><span class="token punctuation">:</span> 500Gi
+<span class="token key atrule">accessModes</span><span class="token punctuation">:</span>
+<span class="token punctuation">-</span> ReadWriteOnce
+<span class="token key atrule">persistentVolumeReclaimPolicy</span><span class="token punctuation">:</span> Retain
+<span class="token key atrule">storageClassName</span><span class="token punctuation">:</span> local<span class="token punctuation">-</span>storage
+<span class="token key atrule">local</span><span class="token punctuation">:</span>
+    <span class="token key atrule">path</span><span class="token punctuation">:</span> /mnt/disks/vol1
+<span class="token key atrule">nodeAffinity</span><span class="token punctuation">:</span>
+    <span class="token key atrule">required</span><span class="token punctuation">:</span>
+    <span class="token key atrule">nodeSelectorTerms</span><span class="token punctuation">:</span>
+    <span class="token punctuation">-</span> <span class="token key atrule">matchExpressions</span><span class="token punctuation">:</span>
+        <span class="token punctuation">-</span> <span class="token key atrule">key</span><span class="token punctuation">:</span> kubernetes.io/hostname
+        <span class="token key atrule">operator</span><span class="token punctuation">:</span> In
+        <span class="token key atrule">values</span><span class="token punctuation">:</span>
+        <span class="token punctuation">-</span> my<span class="token punctuation">-</span>node<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p> 可以看到，这个 PV 对应的持久化目录，只会出现在名叫 my-node 的宿主机上。所以，任何一个通过 PVC 使用这个 PV 的 Pod，都必须被调度到 my-node 上才可以正常工作。VolumeBindingPredicate，正是调度器里完成这个决策的位置。</p>
+</li>
+<li><p><strong>第三种类型，是宿主机相关的过滤规则。</strong></p>
+<p> 这一组规则，主要考察待调度 Pod 是否满足 Node 本身的某些条件。</p>
+<p> 比如，PodToleratesNodeTaints，负责检查的就是我们前面经常用到的 Node 的”污点”机制。只有当 Pod 的 Toleration 字段与 Node 的 Taint 字段能够匹配的时候，这个 Pod 才能被调度到该节点上。</p>
+<blockquote>
+<p>备注：这里，你也可以再回顾下第 21 篇文章 <a target="_blank" rel="noopener" href="https://time.geekbang.org/column/article/41366">《容器化守护进程的意义：DaemonSet》</a> 中的相关内容。</p>
+</blockquote>
+<p> 而 NodeMemoryPressurePredicate，检查的是当前节点的内存是不是已经不够充足，如果是的话，那么待调度 Pod 就不能被调度到该节点上。</p>
+</li>
+<li><p><strong>第四种类型，是 Pod 相关的过滤规则。</strong></p>
+<p> 这一组规则，跟 GeneralPredicates 大多数是重合的。而比较特殊的，是 PodAffinityPredicate。这个规则的作用，是检查待调度 Pod 与 Node 上的已有 Pod 之间的亲密（affinity）和反亲密（anti-affinity）关系。比如下面这个例子：</p>
+ <pre class="line-numbers language-yaml" data-language="yaml"><code class="language-yaml"><span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> v1
+<span class="token key atrule">kind</span><span class="token punctuation">:</span> Pod
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+<span class="token key atrule">name</span><span class="token punctuation">:</span> with<span class="token punctuation">-</span>pod<span class="token punctuation">-</span>antiaffinity
+<span class="token key atrule">spec</span><span class="token punctuation">:</span>
+<span class="token key atrule">affinity</span><span class="token punctuation">:</span>
+    <span class="token key atrule">podAntiAffinity</span><span class="token punctuation">:</span>
+    <span class="token key atrule">requiredDuringSchedulingIgnoredDuringExecution</span><span class="token punctuation">:</span>
+    <span class="token punctuation">-</span> <span class="token key atrule">weight</span><span class="token punctuation">:</span> <span class="token number">100</span>
+        <span class="token key atrule">podAffinityTerm</span><span class="token punctuation">:</span>
+        <span class="token key atrule">labelSelector</span><span class="token punctuation">:</span>
+            <span class="token key atrule">matchExpressions</span><span class="token punctuation">:</span>
+            <span class="token punctuation">-</span> <span class="token key atrule">key</span><span class="token punctuation">:</span> security
+            <span class="token key atrule">operator</span><span class="token punctuation">:</span> In
+            <span class="token key atrule">values</span><span class="token punctuation">:</span>
+            <span class="token punctuation">-</span> S2
+        <span class="token key atrule">topologyKey</span><span class="token punctuation">:</span> kubernetes.io/hostname
+<span class="token key atrule">containers</span><span class="token punctuation">:</span>
+<span class="token punctuation">-</span> <span class="token key atrule">name</span><span class="token punctuation">:</span> with<span class="token punctuation">-</span>pod<span class="token punctuation">-</span>affinity
+    <span class="token key atrule">image</span><span class="token punctuation">:</span> docker.io/ocpqe/hello<span class="token punctuation">-</span>pod<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p> 这个例子里的 podAntiAffinity 规则，就指定了这个 Pod 不希望跟任何携带了 security=S2 标签的 Pod 存在于同一个 Node 上。需要注意的是，PodAffinityPredicate 是有作用域的，比如上面这条规则，就仅对携带了 Key 是kubernetes.io/hostname标签的 Node 有效。这正是 topologyKey 这个关键词的作用。</p>
+<p> 而与 podAntiAffinity 相反的，就是 podAffinity，比如下面这个例子：</p>
+ <pre class="line-numbers language-yaml" data-language="yaml"><code class="language-yaml"><span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> v1
+<span class="token key atrule">kind</span><span class="token punctuation">:</span> Pod
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+<span class="token key atrule">name</span><span class="token punctuation">:</span> with<span class="token punctuation">-</span>pod<span class="token punctuation">-</span>affinity
+<span class="token key atrule">spec</span><span class="token punctuation">:</span>
+<span class="token key atrule">affinity</span><span class="token punctuation">:</span>
+    <span class="token key atrule">podAffinity</span><span class="token punctuation">:</span>
+    <span class="token key atrule">requiredDuringSchedulingIgnoredDuringExecution</span><span class="token punctuation">:</span>
+    <span class="token punctuation">-</span> <span class="token key atrule">labelSelector</span><span class="token punctuation">:</span>
+        <span class="token key atrule">matchExpressions</span><span class="token punctuation">:</span>
+        <span class="token punctuation">-</span> <span class="token key atrule">key</span><span class="token punctuation">:</span> security
+            <span class="token key atrule">operator</span><span class="token punctuation">:</span> In
+            <span class="token key atrule">values</span><span class="token punctuation">:</span>
+            <span class="token punctuation">-</span> S1
+        <span class="token key atrule">topologyKey</span><span class="token punctuation">:</span> failure<span class="token punctuation">-</span>domain.beta.kubernetes.io/zone
+<span class="token key atrule">containers</span><span class="token punctuation">:</span>
+<span class="token punctuation">-</span> <span class="token key atrule">name</span><span class="token punctuation">:</span> with<span class="token punctuation">-</span>pod<span class="token punctuation">-</span>affinity
+    <span class="token key atrule">image</span><span class="token punctuation">:</span> docker.io/ocpqe/hello<span class="token punctuation">-</span>pod<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p> 这个例子里的 Pod，就只会被调度到已经有携带了 security=S1 标签的 Pod 运行的 Node 上。而这条规则的作用域，则是所有携带 Key 是failure-domain.beta.kubernetes.io/zone标签的 Node。</p>
+<p> 此外，上面这两个例子里的 requiredDuringSchedulingIgnoredDuringExecution 字段的含义是：这条规则必须在 Pod 调度时进行检查（requiredDuringScheduling）；但是如果是已经在运行的 Pod 发生变化，比如 Label 被修改，造成了该 Pod 不再适合运行在这个 Node 上的时候，Kubernetes 不会进行主动修正（IgnoredDuringExecution）。</p>
+</li>
+</ol>
+<p>上面这四种类型的 Predicates，就构成了调度器确定一个 Node 可以运行待调度 Pod 的基本策略。</p>
+<p><strong>在具体执行的时候， 当开始调度一个 Pod 时，Kubernetes 调度器会同时启动 16 个 Goroutine，来并发地为集群里的所有 Node 计算 Predicates，最后返回可以运行这个 Pod 的宿主机列表。</strong></p>
+<p>需要注意的是，在为每个 Node 执行 Predicates 时，调度器会按照固定的顺序来进行检查。这个顺序，是按照 Predicates 本身的含义来确定的。比如，宿主机相关的 Predicates 会被放在相对靠前的位置进行检查。要不然的话，在一台资源已经严重不足的宿主机上，上来就开始计算 PodAffinityPredicate，是没有实际意义的。</p>
+<p><strong>接下来，我们再来看一下 Priorities。</strong></p>
+<p>在 Predicates 阶段完成了节点的”过滤”之后，Priorities 阶段的工作就是为这些节点打分。这里打分的范围是 0-10 分，得分最高的节点就是最后被 Pod 绑定的最佳节点。</p>
+<p>Priorities 里最常用到的一个打分规则，是 LeastRequestedPriority。它的计算方法，可以简单地总结为如下所示的公式：</p>
+<pre class="line-numbers language-txt" data-language="txt"><code class="language-txt">score = (cpu((capacity-sum(requested))10/capacity) + memory((capacity-sum(requested))10/capacity))/2<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>可以看到，这个算法实际上就是在选择空闲资源（CPU 和 Memory）最多的宿主机。</p>
+<p>而与 LeastRequestedPriority 一起发挥作用的，还有 BalancedResourceAllocation。它的计算公式如下所示：</p>
+<pre class="line-numbers language-txt" data-language="txt"><code class="language-txt">score = 10 - variance(cpuFraction,memoryFraction,volumeFraction)*10<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>其中，每种资源的 Fraction 的定义是 ：Pod 请求的资源 / 节点上的可用资源。而 variance 算法的作用，则是计算每两种资源 Fraction 之间的”距离”。而最后选择的，则是资源 Fraction 差距最小的节点。</p>
+<p>所以说，BalancedResourceAllocation 选择的，其实是调度完成后，所有节点里各种资源分配最均衡的那个节点，从而避免一个节点上 CPU 被大量分配、而 Memory 大量剩余的情况。</p>
+<p>此外，还有 NodeAffinityPriority、TaintTolerationPriority 和 InterPodAffinityPriority 这三种 Priority。顾名思义，它们与前面的 PodMatchNodeSelector、PodToleratesNodeTaints 和 PodAffinityPredicate 这三个 Predicate 的含义和计算方法是类似的。但是作为 Priority，一个 Node 满足上述规则的字段数目越多，它的得分就会越高。</p>
+<p>在默认 Priorities 里，还有一个叫作 ImageLocalityPriority 的策略。它是在 Kubernetes v1.12 里新开启的调度规则，即：如果待调度 Pod 需要使用的镜像很大，并且已经存在于某些 Node 上，那么这些 Node 的得分就会比较高。</p>
+<p>当然，为了避免这个算法引发调度堆叠，调度器在计算得分的时候还会根据镜像的分布进行优化，即：如果大镜像分布的节点数目很少，那么这些节点的权重就会被调低，从而”对冲”掉引起调度堆叠的风险。</p>
+<p>以上，就是 Kubernetes 调度器的 Predicates 和 Priorities 里默认调度规则的主要工作原理了。</p>
+<p><strong>在实际的执行过程中，调度器里关于集群和 Pod 的信息都已经缓存化，所以这些算法的执行过程还是比较快的。</strong></p>
+<p>此外，对于比较复杂的调度算法来说，比如 PodAffinityPredicate，它们在计算的时候不只关注待调度 Pod 和待考察 Node，还需要关注整个集群的信息，比如，遍历所有节点，读取它们的 Labels。这时候，Kubernetes 调度器会在为每个待调度 Pod 执行该调度算法之前，先将算法需要的集群信息初步计算一遍，然后缓存起来。这样，在真正执行该算法的时候，调度器只需要读取缓存信息进行计算即可，从而避免了为每个 Node 计算 Predicates 的时候反复获取和计算整个集群的信息。</p>
+<h4 id="42-1-总结"><a href="#42-1-总结" class="headerlink" title="42.1 总结"></a>42.1 总结</h4><p>需要注意的是，除了本篇讲述的这些规则，Kubernetes 调度器里其实还有一些默认不会开启的策略。你可以通过为 kube-scheduler 指定一个配置文件或者创建一个 ConfigMap ，来配置哪些规则需要开启、哪些规则需要关闭。并且，你可以通过为 Priorities 设置权重，来控制调度器的调度行为。</p>
+<h3 id="43-Kubernetes默认调度器的优先级与抢占机制"><a href="#43-Kubernetes默认调度器的优先级与抢占机制" class="headerlink" title="43 | Kubernetes默认调度器的优先级与抢占机制"></a>43 | Kubernetes默认调度器的优先级与抢占机制</h3><p>在上一篇文章中，我为你详细讲解了 Kubernetes 默认调度器的主要调度算法的工作原理。在本篇文章中，我再来为你讲解一下 Kubernetes 调度器里的另一个重要机制，即：优先级（Priority ）和抢占（Preemption）机制。</p>
+<p><strong>首先需要明确的是，优先级和抢占机制，解决的是 Pod 调度失败时该怎么办的问题。</strong></p>
+<p>正常情况下，当一个 Pod 调度失败后，它就会被暂时”搁置”起来，直到 Pod 被更新，或者集群状态发生变化，调度器才会对这个 Pod 进行重新调度。</p>
+<p>但在有时候，我们希望的是这样一个场景。当一个高优先级的 Pod 调度失败后，该 Pod 并不会被”搁置”，而是会”挤走”某个 Node 上的一些低优先级的 Pod 。这样就可以保证这个高优先级 Pod 的调度成功。这个特性，其实也是一直以来就存在于 Borg 以及 Mesos 等项目里的一个基本功能。</p>
+<p>而在 Kubernetes 里，优先级和抢占机制是在 1.10 版本后才逐步可用的。要使用这个机制，你首先需要在 Kubernetes 里提交一个 PriorityClass 的定义，如下所示：</p>
+<pre class="line-numbers language-yaml" data-language="yaml"><code class="language-yaml"><span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> scheduling.k8s.io/v1beta1
+<span class="token key atrule">kind</span><span class="token punctuation">:</span> PriorityClass
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> high<span class="token punctuation">-</span>priority
+<span class="token key atrule">value</span><span class="token punctuation">:</span> <span class="token number">1000000</span>
+<span class="token key atrule">globalDefault</span><span class="token punctuation">:</span> <span class="token boolean important">false</span>
+<span class="token key atrule">description</span><span class="token punctuation">:</span> <span class="token string">"This priority class should be used for high priority service pods only."</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>上面这个 YAML 文件，定义的是一个名叫 high-priority 的 PriorityClass，其中 value 的值是 1000000 （一百万）。</p>
+<p><strong>Kubernetes 规定，优先级是一个 32 bit 的整数，最大值不超过 1000000000（10 亿，1 billion），并且值越大代表优先级越高。</strong> 而超出 10 亿的值，其实是被 Kubernetes 保留下来分配给系统 Pod 使用的。显然，这样做的目的，就是保证系统 Pod 不会被用户抢占掉。</p>
+<p>而一旦上述 YAML 文件里的 globalDefault 被设置为 true 的话，那就意味着这个 PriorityClass 的值会成为系统的默认值。而如果这个值是 false，就表示我们只希望声明使用该 PriorityClass 的 Pod 拥有值为 1000000 的优先级，而对于没有声明 PriorityClass 的 Pod 来说，它们的优先级就是 0。</p>
+<p>在创建了 PriorityClass 对象之后，Pod 就可以声明使用它了，如下所示：</p>
+<pre class="line-numbers language-yaml" data-language="yaml"><code class="language-yaml"><span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> v1
+<span class="token key atrule">kind</span><span class="token punctuation">:</span> Pod
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> nginx
+  <span class="token key atrule">labels</span><span class="token punctuation">:</span>
+    <span class="token key atrule">env</span><span class="token punctuation">:</span> test
+<span class="token key atrule">spec</span><span class="token punctuation">:</span>
+  <span class="token key atrule">containers</span><span class="token punctuation">:</span>
+  <span class="token punctuation">-</span> <span class="token key atrule">name</span><span class="token punctuation">:</span> nginx
+    <span class="token key atrule">image</span><span class="token punctuation">:</span> nginx
+    <span class="token key atrule">imagePullPolicy</span><span class="token punctuation">:</span> IfNotPresent
+  <span class="token key atrule">priorityClassName</span><span class="token punctuation">:</span> high<span class="token punctuation">-</span>priority<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>可以看到，这个 Pod 通过 priorityClassName 字段，声明了要使用名叫 high-priority 的 PriorityClass。当这个 Pod 被提交给 Kubernetes 之后，Kubernetes 的 PriorityAdmissionController 就会自动将这个 Pod 的 spec.priority 字段设置为 1000000。</p>
+<p>而我在前面的文章中曾为你介绍过，调度器里维护着一个调度队列。所以，当 Pod 拥有了优先级之后，高优先级的 Pod 就可能会比低优先级的 Pod 提前出队，从而尽早完成调度过程。 <strong>这个过程，就是”优先级”这个概念在 Kubernetes 里的主要体现。</strong></p>
+<blockquote>
+<p>备注：这里，你可以再回顾一下第 41 篇文章 <a target="_blank" rel="noopener" href="https://time.geekbang.org/column/article/69890">《十字路口上的 Kubernetes 默认调度器》</a> 中的相关内容。</p>
+</blockquote>
+<p>而当一个高优先级的 Pod 调度失败的时候，调度器的抢占能力就会被触发。这时，调度器就会试图从当前集群里寻找一个节点，使得当这个节点上的一个或者多个低优先级 Pod 被删除后，待调度的高优先级 Pod 就可以被调度到这个节点上。 <strong>这个过程，就是”抢占”这个概念在 Kubernetes 里的主要体现。</strong></p>
+<p>为了方便叙述，我接下来会把待调度的高优先级 Pod 称为”抢占者”（Preemptor）。</p>
+<p>当上述抢占过程发生时，抢占者并不会立刻被调度到被抢占的 Node 上。事实上，调度器只会将抢占者的 spec.nominatedNodeName 字段，设置为被抢占的 Node 的名字。然后，抢占者会重新进入下一个调度周期，然后在新的调度周期里来决定是不是要运行在被抢占的节点上。这当然也就意味着，即使在下一个调度周期，调度器也不会保证抢占者一定会运行在被抢占的节点上。</p>
+<p>这样设计的一个重要原因是，调度器只会通过标准的 DELETE API 来删除被抢占的 Pod，所以，这些 Pod 必然是有一定的”优雅退出”时间（默认是 30s）的。而在这段时间里，其他的节点也是有可能变成可调度的，或者直接有新的节点被添加到这个集群中来。所以，鉴于优雅退出期间，集群的可调度性可能会发生的变化， <strong>把抢占者交给下一个调度周期再处理，是一个非常合理的选择。</strong></p>
+<p>而在抢占者等待被调度的过程中，如果有其他更高优先级的 Pod 也要抢占同一个节点，那么调度器就会清空原抢占者的 spec.nominatedNodeName 字段，从而允许更高优先级的抢占者执行抢占，并且，这也就是得原抢占者本身，也有机会去重新抢占其他节点。这些，都是设置 nominatedNodeName 字段的主要目的。</p>
+<p>那么， <strong>Kubernetes 调度器里的抢占机制，又是如何设计的呢？</strong></p>
+<p>接下来，我就为你详细讲述一下这其中的原理。</p>
+<p>我在前面已经提到过，抢占发生的原因，一定是一个高优先级的 Pod 调度失败。这一次，我们还是称这个 Pod 为”抢占者”，称被抢占的 Pod 为”牺牲者”（victims）。</p>
+<p>而 Kubernetes 调度器实现抢占算法的一个最重要的设计，就是在调度队列的实现里，使用了两个不同的队列。</p>
+<p><strong>第一个队列，叫作 activeQ。</strong> 凡是在 activeQ 里的 Pod，都是下一个调度周期需要调度的对象。所以，当你在 Kubernetes 集群里新创建一个 Pod 的时候，调度器会将这个 Pod 入队到 activeQ 里面。而我在前面提到过的、调度器不断从队列里出队（Pop）一个 Pod 进行调度，实际上都是从 activeQ 里出队的。</p>
+<p><strong>第二个队列，叫作 unschedulableQ，</strong> 专门用来存放调度失败的 Pod。</p>
+<p>而这里的一个关键点就在于，当一个 unschedulableQ 里的 Pod 被更新之后，调度器会自动把这个 Pod 移动到 activeQ 里，从而给这些调度失败的 Pod “重新做人”的机会。</p>
+<p>现在，回到我们的抢占者调度失败这个时间点上来。</p>
+<p>调度失败之后，抢占者就会被放进 unschedulableQ 里面。</p>
+<p>然后，这次失败事件就会 <strong>触发调度器为抢占者寻找牺牲者的流程。</strong></p>
+<ol>
+<li><p><strong>第一步</strong> ，调度器会检查这次失败事件的原因，来确认抢占是不是可以帮助抢占者找到一个新节点。这是因为有很多 Predicates 的失败是不能通过抢占来解决的。比如，PodFitsHost 算法（负责的是，检查 Pod 的 nodeSelector 与 Node 的名字是否匹配），这种情况下，除非 Node 的名字发生变化，否则你即使删除再多的 Pod，抢占者也不可能调度成功。</p>
+</li>
+<li><p><strong>第二步</strong> ，如果确定抢占可以发生，那么调度器就会把自己缓存的所有节点信息复制一份，然后使用这个副本来模拟抢占过程。</p>
+<p> 这里的抢占过程很容易理解。调度器会检查缓存副本里的每一个节点，然后从该节点上最低优先级的 Pod 开始，逐一”删除”这些 Pod。而每删除一个低优先级 Pod，调度器都会检查一下抢占者是否能够运行在该 Node 上。一旦可以运行，调度器就记录下这个 Node 的名字和被删除 Pod 的列表，这就是一次抢占过程的结果了。</p>
+<p> 当遍历完所有的节点之后，调度器会在上述模拟产生的所有抢占结果里做一个选择，找出最佳结果。而这一步的 <strong>判断原则，就是尽量减少抢占对整个系统的影响</strong> 。比如，需要抢占的 Pod 越少越好，需要抢占的 Pod 的优先级越低越好，等等。</p>
+</li>
+</ol>
+<p>在得到了最佳的抢占结果之后，这个结果里的 Node，就是即将被抢占的 Node；被删除的 Pod 列表，就是牺牲者。所以接下来， <strong>调度器就可以真正开始抢占的操作了</strong> ，这个过程，可以分为三步。</p>
+<ol>
+<li><p><strong>第一步</strong> ，调度器会检查牺牲者列表，清理这些 Pod 所携带的 nominatedNodeName 字段。</p>
+</li>
+<li><p><strong>第二步</strong> ，调度器会把抢占者的 nominatedNodeName，设置为被抢占的 Node 的名字。</p>
+</li>
+<li><p><strong>第三步</strong> ，调度器会开启一个 Goroutine，同步地删除牺牲者。</p>
+</li>
+</ol>
+<p>而第二步对抢占者 Pod 的更新操作，就会触发到我前面提到的”重新做人”的流程，从而让抢占者在下一个调度周期重新进入调度流程。</p>
+<p>所以 <strong>接下来，调度器就会通过正常的调度流程把抢占者调度成功</strong> 。这也是为什么，我前面会说调度器并不保证抢占的结果：在这个正常的调度流程里，是一切皆有可能的。</p>
+<p>不过，对于任意一个待调度 Pod 来说，因为有上述抢占者的存在，它的调度过程，其实是有一些特殊情况需要特殊处理的。</p>
+<p>具体来说，在为某一对 Pod 和 Node 执行 Predicates 算法的时候，如果待检查的 Node 是一个即将被抢占的节点，即：调度队列里有 nominatedNodeName 字段值是该 Node 名字的 Pod 存在（可以称之为：”潜在的抢占者”）。那么， <strong>调度器就会对这个 Node ，将同样的 Predicates 算法运行两遍。</strong></p>
+<ol>
+<li><p><strong>第一遍</strong> ， 调度器会假设上述”潜在的抢占者”已经运行在这个节点上，然后执行 Predicates 算法；</p>
+</li>
+<li><p><strong>第二遍</strong> ， 调度器会正常执行 Predicates 算法，即：不考虑任何”潜在的抢占者”。</p>
+</li>
+</ol>
+<p>而只有这两遍 Predicates 算法都能通过时，这个 Pod 和 Node 才会被认为是可以绑定（bind）的。</p>
+<p>不难想到，这里需要执行第一遍 Predicates 算法的原因，是由于 InterPodAntiAffinity 规则的存在。</p>
+<p>由于 InterPodAntiAffinity 规则关心待考察节点上所有 Pod 之间的互斥关系，所以我们在执行调度算法时必须考虑，如果抢占者已经存在于待考察 Node 上时，待调度 Pod 还能不能调度成功。</p>
+<p>当然，这也就意味着，我们在这一步只需要考虑那些优先级等于或者大于待调度 Pod 的抢占者。毕竟对于其他较低优先级 Pod 来说，待调度 Pod 总是可以通过抢占运行在待考察 Node 上。</p>
+<p>而我们需要执行第二遍 Predicates 算法的原因，则是因为”潜在的抢占者”最后不一定会运行在待考察的 Node 上。关于这一点，我在前面已经讲解过了：Kubernetes 调度器并不保证抢占者一定会运行在当初选定的被抢占的 Node 上。</p>
+<p>以上，就是 Kubernetes 默认调度器里优先级和抢占机制的实现原理了。</p>
+<h4 id="43-1-思考题"><a href="#43-1-思考题" class="headerlink" title="43.1 思考题"></a>43.1 思考题</h4><p>当整个集群发生可能会影响调度结果的变化（比如，添加或者更新 Node，添加和更新 PV、Service 等）时，调度器会执行一个被称为 MoveAllToActiveQueue 的操作，把所调度失败的 Pod 从 unscheduelableQ 移动到 activeQ 里面。请问这是为什么？</p>
+<p>一个相似的问题是，当一个已经调度成功的 Pod 被更新时，调度器则会将 unschedulableQ 里所有跟这个 Pod 有 Affinity/Anti-affinity 关系的 Pod，移动到 activeQ 里面。请问这又是为什么呢？</p>
+<h3 id="44-Kubernetes-GPU管理与Device-Plugin机制"><a href="#44-Kubernetes-GPU管理与Device-Plugin机制" class="headerlink" title="44 | Kubernetes GPU管理与Device Plugin机制"></a>44 | Kubernetes GPU管理与Device Plugin机制</h3><p>2016 年，随着 AlphaGo 的走红和 TensorFlow 项目的异军突起，一场名为 AI 的技术革命迅速从学术界蔓延到了工业界，所谓的 AI 元年，就此拉开帷幕。</p>
+<p>当然，机器学习或者说人工智能，并不是什么新鲜的概念。而这次热潮的背后，云计算服务的普及与成熟，以及算力的巨大提升，其实正是将人工智能从象牙塔带到工业界的一个重要推手。</p>
+<p>而与之相对应的，从 2016 年开始，Kubernetes 社区就不断收到来自不同渠道的大量诉求，希望能够在 Kubernetes 集群上运行 TensorFlow 等机器学习框架所创建的训练（Training）和服务（Serving）任务。而这些诉求中，除了前面我为你讲解过的 Job、Operator 等离线作业管理需要用到的编排概念之外，还有一个亟待实现的功能，就是对 GPU 等硬件加速设备管理的支持。</p>
+<p>不过， 正如同 TensorFlow 之于 Google 的战略意义一样， <strong>GPU 支持对于 Kubernetes 项目来说，其实也有着超过技术本身的考虑</strong> 。所以，尽管在硬件加速器这个领域里，Kubernetes 上游有着不少来自 NVIDIA 和 Intel 等芯片厂商的工程师，但这个特性本身，却从一开始就是以 Google Cloud 的需求为主导来推进的。</p>
+<p>而对于云的用户来说，在 GPU 的支持上，他们最基本的诉求其实非常简单：我只要在 Pod 的 YAML 里面，声明某容器需要的 GPU 个数，那么 Kubernetes 为我创建的容器里就应该出现对应的 GPU 设备，以及它对应的驱动目录。</p>
+<p>以 NVIDIA 的 GPU 设备为例，上面的需求就意味着当用户的容器被创建之后，这个容器里必须出现如下两部分设备和目录：</p>
+<ol>
+<li>GPU 设备，比如 /dev/nvidia0；</li>
+<li>GPU 驱动目录，比如 /usr/local/nvidia/*。</li>
+</ol>
+<p>其中，GPU 设备路径，正是该容器启动时的 Devices 参数；而驱动目录，则是该容器启动时的 Volume 参数。所以，在 Kubernetes 的 GPU 支持的实现里，kubelet 实际上就是将上述两部分内容，设置在了创建该容器的 CRI （Container Runtime Interface）参数里面。这样，等到该容器启动之后，对应的容器里就会出现 GPU 设备和驱动的路径了。</p>
+<p>不过，Kubernetes 在 Pod 的 API 对象里，并没有为 GPU 专门设置一个资源类型字段，而是使用了一种叫作 Extended Resource（ER）的特殊字段来负责传递 GPU 的信息。比如下面这个例子：</p>
+<pre class="line-numbers language-yaml" data-language="yaml"><code class="language-yaml"><span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> v1
+<span class="token key atrule">kind</span><span class="token punctuation">:</span> Pod
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> cuda<span class="token punctuation">-</span>vector<span class="token punctuation">-</span>add
+<span class="token key atrule">spec</span><span class="token punctuation">:</span>
+  <span class="token key atrule">restartPolicy</span><span class="token punctuation">:</span> OnFailure
+  <span class="token key atrule">containers</span><span class="token punctuation">:</span>
+    <span class="token punctuation">-</span> <span class="token key atrule">name</span><span class="token punctuation">:</span> cuda<span class="token punctuation">-</span>vector<span class="token punctuation">-</span>add
+      <span class="token key atrule">image</span><span class="token punctuation">:</span> <span class="token string">"k8s.gcr.io/cuda-vector-add:v0.1"</span>
+      <span class="token key atrule">resources</span><span class="token punctuation">:</span>
+        <span class="token key atrule">limits</span><span class="token punctuation">:</span>
+          <span class="token key atrule">nvidia.com/gpu</span><span class="token punctuation">:</span> <span class="token number">1</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>可以看到，在上述 Pod 的 limits 字段里，这个资源的名称是nvidia.com/gpu，它的值是 1。也就是说，这个 Pod 声明了自己要使用一个 NVIDIA 类型的 GPU。</p>
+<p>而在 kube-scheduler 里面，它其实并不关心这个字段的具体含义，只会在计算的时候，一律将调度器里保存的该类型资源的可用量，直接减去 Pod 声明的数值即可。所以说，Extended Resource，其实是 Kubernetes 为用户设置的一种对自定义资源的支持。</p>
+<p>当然，为了能够让调度器知道这个自定义类型的资源在每台宿主机上的可用量，宿主机节点本身，就必须能够向 API Server 汇报该类型资源的可用数量。在 Kubernetes 里，各种类型的资源可用量，其实是 Node 对象 Status 字段的内容，比如下面这个例子：</p>
+<pre class="line-numbers language-yaml" data-language="yaml"><code class="language-yaml"><span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> v1
+<span class="token key atrule">kind</span><span class="token punctuation">:</span> Node
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> node<span class="token punctuation">-</span><span class="token number">1</span>
+<span class="token punctuation">...</span>
+<span class="token key atrule">Status</span><span class="token punctuation">:</span>
+  <span class="token key atrule">Capacity</span><span class="token punctuation">:</span>
+   <span class="token key atrule">cpu</span><span class="token punctuation">:</span>  <span class="token number">2</span>
+   <span class="token key atrule">memory</span><span class="token punctuation">:</span>  2049008Ki<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>而为了能够在上述 Status 字段里添加自定义资源的数据，你就必须使用 PATCH API 来对该 Node 对象进行更新，加上你的自定义资源的数量。这个 PATCH 操作，可以简单地使用 curl 命令来发起，如下所示：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token comment"># 启动 Kubernetes 的客户端 proxy，这样你就可以直接使用 curl 来跟 Kubernetes  的 API Server 进行交互了</span>
+$ kubectl proxy
+
+<span class="token comment"># 执行 PACTH 操作</span>
+$ <span class="token function">curl</span> --header <span class="token string">"Content-Type: application/json-patch+json"</span> <span class="token punctuation">\</span>
+    --request PATCH <span class="token punctuation">\</span>
+    --data <span class="token string">'[{"op": "add", "path": "/status/capacity/nvidia.com/gpu", "value": "1"}]'</span> <span class="token punctuation">\</span>
+    http://localhost:8001/api/v1/nodes/<span class="token operator">&lt;</span>your-node-name<span class="token operator">&gt;</span>/status<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>PATCH 操作完成后，你就可以看到 Node 的 Status 变成了如下所示的内容：</p>
+<pre class="line-numbers language-yaml" data-language="yaml"><code class="language-yaml"><span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> v1
+<span class="token key atrule">kind</span><span class="token punctuation">:</span> Node
+<span class="token punctuation">...</span>
+<span class="token key atrule">Status</span><span class="token punctuation">:</span>
+  <span class="token key atrule">Capacity</span><span class="token punctuation">:</span>
+   <span class="token key atrule">cpu</span><span class="token punctuation">:</span>  <span class="token number">2</span>
+   <span class="token key atrule">memory</span><span class="token punctuation">:</span>  2049008Ki
+   <span class="token key atrule">nvidia.com/gpu</span><span class="token punctuation">:</span> <span class="token number">1</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>这样在调度器里，它就能够在缓存里记录下 node-1 上的nvidia.com/gpu类型的资源的数量是 1。</p>
+<p>当然，在 Kubernetes 的 GPU 支持方案里，你并不需要真正去做上述关于 Extended Resource 的这些操作。在 Kubernetes 中，对所有硬件加速设备进行管理的功能，都是由一种叫作 Device Plugin 的插件来负责的。这其中，当然也就包括了对该硬件的 Extended Resource 进行汇报的逻辑。</p>
+<p>Kubernetes 的 Device Plugin 机制，我可以用如下所示的一幅示意图来和你解释清楚。</p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《深入剖析Kubernetes》学习笔记/Kubernetes的DevicePlugin机制.png" alt="Kubernetes的DevicePlugin机制"></p>
+<p>我们先从这幅示意图的右侧开始看起。</p>
+<p>首先，对于每一种硬件设备，都需要有它所对应的 Device Plugin 进行管理，这些 Device Plugin，都通过 gRPC 的方式，同 kubelet 连接起来。以 NVIDIA GPU 为例，它对应的插件叫作 <a target="_blank" rel="noopener" href="https://github.com/NVIDIA/k8s-device-plugin">NVIDIA GPU device plugin</a> 。</p>
+<p>这个 Device Plugin 会通过一个叫作 ListAndWatch 的 API，定期向 kubelet 汇报该 Node 上 GPU 的列表。比如，在我们的例子里，一共有三个 GPU（GPU0、GPU1 和 GPU2）。这样，kubelet 在拿到这个列表之后，就可以直接在它向 APIServer 发送的心跳里，以 Extended Resource 的方式，加上这些 GPU 的数量，比如nvidia.com/gpu=3。所以说，用户在这里是不需要关心 GPU 信息向上的汇报流程的。</p>
+<p>需要注意的是，ListAndWatch 向上汇报的信息，只有本机上 GPU 的 ID 列表，而不会有任何关于 GPU 设备本身的信息。而且 kubelet 在向 API Server 汇报的时候，只会汇报该 GPU 对应的 Extended Resource 的数量。当然，kubelet 本身，会将这个 GPU 的 ID 列表保存在自己的内存里，并通过 ListAndWatch API 定时更新。</p>
+<p>而当一个 Pod 想要使用一个 GPU 的时候，它只需要像我在本文一开始给出的例子一样，在 Pod 的 limits 字段声明nvidia.com/gpu: 1。那么接下来，Kubernetes 的调度器就会从它的缓存里，寻找 GPU 数量满足条件的 Node，然后将缓存里的 GPU 数量减 1，完成 Pod 与 Node 的绑定。</p>
+<p>这个调度成功后的 Pod 信息，自然就会被对应的 kubelet 拿来进行容器操作。而当 kubelet 发现这个 Pod 的容器请求一个 GPU 的时候，kubelet 就会从自己持有的 GPU 列表里，为这个容器分配一个 GPU。此时，kubelet 就会向本机的 Device Plugin 发起一个 Allocate() 请求。这个请求携带的参数，正是即将分配给该容器的设备 ID 列表。</p>
+<p>当 Device Plugin 收到 Allocate 请求之后，它就会根据 kubelet 传递过来的设备 ID，从 Device Plugin 里找到这些设备对应的设备路径和驱动目录。当然，这些信息，正是 Device Plugin 周期性的从本机查询到的。比如，在 NVIDIA Device Plugin 的实现里，它会定期访问 nvidia-docker 插件，从而获取到本机的 GPU 信息。</p>
+<p>而被分配 GPU 对应的设备路径和驱动目录信息被返回给 kubelet 之后，kubelet 就完成了为一个容器分配 GPU 的操作。接下来，kubelet 会把这些信息追加在创建该容器所对应的 CRI 请求当中。这样，当这个 CRI 请求发给 Docker 之后，Docker 为你创建出来的容器里，就会出现这个 GPU 设备，并把它所需要的驱动目录挂载进去。</p>
+<p>至此，Kubernetes 为一个 Pod 分配一个 GPU 的流程就完成了。</p>
+<p>对于其他类型硬件来说，要想在 Kubernetes 所管理的容器里使用这些硬件的话，也需要遵循上述 Device Plugin 的流程来实现如下所示的 Allocate 和 ListAndWatch API：</p>
+<pre class="line-numbers language-proto3" data-language="proto3"><code class="language-proto3">service DevicePlugin {
+    // ListAndWatch returns a stream of List of Devices
+    // Whenever a Device state change or a Device disappears, ListAndWatch
+    // returns the new list
+    rpc ListAndWatch(Empty) returns (stream ListAndWatchResponse) {}
+    // Allocate is called during container creation so that the Device
+    // Plugin can run device specific operations and instruct Kubelet
+    // of the steps to make the Device available in the container
+    rpc Allocate(AllocateRequest) returns (AllocateResponse) {}
+}<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>目前，Kubernetes 社区里已经实现了很多硬件插件，比如 <a target="_blank" rel="noopener" href="https://github.com/intel/intel-device-plugins-for-kubernetes">FPGA</a> 、 <a target="_blank" rel="noopener" href="https://github.com/intel/sriov-network-device-plugin">SRIOV</a> 、 <a target="_blank" rel="noopener" href="https://github.com/hustcat/k8s-rdma-device-plugin">RDMA</a> 等等。感兴趣的话，你可以点击这些链接来查看这些 Device Plugin 的实现。</p>
+<h4 id="44-1-总结"><a href="#44-1-总结" class="headerlink" title="44.1 总结"></a>44.1 总结</h4><p>在本篇文章中，我为你详细讲述了 Kubernetes 对 GPU 的管理方式，以及它所需要使用的 Device Plugin 机制。</p>
+<p>需要指出的是，Device Plugin 的设计，长期以来都是以 Google Cloud 的用户需求为主导的，所以，它的整套工作机制和流程上，实际上跟学术界和工业界的真实场景还有着不小的差异。</p>
+<p>这里最大的问题在于，GPU 等硬件设备的调度工作，实际上是由 kubelet 完成的。即，kubelet 会负责从它所持有的硬件设备列表中，为容器挑选一个硬件设备，然后调用 Device Plugin 的 Allocate API 来完成这个分配操作。可以看到，在整条链路中，调度器扮演的角色，仅仅是为 Pod 寻找到可用的、支持这种硬件设备的节点而已。</p>
+<p>这就使得，Kubernetes 里对硬件设备的管理，只能处理”设备个数”这唯一一种情况。一旦你的设备是异构的、不能简单地用”数目”去描述具体使用需求的时候，比如，”我的 Pod 想要运行在计算能力最强的那个 GPU 上”，Device Plugin 就完全不能处理了。</p>
+<p>更不用说，在很多场景下，我们其实希望在调度器进行调度的时候，就可以根据整个集群里的某种硬件设备的全局分布，做出一个最佳的调度选择。</p>
+<p>此外，上述 Device Plugin 的设计，也使得 Kubernetes 里，缺乏一种能够对 Device 进行描述的 API 对象。这就使得如果你的硬件设备本身的属性比较复杂，并且 Pod 也关心这些硬件的属性的话，那么 Device Plugin 也是完全没有办法支持的。</p>
+<p>更为棘手的是，在 Device Plugin 的设计和实现中，Google 的工程师们一直不太愿意为 Allocate 和 ListAndWatch API 添加可扩展性的参数。这就使得，当你确实需要处理一些比较复杂的硬件设备使用需求时，是没有办法通过扩展 Device Plugin 的 API 来实现的。</p>
+<p>针对这些问题，RedHat 在社区里曾经大力推进过 <a target="_blank" rel="noopener" href="https://github.com/kubernetes/community/pull/2265">ResourceClass</a> 的设计，试图将硬件设备的管理功能上浮到 API 层和调度层。但是，由于各方势力的反对，这个提议最后不了了之了。</p>
+<p>所以说，目前 Kubernetes 本身的 Device Plugin 的设计，实际上能覆盖的场景是非常单一的，属于”可用”但是”不好用”的状态。并且， Device Plugin 的 API 本身的可扩展性也不是很好。这也就解释了为什么像 NVIDIA 这样的硬件厂商，实际上并没有完全基于上游的 Kubernetes 代码来实现自己的 GPU 解决方案，而是做了一定的改动，也就是 fork。这，实属不得已而为之。</p>
+<h2 id="Kubernetes容器运行时"><a href="#Kubernetes容器运行时" class="headerlink" title="Kubernetes容器运行时"></a>Kubernetes容器运行时</h2><h2 id="Kubernetes容器监控与日志"><a href="#Kubernetes容器监控与日志" class="headerlink" title="Kubernetes容器监控与日志"></a>Kubernetes容器监控与日志</h2><h2 id="再谈开源与社区"><a href="#再谈开源与社区" class="headerlink" title="再谈开源与社区"></a>再谈开源与社区</h2><h2 id="答疑文章"><a href="#答疑文章" class="headerlink" title="答疑文章"></a>答疑文章</h2>
                 
             </div>
             <hr/>
@@ -7914,7 +8408,7 @@ Request ID: 32191f7ea07cb6bb44a1f43b8299415c<span aria-hidden="true" class="line
             <br>
             
             &nbsp;<i class="fas fa-chart-area"></i>&nbsp;站点总字数:&nbsp;<span
-                class="white-color">1196.7k</span>&nbsp;字
+                class="white-color">1210.6k</span>&nbsp;字
             
             
             
