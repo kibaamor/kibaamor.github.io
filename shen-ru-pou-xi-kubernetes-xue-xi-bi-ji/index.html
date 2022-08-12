@@ -460,14 +460,14 @@
                 
                 <div class="info-break-policy">
                     <i class="far fa-file-word fa-fw"></i>文章字数:&nbsp;&nbsp;
-                    170.8k
+                    180k
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-clock fa-fw"></i>阅读时长:&nbsp;&nbsp;
-                    655 分
+                    690 分
                 </div>
                 
 
@@ -8139,7 +8139,446 @@ $ <span class="token function">curl</span> --header <span class="token string">"
 <blockquote>
 <p>本篇图片出处均来自于 <a target="_blank" rel="noopener" href="https://www.openstack.org/assets/presentation-media/kata-containers-and-gvisor-a-quantitave-comparison.pdf">Kata Containers 的官方对比资料</a> 。</p>
 </blockquote>
-<h2 id="Kubernetes容器监控与日志"><a href="#Kubernetes容器监控与日志" class="headerlink" title="Kubernetes容器监控与日志"></a>Kubernetes容器监控与日志</h2><h2 id="再谈开源与社区"><a href="#再谈开源与社区" class="headerlink" title="再谈开源与社区"></a>再谈开源与社区</h2><h2 id="答疑文章"><a href="#答疑文章" class="headerlink" title="答疑文章"></a>答疑文章</h2>
+<h2 id="Kubernetes容器监控与日志"><a href="#Kubernetes容器监控与日志" class="headerlink" title="Kubernetes容器监控与日志"></a>Kubernetes容器监控与日志</h2><h3 id="48-Prometheus、Metrics-Server与Kubernetes监控体系"><a href="#48-Prometheus、Metrics-Server与Kubernetes监控体系" class="headerlink" title="48 | Prometheus、Metrics Server与Kubernetes监控体系"></a>48 | Prometheus、Metrics Server与Kubernetes监控体系</h3><p>首先需要明确指出的是，Kubernetes 项目的监控体系曾经非常繁杂，在社区中也有很多方案。但这套体系发展到今天，已经完全演变成了以 Prometheus 项目为核心的一套统一的方案。</p>
+<p>在这里，可能有一些同学对 Prometheus 项目还太不熟悉。所以，我先来简单为你介绍一下这个项目。</p>
+<p>实际上，Prometheus 项目是当年 CNCF 基金会起家时的”第二把交椅”。而这个项目发展到今天，已经全面接管了 Kubernetes 项目的整套监控体系。</p>
+<p>比较有意思的是，Prometheus 项目与 Kubernetes 项目一样，也来自于 Google 的 Borg 体系，它的原型系统，叫作 BorgMon，是一个几乎与 Borg 同时诞生的内部监控系统。而 Prometheus 项目的发起原因也跟 Kubernetes 很类似，都是希望通过对用户更友好的方式，将 Google 内部系统的设计理念，传递给用户和开发者。</p>
+<p>作为一个监控系统，Prometheus 项目的作用和工作方式，其实可以用如下所示的一张官方示意图来解释。</p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《深入剖析Kubernetes》学习笔记/Prometheus项目.png" alt="Prometheus项目.png"></p>
+<p>可以看到，Prometheus 项目工作的核心，是使用 Pull （抓取）的方式去搜集被监控对象的 Metrics 数据（监控指标数据），然后，再把这些数据保存在一个 TSDB （时间序列数据库，比如 OpenTSDB、InfluxDB 等）当中，以便后续可以按照时间进行检索。</p>
+<p>有了这套核心监控机制， Prometheus 剩下的组件就是用来配合这套机制的运行。比如 Pushgateway，可以允许被监控对象以 Push 的方式向 Prometheus 推送 Metrics 数据。而 Alertmanager，则可以根据 Metrics 信息灵活地设置报警。当然， Prometheus 最受用户欢迎的功能，还是通过 Grafana 对外暴露出的、可以灵活配置的监控数据可视化界面。</p>
+<p>有了 Prometheus 之后，我们就可以按照 Metrics 数据的来源，来对 Kubernetes 的监控体系做一个汇总了。</p>
+<ol>
+<li><p><strong>第一种 Metrics，是宿主机的监控数据。</strong> 这部分数据的提供，需要借助一个由 Prometheus 维护的 <a target="_blank" rel="noopener" href="https://github.com/prometheus/node_exporter">Node Exporter</a> 工具。一般来说，Node Exporter 会以 DaemonSet 的方式运行在宿主机上。其实，所谓的 Exporter，就是代替被监控对象来对 Prometheus 暴露出可以被”抓取”的 Metrics 信息的一个辅助进程。</p>
+<p> 而 Node Exporter 可以暴露给 Prometheus 采集的 Metrics 数据， 也不单单是节点的负载（Load）、CPU 、内存、磁盘以及网络这样的常规信息，它的 Metrics 指标可以说是”包罗万象”，你可以查看 <a target="_blank" rel="noopener" href="https://github.com/prometheus/node_exporter#enabled-by-default">这个列表</a> 来感受一下。</p>
+</li>
+<li><p><strong>第二种 Metrics，是来自于 Kubernetes 的 API Server、kubelet 等组件的 /metrics API。</strong> 除了常规的 CPU、内存的信息外，这部分信息还主要包括了各个组件的核心监控指标。比如，对于 API Server 来说，它就会在 /metrics API 里，暴露出各个 Controller 的工作队列（Work Queue）的长度、请求的 QPS 和延迟数据等等。这些信息，是检查 Kubernetes 本身工作情况的主要依据。</p>
+</li>
+<li><p><strong>第三种 Metrics，是 Kubernetes 相关的监控数据。</strong> 这部分数据，一般叫作 Kubernetes 核心监控数据（core metrics）。这其中包括了 Pod、Node、容器、Service 等主要 Kubernetes 核心概念的 Metrics。</p>
+</li>
+</ol>
+<p>其中，容器相关的 Metrics 主要来自于 kubelet 内置的 cAdvisor 服务。在 kubelet 启动后，cAdvisor 服务也随之启动，而它能够提供的信息，可以细化到每一个容器的 CPU 、文件系统、内存、网络等资源的使用情况。</p>
+<p>需要注意的是，这里提到的 Kubernetes 核心监控数据，其实使用的是 Kubernetes 的一个非常重要的扩展能力，叫作 Metrics Server。</p>
+<p>Metrics Server 在 Kubernetes 社区的定位，其实是用来取代 Heapster 这个项目的。在 Kubernetes 项目发展的初期，Heapster 是用户获取 Kubernetes 监控数据（比如 Pod 和 Node 的资源使用情况） 的主要渠道。而后面提出来的 Metrics Server，则把这些信息，通过标准的 Kubernetes API 暴露了出来。这样，Metrics 信息就跟 Heapster 完成了解耦，允许 Heapster 项目慢慢退出舞台。</p>
+<p>而有了 Metrics Server 之后，用户就可以通过标准的 Kubernetes API 来访问到这些监控数据了。比如，下面这个 URL：</p>
+<pre class="line-numbers language-txt" data-language="txt"><code class="language-txt">http://127.0.0.1:8001/apis/metrics.k8s.io/v1beta1/namespaces/&lt;namespace-name&gt;/pods/&lt;pod-name&gt;<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>当你访问这个 Metrics API 时，它就会为你返回一个 Pod 的监控数据，而这些数据，其实是从 kubelet 的 Summary API （即 <code>&lt;kubelet_ip&gt;:&lt;kubelet_port&gt;/stats/summary</code> ）采集而来的。Summary API 返回的信息，既包括了 cAdVisor 的监控数据，也包括了 kubelet 本身汇总的信息。</p>
+<p>需要指出的是， Metrics Server 并不是 kube-apiserver 的一部分，而是通过 Aggregator 这种插件机制，在独立部署的情况下同 kube-apiserver 一起统一对外服务的。</p>
+<p>这里，Aggregator APIServer 的工作原理，可以用如下所示的一幅示意图来表示清楚：</p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《深入剖析Kubernetes》学习笔记/AggregatorAPIServer的工作原理.png" alt="AggregatorAPIServer的工作原理"></p>
+<blockquote>
+<p>备注：图片出处 <a target="_blank" rel="noopener" href="https://blog.jetstack.io/blog/resource-and-custom-metrics-hpa-v2/">https://blog.jetstack.io/blog/resource-and-custom-metrics-hpa-v2/</a></p>
+</blockquote>
+<p>可以看到，当 Kubernetes 的 API Server 开启了 Aggregator 模式之后，你再访问 apis/metrics.k8s.io/v1beta1 的时候，实际上访问到的是一个叫作 kube-aggregator 的代理。而 kube-apiserver，正是这个代理的一个后端；而 Metrics Server，则是另一个后端。</p>
+<p>而且，在这个机制下，你还可以添加更多的后端给这个 kube-aggregator。所以 <strong>kube-aggregator 其实就是一个根据 URL 选择具体的 API 后端的代理服务器。</strong> 通过这种方式，我们就可以很方便地扩展 Kubernetes 的 API 了。</p>
+<p>而 Aggregator 模式的开启也非常简单：</p>
+<ul>
+<li><p>如果你是使用 kubeadm 或者官方的 kube-up.sh 脚本部署 Kubernetes 集群的话，Aggregator 模式就是默认开启的；</p>
+</li>
+<li><p>如果是手动 DIY 搭建的话，你就需要在 kube-apiserver 的启动参数里加上如下所示的配置：</p>
+  <pre class="line-numbers language-txt" data-language="txt"><code class="language-txt">--requestheader-client-ca-file=&lt;path to aggregator CA cert&gt;
+--requestheader-allowed-names=front-proxy-client
+--requestheader-extra-headers-prefix=X-Remote-Extra-
+--requestheader-group-headers=X-Remote-Group
+--requestheader-username-headers=X-Remote-User
+--proxy-client-cert-file=&lt;path to aggregator proxy cert&gt;
+--proxy-client-key-file=&lt;path to aggregator proxy key&gt;<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>  而这些配置的作用，主要就是为 Aggregator 这一层设置对应的 Key 和 Cert 文件。而这些文件的生成，就需要你自己手动完成了，具体流程请参考这篇官方文档。</p>
+</li>
+</ul>
+<p>Aggregator 功能开启之后，你只需要将 Metrics Server 的 YAML 文件部署起来，如下所示：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token function">git</span> clone https://github.com/kubernetes-incubator/metrics-server
+<span class="token builtin class-name">cd</span> metrics-server
+kubectl create -f deploy/1.8+/<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span></span></code></pre>
+<p>接下来，你就会看到 metrics.k8s.io 这个 API 出现在了你的 Kubernetes API 列表当中。</p>
+<p>在理解了 Prometheus 关心的三种监控数据源，以及 Kubernetes 的核心 Metrics 之后，作为用户，你其实要做的就是将 Prometheus Operator 在 Kubernetes 集群里部署起来。然后，按照本篇文章一开始介绍的架构，把上述 Metrics 源配置起来，让 Prometheus 自己去进行采集即可。</p>
+<p>在后续的文章中，我会为你进一步剖析 Kubernetes 监控体系以及自定义 Metrics （自定义监控指标）的具体技术点。</p>
+<h4 id="48-1-总结"><a href="#48-1-总结" class="headerlink" title="48.1 总结"></a>48.1 总结</h4><p>在具体的监控指标规划上，我建议你 <strong>遵循业界通用的 USE 原则和 RED 原则。</strong></p>
+<p>其中，USE 原则指的是，按照如下三个维度来规划资源监控指标：</p>
+<ol>
+<li>利用率（Utilization），资源被有效利用起来提供服务的平均时间占比；</li>
+<li>饱和度（Saturation），资源拥挤的程度，比如工作队列的长度；</li>
+<li>错误率（Errors），错误的数量。</li>
+</ol>
+<p>而 RED 原则指的是，按照如下三个维度来规划服务监控指标：</p>
+<ol>
+<li>每秒请求数量（Rate）；</li>
+<li>每秒错误数量（Errors）；</li>
+<li>服务响应时间（Duration）。</li>
+</ol>
+<p>不难发现， USE 原则主要关注的是”资源”，比如节点和容器的资源使用情况，而 RED 原则主要关注的是”服务”，比如 kube-apiserver 或者某个应用的工作情况。这两种指标，在我今天为你讲解的 Kubernetes + Prometheus 组成的监控体系中，都是可以完全覆盖到的。</p>
+<h3 id="49-Custom-Metrics-让Auto-Scaling不再”食之无味”"><a href="#49-Custom-Metrics-让Auto-Scaling不再”食之无味”" class="headerlink" title="49 | Custom Metrics: 让Auto Scaling不再”食之无味”"></a>49 | Custom Metrics: 让Auto Scaling不再”食之无味”</h3><p>实际上，借助上述监控体系，Kubernetes 就可以为你提供一种非常有用的能力，那就是 Custom Metrics，自定义监控指标。</p>
+<p>在过去的很多 PaaS 项目中，其实都有一种叫作 Auto Scaling，即自动水平扩展的功能。只不过，这个功能往往只能依据某种指定的资源类型执行水平扩展，比如 CPU 或者 Memory 的使用值。</p>
+<p>而在真实的场景中，用户需要进行 Auto Scaling 的依据往往是自定义的监控指标。比如，某个应用的等待队列的长度，或者某种应用相关资源的使用情况。这些复杂多变的需求，在传统 PaaS 项目和其他容器编排项目里，几乎是不可能轻松支持的。</p>
+<p>而凭借强大的 API 扩展机制，Custom Metrics 已经成为了 Kubernetes 的一项标准能力。并且，Kubernetes 的自动扩展器组件 Horizontal Pod Autoscaler （HPA）， 也可以直接使用 Custom Metrics 来执行用户指定的扩展策略，这里的整个过程都是非常灵活和可定制的。</p>
+<p>不难想到，Kubernetes 里的 Custom Metrics 机制，也是借助 Aggregator APIServer 扩展机制来实现的。这里的具体原理是，当你把 Custom Metrics APIServer 启动之后，Kubernetes 里就会出现一个叫作custom.metrics.k8s.io的 API。而当你访问这个 URL 时，Aggregator 就会把你的请求转发给 Custom Metrics APIServer 。</p>
+<p>而 Custom Metrics APIServer 的实现，其实就是一个 Prometheus 项目的 Adaptor。</p>
+<p>比如，现在我们要实现一个根据指定 Pod 收到的 HTTP 请求数量来进行 Auto Scaling 的 Custom Metrics，这个 Metrics 就可以通过访问如下所示的自定义监控 URL 获取到：</p>
+<pre class="line-numbers language-txt" data-language="txt"><code class="language-txt">https://&lt;apiserver_ip&gt;/apis/custom-metrics.metrics.k8s.io/v1beta1/namespaces/default/pods/sample-metrics-app/http_requests<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>这里的工作原理是，当你访问这个 URL 的时候，Custom Metrics APIServer 就会去 Prometheus 里查询名叫 sample-metrics-app 这个 Pod 的 http_requests 指标的值，然后按照固定的格式返回给访问者。</p>
+<p>当然，http_requests 指标的值，就需要由 Prometheus 按照我在上一篇文章中讲到的核心监控体系，从目标 Pod 上采集来。</p>
+<p>这里具体的做法有很多种，最普遍的做法，就是让 Pod 里的应用本身暴露出一个 /metrics API，然后在这个 API 里返回自己收到的 HTTP 的请求的数量。所以说，接下来 HPA 只需要定时访问前面提到的自定义监控 URL，然后根据这些值计算是否要执行 Scaling 即可。</p>
+<p>接下来，我通过一个具体的实例，来为你讲解一下 Custom Metrics 具体的使用方式。这个实例的 GitHub 库 <a target="_blank" rel="noopener" href="https://github.com/resouer/kubeadm-workshop">在这里</a> ，你可以点击链接查看。在这个例子中，我依然会假设你的集群是 kubeadm 部署出来的，所以 Aggregator 功能已经默认开启了。</p>
+<blockquote>
+<p>备注：我们这里使用的实例，fork 自 Lucas 在上高中时做的一系列 Kubernetes 指南。</p>
+</blockquote>
+<p><strong>首先</strong> ，我们当然是先部署 Prometheus 项目。这一步，我当然会使用 Prometheus Operator 来完成，如下所示：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ kubectl apply -f demos/monitoring/prometheus-operator.yaml
+clusterrole <span class="token string">"prometheus-operator"</span> created
+serviceaccount <span class="token string">"prometheus-operator"</span> created
+clusterrolebinding <span class="token string">"prometheus-operator"</span> created
+deployment <span class="token string">"prometheus-operator"</span> created
+
+$ kubectl apply -f demos/monitoring/sample-prometheus-instance.yaml
+clusterrole <span class="token string">"prometheus"</span> created
+serviceaccount <span class="token string">"prometheus"</span> created
+clusterrolebinding <span class="token string">"prometheus"</span> created
+prometheus <span class="token string">"sample-metrics-prom"</span> created
+<span class="token function">service</span> <span class="token string">"sample-metrics-prom"</span> created<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p><strong>第二步</strong> ，我们需要把 Custom Metrics APIServer 部署起来，如下所示：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ kubectl apply -f demos/monitoring/custom-metrics.yaml
+namespace <span class="token string">"custom-metrics"</span> created
+serviceaccount <span class="token string">"custom-metrics-apiserver"</span> created
+clusterrolebinding <span class="token string">"custom-metrics:system:auth-delegator"</span> created
+rolebinding <span class="token string">"custom-metrics-auth-reader"</span> created
+clusterrole <span class="token string">"custom-metrics-read"</span> created
+clusterrolebinding <span class="token string">"custom-metrics-read"</span> created
+deployment <span class="token string">"custom-metrics-apiserver"</span> created
+<span class="token function">service</span> <span class="token string">"api"</span> created
+apiservice <span class="token string">"v1beta1.custom-metrics.metrics.k8s.io"</span> created
+clusterrole <span class="token string">"custom-metrics-server-resources"</span> created
+clusterrolebinding <span class="token string">"hpa-controller-custom-metrics"</span> created<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p><strong>第三步</strong> ，我们需要为 Custom Metrics APIServer 创建对应的 ClusterRoleBinding，以便能够使用 curl 来直接访问 Custom Metrics 的 API：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ kubectl create clusterrolebinding allowall-cm --clusterrole custom-metrics-server-resources --user system:anonymous
+clusterrolebinding <span class="token string">"allowall-cm"</span> created<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre>
+<p><strong>第四步</strong> ，我们就可以把待监控的应用和 HPA 部署起来了，如下所示：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ kubectl apply -f demos/monitoring/sample-metrics-app.yaml
+deployment <span class="token string">"sample-metrics-app"</span> created
+<span class="token function">service</span> <span class="token string">"sample-metrics-app"</span> created
+servicemonitor <span class="token string">"sample-metrics-app"</span> created
+horizontalpodautoscaler <span class="token string">"sample-metrics-app-hpa"</span> created
+ingress <span class="token string">"sample-metrics-app"</span> created<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>这里，我们需要关注一下 HPA 的配置，如下所示：</p>
+<pre class="line-numbers language-yaml" data-language="yaml"><code class="language-yaml"><span class="token key atrule">kind</span><span class="token punctuation">:</span> HorizontalPodAutoscaler
+<span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> autoscaling/v2beta1
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> sample<span class="token punctuation">-</span>metrics<span class="token punctuation">-</span>app<span class="token punctuation">-</span>hpa
+<span class="token key atrule">spec</span><span class="token punctuation">:</span>
+  <span class="token key atrule">scaleTargetRef</span><span class="token punctuation">:</span>
+    <span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> apps/v1
+    <span class="token key atrule">kind</span><span class="token punctuation">:</span> Deployment
+    <span class="token key atrule">name</span><span class="token punctuation">:</span> sample<span class="token punctuation">-</span>metrics<span class="token punctuation">-</span>app
+  <span class="token key atrule">minReplicas</span><span class="token punctuation">:</span> <span class="token number">2</span>
+  <span class="token key atrule">maxReplicas</span><span class="token punctuation">:</span> <span class="token number">10</span>
+  <span class="token key atrule">metrics</span><span class="token punctuation">:</span>
+  <span class="token punctuation">-</span> <span class="token key atrule">type</span><span class="token punctuation">:</span> Object
+    <span class="token key atrule">object</span><span class="token punctuation">:</span>
+      <span class="token key atrule">target</span><span class="token punctuation">:</span>
+        <span class="token key atrule">kind</span><span class="token punctuation">:</span> Service
+        <span class="token key atrule">name</span><span class="token punctuation">:</span> sample<span class="token punctuation">-</span>metrics<span class="token punctuation">-</span>app
+      <span class="token key atrule">metricName</span><span class="token punctuation">:</span> http_requests
+      <span class="token key atrule">targetValue</span><span class="token punctuation">:</span> <span class="token number">100</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>可以看到， <strong>HPA 的配置，就是你设置 Auto Scaling 规则的地方。</strong></p>
+<p>比如，scaleTargetRef 字段，就指定了被监控的对象是名叫 sample-metrics-app 的 Deployment，也就是我们上面部署的被监控应用。并且，它最小的实例数目是 2，最大是 10。</p>
+<p>在 metrics 字段，我们指定了这个 HPA 进行 Scale 的依据，是名叫 http_requests 的 Metrics。而获取这个 Metrics 的途径，则是访问名叫 sample-metrics-app 的 Service。</p>
+<p>有了这些字段里的定义， HPA 就可以向如下所示的 URL 发起请求来获取 Custom Metrics 的值了：</p>
+<pre class="line-numbers language-txt" data-language="txt"><code class="language-txt">https://&lt;apiserver_ip&gt;/apis/custom-metrics.metrics.k8s.io/v1beta1/namespaces/default/services/sample-metrics-app/http_requests<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>需要注意的是，上述这个 URL 对应的被监控对象，是我们的应用对应的 Service。这跟本文一开始举例用到的 Pod 对应的 Custom Metrics URL 是不一样的。当然， <strong>对于一个多实例应用来说，通过 Service 来采集 Pod 的 Custom Metrics 其实才是合理的做法。</strong></p>
+<p>这时候，我们可以通过一个名叫 hey 的测试工具来为我们的应用增加一些访问压力，具体做法如下所示：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token comment"># Install hey</span>
+docker run -it -v /usr/local/bin:/go/bin golang:1.8 go get github.com/rakyll/hey
+
+<span class="token builtin class-name">export</span> <span class="token assign-left variable">APP_ENDPOINT</span><span class="token operator">=</span><span class="token variable"><span class="token variable">$(</span>kubectl get svc sample-metrics-app -o template --template <span class="token punctuation">{</span><span class="token punctuation">{</span>.spec.clusterIP<span class="token punctuation">}</span><span class="token punctuation">}</span><span class="token variable">)</span></span><span class="token punctuation">;</span> <span class="token builtin class-name">echo</span> <span class="token variable">${APP_ENDPOINT}</span>
+hey -n <span class="token number">50000</span> -c <span class="token number">1000</span> http://<span class="token variable">${APP_ENDPOINT}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>与此同时，如果你去访问应用 Service 的 Custom Metircs URL，就会看到这个 URL 已经可以为你返回应用收到的 HTTP 请求数量了，如下所示：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ <span class="token function">curl</span> -sSLk https://<span class="token operator">&lt;</span>apiserver_ip<span class="token operator">&gt;</span>/apis/custom-metrics.metrics.k8s.io/v1beta1/namespaces/default/services/sample-metrics-app/http_requests
+<span class="token punctuation">{</span>
+  <span class="token string">"kind"</span><span class="token builtin class-name">:</span> <span class="token string">"MetricValueList"</span>,
+  <span class="token string">"apiVersion"</span><span class="token builtin class-name">:</span> <span class="token string">"custom-metrics.metrics.k8s.io/v1beta1"</span>,
+  <span class="token string">"metadata"</span><span class="token builtin class-name">:</span> <span class="token punctuation">{</span>
+    <span class="token string">"selfLink"</span><span class="token builtin class-name">:</span> <span class="token string">"/apis/custom-metrics.metrics.k8s.io/v1beta1/namespaces/default/services/sample-metrics-app/http_requests"</span>
+  <span class="token punctuation">}</span>,
+  <span class="token string">"items"</span><span class="token builtin class-name">:</span> <span class="token punctuation">[</span>
+    <span class="token punctuation">{</span>
+      <span class="token string">"describedObject"</span><span class="token builtin class-name">:</span> <span class="token punctuation">{</span>
+        <span class="token string">"kind"</span><span class="token builtin class-name">:</span> <span class="token string">"Service"</span>,
+        <span class="token string">"name"</span><span class="token builtin class-name">:</span> <span class="token string">"sample-metrics-app"</span>,
+        <span class="token string">"apiVersion"</span><span class="token builtin class-name">:</span> <span class="token string">"/__internal"</span>
+      <span class="token punctuation">}</span>,
+      <span class="token string">"metricName"</span><span class="token builtin class-name">:</span> <span class="token string">"http_requests"</span>,
+      <span class="token string">"timestamp"</span><span class="token builtin class-name">:</span> <span class="token string">"2018-11-30T20:56:34Z"</span>,
+      <span class="token string">"value"</span><span class="token builtin class-name">:</span> <span class="token string">"501484m"</span>
+    <span class="token punctuation">}</span>
+  <span class="token punctuation">]</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p><strong>这里需要注意的，是 Custom Metrics API 为你返回的 Value 的格式。</strong></p>
+<p>在为被监控应用编写 /metrics API 的返回值时，我们其实比较容易计算的，是该 Pod 收到的 HTTP request 的总数。所以，我们这个应用的代码其实是如下所示的样子：</p>
+<pre class="line-numbers language-go" data-language="go"><code class="language-go"><span class="token keyword">if</span> <span class="token punctuation">(</span>request<span class="token punctuation">.</span>url <span class="token operator">==</span> <span class="token string">"/metrics"</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+    response<span class="token punctuation">.</span><span class="token function">end</span><span class="token punctuation">(</span><span class="token string">"# HELP http_requests_total The amount of requests served by the server in total\n# TYPE http_requests_total counter\nhttp_requests_total "</span> <span class="token operator">+</span> totalrequests <span class="token operator">+</span> <span class="token string">"\n"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">return</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span></span></code></pre>
+<p>可以看到，我们的应用在 /metrics 对应的 HTTP response 里返回的，其实是 http_requests_total 的值。这，也就是 Prometheus 收集到的值。</p>
+<p>而 Custom Metrics APIServer 在收到对 http_requests 指标的访问请求之后，它会从 Prometheus 里查询 http_requests_total 的值，然后把它折算成一个以时间为单位的请求率，最后把这个结果作为 http_requests 指标对应的值返回回去。</p>
+<p>所以说，我们在对前面的 Custom Metircs URL 进行访问时，会看到值是 501484m，这里的格式，其实就是 milli-requests，相当于是在过去两分钟内，每秒有 501 个请求。这样，应用的开发者就无需关心如何计算每秒的请求个数了。而这样的”请求率”的格式，是可以直接被 HPA 拿来使用的。</p>
+<p>这时候，如果你同时查看 Pod 的个数的话，就会看到 HPA 开始增加 Pod 的数目了。</p>
+<p>不过，在这里你可能会有一个疑问，Prometheus 项目，又是如何知道采集哪些 Pod 的 /metrics API 作为监控指标的来源呢。</p>
+<p>实际上，如果仔细观察一下我们前面创建应用的输出，你会看到有一个类型是 ServiceMonitor 的对象也被创建了出来。它的 YAML 文件如下所示：</p>
+<pre class="line-numbers language-yaml" data-language="yaml"><code class="language-yaml"><span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> monitoring.coreos.com/v1
+<span class="token key atrule">kind</span><span class="token punctuation">:</span> ServiceMonitor
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> sample<span class="token punctuation">-</span>metrics<span class="token punctuation">-</span>app
+  <span class="token key atrule">labels</span><span class="token punctuation">:</span>
+    <span class="token key atrule">service-monitor</span><span class="token punctuation">:</span> sample<span class="token punctuation">-</span>metrics<span class="token punctuation">-</span>app
+<span class="token key atrule">spec</span><span class="token punctuation">:</span>
+  <span class="token key atrule">selector</span><span class="token punctuation">:</span>
+    <span class="token key atrule">matchLabels</span><span class="token punctuation">:</span>
+      <span class="token key atrule">app</span><span class="token punctuation">:</span> sample<span class="token punctuation">-</span>metrics<span class="token punctuation">-</span>app
+  <span class="token key atrule">endpoints</span><span class="token punctuation">:</span>
+  <span class="token punctuation">-</span> <span class="token key atrule">port</span><span class="token punctuation">:</span> web<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>这个 ServiceMonitor 对象，正是 Prometheus Operator 项目用来指定被监控 Pod 的一个配置文件。可以看到，我其实是通过 Label Selector 为 Prometheus 来指定被监控应用的。</p>
+<h4 id="49-1-总结"><a href="#49-1-总结" class="headerlink" title="49.1 总结"></a>49.1 总结</h4><p>在本篇文章中，我为你详细讲解了 Kubernetes 里对自定义监控指标，即 Custom Metrics 的设计与实现机制。这套机制的可扩展性非常强，也终于使得 Auto Scaling 在 Kubernetes 里面不再是一个”食之无味”的鸡肋功能了。</p>
+<p>另外可以看到，Kubernetes 的 Aggregator APIServer，是一个非常行之有效的 API 扩展机制。而且，Kubernetes 社区已经为你提供了一套叫作 <a target="_blank" rel="noopener" href="https://github.com/kubernetes-sigs/kubebuilder">KubeBuilder</a> 的工具库，帮助你生成一个 API Server 的完整代码框架，你只需要在里面添加自定义 API，以及对应的业务逻辑即可。</p>
+<h3 id="50-让日志无处可逃：容器日志收集与管理"><a href="#50-让日志无处可逃：容器日志收集与管理" class="headerlink" title="50 | 让日志无处可逃：容器日志收集与管理"></a>50 | 让日志无处可逃：容器日志收集与管理</h3><p>首先需要明确的是，Kubernetes 里面对容器日志的处理方式，都叫作 cluster-level-logging，即：这个日志处理系统，与容器、Pod 以及 Node 的生命周期都是完全无关的。这种设计当然是为了保证，无论是容器挂了、Pod 被删除，甚至节点宕机的时候，应用的日志依然可以被正常获取到。</p>
+<p>而对于一个容器来说，当应用把日志输出到 stdout 和 stderr 之后，容器项目在默认情况下就会把这些日志输出到宿主机上的一个 JSON 文件里。这样，你通过 kubectl logs 命令就可以看到这些容器的日志了。</p>
+<p>上述机制，就是我们今天要讲解的容器日志收集的基础假设。而如果你的应用是把文件输出到其他地方，比如直接输出到了容器里的某个文件里，或者输出到了远程存储里，那就属于特殊情况了。当然，我在文章里也会对这些特殊情况的处理方法进行讲述。</p>
+<p>而 Kubernetes 本身，实际上是不会为你做容器日志收集工作的，所以为了实现上述 cluster-level-logging，你需要在部署集群的时候，提前对具体的日志方案进行规划。而 Kubernetes 项目本身，主要为你推荐了三种日志方案。</p>
+<ol>
+<li><p><strong>第一种，在 Node 上部署 logging agent，将日志文件转发到后端存储里保存起来。</strong> 这个方案的架构图如下所示</p>
+<p> <img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《深入剖析Kubernetes》学习笔记/第一种日志方案.png" alt="第一种日志方案"></p>
+<p> 不难看到，这里的核心就在于 logging agent ，它一般都会以 DaemonSet 的方式运行在节点上，然后将宿主机上的容器日志目录挂载进去，最后由 logging-agent 把日志转发出去。</p>
+<p> 举个例子，我们可以通过 Fluentd 项目作为宿主机上的 logging-agent，然后把日志转发到远端的 ElasticSearch 里保存起来供将来进行检索。具体的操作过程，你可以通过阅读 <a target="_blank" rel="noopener" href="https://kubernetes.io/docs/user-guide/logging/elasticsearch">这篇文档</a> 来了解。另外，在很多 Kubernetes 的部署里，会自动为你启用 <a target="_blank" rel="noopener" href="https://linux.die.net/man/8/logrotate">logrotate</a> ，在日志文件超过 10MB 的时候自动对日志文件进行 rotate 操作。</p>
+<p> 可以看到，在 Node 上部署 logging agent 最大的优点，在于一个节点只需要部署一个 agent，并且不会对应用和 Pod 有任何侵入性。所以，这个方案，在社区里是最常用的一种。</p>
+<p> 但是也不难看到，这种方案的不足之处就在于，它要求应用输出的日志，都必须是直接输出到容器的 stdout 和 stderr 里。</p>
+</li>
+<li><p>所以， <strong>Kubernetes 容器日志方案的第二种，就是对这种特殊情况的一个处理，即：当容器的日志只能输出到某些文件里的时候，我们可以通过一个 sidecar 容器把这些日志文件重新输出到 sidecar 的 stdout 和 stderr 上，这样就能够继续使用第一种方案了。</strong> 这个方案的具体工作原理，如下所示。</p>
+<p> <img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《深入剖析Kubernetes》学习笔记/第二种日志方案.png" alt="第二种日志方案"></p>
+<p> 比如，现在我的应用 Pod 只有一个容器，它会把日志输出到容器里的 /var/log/1.log 和 2.log 这两个文件里。这个 Pod 的 YAML 文件如下所示：</p>
+ <pre class="line-numbers language-yaml" data-language="yaml"><code class="language-yaml"><span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> v1
+<span class="token key atrule">kind</span><span class="token punctuation">:</span> Pod
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+<span class="token key atrule">name</span><span class="token punctuation">:</span> counter
+<span class="token key atrule">spec</span><span class="token punctuation">:</span>
+<span class="token key atrule">containers</span><span class="token punctuation">:</span>
+<span class="token punctuation">-</span> <span class="token key atrule">name</span><span class="token punctuation">:</span> count
+    <span class="token key atrule">image</span><span class="token punctuation">:</span> busybox
+    <span class="token key atrule">args</span><span class="token punctuation">:</span>
+    <span class="token punctuation">-</span> /bin/sh
+    <span class="token punctuation">-</span> <span class="token punctuation">-</span>c
+    <span class="token punctuation">-</span> <span class="token punctuation">&gt;</span><span class="token scalar string">
+    i=0;
+    while true;
+    do
+        echo "$i: $(date)" &gt;&gt; /var/log/1.log;
+        echo "$(date) INFO $i" &gt;&gt; /var/log/2.log;
+        i=$((i+1));
+        sleep 1;
+    done
+    volumeMounts:
+    - name: varlog
+    mountPath: /var/log</span>
+<span class="token key atrule">volumes</span><span class="token punctuation">:</span>
+<span class="token punctuation">-</span> <span class="token key atrule">name</span><span class="token punctuation">:</span> varlog
+    <span class="token key atrule">emptyDir</span><span class="token punctuation">:</span> <span class="token punctuation">{</span><span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p> 在这种情况下，你用 kubectl logs 命令是看不到应用的任何日志的。而且我们前面讲解的、最常用的方案一，也是没办法使用的。</p>
+<p> 那么这个时候，我们就可以为这个 Pod 添加两个 sidecar 容器，分别将上述两个日志文件里的内容重新以 stdout 和 stderr 的方式输出出来，这个 YAML 文件的写法如下所示：</p>
+ <pre class="line-numbers language-yaml" data-language="yaml"><code class="language-yaml"><span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> v1
+<span class="token key atrule">kind</span><span class="token punctuation">:</span> Pod
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+<span class="token key atrule">name</span><span class="token punctuation">:</span> counter
+<span class="token key atrule">spec</span><span class="token punctuation">:</span>
+<span class="token key atrule">containers</span><span class="token punctuation">:</span>
+<span class="token punctuation">-</span> <span class="token key atrule">name</span><span class="token punctuation">:</span> count
+    <span class="token key atrule">image</span><span class="token punctuation">:</span> busybox
+    <span class="token key atrule">args</span><span class="token punctuation">:</span>
+    <span class="token punctuation">-</span> /bin/sh
+    <span class="token punctuation">-</span> <span class="token punctuation">-</span>c
+    <span class="token punctuation">-</span> <span class="token punctuation">&gt;</span><span class="token scalar string">
+    i=0;
+    while true;
+    do
+        echo "$i: $(date)" &gt;&gt; /var/log/1.log;
+        echo "$(date) INFO $i" &gt;&gt; /var/log/2.log;
+        i=$((i+1));
+        sleep 1;
+    done
+    volumeMounts:
+    - name: varlog
+    mountPath: /var/log</span>
+<span class="token punctuation">-</span> <span class="token key atrule">name</span><span class="token punctuation">:</span> count<span class="token punctuation">-</span>log<span class="token punctuation">-</span><span class="token number">1</span>
+    <span class="token key atrule">image</span><span class="token punctuation">:</span> busybox
+    <span class="token key atrule">args</span><span class="token punctuation">:</span> <span class="token punctuation">[</span>/bin/sh<span class="token punctuation">,</span> <span class="token punctuation">-</span>c<span class="token punctuation">,</span> <span class="token string">'tail -n+1 -f /var/log/1.log'</span><span class="token punctuation">]</span>
+    <span class="token key atrule">volumeMounts</span><span class="token punctuation">:</span>
+    <span class="token punctuation">-</span> <span class="token key atrule">name</span><span class="token punctuation">:</span> varlog
+    <span class="token key atrule">mountPath</span><span class="token punctuation">:</span> /var/log
+<span class="token punctuation">-</span> <span class="token key atrule">name</span><span class="token punctuation">:</span> count<span class="token punctuation">-</span>log<span class="token punctuation">-</span><span class="token number">2</span>
+    <span class="token key atrule">image</span><span class="token punctuation">:</span> busybox
+    <span class="token key atrule">args</span><span class="token punctuation">:</span> <span class="token punctuation">[</span>/bin/sh<span class="token punctuation">,</span> <span class="token punctuation">-</span>c<span class="token punctuation">,</span> <span class="token string">'tail -n+1 -f /var/log/2.log'</span><span class="token punctuation">]</span>
+    <span class="token key atrule">volumeMounts</span><span class="token punctuation">:</span>
+    <span class="token punctuation">-</span> <span class="token key atrule">name</span><span class="token punctuation">:</span> varlog
+    <span class="token key atrule">mountPath</span><span class="token punctuation">:</span> /var/log
+<span class="token key atrule">volumes</span><span class="token punctuation">:</span>
+<span class="token punctuation">-</span> <span class="token key atrule">name</span><span class="token punctuation">:</span> varlog
+    <span class="token key atrule">emptyDir</span><span class="token punctuation">:</span> <span class="token punctuation">{</span><span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p> 这时候，你就可以通过 kubectl logs 命令查看这两个 sidecar 容器的日志，间接看到应用的日志内容了，如下所示：</p>
+ <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ kubectl logs counter count-log-1
+<span class="token number">0</span>: Mon Jan <span class="token number">1</span> 00:00:00 UTC <span class="token number">2001</span>
+<span class="token number">1</span>: Mon Jan <span class="token number">1</span> 00:00:01 UTC <span class="token number">2001</span>
+<span class="token number">2</span>: Mon Jan <span class="token number">1</span> 00:00:02 UTC <span class="token number">2001</span>
+<span class="token punctuation">..</span>.
+$ kubectl logs counter count-log-2
+Mon Jan <span class="token number">1</span> 00:00:00 UTC <span class="token number">2001</span> INFO <span class="token number">0</span>
+Mon Jan <span class="token number">1</span> 00:00:01 UTC <span class="token number">2001</span> INFO <span class="token number">1</span>
+Mon Jan <span class="token number">1</span> 00:00:02 UTC <span class="token number">2001</span> INFO <span class="token number">2</span>
+<span class="token punctuation">..</span>.<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p> 由于 sidecar 跟主容器之间是共享 Volume 的，所以这里的 sidecar 方案的额外性能损耗并不高，也就是多占用一点 CPU 和内存罢了。</p>
+<p> 但需要注意的是，这时候，宿主机上实际上会存在两份相同的日志文件：一份是应用自己写入的；另一份则是 sidecar 的 stdout 和 stderr 对应的 JSON 文件。这对磁盘是很大的浪费。所以说，除非万不得已或者应用容器完全不可能被修改，否则我还是建议你直接使用方案一，或者直接使用下面的第三种方案。</p>
+</li>
+<li><p><strong>第三种方案，就是通过一个 sidecar 容器，直接把应用的日志文件发送到远程存储里面去。</strong> 也就是相当于把方案一里的 logging agent，放在了应用 Pod 里。这种方案的架构如下所示：</p>
+<p> <img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《深入剖析Kubernetes》学习笔记/第三种日志方案.png" alt="第三种日志方案"></p>
+<p> 在这种方案里，你的应用还可以直接把日志输出到固定的文件里而不是 stdout，你的 logging-agent 还可以使用 fluentd，后端存储还可以是 ElasticSearch。只不过， fluentd 的输入源，变成了应用的日志文件。一般来说，我们会把 fluentd 的输入源配置保存在一个 ConfigMap 里，如下所示：</p>
+ <pre class="line-numbers language-yaml" data-language="yaml"><code class="language-yaml"><span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> v1
+<span class="token key atrule">kind</span><span class="token punctuation">:</span> ConfigMap
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+<span class="token key atrule">name</span><span class="token punctuation">:</span> fluentd<span class="token punctuation">-</span>config
+<span class="token key atrule">data</span><span class="token punctuation">:</span>
+<span class="token key atrule">fluentd.conf</span><span class="token punctuation">:</span> <span class="token punctuation">|</span><span class="token scalar string">
+    &lt;source&gt;
+    type tail
+    format none
+    path /var/log/1.log
+    pos_file /var/log/1.log.pos
+    tag count.format1
+    &lt;/source&gt;</span>
+
+    &lt;source<span class="token punctuation">&gt;</span>
+    type tail
+    format none
+    path /var/log/2.log
+    pos_file /var/log/2.log.pos
+    tag count.format2
+    &lt;/source<span class="token punctuation">&gt;</span>
+
+    &lt;match <span class="token important">**&gt;</span>
+    type google_cloud
+    &lt;/match<span class="token punctuation">&gt;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p> 然后，我们在应用 Pod 的定义里，就可以声明一个 Fluentd 容器作为 sidecar，专门负责将应用生成的 1.log 和 2.log 转发到 ElasticSearch 当中。这个配置，如下所示：</p>
+ <pre class="line-numbers language-yaml" data-language="yaml"><code class="language-yaml"><span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> v1
+<span class="token key atrule">kind</span><span class="token punctuation">:</span> Pod
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+<span class="token key atrule">name</span><span class="token punctuation">:</span> counter
+<span class="token key atrule">spec</span><span class="token punctuation">:</span>
+<span class="token key atrule">containers</span><span class="token punctuation">:</span>
+<span class="token punctuation">-</span> <span class="token key atrule">name</span><span class="token punctuation">:</span> count
+    <span class="token key atrule">image</span><span class="token punctuation">:</span> busybox
+    <span class="token key atrule">args</span><span class="token punctuation">:</span>
+    <span class="token punctuation">-</span> /bin/sh
+    <span class="token punctuation">-</span> <span class="token punctuation">-</span>c
+    <span class="token punctuation">-</span> <span class="token punctuation">&gt;</span><span class="token scalar string">
+    i=0;
+    while true;
+    do
+        echo "$i: $(date)" &gt;&gt; /var/log/1.log;
+        echo "$(date) INFO $i" &gt;&gt; /var/log/2.log;
+        i=$((i+1));
+        sleep 1;
+    done
+    volumeMounts:
+    - name: varlog
+    mountPath: /var/log</span>
+<span class="token punctuation">-</span> <span class="token key atrule">name</span><span class="token punctuation">:</span> count<span class="token punctuation">-</span>agent
+    <span class="token key atrule">image</span><span class="token punctuation">:</span> k8s.gcr.io/fluentd<span class="token punctuation">-</span>gcp<span class="token punctuation">:</span><span class="token number">1.30</span>
+    <span class="token key atrule">env</span><span class="token punctuation">:</span>
+    <span class="token punctuation">-</span> <span class="token key atrule">name</span><span class="token punctuation">:</span> FLUENTD_ARGS
+    <span class="token key atrule">value</span><span class="token punctuation">:</span> <span class="token punctuation">-</span>c /etc/fluentd<span class="token punctuation">-</span>config/fluentd.conf
+    <span class="token key atrule">volumeMounts</span><span class="token punctuation">:</span>
+    <span class="token punctuation">-</span> <span class="token key atrule">name</span><span class="token punctuation">:</span> varlog
+    <span class="token key atrule">mountPath</span><span class="token punctuation">:</span> /var/log
+    <span class="token punctuation">-</span> <span class="token key atrule">name</span><span class="token punctuation">:</span> config<span class="token punctuation">-</span>volume
+    <span class="token key atrule">mountPath</span><span class="token punctuation">:</span> /etc/fluentd<span class="token punctuation">-</span>config
+<span class="token key atrule">volumes</span><span class="token punctuation">:</span>
+<span class="token punctuation">-</span> <span class="token key atrule">name</span><span class="token punctuation">:</span> varlog
+    <span class="token key atrule">emptyDir</span><span class="token punctuation">:</span> <span class="token punctuation">{</span><span class="token punctuation">}</span>
+<span class="token punctuation">-</span> <span class="token key atrule">name</span><span class="token punctuation">:</span> config<span class="token punctuation">-</span>volume
+    <span class="token key atrule">configMap</span><span class="token punctuation">:</span>
+    <span class="token key atrule">name</span><span class="token punctuation">:</span> fluentd<span class="token punctuation">-</span>config<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p> 可以看到，这个 Fluentd 容器使用的输入源，就是通过引用我们前面编写的 ConfigMap 来指定的。这里我用到了 Projected Volume 来把 ConfigMap 挂载到 Pod 里。如果你对这个用法不熟悉的话，可以再回顾下第 15 篇文章 <a target="_blank" rel="noopener" href="https://time.geekbang.org/column/article/40466">《 深入解析 Pod 对象（二）：使用进阶》</a> 中的相关内容。</p>
+<p> 需要注意的是，这种方案虽然部署简单，并且对宿主机非常友好，但是这个 sidecar 容器很可能会消耗较多的资源，甚至拖垮应用容器。并且，由于日志还是没有输出到 stdout 上，所以你通过 kubectl logs 是看不到任何日志输出的。</p>
+</li>
+</ol>
+<p>以上，就是 Kubernetes 项目对容器应用日志进行管理最常用的三种手段了。</p>
+<h4 id="50-1-总结"><a href="#50-1-总结" class="headerlink" title="50.1 总结"></a>50.1 总结</h4><p>在本篇文章中，我为你详细讲解了 Kubernetes 项目对容器应用日志的收集方式。综合对比以上三种方案，我比较建议你将应用日志输出到 stdout 和 stderr，然后通过在宿主机上部署 logging-agent 的方式来集中处理日志。</p>
+<p>这种方案不仅管理简单，kubectl logs 也可以用，而且可靠性高，并且宿主机本身，很可能就自带了 rsyslogd 等非常成熟的日志收集组件来供你使用。</p>
+<p>除此之外，还有一种方式就是在编写应用的时候，就直接指定好日志的存储后端，如下所示：</p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《深入剖析Kubernetes》学习笔记/第四种日志方案.png" alt="第四种日志方案"></p>
+<p>在这种方案下，Kubernetes 就完全不必操心容器日志的收集了，这对于本身已经有完善的日志处理系统的公司来说，是一个非常好的选择。</p>
+<p>最后需要指出的是，无论是哪种方案，你都必须要及时将这些日志文件从宿主机上清理掉，或者给日志目录专门挂载一些容量巨大的远程盘。否则，一旦主磁盘分区被打满，整个系统就可能会陷入奔溃状态，这是非常麻烦的。</p>
+<h2 id="再谈开源与社区"><a href="#再谈开源与社区" class="headerlink" title="再谈开源与社区"></a>再谈开源与社区</h2><h3 id="51-谈谈Kubernetes开源社区和未来走向"><a href="#51-谈谈Kubernetes开源社区和未来走向" class="headerlink" title="51 | 谈谈Kubernetes开源社区和未来走向"></a>51 | 谈谈Kubernetes开源社区和未来走向</h3><p>在前面的文章中，我已经为你详细讲解了容器与 Kubernetes 项目的所有核心技术点。在今天这最后一篇文章里，我就跟你谈一谈 Kubernetes 开源社区以及 CNCF 相关的一些话题。</p>
+<p>我们知道 Kubernetes 这个项目是托管在 CNCF 基金会下面的。但是，我在专栏最前面讲解容器与 Kubernetes 的发展历史的时候就已经提到过，CNCF 跟 Kubernetes 的关系，并不是传统意义上的基金会与托管项目的关系，CNCF 实际上扮演的，是 Kubernetes 项目的 Marketing 的角色。</p>
+<p>这就好比，本来 Kubernetes 项目应该是由 Google 公司一家维护、运营和推广的。但是为了表示中立，并且吸引更多的贡献者加入，Kubernetes 项目从一开始就选择了由基金会托管的模式。而这里的关键在于，这个基金会本身，就是 Kubernetes 背后的”大佬们”一手创建出来的，然后以中立的方式，对 Kubernetes 项目进行运营和 Marketing。</p>
+<p>通过这种方式，Kubernetes 项目既避免了因为 Google 公司在开源社区里的”不良作风”和非中立角色被竞争对手口诛笔伐，又可以站在开源基金会的制高点上团结社区里所有跟容器相关的力量。而随后 CNCF 基金会的迅速发展和壮大，也印证了这个思路其实是非常正确和有先见之明的。</p>
+<p>不过，在 Kubernetes 和 Prometheus 这两个 CNCF 的一号和二号项目相继毕业之后，现在 CNCF 社区的更多职能，就是扮演一个传统的开源基金会的角色，吸纳会员，帮助项目孵化和运转。</p>
+<p>只不过，由于 Kubernetes 项目的巨大成功，CNCF 在云计算领域已经取得了极高的声誉和认可度，也填补了以往 Linux 基金会在这一领域的空白。所以说，你可以认为现在的 CNCF，就是云计算领域里的 Apache ，而它的作用跟当年大数据领域里 Apache 基金会的作用是一样的。</p>
+<p>不过，需要指出的是， <strong>对于开源项目和开源社区的运作来说，第三方基金会从来就不是一个必要条件。</strong> 事实上，这个世界上绝大多数成功的开源项目和社区，都来自于一个聪明的想法或者一帮杰出的黑客。在这些项目的发展过程中，一个独立的、第三方基金会的作用，更多是在该项目发展到一定程度后主动进行商业运作的一部分。开源项目与基金会间的这一层关系，希望你不要本末倒置了。</p>
+<p>另外，需要指出的是，CNCF 基金会仅仅负责成员项目的 Marketing， 而绝不会、也没有能力直接影响具体项目的发展历程。无论是任何一家成员公司或者是 CNCF 的 TOC（Technical Oversight Committee，技术监督委员会），都没有对 Kubernetes 项目”指手画脚”的权利，除非这位 TOC 本人就是 Kubernetes 项目里的关键人物。</p>
+<p>所以说，真正能够影响 Kubernetes 项目发展的，当然还是 Kubernetes 社区本身。可能你会好奇， <strong>Kubernetes 社区本身的运作方式，又是怎样的呢？</strong></p>
+<p>通常情况下，一个基金会下面托管的项目，都需要遵循基金会本身的管理机制，比如统一的 CI 系统、Code Review 流程、管理方式等等。</p>
+<p>但是，在我们这个社区的实际情况，是先有的 Kubernetes，然后才有的 CNCF，并且 CNCF 基金会还是 Kubernetes “一手带大”的。所以，在项目治理这个事情上，Kubernetes 项目早就自成体系，并且发展的非常完善了。而基金会里的其他项目一般各自为阵，CNCF 不会对项目本身的治理方法提出过多的要求。</p>
+<p>而说到 <strong>Kubernetes 项目的治理方式，其实还是比较贴近 Google 风格的，即：重视代码，重视社区的民主性。</strong></p>
+<p>首先，Kubernetes 项目是一个没有”Maintainer”的项目。这一点非常有意思，Kubernetes 项目里曾经短时间内存在过 Maintainer 这个角色，但是很快就被废弃了。取而代之的，则是 approver+reviewer 机制。这里具体的原理，是在 Kubernetes 的每一个目录下，你都可以添加一个 OWNERS 文件，然后在文件里写入这样的字段：</p>
+<pre class="line-numbers language-txt" data-language="txt"><code class="language-txt">approvers:
+- caesarxuchao
+reviewers:
+- lavalamp
+labels:
+- sig/api-machinery
+- area/apiserver<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>比如，上面这个例子里，approver 的 GitHub ID 就是 caesarxuchao （Xu Chao），reviewer 就是 lavalamp。这就意味着，任何人提交的 Pull Request（PR，代码修改请求），只要修改了这个目录下的文件，那么就必须要经过 lavalamp 的 Code Review，然后再经过 caesarxuchao 的 Approve 才可以被合并。当然，在这个文件里，caesarxuchao 的权力是最大的，它可以既做 Code Review，也做最后的 Approve。但， lavalamp 是不能进行 Approve 的。</p>
+<p>当然，无论是 Code Review 通过，还是 Approve，这些维护者只需要在 PR 下面 Comment /lgtm 和 /approve，Kubernetes 项目的机器人（k8s-ci-robot）就会自动给该 PR 加上 lgtm 和 approve 标签，然后进入 Kubernetes 项目 CI 系统的合并队列，最后被合并。此外，如果你要对这个项目加标签，或者把它 Assign 给其他人，也都可以通过 Comment 的方式来进行。</p>
+<p>可以看到，在上述整个过程中，代码维护者不需要对 Kubernetes 项目拥有写权限，就可以完成代码审核、合并等所有流程。这当然得益于 Kubernetes 社区完善的机器人机制，这也是 GitHub 最吸引人的特性之一。</p>
+<p>顺便说一句，很多人问我， <strong>GitHub 比 GitLab 或者其他代码托管平台强在哪里？</strong> 实际上， GitHub 庞大的 API 和插件生态，才是这个产品最具吸引力的地方。</p>
+<p>当然，当你想要将你的想法以代码的形式提交给 Kubernetes 项目时，除非你的改动是 bugfix 或者很简单的改动，否则，你直接提交一个 PR 上去，是大概率不会被 Approve 的。 <strong>这里的流程</strong> ，一定要按照我下面的讲解来进行：</p>
+<ol>
+<li><p>在 Kubernetes 主库里创建 Issue，详细地描述你希望解决的问题、方案，以及开发计划。而如果社区里已经有相关的 Issue 存在，那你就必须要在这里把它们引用过来。而如果社区里已经存在相同的 Issue 了，你就需要确认一下，是不是应该直接转到原有 issue 上进行讨论。</p>
+</li>
+<li><p>给 Issue 加上与它相关的 SIG 的标签。比如，你可以直接 Comment /sig node，那么这个 Issue 就会被加上 sig-node 的标签，这样 SIG-Node 的成员就会特别留意这个 Issue。</p>
+</li>
+<li><p>收集社区对这个 Issue 的信息，回复 Comment，与 SIG 成员达成一致。必要的时候，你还需要参加 SIG 的周会，更好地阐述你的想法和计划。</p>
+</li>
+<li><p>在与 SIG 的大多数成员达成一致后，你就可以开始进行详细的设计了。</p>
+</li>
+<li><p>如果设计比较复杂的话，你还需要在 Kubernetes 的 <a target="_blank" rel="noopener" href="https://github.com/kubernetes/community/tree/master/contributors/design-proposals">设计提议目录</a> （在 Kubernetes Community 库里）下提交一个 PR，把你的设计文档加进去。这时候，所有关心这个设计的社区成员，都会来对你的设计进行讨论。不过最后，在整个 Kubernetes 社区只有很少一部分成员才有权限来 Review 和 Approve 你的设计文档。他们当然也被定义在了这个目录下面的 OWNERS 文件里，如下所示：</p>
+ <pre class="line-numbers language-txt" data-language="txt"><code class="language-txt">reviewers:
+- brendandburns
+- dchen1107
+- jbeda
+- lavalamp
+- smarterclayton
+- thockin
+- wojtek-t
+- bgrant0607
+approvers:
+- brendandburns
+- dchen1107
+- jbeda
+- lavalamp
+- smarterclayton
+- thockin
+- wojtek-t
+- bgrant0607
+labels:
+- kind/design<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p> 这几位成员，就可以称为社区里的”大佬”了。不过我在这里要提醒你的是，”大佬”并不一定代表水平高，所以你还是要擦亮眼睛。此外，Kubernetes 项目的几位创始成员，被称作 Elders（元老），分别是 jbeda、bgrant0607、brendandburns、dchen1107 和 thockin。你可以查看一下这个列表与上述”大佬”名单有什么不同。</p>
+</li>
+<li><p>上述 Design Proposal 被合并后，你就可以开始按照设计文档的内容编写代码了。这个流程，才是正常大家所熟知的编写代码、提交 PR、通过 CI 测试、进行 Code Review，然后等待合并的流程。</p>
+</li>
+<li><p>如果你的 feature 是需要要在 Kubernetes 的正式 Release 里发布上线的，那么你还需要在 <a target="_blank" rel="noopener" href="https://github.com/kubernetes/enhancements/blob/master/keps">Kubernetes Enhancements</a> 这个库里面提交一个 KEP（即 Kubernetes Enhancement Proposal）。这个 KEP 的主要内容，是详细地描述你的编码计划、测试计划、发布计划，以及向后兼容计划等软件工程相关的信息，供全社区进行监督和指导。</p>
+</li>
+</ol>
+<p>以上内容，就是 Kubernetes 社区运作的主要方式了。</p>
+<h4 id="51-1-总结"><a href="#51-1-总结" class="headerlink" title="51.1 总结"></a>51.1 总结</h4><p>在本篇文章里，我为你详细讲述了 CNCF 和 Kubernetes 社区的关系，以及 Kubernetes 社区的运作方式，希望能够帮助你更好地理解这个社区的特点和它的先进之处。</p>
+<p>除此之外，你可能还听说过 Kubernetes 社区里有一个叫作 Kubernetes Steering Committee 的组织。这个组织，其实也是属于 <a target="_blank" rel="noopener" href="https://github.com/kubernetes/community">Kubernetes Community 库</a> 的一部分。这个组织成员的主要职能，是对 Kubernetes 项目治理的流程进行约束和规范，但通常并不会直接干涉 Kubernetes 具体的设计和代码实现。</p>
+<p>其实，到目前为止，Kubernetes 社区最大的一个优点，就是把”搞政治”的人和”搞技术”的人分得比较清楚。相信你也不难理解，这两种角色在一个活跃的开源社区里其实都是需要的，但是，如果这两部分人发生了大量的重合，那对于一个开源社区来说，恐怕就是个灾难了。</p>
+<h2 id="答疑文章"><a href="#答疑文章" class="headerlink" title="答疑文章"></a>答疑文章</h2>
                 
             </div>
             <hr/>
@@ -8544,7 +8983,7 @@ $ <span class="token function">curl</span> --header <span class="token string">"
             <br>
             
             &nbsp;<i class="fas fa-chart-area"></i>&nbsp;站点总字数:&nbsp;<span
-                class="white-color">1218k</span>&nbsp;字
+                class="white-color">1227.1k</span>&nbsp;字
             
             
             
