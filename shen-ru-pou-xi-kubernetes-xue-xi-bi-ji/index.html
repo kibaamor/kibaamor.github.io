@@ -460,14 +460,14 @@
                 
                 <div class="info-break-policy">
                     <i class="far fa-file-word fa-fw"></i>文章字数:&nbsp;&nbsp;
-                    180k
+                    186k
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-clock fa-fw"></i>阅读时长:&nbsp;&nbsp;
-                    690 分
+                    711 分
                 </div>
                 
 
@@ -8578,7 +8578,170 @@ labels:
 <h4 id="51-1-总结"><a href="#51-1-总结" class="headerlink" title="51.1 总结"></a>51.1 总结</h4><p>在本篇文章里，我为你详细讲述了 CNCF 和 Kubernetes 社区的关系，以及 Kubernetes 社区的运作方式，希望能够帮助你更好地理解这个社区的特点和它的先进之处。</p>
 <p>除此之外，你可能还听说过 Kubernetes 社区里有一个叫作 Kubernetes Steering Committee 的组织。这个组织，其实也是属于 <a target="_blank" rel="noopener" href="https://github.com/kubernetes/community">Kubernetes Community 库</a> 的一部分。这个组织成员的主要职能，是对 Kubernetes 项目治理的流程进行约束和规范，但通常并不会直接干涉 Kubernetes 具体的设计和代码实现。</p>
 <p>其实，到目前为止，Kubernetes 社区最大的一个优点，就是把”搞政治”的人和”搞技术”的人分得比较清楚。相信你也不难理解，这两种角色在一个活跃的开源社区里其实都是需要的，但是，如果这两部分人发生了大量的重合，那对于一个开源社区来说，恐怕就是个灾难了。</p>
-<h2 id="答疑文章"><a href="#答疑文章" class="headerlink" title="答疑文章"></a>答疑文章</h2>
+<h2 id="答疑文章"><a href="#答疑文章" class="headerlink" title="答疑文章"></a>答疑文章</h2><h3 id="52-答疑：在问题中解决问题，在思考中产生思考"><a href="#52-答疑：在问题中解决问题，在思考中产生思考" class="headerlink" title="52 | 答疑：在问题中解决问题，在思考中产生思考"></a>52 | 答疑：在问题中解决问题，在思考中产生思考</h3><ol>
+<li><p>问题 1：你是否知道如何修复容器中的 top 指令以及 /proc 文件系统中的信息呢？（提示：lxcfs）</p>
+<p> 其实，这个问题的答案在提示里其实已经给出了，即 lxcfs 方案。通过 lxcfs，你可以把宿主机的 /var/lib/lxcfs/proc 文件系统挂载到 Docker 容器的 /proc 目录下。使得容器中进程读取相应文件内容时，实际上会从容器对应的 Cgroups 中读取正确的资源限制。 从而得到正确的 top 命令的返回值。</p>
+<blockquote>
+<p>问题选自第 6 篇文章 <a target="_blank" rel="noopener" href="https://time.geekbang.org/column/article/14653">《白话容器基础（二）：隔离与限制》</a> 。</p>
+</blockquote>
+</li>
+<li><p>问题 2：既然容器的 rootfs（比如，Ubuntu 镜像），是以只读方式挂载的，那么又如何在容器里修改 Ubuntu 镜像的内容呢？（提示：Copy-on-Write）</p>
+<p> 这个问题的答案也同样出现在了提示里。</p>
+<p> 简单地说，修改一个镜像里的文件的时候，联合文件系统首先会从上到下在各个层中查找有没有目标文件。如果找到，就把这个文件复制到可读写层进行修改。这个修改的结果会屏蔽掉下层的文件，这种方式就被称为 copy-on-write。</p>
+<blockquote>
+<p>问题选自第 7 篇文章 <a target="_blank" rel="noopener" href="https://time.geekbang.org/column/article/17921">《白话容器基础（三）：深入理解容器镜像》</a> 。</p>
+</blockquote>
+</li>
+<li><p>问题 3：你在查看 Docker 容器的 Namespace 时，是否注意到有一个叫 cgroup 的 Namespace？它是 Linux 4.6 之后新增加的一个 Namespace，你知道它的作用吗？</p>
+<p> Linux 内核从 4.6 开始，支持了一个新的 Namespace 叫作：Cgroup Namespace。 我们知道，正常情况下，在一个容器里查看 /proc/$PID/cgroup，是会看到整个宿主机的 cgroup 信息的。而有了 Cgroup Namespace 后，每个容器里的进程都会有自己 Cgroup Namespace，从而获得一个属于自己的 Cgroups 文件目录视图。也就是说，Cgroups 文件系统也可以被 Namespace 隔离起来了。</p>
+<blockquote>
+<p>问题选自第 8 篇文章 <a target="_blank" rel="noopener" href="https://time.geekbang.org/column/article/18119">《 白话容器基础（四）：重新认识 Docker 容器》</a> 。</p>
+</blockquote>
+</li>
+<li><p>问题 4：你能否说出，Kubernetes 使用的这个”控制器模式”，跟我们平常所说的”事件驱动”，有什么区别和联系吗？</p>
+<p> 这里”控制器模式”和”事件驱动”最关键的区别在于：</p>
+<ul>
+<li>对于控制器来说，被监听对象的变化是一个持续的信号，比如变成 ADD 状态。只要这个状态没变化，那么此后无论任何时候控制器再去查询对象的状态，都应该是 ADD。</li>
+<li><p>而对于事件驱动来说，它只会在 ADD 事件发生的时候发出一个事件。如果控制器错过了这个事件，那么它就有可能再也没办法知道 ADD 这个事件的发生了。</p>
+<blockquote>
+<p>问题选自第 16 篇文章 <a target="_blank" rel="noopener" href="https://time.geekbang.org/column/article/40583">《编排其实很简单：谈谈”控制器”模型》</a> 。</p>
+</blockquote>
+</li>
+</ul>
+</li>
+<li><p>问题 5：在实际场景中，有一些分布式应用的集群是这么工作的：当一个新节点加入到集群时，或者老节点被迁移后重建时，这个节点可以从主节点或者其他从节点那里同步到自己所需要的数据。</p>
+<p> 在这种情况下，你认为是否还有必要将这个节点 Pod 与它的 PV 进行一对一绑定呢？（提示：这个问题的答案根据不同的项目是不同的。关键在于，重建后的节点进行数据恢复和同步的时候，是不是一定需要原先它写在本地磁盘里的数据）</p>
+<p> 这个问题的答案是不需要。</p>
+<p> 像这种不依赖于 PV 保持存储状态或者不依赖于 DNS 名字保持拓扑状态的”非典型”应用的管理，都应该使用 Operator 来实现。</p>
+<blockquote>
+<p>问题选自第 19 篇文章 <a target="_blank" rel="noopener" href="https://time.geekbang.org/column/article/41154">《深入理解 StatefulSet（二）：存储状态》</a> 。</p>
+</blockquote>
+</li>
+<li><p>问题 6：我在文中提到，在 Kubernetes v1.11 之前，DaemonSet 所管理的 Pod 的调度过程，实际上都是由 DaemonSet Controller 自己而不是由调度器完成的。你能说出这其中有哪些原因吗？</p>
+<p> 这里的原因在于，默认调度器之前的功能不是很完善，比如，缺乏优先级和抢占机制。所以，它没办法保证 DaemonSet ，尤其是部署时候的系统级的、高优先级的 DaemonSet 一定会调度成功。这种情况下，就会影响到集群的部署了。</p>
+<blockquote>
+<p>问题选自第 21 篇文章 <a target="_blank" rel="noopener" href="https://time.geekbang.org/column/article/41366">《容器化守护进程的意义：DaemonSet》</a> 。</p>
+</blockquote>
+</li>
+<li><p>问题 7：在 Operator 的实现过程中，我们再一次用到了 CRD。可是，你一定要明白，CRD 并不是万能的，它有很多场景不适用，还有性能瓶颈。你能列举出一些不适用 CRD 的场景么？你知道造成 CRD 性能瓶颈的原因主要在哪里么？</p>
+<p> CRD 目前不支持 protobuf，当 API Object 数量 &gt;1K，或者单个对象 &gt;1KB，或者高频请求时，CRD 的响应都会有问题。 所以，CRD 千万不能也不应该被当作数据库使用。</p>
+<p> 其实像 Kubernetes ，或者说 Etcd 本身，最佳的使用场景就是作为配置管理的依赖。此外，如果业务需求不能用 CRD 进行建模的时候，比如，需要等待 API 最终返回，或者需要检查 API 的返回值，也是不能用 CRD 的。同时，当你需要完整的 APIServer 而不是只关心 API 对象的时候，请使用 API Aggregator。</p>
+<blockquote>
+<p>问题选自第 27 篇文章 <a target="_blank" rel="noopener" href="https://time.geekbang.org/column/article/41366">《聪明的微创新：Operator 工作原理解读》</a> 。</p>
+</blockquote>
+</li>
+<li><p>问题 8：正是由于需要使用”延迟绑定”这个特性，Local Persistent Volume 目前还不能支持 Dynamic Provisioning。你是否能说出，为什么”延迟绑定”会跟 Dynamic Provisioning 有冲突呢？</p>
+<p> 延迟绑定将 Volume Bind 的时机，推迟到了第一个使用该 Volume 的 Pod 到达调度器的时候。可是对于 Dynamic Provisioning 来说，它是要在管理 Volume 的控制循环里就为 PVC 创建 PV 然后绑定起来的，这个时间点跟 Pod 被调度的时间点是不相关的。</p>
+<blockquote>
+<p>问题选自第 29 篇文章 <a target="_blank" rel="noopener" href="https://time.geekbang.org/column/article/42819">《 PV、PVC 体系是不是多此一举？从本地持久化卷谈起》</a> 。</p>
+</blockquote>
+</li>
+<li><p>问题 9：请你根据编写 FlexVolume 和 CSI 插件的流程，分析一下什么时候该使用 FlexVolume，什么时候应该使用 CSI？</p>
+<p> 在文章中我其实已经提到，CSI 与 FlexVolume 的最大区别，在于 CSI 可以实现 Provision 阶段。所以说，对于不需要 Provision 的情况 ，比如你的远程存储服务总是事先准备好或者准备起来非常简单的情况下，就可以考虑使用 FlexVolume。但在生产环境下，我都会优先推荐 CSI 的方案。</p>
+<blockquote>
+<p>问题选自第 31 篇文章 <a target="_blank" rel="noopener" href="https://time.geekbang.org/column/article/64392">《容器存储实践：CSI 插件编写指南》</a> 。</p>
+</blockquote>
+</li>
+<li><p>问题 10：Flannel 通过”隧道”机制，实现了容器之间三层网络（IP 地址）的连通性。但是，根据这个机制的工作原理，你认为 Flannel 能保证容器二层网络（MAC 地址）的连通性吗？为什么呢？</p>
+<p>不能保证，因为”隧道”机制只能保证被封装的 IP 包可以到达目的地。而只要网络插件能满足 Kubernetes 网络的三个假设，Kubernetes 并不关心你的网络插件的实现方式是把容器二层连通的，还是三层连通的。</p>
+<blockquote>
+<p>问题选自第 33 篇文章 <a target="_blank" rel="noopener" href="https://time.geekbang.org/column/article/65287">《深入解析容器跨主机网络》</a> 。</p>
+</blockquote>
+</li>
+<li><p>问题 11：你能否能总结一下三层网络方案和”隧道模式”的异同，以及各自的优缺点？</p>
+<p>在第 35 篇文章的正文里，我已经为你讲解过，隧道模式最大的特点，在于需要通过某种方式比如 UDP 或者 VXLAN 来对原始的容器间通信的网络包进行封装，然后伪装成宿主机间的网络通信来完成容器跨主通信。这个过程中就不可避免的需要封包和解封包。这两个操作的性能损耗都是非常明显的。而三层网络方案则避免了这个过程，所以性能会得到很大的提升。</p>
+<p>不过，隧道模式的优点在于，它依赖的底层原理非常直白，内核里的实现也非常成熟和稳定。而三层网络方案，相对来说维护成本会比较高，容易碰到路由规则分发和设置出现问题的情况，并且当容器数量很多时，宿主机上的路由规则会非常复杂，难以 Debug。</p>
+<p>所以最终选择选择哪种方案，还是要看自己的具体需求。</p>
+<blockquote>
+<p>问题选自第 35 篇文章 <a target="_blank" rel="noopener" href="https://time.geekbang.org/column/article/67775">《解读 Kubernetes 三层网络方案》</a> 。</p>
+</blockquote>
+</li>
+<li><p>问题 12：为什么宿主机进入 MemoryPressure 或者 DiskPressure 状态后，新的 Pod 就不会被调度到这台宿主机上呢？</p>
+<p>在 Kubernetes 里，实际上有一种叫作 Taint Nodes by Condition 的机制，即当</p>
+<p>Node 本身进入异常状态的时候，比如 Condition 变成了 DiskPressure。那么， Kubernetes 会通过 Controller 自动给 Node 加上对应的 Taint，从而阻止新的 Pod 调度到这台宿主机上。</p>
+<blockquote>
+<p>问题选自第 40 篇文章《Kubernetes 的资源模型与资源管理》。</p>
+</blockquote>
+</li>
+<li><p>问题 13：Kubernetes 默认调度器与 Mesos 的”两级”调度器，有什么异同呢？</p>
+<p>Mesos 的两级调度器的设计，是 Mesos 自己充当 0 层调度器（Layer 0），负责统一管理整个集群的资源情况，把可用资源以 Resource Offer 的方式暴露出去；而上层的大数据框架（比如 Spark）则充当 1 层调度器（Layer 1），它会负责根据 Layer 0 发来的 Resource Offer 来决定把任务调度到某个具体的节点上。这样做的好处是：</p>
+<ul>
+<li>第一，上层大数据框架本身往往自己已经实现了调度逻辑，这样它就可以很方便地接入到 Mesos 里面；</li>
+<li>第二，这样的设计，使得 Mesos 本身能够统一地对上层所有框架进行资源分配，资源利用率和调度效率就可以得到很好的保证了。</li>
+</ul>
+<p>相比之下，Kubernetes 的默认调度器实际上无论从功能还是性能上都要简单得多。这也是为什么把 Spark 这样本身就具有调度能力的框架接入到 Kubernetes 里还是比较困难的。</p>
+<blockquote>
+<p>问题选自第 41 篇文章 <a target="_blank" rel="noopener" href="https://time.geekbang.org/column/article/69678">《十字路口上的 Kubernetes 默认调度器》</a> 。</p>
+</blockquote>
+</li>
+<li><p>问题 14：当整个集群发生可能会影响调度结果的变化（比如，添加或者更新 Node，添加和更新 PV、Service 等）时，调度器会执行一个被称为 MoveAllToActiveQueue 的操作，把所调度失败的 Pod 从 unscheduelableQ 移动到 activeQ 里面。请问这是为什么？</p>
+<p>一个相似的问题是，当一个已经调度成功的 Pod 被更新时，调度器则会将 unschedulableQ 里所有跟这个 Pod 有 Affinity/Anti-affinity 关系的 Pod，移动到 activeQ 里面。请问这又是为什么呢？</p>
+<p>其实，这两个问题的答案是一样的。</p>
+<p>在正常情况下，默认调度器在调度失败后，就会把该 Pod 放到 unschedulableQ 里。unschedulableQ 里的 Pod 是不会出现在下个调度周期里的。但是，当集群本身发生变化时，这个 Pod 就有可能再次变成可调度的了，所以这时候调度器要把它们移动到 activeQ 里面，这样它们就获得了下一次调度的机会。</p>
+<p>类似地，当原本已经调度成功的 Pod 被更新后，也有可能触发 unschedulableQ 里与它有 Affinity 或者 Anti-Affinity 关系的 Pod 变成可调度的，所以它也需要获得”重新做人”的机会。</p>
+<blockquote>
+<p>问题选自第 43 篇文章 <a target="_blank" rel="noopener" href="https://time.geekbang.org/column/article/70519">《Kubernetes 默认调度器的优先级与抢占机制》</a> 。</p>
+</blockquote>
+</li>
+<li><p>问题 15：请你思考一下，我前面讲解过的 Device Plugin 为容器分配的 GPU 信息，是通过 CRI 的哪个接口传递给 dockershim，最后交给 Docker API 的呢？</p>
+<p>既然 GPU 是 Devices 信息，那当然是通过 CRI 的 CreateContainerRequest 接口。这个接口的参数 ContainerConfig 里就有容器 Devices 的描述。</p>
+<blockquote>
+<p>问题选自第 46 篇文章 <a target="_blank" rel="noopener" href="https://time.geekbang.org/column/article/71499">《解读 CRI 与 容器运行时》</a> 。</p>
+</blockquote>
+</li>
+<li><p>问题 16：安全容器的意义，绝不仅仅止于安全。你可以想象一下这样一个场景：比如，你的宿主机的 Linux 内核版本是 3.6，但是应用却必须要求 Linux 内核版本是 4.0。这时候，你就可以把这个应用运行在一个 KataContainers 里。那么请问，你觉得使用 gVisor 是否也能提供这种能力呢？原因是什么呢？</p>
+<p>答案是不能。gVisor 的实现里并没有一个真正的 Linux Guest Kernel 在运行。所以它不能像 KataContainers 或者虚拟机那样，实现容器和宿主机不同 Kernel 甚至不同操作系统的需求。</p>
+<p>但还是要强调一下，以 gVisor 为代表的用户态 Kernel 方案是安全容器的未来，只是现在还不够完善。</p>
+<blockquote>
+<p>问题选自第 47 篇文章 <a target="_blank" rel="noopener" href="https://time.geekbang.org/column/article/71606">《绝不仅仅是安全：Kata Containers 与 gVisor》</a> 。</p>
+</blockquote>
+</li>
+<li><p>问题 17：将日志直接输出到 stdout 和 stderr，有没有什么其他的隐患或者问题呢？如何进行处理呢？</p>
+<p>这样做有一个问题，就是日志都需要经过 Docker Daemon 的处理才会写到宿主机磁盘上，所以宿主机没办法以容器为单位进行日志文件的 Rotate。这时候，还是要考虑通过宿主机的 Agent 来对容器日志进行处理和收集的方案。</p>
+<blockquote>
+<p>问题选自第 50 篇文章 <a target="_blank" rel="noopener" href="https://time.geekbang.org/column/article/73156">《让日志无处可逃：容器日志收集与管理》</a> 。</p>
+</blockquote>
+</li>
+<li><p>问题 18：你能说出 Kubernetes 社区同 OpenStack 社区相比的不同点吗？你觉得各有哪些优缺点呢？</p>
+<p>OpenStack 社区非常强调民主化，治理方式相对松散，这导致它在治理上没能把主线和旁线分开，政治和技术也没有隔离。这使得后期大量的低价值或者周边型的项目不断冲进 OpenStack 社区，大大降低了社区的含金量，并且分散了大量的社区精力在这些价值相对不高的项目上，从而拖慢并干扰了比如 Cinder、Neutron 等核心项目的演进步伐和方向，最终使得整个社区在容器的热潮下难以掉头，不可避免地走向了下滑的态势。</p>
+<p>相比之下，CNCF 基金会成功地帮助 Kubernetes 社区分流了低价值以及周边型项目的干扰，并且完全承接了 Marketing 的角色，使得 Kubernetes 社区在后面大量玩家涌入的时候，依然能够专注在主线的演进上。</p>
+<p>Kubernetes 社区和 OpenStack 社区的这个区别，是非常关键的。</p>
+<blockquote>
+<p>问题选自第 51 篇文章 <a target="_blank" rel="noopener" href="https://time.geekbang.org/column/article/73477">《谈谈 Kubernetes 开源社区和未来走向》</a> 。</p>
+</blockquote>
+</li>
+</ol>
+<h2 id="特别放送"><a href="#特别放送" class="headerlink" title="特别放送"></a>特别放送</h2><h3 id="特别放送-2019-年，容器技术生态会发生些什么？"><a href="#特别放送-2019-年，容器技术生态会发生些什么？" class="headerlink" title="特别放送 | 2019 年，容器技术生态会发生些什么？"></a>特别放送 | 2019 年，容器技术生态会发生些什么？</h3><ol>
+<li><p><strong>Kubernetes 项目被采纳度将持续增长</strong></p>
+<p> 作为”云原生”（Cloud Native）理念落地的核心，Kubernetes 项目已经成为了构建容器化平台体系的默认选择。但是，不同于一个只能生产资源的集群管理工具， <strong>Kubernetes 项目最大的价值，乃在于它从一开始就提倡的声明式 API 和以此为基础”控制器”模式。</strong></p>
+<p> 在这个体系的指导下， Kubernetes 项目保证了在自身突飞猛进的发展过程中 API 层的相对稳定和一定的向后兼容能力，这是作为一个平台级项目被用户广泛接受和认可的重要前提。</p>
+<p> <strong>更重要的是，Kubernetes 项目为使用者提供了宝贵的 API 可扩展能力和良好的 API 编程范式，催生出了一个完全基于 Kubernetes API 构建出来的上层应用服务生态。可以说，正是这个生态的逐步完善与日趋成熟，才确立了 Kubernetes 项目如今在云平台领域牢不可破的领导地位，也间接宣告了其他竞品方案的边缘化。</strong></p>
+<p> 与此同时，上述事实标准的确立，也使得”正确和合理的使用了 Kubernetes 的能力”，在某种意义上成为了评判上层应用服务框架（比如 PaaS 和 Serverless ）的一个重要依据：这不仅包括了对框架本身复杂性和易用性的考量，也包括了对框架可扩展性和演进趋势的预期与判断。</p>
+<p> 不过，相比于国外公有云上以 Kubernetes 为基础的容器化作业的高占比，国内公有云市场对容器的采纳程度目前仍然处于比较初步的水平，直接贩卖虚拟机及其关联 IaaS 层能力依然是国内绝大多数公有云提供商的主要业务形态。</p>
+<p> 所以，不同于国外市场容器技术增长逐步趋于稳定、Kubernetes 公有云服务已经开始支撑头部互联网客户的情况， <strong>Kubernetes 以及容器技术在国内云计算市场里依然具有巨大的增长空间和强劲的发展势头。</strong></p>
+<p> 不难预测，Kubernetes 项目在国内公有云上的逐渐铺开，会逐渐成为接下来几年国内公有云市场上的一个重要趋势。而无论是国内外，大量 Kubernetes 项目相关岗位的涌现，正是验证这个趋势与变化的一个最直接的征兆。</p>
+</li>
+<li><p><strong>“Serverless 化”与”多样性”将成为上层应用服务生态的两大关键词</strong></p>
+<p> 当云上的平台层被 Kubernetes 项目逐步统一之后，过去长期纠结在应用编排、调度与资源管理上裹足不前的 PaaS 项目得到了生产力的全面释放，进而在云平台层之上催生出了一个日趋多样化的应用服务生态。</p>
+<p> 事实上，这个生态的本质与 2014 年之前的 PaaS 生态没有太大不同。只不过，当原本 PaaS 项目的平台层功能（编排、调度、资源管理等）被剥离了出来之后，PaaS 终于可以专注于应用服务和发布流程管理这两个最核心的功能，开始向更轻、更薄、更以应用为中心的方向进行演进。而在这个过程中， Serverless 自然开始成为了主流话题。</p>
+<p> 这里需要指出的是，Serverless 从 2014 年 AWS 发布 Lambda 时专门用来指代函数计算（或者说 FaaS）发展到今天，已经被扩展成了包括大多数 PaaS 功能在内的一个泛指术语，即：Serverless = FaaS + BaaS。</p>
+<p> 而究其本质， <strong>“高可扩展性”、”工作流驱动”和”按使用计费”</strong> ，可以认为是 Serverless 最主要的三个特征。这也是为什么我们会说今天大家所谈论的 Serverless，其实是经典 PaaS 演进到今天的一种”极端”形态。</p>
+<p> 伴随着 Serverless 概念本身的”横向发展”，我们不难预料到，2019 年之后云端的应用服务生态，一定会趋于多样化，进而覆盖到更多场景下的应用服务管理需求。 <strong>并且，无论是 Function、传统应用、容器、存储服务、网络服务，都会开始尝试以不同的方式和形态嵌入到”高可扩展性”、”工作流驱动”和”按使用计费”这三个特征当中。</strong></p>
+<p> 当然，这种变化趋势的原因也不言而喻：Serverless 三个特征背后所体现的， <strong>乃是云端应用开发过程向”用户友好”和”低心智负担”方向演进的最直接途径。而这种”简单、经济、可信赖”的朴实诉求，正是云计算诞生的最初期许和永恒的发展方向。</strong></p>
+<p> 而在这种上层应用服务能力向 Serverless 迁移的演进过程中，不断被优化的 Auto-scaling 能力和细粒度的资源隔离技术，将会成为确保 Serverless 能为用户带来价值的最有力保障。</p>
+</li>
+<li><p><strong>看得见、摸得着、能落地的”云原生”</strong></p>
+<p> 自从 CNCF 社区迅速崛起以来，”云原生”三个字就成了各大云厂商竞相角逐的一个关键词。不过，相比于 Kubernetes 项目和容器技术实实在在的发展和落地过程，云原生（Cloud Native）的概念却长期以来”曲高和寡”，让人很难说出个所以然来。</p>
+<p> 其实，”云原生”的本质，不是简单对 Kubernetes 生态体系的一个指代。 <strong>“云原生” 刻画出的，是一个使用户能低心智负担的、敏捷的，以可扩展、可复制的方式，最大化利用”云”的能力、发挥”云”的价值的一条最佳路径。</strong></p>
+<p> 而这其中， <strong>“不可变基础设施”</strong> 是”云原生”的实践基础（这也是容器技术的核心价值）；而 Kubernetes、Prometheus、Envoy 等 <strong>CNCF 核心项目，则可以认为是这个路径落地的最佳实践。</strong> 这套理论体系的发展过程，与 CNCF 基金会创立的初衷和云原生生态的发展历程是完全一致的。</p>
+<p> 也正是伴随着这样的发展过程，云原生对于它的使用者的意义，在 2019 年之后已经变得非常清晰： <strong>是否采用云原生技术体系，实际上已经成为了一个关系到是不是要最大化”云”的价值、是不是要在”云”上赢取最广泛用户群体的一个关键取舍。</strong> 这涉及到的，是关系到整个组织的发展、招聘、产品形态等一系列核心问题，而绝非一个单纯的技术决定。</p>
+<p> 明白了这一层道理，在 2019 年，我们已经不难看到，国内最顶尖的技术公司们，都已经开始在云原生技术框架下发起了实实在在的技术体系升级与落地的”战役”。显然，大家都已经注意到， <strong>相比于纠结于”云原生到底是什么”这样意识形态话题，抓紧时间和机遇将 Kubernetes 及其周边核心技术生态在组织中生长起来，并借此机会完成自身基础技术体系的转型与升级，才是这些体量庞大的技术巨人赶上这次云计算浪潮的不二法宝。</strong></p>
+<p> 在这个背景下，所谓”云原生”体系在这些公司的落地，只是这个激动人心的技术革命背后的一个附加值而已。</p>
+<p> 而在”云原生”这个关键词的含义不断清晰的过程中，我们一定要再次强调： <strong>云原生不等于 CNCF，更不等于 Kubernetes。</strong> 云原生固然源自于 Kubernetes 技术生态和理念， <strong>但也必然是一个超越 CNCF 和 Kubernetes 存在的一个全集。</strong> 它被创立的目的和始终在坚持探索的方向， <strong>是使用户能够最大化利用”云”的能力、发挥”云”的价值，而不是在此过程中构建一个又一个不可复制、不可扩展的”巨型烟囱”。</strong></p>
+<p> 所以说，云原生这个词语的准确定义，是围绕着 Kubernetes 技术生态为核心的，但也一定是一个伴随着 CNCF 社区和 Kubernetes 项目不断演进而日趋完善的一个动态过程。而更为重要的是， <strong>在这次以”云”为关键词的技术革命当中，我们每一个人都有可能成为”云原生”的一个重要的定义者。</strong></p>
+</li>
+</ol>
+
                 
             </div>
             <hr/>
@@ -8983,7 +9146,7 @@ labels:
             <br>
             
             &nbsp;<i class="fas fa-chart-area"></i>&nbsp;站点总字数:&nbsp;<span
-                class="white-color">1227.1k</span>&nbsp;字
+                class="white-color">1233.1k</span>&nbsp;字
             
             
             
