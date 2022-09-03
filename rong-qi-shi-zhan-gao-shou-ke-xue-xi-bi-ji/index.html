@@ -460,14 +460,14 @@
                 
                 <div class="info-break-policy">
                     <i class="far fa-file-word fa-fw"></i>文章字数:&nbsp;&nbsp;
-                    11.6k
+                    19.4k
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-clock fa-fw"></i>阅读时长:&nbsp;&nbsp;
-                    45 分
+                    76 分
                 </div>
                 
 
@@ -698,7 +698,7 @@ $ <span class="token function">cat</span> memory.limit_in_bytes
 <p>这位同学当时遇到的情况是这样的，他想修改容器镜像里的一个 bug，但因为网路配置的问题，这个同学又不想为了重建 pod 去改变 pod IP。</p>
 <p>如果你用过 Kubernetes 的话，你也肯定知道，Kubernetes 上是没有 restart pod 这个命令的。这样看来，他似乎只能让 pod 做个原地重启了。 <strong>当时我首先想到的，就是在容器中使用 kill pid 1 的方式重启容器。</strong></p>
 <p>为了模拟这个过程，我们可以进行下面的这段操作。</p>
-<p>如果你没有在容器中做过 kill 1 ，你可以下载我在 GitHub 上的这个例子，运行 make image 来做一个容器镜像。</p>
+<p>如果你没有在容器中做过 kill 1 ，你可以下载我在 GitHub 上的这个 <a target="_blank" rel="noopener" href="https://github.com/chengyli/training/tree/main/init_proc/handle_sig">例子</a> ，运行 make image 来做一个容器镜像。</p>
 <p>然后，我们用 Docker 构建一个容器，用例子中的 init.sh 脚本作为这个容器的 init 进程。</p>
 <p>最后，我们在容器中运行 kill 1 和 kill -9 1 ，看看会发生什么。</p>
 <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ docker stop sig-proc<span class="token punctuation">;</span>docker <span class="token function">rm</span> sig-proc
@@ -758,7 +758,7 @@ root        <span class="token number">24</span>     <span class="token number">
 lrwxrwxrwx <span class="token number">1</span> root root <span class="token number">20</span> Feb  <span class="token number">5</span> 01:07 /sbin/init -<span class="token operator">&gt;</span> /lib/systemd/systemd<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre>
 <p>在 Linux 上有了容器的概念之后，一旦容器建立了自己的 Pid Namespace（进程命名空间），这个 Namespace 里的进程号也是从 1 开始标记的。所以，容器的 init 进程也被称为 1 号进程。</p>
 <p>怎么样，1 号进程是不是不难理解？关于这个知识点，你只需要记住： <strong>1 号进程是第一个用户态的进程，由它直接或者间接创建了 Namespace 中的其他进程。</strong></p>
-<h5 id="如何理解-Linux-信号？"><a href="#如何理解-Linux-信号？" class="headerlink" title="如何理解 Linux 信号？"></a>如何理解 Linux 信号？</h5><p>刚才我给你讲了什么是 1 号进程，要想解决“为什么我在容器中不能 kill 1 号进程”这个问题，我们还得看看 kill 命令起到的作用。</p>
+<h5 id="如何理解-Linux-信号？"><a href="#如何理解-Linux-信号？" class="headerlink" title="如何理解 Linux 信号？"></a>如何理解 Linux 信号？</h5><p>刚才我给你讲了什么是 1 号进程，要想解决”为什么我在容器中不能 kill 1 号进程”这个问题，我们还得看看 kill 命令起到的作用。</p>
 <p>我们运行 kill 命令，其实在 Linux 里就是发送一个信号，那么信号到底是什么呢？这就涉及到 Linux 信号的概念了。</p>
 <p>其实信号这个概念在很早期的 Unix 系统上就有了。它一般会从 1 开始编号，通常来说，信号编号是 1 到 31，这个编号在所有的 Unix 系统上都是一样的。</p>
 <p>在 Linux 上我们可以用 kill -l 来看这些信号的编号和名字，具体的编号和名字我给你列在了下面，你可以看一看。</p>
@@ -773,7 +773,7 @@ lrwxrwxrwx <span class="token number">1</span> root root <span class="token numb
 <p>用一句话来概括， <strong>信号（Signal）其实就是 Linux 进程收到的一个通知。</strong> 这些通知产生的源头有很多种，通知的类型也有很多种。</p>
 <p>比如下面这几个典型的场景，你可以看一下：</p>
 <ul>
-<li>如果我们按下键盘“Ctrl+C”，当前运行的进程就会收到一个信号 SIGINT 而退出；</li>
+<li>如果我们按下键盘”Ctrl+C”，当前运行的进程就会收到一个信号 SIGINT 而退出；</li>
 <li>如果我们的代码写得有问题，导致内存访问出错了，当前的进程就会收到另一个信号 SIGSEGV；</li>
 <li>我们也可以通过命令 <code>kill &lt;pid&gt;</code>，直接向一个进程发送一个信号，缺省情况下不指定信号的类型，那么这个信号就是 SIGTERM。也可以指定信号类型，比如命令 <code>kill -9 &lt;pid&gt;</code>, 这里的 9，就是编号为 9 的信号，SIGKILL 信号。</li>
 </ul>
@@ -787,11 +787,11 @@ lrwxrwxrwx <span class="token number">1</span> root root <span class="token numb
 <p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《容器实战高手课》学习笔记/进程处理信号的三种选择.jpg" alt="进程处理信号的三种选择"></p>
 <p>我刚才说了，SIGTERM（15）和 SIGKILL（9）这两个信号是我们重点掌握的。现在我们已经讲解了信号的概念和处理方式，我就拿这两个信号为例，再带你具体分析一下。</p>
 <p>首先我们来看 SIGTERM（15），这个信号是 Linux 命令 kill 缺省发出的。前面例子里的命令 kill 1 ，就是通过 kill 向 1 号进程发送一个信号，在没有别的参数时，这个信号类型就默认为 SIGTERM。</p>
-<p>SIGTERM 这个信号是可以被捕获的，这里的“捕获”指的就是用户进程可以为这个信号注册自己的 handler，而这个 handler，我们后面会看到，它可以处理进程的 graceful-shutdown 问题。</p>
+<p>SIGTERM 这个信号是可以被捕获的，这里的”捕获”指的就是用户进程可以为这个信号注册自己的 handler，而这个 handler，我们后面会看到，它可以处理进程的 graceful-shutdown 问题。</p>
 <p>我们再来了解一下 SIGKILL (9)，这个信号是 Linux 里两个 <strong>特权信号</strong> 之一。什么是特权信号呢？</p>
 <p>前面我们已经提到过了，特权信号就是 Linux 为 kernel 和超级用户去删除任意进程所保留的，不能被忽略也不能被捕获。那么进程一旦收到 SIGKILL，就要退出。</p>
-<p>在前面的例子里，我们运行的命令 kill -9 1 里的参数“-9”，其实就是指发送编号为 9 的这个 SIGKILL 信号给 1 号进程。</p>
-<h4 id="现象解释"><a href="#现象解释" class="headerlink" title="现象解释"></a>现象解释</h4><p>现在，你应该理解 init 进程和 Linux 信号这两个概念了，让我们回到开头的问题上来：“为什么我在容器中不能 kill 1 号进程，甚至 SIGKILL 信号也不行？”</p>
+<p>在前面的例子里，我们运行的命令 kill -9 1 里的参数”-9”，其实就是指发送编号为 9 的这个 SIGKILL 信号给 1 号进程。</p>
+<h4 id="现象解释"><a href="#现象解释" class="headerlink" title="现象解释"></a>现象解释</h4><p>现在，你应该理解 init 进程和 Linux 信号这两个概念了，让我们回到开头的问题上来：”为什么我在容器中不能 kill 1 号进程，甚至 SIGKILL 信号也不行？”</p>
 <p>你还记得么，在课程的最开始，我们已经尝试过用 bash 作为容器 1 号进程，这样是无法把 1 号进程杀掉的。那么我们再一起来看一看，用别的编程语言写的 1 号进程是否也杀不掉。</p>
 <p>我们现在 <strong>用 C 程序作为 init 进程</strong> ，尝试一下杀掉 1 号进程。和 bash init 进程一样，无论 SIGTERM 信号还是 SIGKILL 信号，在容器里都不能杀死这个 1 号进程。</p>
 <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ <span class="token function">cat</span> c-init-nosig.c
@@ -891,7 +891,7 @@ CONTAINER ID   IMAGE     COMMAND   CREATED   STATUS    PORTS     NAMES<span aria
 <p>那么什么是 SIG_DFL 呢？ <strong>对于每个信号，用户进程如果不注册一个自己的 handler，就会有一个系统缺省的 handler，这个缺省的 handler 就叫作 SIG_DFL。</strong></p>
 <p>对于 SIGKILL，我们前面介绍过它是特权信号，是不允许被捕获的，所以它的 handler 就一直是 SIG_DFL。这第二个条件对 SIGKILL 来说总是满足的。</p>
 <p>对于 SIGTERM，它是可以被捕获的。也就是说如果用户不注册 handler，那么这个条件对 SIGTERM 也是满足的。</p>
-<p>最后再来看一下第三个条件，“t-&gt;signal-&gt;flags &amp; SIGNAL_UNKILLABLE”，这里的条件判断是这样的，进程必须是 SIGNAL_UNKILLABLE 的。</p>
+<p>最后再来看一下第三个条件，”t-&gt;signal-&gt;flags &amp; SIGNAL_UNKILLABLE”，这里的条件判断是这样的，进程必须是 SIGNAL_UNKILLABLE 的。</p>
 <p>这个 SIGNAL_UNKILLABLE flag 是在哪里置位的呢？</p>
 <p>可以参考我们下面的这段代码，在每个 Namespace 的 init 进程建立的时候，就会打上 <strong>SIGNAL_UNKILLABLE</strong> 这个标签，也就是说只要是 1 号进程，就会有这个 flag，这个条件也是满足的。</p>
 <pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token comment">// kernel/fork.c</span>
@@ -979,7 +979,7 @@ CONTAINER ID   IMAGE     COMMAND   CREATED   STATUS    PORTS     NAMES<span aria
 <li>kill -9 1 在容器中是不工作的，内核阻止了 1 号进程对 SIGKILL 特权信号的响应。</li>
 <li>kill 1 分两种情况，如果 1 号进程没有注册 SIGTERM 的 handler，那么对 SIGTERM 信号也不响应，如果注册了 handler，那么就可以响应 SIGTERM 信号。</li>
 </ol>
-<h4 id="重点总结-1"><a href="#重点总结-1" class="headerlink" title="重点总结"></a>重点总结</h4><p>这一讲我们主要讲了 init 进程。围绕这个知识点，我提出了一个真实发生的问题：“为什么我在容器中不能 kill 1 号进程?”。</p>
+<h4 id="重点总结-1"><a href="#重点总结-1" class="headerlink" title="重点总结"></a>重点总结</h4><p>这一讲我们主要讲了 init 进程。围绕这个知识点，我提出了一个真实发生的问题：”为什么我在容器中不能 kill 1 号进程?”。</p>
 <p>想要解决这个问题，我们需要掌握两个基本概念。</p>
 <p>第一个概念是 <strong>Linux 1 号进程。它是第一个用户态的进程。它直接或者间接创建了 Namespace 中的其他进程。</strong></p>
 <p>第二个概念是 Linux 信号。Linux 有 31 个基本信号，进程在处理大部分信号时有三个选择： <strong>忽略、捕获和缺省行为。其中两个特权信号 SIGKILL 和 SIGSTOP 不能被忽略或者捕获。</strong></p>
@@ -992,6 +992,444 @@ CONTAINER ID   IMAGE     COMMAND   CREATED   STATUS    PORTS     NAMES<span aria
 </ol>
 <h4 id="思考题"><a href="#思考题" class="headerlink" title="思考题"></a>思考题</h4><p>这一讲的最开始，有这样一个 C 语言的 init 进程，它没有注册任何信号的 handler。如果我们从 Host Namespace 向它发送 SIGTERM，会发生什么情况呢？</p>
 <p>答：SIGTERM不能杀掉，但是SIGKILL可以。</p>
+<h3 id="03｜理解进程（2）：为什么我的容器里有这么多僵尸进程？"><a href="#03｜理解进程（2）：为什么我的容器里有这么多僵尸进程？" class="headerlink" title="03｜理解进程（2）：为什么我的容器里有这么多僵尸进程？"></a>03｜理解进程（2）：为什么我的容器里有这么多僵尸进程？</h3><p>说起僵尸进程，相信你并不陌生。很多面试官经常会问到这个知识点，用来考察候选人的操作系统背景。通过这个问题，可以了解候选人对 Linux 进程管理和信号处理这些基础知识的理解程度，他的基本功扎不扎实。</p>
+<p>所以，今天我们就一起来看看容器里为什么会产生僵尸进程，然后去分析如何怎么解决。</p>
+<p>通过这一讲，你就会对僵尸进程的产生原理有一个清晰的认识，也会更深入地理解容器 init 进程的特性。</p>
+<h4 id="问题再现-1"><a href="#问题再现-1" class="headerlink" title="问题再现"></a>问题再现</h4><p>我们平时用容器的时候，有的同学会发现，自己的容器运行久了之后，运行 ps 命令会看到一些进程，进程名后面加了 <defunct> 标识。那么你自然会有这样的疑问，这些是什么进程呢？</defunct></p>
+<p>你可以自己做个容器镜像来模拟一下，我们先下载这个 <a target="_blank" rel="noopener" href="https://github.com/chengyli/training/tree/main/init_proc/zombie_proc">例子</a> ，运行 make image 之后，再启动容器。</p>
+<p>在容器里我们可以看到，1 号进程 fork 出 1000 个子进程。当这些子进程运行结束后，它们的进程名字后面都加了标识。</p>
+<p>从它们的 Z stat（进程状态）中我们可以知道，这些都是僵尸进程（Zombie Process）。运行 top 命令，我们也可以看到输出的内容显示有 1000 zombie 进程。</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ docker run --name zombie-proc -d registry/zombie-proc:v1
+02dec161a9e8b18922bd3599b922dbd087a2ad60c9b34afccde7c91a463bde8a
+
+$ docker <span class="token builtin class-name">exec</span> -it zombie-proc <span class="token function">bash</span>
+$ <span class="token function">ps</span> aux
+<span class="token environment constant">USER</span>       PID %CPU %MEM    VSZ   RSS TTY      STAT START   TIME COMMAND
+root         <span class="token number">1</span>  <span class="token number">0.0</span>  <span class="token number">0.0</span>   <span class="token number">4324</span>  <span class="token number">1436</span> ?        Ss   01:23   <span class="token number">0</span>:00 /app-test <span class="token number">1000</span>
+root         <span class="token number">6</span>  <span class="token number">0.0</span>  <span class="token number">0.0</span>      <span class="token number">0</span>     <span class="token number">0</span> ?        Z    01:23   <span class="token number">0</span>:00 <span class="token punctuation">[</span>app-test<span class="token punctuation">]</span> <span class="token operator">&lt;</span>defunct<span class="token operator">&gt;</span>
+root         <span class="token number">7</span>  <span class="token number">0.0</span>  <span class="token number">0.0</span>      <span class="token number">0</span>     <span class="token number">0</span> ?        Z    01:23   <span class="token number">0</span>:00 <span class="token punctuation">[</span>app-test<span class="token punctuation">]</span> <span class="token operator">&lt;</span>defunct<span class="token operator">&gt;</span>
+root         <span class="token number">8</span>  <span class="token number">0.0</span>  <span class="token number">0.0</span>      <span class="token number">0</span>     <span class="token number">0</span> ?        Z    01:23   <span class="token number">0</span>:00 <span class="token punctuation">[</span>app-test<span class="token punctuation">]</span> <span class="token operator">&lt;</span>defunct<span class="token operator">&gt;</span>
+root         <span class="token number">9</span>  <span class="token number">0.0</span>  <span class="token number">0.0</span>      <span class="token number">0</span>     <span class="token number">0</span> ?        Z    01:23   <span class="token number">0</span>:00 <span class="token punctuation">[</span>app-test<span class="token punctuation">]</span> <span class="token operator">&lt;</span>defunct<span class="token operator">&gt;</span>
+root        <span class="token number">10</span>  <span class="token number">0.0</span>  <span class="token number">0.0</span>      <span class="token number">0</span>     <span class="token number">0</span> ?        Z    01:23   <span class="token number">0</span>:00 <span class="token punctuation">[</span>app-test<span class="token punctuation">]</span> <span class="token operator">&lt;</span>defunct<span class="token operator">&gt;</span>
+…
+root       <span class="token number">999</span>  <span class="token number">0.0</span>  <span class="token number">0.0</span>      <span class="token number">0</span>     <span class="token number">0</span> ?        Z    01:23   <span class="token number">0</span>:00 <span class="token punctuation">[</span>app-test<span class="token punctuation">]</span> <span class="token operator">&lt;</span>defunct<span class="token operator">&gt;</span>
+root      <span class="token number">1000</span>  <span class="token number">0.0</span>  <span class="token number">0.0</span>      <span class="token number">0</span>     <span class="token number">0</span> ?        Z    01:23   <span class="token number">0</span>:00 <span class="token punctuation">[</span>app-test<span class="token punctuation">]</span> <span class="token operator">&lt;</span>defunct<span class="token operator">&gt;</span>
+root      <span class="token number">1001</span>  <span class="token number">0.0</span>  <span class="token number">0.0</span>      <span class="token number">0</span>     <span class="token number">0</span> ?        Z    01:23   <span class="token number">0</span>:00 <span class="token punctuation">[</span>app-test<span class="token punctuation">]</span> <span class="token operator">&lt;</span>defunct<span class="token operator">&gt;</span>
+root      <span class="token number">1002</span>  <span class="token number">0.0</span>  <span class="token number">0.0</span>      <span class="token number">0</span>     <span class="token number">0</span> ?        Z    01:23   <span class="token number">0</span>:00 <span class="token punctuation">[</span>app-test<span class="token punctuation">]</span> <span class="token operator">&lt;</span>defunct<span class="token operator">&gt;</span>
+root      <span class="token number">1003</span>  <span class="token number">0.0</span>  <span class="token number">0.0</span>      <span class="token number">0</span>     <span class="token number">0</span> ?        Z    01:23   <span class="token number">0</span>:00 <span class="token punctuation">[</span>app-test<span class="token punctuation">]</span> <span class="token operator">&lt;</span>defunct<span class="token operator">&gt;</span>
+root      <span class="token number">1004</span>  <span class="token number">0.0</span>  <span class="token number">0.0</span>      <span class="token number">0</span>     <span class="token number">0</span> ?        Z    01:23   <span class="token number">0</span>:00 <span class="token punctuation">[</span>app-test<span class="token punctuation">]</span> <span class="token operator">&lt;</span>defunct<span class="token operator">&gt;</span>
+root      <span class="token number">1005</span>  <span class="token number">0.0</span>  <span class="token number">0.0</span>      <span class="token number">0</span>     <span class="token number">0</span> ?        Z    01:23   <span class="token number">0</span>:00 <span class="token punctuation">[</span>app-test<span class="token punctuation">]</span> <span class="token operator">&lt;</span>defunct<span class="token operator">&gt;</span>
+root      <span class="token number">1023</span>  <span class="token number">0.0</span>  <span class="token number">0.0</span>  <span class="token number">12020</span>  <span class="token number">3392</span> pts/0    Ss   01:39   <span class="token number">0</span>:00 <span class="token function">bash</span>
+
+$ <span class="token function">top</span>
+<span class="token function">top</span> - 02:18:57 up <span class="token number">31</span> days, <span class="token number">15</span>:17,  <span class="token number">0</span> users,  load average: <span class="token number">0.00</span>, <span class="token number">0.01</span>, <span class="token number">0.00</span>
+Tasks: <span class="token number">1003</span> total,   <span class="token number">1</span> running,   <span class="token number">2</span> sleeping,   <span class="token number">0</span> stopped, <span class="token number">1000</span> zombie
+…<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>那么问题来了，什么是僵尸进程？它们是怎么产生的？僵尸进程太多会导致什么问题？想要回答这些问题，我们就要从进程状态的源头学习，看看僵尸进程到底处于进程整个生命周期里的哪一环。</p>
+<h4 id="知识详解-1"><a href="#知识详解-1" class="headerlink" title="知识详解"></a>知识详解</h4><h5 id="Linux-的进程状态"><a href="#Linux-的进程状态" class="headerlink" title="Linux 的进程状态"></a>Linux 的进程状态</h5><p>无论进程还是线程，在 Linux 内核里其实都是用 task_struct{}这个结构来表示的。它其实就是任务（task），也就是 Linux 里基本的调度单位。为了方便讲解，我们在这里暂且称它为进程。</p>
+<p>那一个进程从创建（fork）到退出（exit），这个过程中的状态转化还是很简单的。</p>
+<p>下面这个图是 《Linux Kernel Development》这本书里的 Linux 进程状态转化图。</p>
+<p>我们从这张图中可以看出来，在进程”活着”的时候就只有两个状态：运行态（TASK_RUNNING）和睡眠态（TASK_INTERRUPTIBLE，TASK_UNINTERRUPTIBLE）。</p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《容器实战高手课》学习笔记/Linux进程状态转化图.jpg" alt="Linux进程状态转化图"></p>
+<p>那运行态和睡眠态这两种状态分别是什么意思呢？</p>
+<p>运行态的意思是，无论进程是正在运行中（也就是获得了 CPU 资源），还是进程在 run queue 队列里随时可以运行，都处于这个状态。</p>
+<p>我们想要查看进程是不是处于运行态，其实也很简单，比如使用 ps 命令，可以看到处于这个状态的进程显示的是 R stat。</p>
+<p>睡眠态是指，进程需要等待某个资源而进入的状态，要等待的资源可以是一个信号量（Semaphore）, 或者是磁盘 I/O，这个状态的进程会被放入到 wait queue 队列里。</p>
+<p>这个睡眠态具体还包括两个子状态：一个是可以被打断的（TASK_INTERRUPTIBLE），我们用 ps 查看到的进程，显示为 S stat。还有一个是不可被打断的（TASK_UNINTERRUPTIBLE），用 ps 查看进程，就显示为 D stat。</p>
+<p>这两个子状态，我们在后面的课程里碰到新的问题时，会再做详细介绍，这里你只要知道这些就行了。</p>
+<p>除了上面进程在活的时候的两个状态，进程在调用 do_exit() 退出的时候，还有两个状态。</p>
+<p>一个是 EXIT_DEAD，也就是进程在真正结束退出的那一瞬间的状态；第二个是 <strong>EXIT_ZOMBIE 状态，这是进程在 EXIT_DEAD 前的一个状态，而我们今天讨论的僵尸进程，也就是处于这个状态中。</strong></p>
+<h5 id="限制容器中进程数目"><a href="#限制容器中进程数目" class="headerlink" title="限制容器中进程数目"></a>限制容器中进程数目</h5><p>理解了 Linux 进程状态之后，我们还需要知道，在 Linux 系统中怎么限制进程数目。因为弄清楚这个问题，我们才能更深入地去理解僵尸进程的危害。</p>
+<p>一台 Linux 机器上的进程总数目是有限制的。如果超过这个最大值，那么系统就无法创建出新的进程了，比如你想 SSH 登录到这台机器上就不行了。</p>
+<p>这个最大值可以我们在 /proc/sys/kernel/pid_max 这个参数中看到。</p>
+<p>Linux 内核在初始化系统的时候，会根据机器 CPU 的数目来设置 pid_max 的值。</p>
+<p>比如说，如果机器中 CPU 数目小于等于 32，那么 pid_max 就会被设置为 32768（32K）；如果机器中的 CPU 数目大于 32，那么 pid_max 就被设置为 N*1024 （N 就是 CPU 数目）。</p>
+<p>对于 Linux 系统而言，容器就是一组进程的集合。如果容器中的应用创建过多的进程或者出现 bug，就会产生类似 fork bomb 的行为。</p>
+<p>这个 fork bomb 就是指在计算机中，通过不断建立新进程来消耗系统中的进程资源，它是一种黑客攻击方式。这样，容器中的进程数就会把整个节点的可用进程总数给消耗完。</p>
+<p>这样，不但会使同一个节点上的其他容器无法工作，还会让宿主机本身也无法工作。所以对于每个容器来说，我们都需要限制它的最大进程数目，而这个功能由 pids Cgroup 这个子系统来完成。</p>
+<p>而这个功能的实现方法是这样的：pids Cgroup 通过 Cgroup 文件系统的方式向用户提供操作接口，一般它的 Cgroup 文件系统挂载点在 /sys/fs/cgroup/pids。</p>
+<p>在一个容器建立之后，创建容器的服务会在 /sys/fs/cgroup/pids 下建立一个子目录，就是一个控制组，控制组里 <strong>最关键的一个文件就是 pids.max</strong> 。我们可以向这个文件写入数值，而这个值就是这个容器中允许的最大进程数目。</p>
+<p>我们对这个值做好限制，容器就不会因为创建出过多进程而影响到其他容器和宿主机了。思路讲完了，接下来我们就实际上手试一试。</p>
+<p>下面是对一个 Docker 容器的 pids Cgroup 的操作，你可以跟着操作一下。</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ <span class="token builtin class-name">pwd</span>
+/sys/fs/cgroup/pids
+
+$ <span class="token function">df</span> ./
+Filesystem     1K-blocks  Used Available Use% Mounted on
+cgroup                 <span class="token number">0</span>     <span class="token number">0</span>         <span class="token number">0</span>    - /sys/fs/cgroup/pids
+
+$ docker <span class="token function">ps</span>
+CONTAINER ID        IMAGE                      COMMAND                  CREATED             STATUS              PORTS               NAMES
+7ecd3aa7fdc1        registry/zombie-proc:v1   <span class="token string">"/app-test 1000"</span>         <span class="token number">37</span> hours ago        Up <span class="token number">37</span> hours                             frosty_yalow
+
+$ <span class="token builtin class-name">pwd</span>
+/sys/fs/cgroup/pids/system.slice/docker-7ecd3aa7fdc15a1e183813b1899d5d939beafb11833ad6c8b0432536e5b9871c.scope
+
+$ <span class="token function">ls</span>
+cgroup.clone_children  cgroup.procs  notify_on_release  pids.current  pids.events  pids.max  tasks
+
+$ <span class="token builtin class-name">echo</span> <span class="token number">1002</span> <span class="token operator">&gt;</span> pids.max
+
+$ <span class="token function">cat</span> pids.max
+<span class="token number">1002</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<h4 id="解决问题"><a href="#解决问题" class="headerlink" title="解决问题"></a>解决问题</h4><p>刚才我给你解释了两个基本概念，进程状态和进程数目限制，那我们现在就可以解决容器中的僵尸进程问题了。</p>
+<p>在前面 Linux 进程状态的介绍里，我们知道了，僵尸进程是 Linux 进程退出状态的一种。</p>
+<p>从内核进程的 do_exit() 函数我们也可以看到，这时候进程 task_struct 里的 mm/shm/sem/files 等文件资源都已经释放了，只留下了一个 stask_struct instance 空壳。</p>
+<p>就像下面这段代码显示的一样，从进程对应的 <code>/proc/&lt;pid&gt;</code> 文件目录下，我们也可以看出来，对应的资源都已经没有了。</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token function">cat</span> /proc/6/cmdline
+<span class="token function">cat</span> /proc/6/smaps
+<span class="token function">cat</span> /proc/6/maps
+<span class="token function">ls</span> /proc/6/fd<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span></span></code></pre>
+<p>并且，这个进程也已经不响应任何的信号了，无论 SIGTERM(15) 还是 SIGKILL(9)。例如上面 pid 6 的僵尸进程，这两个信号都已经被响应了。</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ <span class="token function">kill</span> -15 <span class="token number">6</span>
+$ <span class="token function">kill</span> -9 <span class="token number">6</span>
+$ <span class="token function">ps</span> -ef <span class="token operator">|</span> <span class="token function">grep</span> <span class="token number">6</span>
+root         <span class="token number">6</span>     <span class="token number">1</span>  <span class="token number">0</span> <span class="token number">13</span>:59 ?        00:00:00 <span class="token punctuation">[</span>app-test<span class="token punctuation">]</span> <span class="token operator">&lt;</span>defunct<span class="token operator">&gt;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span></span></code></pre>
+<p>当多个容器运行在同一个宿主机上的时候，为了避免一个容器消耗完我们整个宿主机进程号资源，我们会配置 pids Cgroup 来限制每个容器的最大进程数目。也就是说，进程数目在每个容器中也是有限的，是一种很宝贵的资源。</p>
+<p>既然进程号资源在宿主机上是有限的，显然残留的僵尸进程多了以后，给系统带来最大问题就是它占用了进程号。 <strong>这就意味着，残留的僵尸进程，在容器里仍然占据着进程号资源，很有可能会导致新的进程不能运转。</strong></p>
+<p>这里我再次借用开头的那个例子，也就是一个产生了 1000 个僵尸进程的容器，带你理解一下这个例子中进程数的上限。我们可以看一下，1 个 init 进程 +1000 个僵尸进程 +1 个 bash 进程 ，总共就是 1002 个进程。</p>
+<p>如果 pids Cgroup 也限制了这个容器的最大进程号的数量，限制为 1002 的话，我们在 pids Cgroup 里可以看到，pids.current == pids.max，也就是已经达到了容器进程号数的上限。</p>
+<p>这时候，如果我们在容器里想再启动一个进程，例如运行一下 ls 命令，就会看到 Resource temporarily unavailable 的错误消息。已经退出的无用进程，却阻碍了有用进程的启动，显然这样是不合理的。</p>
+<p>具体代码如下：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token comment">### On host</span>
+$ docker <span class="token function">ps</span>
+CONTAINER ID        IMAGE                      COMMAND             CREATED             STATUS              PORTS               NAMES
+09e6e8e16346        registry/zombie-proc:v1   <span class="token string">"/app-test 1000"</span>    <span class="token number">29</span> minutes ago      Up <span class="token number">29</span> minutes                           peaceful_ritchie
+
+$ <span class="token builtin class-name">pwd</span>
+/sys/fs/cgroup/pids/system.slice/docker-09e6e8e1634612580a03dd3496d2efed2cf2a510b9688160b414ce1d1ea3e4ae.scope
+
+$ <span class="token function">cat</span> pids.max
+<span class="token number">1002</span>
+
+$ <span class="token function">cat</span> pids.current
+<span class="token number">1002</span>
+
+<span class="token comment">### On Container</span>
+<span class="token punctuation">[</span>root@09e6e8e16346 /<span class="token punctuation">]</span>$ <span class="token function">ls</span>
+bash: fork: retry: Resource temporarily unavailable
+bash: fork: retry: Resource temporarily unavailable<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>所以，接下来我们还要看看这些僵尸进程到底是怎么产生的。因为只有理解它的产生机制，我们才能想明白怎么避免僵尸进程的出现。</p>
+<p>我们先看一下刚才模拟僵尸进程的那段小程序。这段程序里，父进程在创建完子进程之后就不管了，这就是造成子进程变成僵尸进程的原因。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;stdio.h&gt;</span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;stdlib.h&gt;</span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;sys/types.h&gt;</span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;sys/wait.h&gt;</span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;unistd.h&gt;</span></span>
+
+<span class="token keyword">int</span> <span class="token function">main</span><span class="token punctuation">(</span><span class="token keyword">int</span> argc<span class="token punctuation">,</span> <span class="token keyword">char</span> <span class="token operator">*</span>argv<span class="token punctuation">[</span><span class="token punctuation">]</span><span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword">int</span> i<span class="token punctuation">;</span>
+    <span class="token keyword">int</span> total<span class="token punctuation">;</span>
+
+    <span class="token keyword">if</span> <span class="token punctuation">(</span>argc <span class="token operator">&lt;</span> <span class="token number">2</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+        total <span class="token operator">=</span> <span class="token number">1</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span> <span class="token keyword">else</span> <span class="token punctuation">{</span>
+        total <span class="token operator">=</span> <span class="token function">atoi</span><span class="token punctuation">(</span>argv<span class="token punctuation">[</span><span class="token number">1</span><span class="token punctuation">]</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+
+    <span class="token function">printf</span><span class="token punctuation">(</span><span class="token string">"To create %d processes\n"</span><span class="token punctuation">,</span> total<span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+    <span class="token keyword">for</span> <span class="token punctuation">(</span>i <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span> i <span class="token operator">&lt;</span> total<span class="token punctuation">;</span> i<span class="token operator">++</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+        pid_t pid <span class="token operator">=</span> <span class="token function">fork</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+        <span class="token keyword">if</span> <span class="token punctuation">(</span>pid <span class="token operator">==</span> <span class="token number">0</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+            <span class="token function">printf</span><span class="token punctuation">(</span><span class="token string">"Child =&gt; PPID: %d PID: %d\n"</span><span class="token punctuation">,</span> <span class="token function">getppid</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">,</span>
+                   <span class="token function">getpid</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token function">sleep</span><span class="token punctuation">(</span><span class="token number">60</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token function">printf</span><span class="token punctuation">(</span><span class="token string">"Child process eixts\n"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token function">exit</span><span class="token punctuation">(</span>EXIT_SUCCESS<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span> <span class="token keyword">else</span> <span class="token keyword">if</span> <span class="token punctuation">(</span>pid <span class="token operator">&gt;</span> <span class="token number">0</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+            <span class="token function">printf</span><span class="token punctuation">(</span><span class="token string">"Parent created child %d\n"</span><span class="token punctuation">,</span> i<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span> <span class="token keyword">else</span> <span class="token punctuation">{</span>
+            <span class="token function">printf</span><span class="token punctuation">(</span><span class="token string">"Unable to create child process. %d\n"</span><span class="token punctuation">,</span> i<span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token keyword">break</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+    <span class="token punctuation">}</span>
+
+    <span class="token function">printf</span><span class="token punctuation">(</span><span class="token string">"Paraent is sleeping\n"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">while</span> <span class="token punctuation">(</span><span class="token number">1</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+        <span class="token function">sleep</span><span class="token punctuation">(</span><span class="token number">100</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+
+    <span class="token keyword">return</span> EXIT_SUCCESS<span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>前面我们通过分析，发现子进程变成僵尸进程的原因在于父进程”不负责”，那找到原因后，我们再想想，如何来解决。</p>
+<p>其实解决思路很好理解，就好像熊孩子犯了事儿，你要去找他家长来管教，那子进程在容器里”赖着不走”，我们就需要让父进程出面处理了。</p>
+<p>所以，在 Linux 中的进程退出之后，如果进入僵尸状态，我们就需要父进程调用 wait() 这个系统调用，去回收僵尸进程的最后的那些系统资源，比如进程号资源。</p>
+<p>那么，我们在刚才那段代码里，主进程进入 sleep(100) 之前，加上一段 wait() 函数调用，就不会出现僵尸进程的残留了。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">for</span> <span class="token punctuation">(</span>i <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span> i <span class="token operator">&lt;</span> total<span class="token punctuation">;</span> i<span class="token operator">++</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+    <span class="token keyword">int</span> status<span class="token punctuation">;</span>
+    <span class="token function">wait</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>status<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span></span></code></pre>
+<p>而容器中所有进程的最终父进程，就是我们所说的 init 进程，由它负责生成容器中的所有其他进程。因此，容器的 init 进程有责任回收容器中的所有僵尸进程。</p>
+<p>前面我们知道了 wait() 系统调用可以回收僵尸进程，但是 wait() 系统调用有一个问题，需要你注意。</p>
+<p>wait() 系统调用是一个阻塞的调用，也就是说，如果没有子进程是僵尸进程的话，这个调用就一直不会返回，那么整个进程就会被阻塞住，而不能去做别的事了。</p>
+<p>不过这也没有关系，我们还有另一个方法处理。Linux 还提供了一个类似的系统调用 waitpid()，这个调用的参数更多。</p>
+<p>其中就有一个参数 WNOHANG，它的含义就是，如果在调用的时候没有僵尸进程，那么函数就马上返回了，而不会像 wait() 调用那样一直等待在那里。</p>
+<p>比如社区的一个 <a target="_blank" rel="noopener" href="https://github.com/krallin/tini">容器 init 项目 tini</a> 。在这个例子中，它的主进程里，就是不断在调用带 WNOHANG 参数的 waitpid()，通过这个方式清理容器中所有的僵尸进程。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">int</span> <span class="token function">reap_zombies</span><span class="token punctuation">(</span><span class="token keyword">const</span> pid_t child_pid<span class="token punctuation">,</span> <span class="token keyword">int</span><span class="token operator">*</span> <span class="token keyword">const</span> child_exitcode_ptr<span class="token punctuation">)</span> <span class="token punctuation">{</span>
+    pid_t current_pid<span class="token punctuation">;</span>
+    <span class="token keyword">int</span> current_status<span class="token punctuation">;</span>
+    <span class="token keyword">while</span> <span class="token punctuation">(</span><span class="token number">1</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+        current_pid <span class="token operator">=</span> <span class="token function">waitpid</span><span class="token punctuation">(</span><span class="token operator">-</span><span class="token number">1</span><span class="token punctuation">,</span> <span class="token operator">&amp;</span>current_status<span class="token punctuation">,</span> WNOHANG<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token keyword">switch</span> <span class="token punctuation">(</span>current_pid<span class="token punctuation">)</span> <span class="token punctuation">{</span>
+            <span class="token keyword">case</span> <span class="token operator">-</span><span class="token number">1</span><span class="token operator">:</span>
+                <span class="token keyword">if</span> <span class="token punctuation">(</span>errno <span class="token operator">==</span> ECHILD<span class="token punctuation">)</span> <span class="token punctuation">{</span>
+                    <span class="token function">PRINT_TRACE</span><span class="token punctuation">(</span><span class="token string">"No child to wait"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+                    <span class="token keyword">break</span><span class="token punctuation">;</span>
+                <span class="token punctuation">}</span>
+…
+<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<h4 id="重点总结-2"><a href="#重点总结-2" class="headerlink" title="重点总结"></a>重点总结</h4><p>首先，我们先用代码来模拟了这个情况，还原了在一个容器中大量的僵尸进程是如何产生的。为了理解它的产生原理和危害，我们先要掌握两个知识点：</p>
+<ul>
+<li>Linux 进程状态中，僵尸进程处于 EXIT_ZOMBIE 这个状态；</li>
+<li>容器需要对最大进程数做限制。具体方法是这样的，我们可以向 Cgroup 中 pids.max 这个文件写入数值（这个值就是这个容器中允许的最大进程数目）。</li>
+</ul>
+<p>掌握了基本概念之后，我们找到了僵尸进程的产生原因。父进程在创建完子进程之后就不管了。</p>
+<p>所以，我们需要父进程调用 wait() 或者 waitpid() 系统调用来避免僵尸进程产生。</p>
+<p>关于本节内容，你只要记住下面三个主要的知识点就可以了：</p>
+<ol>
+<li>每一个 Linux 进程在退出的时候都会进入一个僵尸状态（EXIT_ZOMBIE）；</li>
+<li>僵尸进程如果不清理，就会消耗系统中的进程数资源，最坏的情况是导致新的进程无法启动；</li>
+<li>僵尸进程一定需要父进程调用 wait() 或者 waitpid() 系统调用来清理，这也是容器中 init 进程必须具备的一个功能。</li>
+</ol>
+<h4 id="思考题-1"><a href="#思考题-1" class="headerlink" title="思考题"></a>思考题</h4><p>如果容器的 init 进程创建了子进程 B，B 又创建了自己的子进程 C。如果 C 运行完之后，退出成了僵尸进程，B 进程还在运行，而容器的 init 进程还在不断地调用 waitpid()，那 C 这个僵尸进程可以被回收吗？</p>
+<p>C 应该不会被回收，waitpid 仅等待直接 children 的状态变化。</p>
+<h3 id="04-理解进程（3）：为什么我在容器中的进程被强制杀死了？"><a href="#04-理解进程（3）：为什么我在容器中的进程被强制杀死了？" class="headerlink" title="04 | 理解进程（3）：为什么我在容器中的进程被强制杀死了？"></a>04 | 理解进程（3）：为什么我在容器中的进程被强制杀死了？</h3><p>今天我们来讲容器中 init 进程的最后一讲，为什么容器中的进程被强制杀死了。理解了这个问题，能够帮助你更好地管理进程，让容器中的进程可以 graceful shutdown。</p>
+<p>我先给你说说，为什么进程管理中做到这点很重要。在实际生产环境中，我们有不少应用在退出的时候需要做一些清理工作，比如清理一些远端的链接，或者是清除一些本地的临时数据。</p>
+<p>这样的清理工作，可以尽可能避免远端或者本地的错误发生，比如减少丢包等问题的出现。而这些退出清理的工作，通常是在 SIGTERM 这个信号用户注册的 handler 里进行的。</p>
+<p>但是，如果我们的进程收到了 SIGKILL，那应用程序就没机会执行这些清理工作了。这就意味着，一旦进程不能 graceful shutdown，就会增加应用的出错率。</p>
+<p>所以接下来，我们来重现一下，进程在容器退出时都发生了什么。</p>
+<h4 id="场景再现"><a href="#场景再现" class="headerlink" title="场景再现"></a>场景再现</h4><p>在容器平台上，你想要停止一个容器，无论是在 Kubernetes 中去删除一个 pod，或者用 Docker 停止一个容器，最后都会用到 Containerd 这个服务。</p>
+<p>而 Containerd 在停止容器的时候，就会向容器的 init 进程发送一个 SIGTERM 信号。</p>
+<p>我们会发现，在 init 进程退出之后，容器内的其他进程也都立刻退出了。不过不同的是，init 进程收到的是 SIGTERM 信号，而其他进程收到的是 SIGKILL 信号。</p>
+<p>在理解进程的第一讲中，我们提到过 SIGKILL 信号是不能被捕获的（catch）的，也就是用户不能注册自己的 handler，而 SIGTERM 信号却允许用户注册自己的 handler，这样的话差别就很大了。</p>
+<p>那么，我们就一起来看看当容器退出的时候，如何才能让容器中的进程都收到 SIGTERM 信号，而不是 SIGKILL 信号。</p>
+<p>延续前面课程中处理问题的思路，我们同样可以运行一个简单的容器，来重现这个问题，用这里的 <a target="_blank" rel="noopener" href="https://github.com/chengyli/training/tree/main/init_proc/fwd_sig">代码</a> 执行一下 make image ，然后用 Docker 启动这个容器镜像。</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">docker run -d --name fwd_sig registry/fwd_sig:v1 /c-init-sig<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>你会发现，在我们用 docker stop 停止这个容器的时候，如果用 strace 工具来监控，就能看到容器里的 init 进程和另外一个进程收到的信号情况。</p>
+<p>在下面的例子里，进程号为 15909 的就是容器里的 init 进程，而进程号为 15959 的是容器里另外一个进程。</p>
+<p>在命令输出中我们可以看到，<strong>init 进程（15909）收到的是 SIGTERM 信号，而另外一个进程（15959）收到的果然是 SIGKILL 信号。</strong></p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ <span class="token function">ps</span> -ef <span class="token operator">|</span> <span class="token function">grep</span> c-init-sig
+root     <span class="token number">15857</span> <span class="token number">14391</span>  <span class="token number">0</span> 06:23 pts/0    00:00:00 docker run -it registry/fwd_sig:v1 /c-init-sig
+root     <span class="token number">15909</span> <span class="token number">15879</span>  <span class="token number">0</span> 06:23 pts/0    00:00:00 /c-init-sig
+root     <span class="token number">15959</span> <span class="token number">15909</span>  <span class="token number">0</span> 06:23 pts/0    00:00:00 /c-init-sig
+root     <span class="token number">16046</span> <span class="token number">14607</span>  <span class="token number">0</span> 06:23 pts/3    00:00:00 <span class="token function">grep</span> --color<span class="token operator">=</span>auto c-init-sig
+
+$ <span class="token function">strace</span> -p <span class="token number">15909</span>
+strace: Process <span class="token number">15909</span> attached
+restart_syscall<span class="token punctuation">(</span><span class="token operator">&lt;</span><span class="token punctuation">..</span>. resuming interrupted <span class="token builtin class-name">read</span> <span class="token punctuation">..</span>.<span class="token operator">&gt;</span><span class="token punctuation">)</span> <span class="token operator">=</span> ? ERESTART_RESTARTBLOCK <span class="token punctuation">(</span>Interrupted by signal<span class="token punctuation">)</span>
+--- SIGTERM <span class="token punctuation">{</span>si_signo<span class="token operator">=</span>SIGTERM, <span class="token assign-left variable">si_code</span><span class="token operator">=</span>SI_USER, <span class="token assign-left variable">si_pid</span><span class="token operator">=</span><span class="token number">0</span>, <span class="token assign-left variable">si_uid</span><span class="token operator">=</span><span class="token number">0</span><span class="token punctuation">}</span> ---
+write<span class="token punctuation">(</span><span class="token number">1</span>, <span class="token string">"received SIGTERM<span class="token entity" title="\n">\n</span>"</span>, <span class="token number">17</span><span class="token punctuation">)</span>      <span class="token operator">=</span> <span class="token number">17</span>
+exit_group<span class="token punctuation">(</span><span class="token number">0</span><span class="token punctuation">)</span>                           <span class="token operator">=</span> ?
++++ exited with <span class="token number">0</span> +++
+
+$ <span class="token function">strace</span> -p <span class="token number">15959</span>
+strace: Process <span class="token number">15959</span> attached
+restart_syscall<span class="token punctuation">(</span><span class="token operator">&lt;</span><span class="token punctuation">..</span>. resuming interrupted <span class="token builtin class-name">read</span> <span class="token punctuation">..</span>.<span class="token operator">&gt;</span><span class="token punctuation">)</span> <span class="token operator">=</span> ?
++++ killed by SIGKILL +++<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<h4 id="知识详解：信号的两个系统调用"><a href="#知识详解：信号的两个系统调用" class="headerlink" title="知识详解：信号的两个系统调用"></a>知识详解：信号的两个系统调用</h4><p>我们想要理解刚才的例子，就需要搞懂信号背后的两个系统调用，它们分别是 kill() 系统调用和 signal() 系统调用。</p>
+<p>这里呢，我们可以结合前面讲过的信号来理解这两个系统调用。在容器 init 进程的第一讲里，我们介绍过信号的基本概念了， <strong>信号就是 Linux 进程收到的一个通知。</strong></p>
+<p>等你学完如何使用这两个系统调用之后，就会更清楚 Linux 信号是怎么一回事，遇到容器里信号相关的问题，你就能更好地理清思路了。</p>
+<p>我还会再给你举个使用函数的例子，帮助你进一步理解进程是如何实现 graceful shutdown 的。</p>
+<p>进程对信号的处理其实就包括两个问题， <strong>一个是进程如何发送信号，另一个是进程收到信号后如何处理。</strong></p>
+<p>我们在 Linux 中发送信号的系统调用是 kill()，之前很多例子里面我们用的命令 kill ，它内部的实现就是调用了 kill() 这个函数。</p>
+<p>下面是 Linux Programmer’s Manual 里对 kill() 函数的定义。</p>
+<p>这个函数有两个参数，一个是 sig，代表需要发送哪个信号，比如 sig 的值是 15 的话，就是指发送 SIGTERM；另一个参数是 pid，也就是指信号需要发送给哪个进程，比如值是 1 的话，就是指发送给进程号是 1 的进程。</p>
+<pre class="line-numbers language-txt" data-language="txt"><code class="language-txt">NAME
+       kill - send signal to a process
+
+SYNOPSIS
+       #include &lt;sys/types.h&gt;
+       #include &lt;signal.h&gt;
+       int kill(pid_t pid, int sig);<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>我们知道了发送信号的系统调用之后，再来看另一个系统调用，也就是 signal() 系统调用这个函数，它可以给信号注册 handler。</p>
+<p>下面是 signal() 在 Linux Programmer’s Manual 里的定义，参数 signum 也就是信号的编号，例如数值 15，就是信号 SIGTERM；参数 handler 是一个函数指针参数，用来注册用户的信号 handler。</p>
+<pre class="line-numbers language-txt" data-language="txt"><code class="language-txt">NAME
+       signal - ANSI C signal handling
+
+SYNOPSIS
+       #include &lt;signal.h&gt;
+       typedef void (*sighandler_t)(int);
+       sighandler_t signal(int signum, sighandler_t handler);<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>在容器 init 进程的第一讲里，我们学过 <strong>进程对每种信号的处理，包括三个选择：调用系统缺省行为、捕获、忽略</strong> 。而这里的选择，其实就是程序中如何去调用 signal() 这个系统调用。</p>
+<p>第一个选择就是缺省，如果我们在代码中对某个信号，比如 SIGTERM 信号，不做任何 signal() 相关的系统调用，那么在进程运行的时候，如果接收到信号 SIGTERM，进程就会执行内核中 SIGTERM 信号的缺省代码。</p>
+<p>对于 SIGTERM 这个信号来说，它的缺省行为就是进程退出（terminate）。</p>
+<p>内核中对不同的信号有不同的缺省行为，一般会采用退出（terminate），暂停（stop），忽略（ignore）这三种行为中的一种。</p>
+<p>那第二个选择捕获又是什么意思呢?</p>
+<p>捕获指的就是我们在代码中为某个信号，调用 signal() 注册自己的 handler。这样进程在运行的时候，一旦接收到信号，就不会再去执行内核中的缺省代码，而是会执行通过 signal() 注册的 handler。</p>
+<p>比如下面这段代码，我们为 SIGTERM 这个信号注册了一个 handler，在 handler 里只是做了一个打印操作。</p>
+<p>那么这个程序在运行的时候，如果收到 SIGTERM 信号，它就不会退出了，而是只在屏幕上显示出”received SIGTERM”。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">void</span> <span class="token function">sig_handler</span><span class="token punctuation">(</span><span class="token keyword">int</span> signo<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+  <span class="token keyword">if</span> <span class="token punctuation">(</span>signo <span class="token operator">==</span> SIGTERM<span class="token punctuation">)</span> <span class="token punctuation">{</span>
+          <span class="token function">printf</span><span class="token punctuation">(</span><span class="token string">"received SIGTERM\n"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+  <span class="token punctuation">}</span>
+<span class="token punctuation">}</span>
+
+<span class="token keyword">int</span> <span class="token function">main</span><span class="token punctuation">(</span><span class="token keyword">int</span> argc<span class="token punctuation">,</span> <span class="token keyword">char</span> <span class="token operator">*</span>argv<span class="token punctuation">[</span><span class="token punctuation">]</span><span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+  <span class="token function">signal</span><span class="token punctuation">(</span>SIGTERM<span class="token punctuation">,</span> sig_handler<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>我们再来看看第三个选择，如果要让进程”忽略”一个信号，我们就要通过 signal() 这个系统调用，为这个信号注册一个特殊的 handler，也就是 SIG_IGN 。</p>
+<p>比如下面的这段代码，就是为 SIGTERM 这个信号注册SIG_IGN。</p>
+<p>这样操作的效果，就是在程序运行的时候，如果收到 SIGTERM 信号，程序既不会退出，也不会在屏幕上输出 log，而是什么反应也没有，就像完全没有收到这个信号一样。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">int</span> <span class="token function">main</span><span class="token punctuation">(</span><span class="token keyword">int</span> argc<span class="token punctuation">,</span> <span class="token keyword">char</span> <span class="token operator">*</span>argv<span class="token punctuation">[</span><span class="token punctuation">]</span><span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+  <span class="token function">signal</span><span class="token punctuation">(</span>SIGTERM<span class="token punctuation">,</span> SIG_IGN<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>好了，我们通过讲解 signal() 这个系统调用，帮助你回顾了信号处理的三个选择：缺省行为、捕获和忽略。</p>
+<p>这里我还想要提醒你一点， <strong>SIGKILL 和 SIGSTOP 信号是两个特权信号，它们不可以被捕获和忽略，这个特点也反映在 signal() 调用上。</strong></p>
+<p>我们可以运行下面的 <a target="_blank" rel="noopener" href="https://github.com/chengyli/training/blob/main/init_proc/basic_sig/reg-sigkill.c">这段代码</a> ，如果我们用 signal() 为 SIGKILL 注册 handler，那么它就会返回 SIG_ERR，不允许我们做捕获操作。</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ <span class="token function">cat</span> reg_sigkill.c
+<span class="token comment">#include &lt;stdio.h&gt;</span>
+<span class="token comment">#include &lt;stdlib.h&gt;</span>
+<span class="token comment">#include &lt;unistd.h&gt;</span>
+<span class="token comment">#include &lt;errno.h&gt;</span>
+<span class="token comment">#include &lt;signal.h&gt;</span>
+typedef void <span class="token punctuation">(</span>*sighandler_t<span class="token punctuation">)</span><span class="token punctuation">(</span>int<span class="token punctuation">)</span><span class="token punctuation">;</span>
+void sig_handler<span class="token punctuation">(</span>int signo<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+            <span class="token keyword">if</span> <span class="token punctuation">(</span>signo <span class="token operator">==</span> SIGKILL<span class="token punctuation">)</span> <span class="token punctuation">{</span>
+                        printf<span class="token punctuation">(</span><span class="token string">"received SIGKILL<span class="token entity" title="\n">\n</span>"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+                        exit<span class="token punctuation">(</span><span class="token number">0</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token punctuation">}</span>
+<span class="token punctuation">}</span>
+
+int main<span class="token punctuation">(</span>int argc, char *argv<span class="token punctuation">[</span><span class="token punctuation">]</span><span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+            sighandler_t h_ret<span class="token punctuation">;</span>
+            h_ret <span class="token operator">=</span> signal<span class="token punctuation">(</span>SIGKILL, sig_handler<span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token keyword">if</span> <span class="token punctuation">(</span>h_ret <span class="token operator">==</span> SIG_ERR<span class="token punctuation">)</span> <span class="token punctuation">{</span>
+                        perror<span class="token punctuation">(</span><span class="token string">"SIG_ERR"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token punctuation">}</span>
+            <span class="token builtin class-name">return</span> <span class="token number">0</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+
+$ ./reg_sigkill
+SIG_ERR: Invalid argument<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>最后，我用下面 <a target="_blank" rel="noopener" href="https://github.com/chengyli/training/blob/main/init_proc/basic_sig/basic-sig.c">这段代码</a> 来做个小结。</p>
+<p>这段代码里，我们用 signal() 对 SIGTERM 这个信号做了忽略，捕获以及恢复它的缺省行为，并且每一次都用 kill() 系统调用向进程自己发送 SIGTERM 信号，这样做可以确认进程对 SIGTERM 信号的选择。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;stdio.h&gt;</span></span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;signal.h&gt;</span></span>
+
+<span class="token keyword">typedef</span> <span class="token keyword">void</span> <span class="token punctuation">(</span><span class="token operator">*</span>sighandler_t<span class="token punctuation">)</span><span class="token punctuation">(</span><span class="token keyword">int</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+<span class="token keyword">void</span> <span class="token function">sig_handler</span><span class="token punctuation">(</span><span class="token keyword">int</span> signo<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span>signo <span class="token operator">==</span> SIGTERM<span class="token punctuation">)</span> <span class="token punctuation">{</span>
+                <span class="token function">printf</span><span class="token punctuation">(</span><span class="token string">"received SIGTERM\n\n"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+                <span class="token comment">// Set SIGTERM handler to default</span>
+                <span class="token function">signal</span><span class="token punctuation">(</span>SIGTERM<span class="token punctuation">,</span> SIG_DFL<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+<span class="token punctuation">}</span>
+
+<span class="token keyword">int</span> <span class="token function">main</span><span class="token punctuation">(</span><span class="token keyword">int</span> argc<span class="token punctuation">,</span> <span class="token keyword">char</span> <span class="token operator">*</span>argv<span class="token punctuation">[</span><span class="token punctuation">]</span><span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+        <span class="token comment">//Ignore SIGTERM, and send SIGTERM</span>
+        <span class="token comment">// to process itself.</span>
+        <span class="token function">signal</span><span class="token punctuation">(</span>SIGTERM<span class="token punctuation">,</span> SIG_IGN<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token function">printf</span><span class="token punctuation">(</span><span class="token string">"Ignore SIGTERM\n\n"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token function">kill</span><span class="token punctuation">(</span><span class="token number">0</span><span class="token punctuation">,</span> SIGTERM<span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+        <span class="token comment">//Catch SIGERM, and send SIGTERM</span>
+        <span class="token comment">// to process itself.</span>
+        <span class="token function">signal</span><span class="token punctuation">(</span>SIGTERM<span class="token punctuation">,</span> sig_handler<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token function">printf</span><span class="token punctuation">(</span><span class="token string">"Catch SIGTERM\n"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token function">kill</span><span class="token punctuation">(</span><span class="token number">0</span><span class="token punctuation">,</span> SIGTERM<span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+        <span class="token comment">//Default SIGTERM. In sig_handler, it sets</span>
+        <span class="token comment">//SIGTERM handler back to default one.</span>
+        <span class="token function">printf</span><span class="token punctuation">(</span><span class="token string">"Default SIGTERM\n"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token function">kill</span><span class="token punctuation">(</span><span class="token number">0</span><span class="token punctuation">,</span> SIGTERM<span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+        <span class="token keyword">return</span> <span class="token number">0</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>我们一起来总结一下刚才讲的两个系统调用：</p>
+<p>先说说 kill() 这个系统调用，它其实很简单，输入两个参数：进程号和信号，就把特定的信号发送给指定的进程了。</p>
+<p>再说说 signal() 这个调用，它决定了进程收到特定的信号如何来处理，SIG_DFL 参数把对应信号恢复为缺省 handler，也可以用自定义的函数作为 handler，或者用 SIG_IGN 参数让进程忽略信号。</p>
+<p>对于 SIGKILL 信号，如果调用 signal() 函数，为它注册自定义的 handler，系统就会拒绝。</p>
+<h4 id="解决问题-1"><a href="#解决问题-1" class="headerlink" title="解决问题"></a>解决问题</h4><p>我们在学习了 kill() 和 signal() 这个两个信号相关的系统调用之后，再回到这一讲最初的问题上，为什么在停止一个容器的时候，容器 init 进程收到的 SIGTERM 信号，而容器中其他进程却会收到 SIGKILL 信号呢？</p>
+<p>当 Linux 进程收到 SIGTERM 信号并且使进程退出，这时 Linux 内核对处理进程退出的入口点就是 do_exit() 函数，do_exit() 函数中会释放进程的相关资源，比如内存，文件句柄，信号量等等。</p>
+<p>Linux 内核对处理进程退出的入口点就是 do_exit() 函数，do_exit() 函数中会释放进程的相关资源，比如内存，文件句柄，信号量等等。</p>
+<p>在做完这些工作之后，它会调用一个 exit_notify() 函数，用来通知和这个进程相关的父子进程等。</p>
+<p>对于容器来说，还要考虑 Pid Namespace 里的其他进程。这里调用的就是 zap_pid_ns_processes() 这个函数，而在这个函数中，如果是处于退出状态的 init 进程，它会向 Namespace 中的其他进程都发送一个 SIGKILL 信号。</p>
+<p>整个流程如下图所示。</p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《容器实战高手课》学习笔记/进程退出流程.jpg" alt="进程退出流程"></p>
+<p>你还可以看一下， <a target="_blank" rel="noopener" href="https://github.com/torvalds/linux/blob/d895ec7938c431fe61a731939da76a6461bc6133/kernel/pid_namespace.c#L166">内核代码</a> 是这样的。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token comment">/*
+       * The last thread in the cgroup-init thread group is terminating.
+       * Find remaining pid_ts in the namespace, signal and wait for them
+       * to exit.
+       *
+       * Note:  This signals each threads in the namespace - even those that
+       *        belong to the same thread group, To avoid this, we would have
+       *        to walk the entire tasklist looking a processes in this
+       *        namespace, but that could be unnecessarily expensive if the
+       *        pid namespace has just a few processes. Or we need to
+       *        maintain a tasklist for each pid namespace.
+       *
+       */</span>
+   <span class="token function">rcu_read_lock</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+   <span class="token function">read_lock</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>tasklist_lock<span class="token punctuation">)</span><span class="token punctuation">;</span>
+   nr <span class="token operator">=</span> <span class="token number">2</span><span class="token punctuation">;</span>
+   <span class="token function">idr_for_each_entry_continue</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>pid_ns<span class="token operator">-&gt;</span>idr<span class="token punctuation">,</span> pid<span class="token punctuation">,</span> nr<span class="token punctuation">)</span> <span class="token punctuation">{</span>
+           task <span class="token operator">=</span> <span class="token function">pid_task</span><span class="token punctuation">(</span>pid<span class="token punctuation">,</span> PIDTYPE_PID<span class="token punctuation">)</span><span class="token punctuation">;</span>
+           <span class="token keyword">if</span> <span class="token punctuation">(</span>task <span class="token operator">&amp;&amp;</span> <span class="token operator">!</span><span class="token function">__fatal_signal_pending</span><span class="token punctuation">(</span>task<span class="token punctuation">)</span><span class="token punctuation">)</span>
+                   <span class="token function">group_send_sig_info</span><span class="token punctuation">(</span>SIGKILL<span class="token punctuation">,</span> SEND_SIG_PRIV<span class="token punctuation">,</span> task<span class="token punctuation">,</span> PIDTYPE_MAX<span class="token punctuation">)</span><span class="token punctuation">;</span>
+   <span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>说到这里，我们也就明白为什么容器 init 进程收到的 SIGTERM 信号，而容器中其他进程却会收到 SIGKILL 信号了。</p>
+<p>前面我讲过，SIGKILL 是个特权信号（特权信号是 Linux 为 kernel 和超级用户去删除任意进程所保留的，不能被忽略也不能被捕获）。</p>
+<p>所以进程收到这个信号后，就立刻退出了，没有机会调用一些释放资源的 handler 之后，再做退出动作。</p>
+<p>而 SIGTERM 是可以被捕获的，用户是可以注册自己的 handler 的。因此，容器中的程序在 stop container 的时候，我们更希望进程收到 SIGTERM 信号而不是 SIGKILL 信号。</p>
+<p>那在容器被停止的时候，我们该怎么做，才能让容器中的进程收到 SIGTERM 信号呢？</p>
+<p>你可能已经想到了，就是让容器 init 进程来转发 SIGTERM 信号。的确是这样，比如 Docker Container 里使用的 tini 作为 init 进程，tini 的代码中就会调用 sigtimedwait() 这个函数来查看自己收到的信号，然后调用 kill() 把信号发给子进程。</p>
+<p>我给你举个具体的例子说明，从下面的这段代码中，我们可以看到除了 SIGCHLD 这个信号外，tini 会把其他所有的信号都转发给它的子进程。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">int</span> <span class="token function">wait_and_forward_signal</span><span class="token punctuation">(</span>sigset_t <span class="token keyword">const</span><span class="token operator">*</span> <span class="token keyword">const</span> parent_sigset_ptr<span class="token punctuation">,</span> pid_t <span class="token keyword">const</span> child_pid<span class="token punctuation">)</span> <span class="token punctuation">{</span>
+    siginfo_t sig<span class="token punctuation">;</span>
+    <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token function">sigtimedwait</span><span class="token punctuation">(</span>parent_sigset_ptr<span class="token punctuation">,</span> <span class="token operator">&amp;</span>sig<span class="token punctuation">,</span> <span class="token operator">&amp;</span>ts<span class="token punctuation">)</span> <span class="token operator">==</span> <span class="token operator">-</span><span class="token number">1</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+            <span class="token keyword">switch</span> <span class="token punctuation">(</span>errno<span class="token punctuation">)</span> <span class="token punctuation">{</span>
+…
+            <span class="token punctuation">}</span>
+    <span class="token punctuation">}</span> <span class="token keyword">else</span> <span class="token punctuation">{</span>
+        <span class="token comment">/* There is a signal to handle here */</span>
+        <span class="token keyword">switch</span> <span class="token punctuation">(</span>sig<span class="token punctuation">.</span>si_signo<span class="token punctuation">)</span> <span class="token punctuation">{</span>
+        <span class="token keyword">case</span> SIGCHLD<span class="token operator">:</span>
+            <span class="token comment">/* Special-cased, as we don't forward SIGCHLD. Instead, we'll
+                * fallthrough to reaping processes.
+                */</span>
+            <span class="token function">PRINT_DEBUG</span><span class="token punctuation">(</span><span class="token string">"Received SIGCHLD"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token keyword">break</span><span class="token punctuation">;</span>
+        <span class="token keyword">default</span><span class="token operator">:</span>
+            <span class="token function">PRINT_DEBUG</span><span class="token punctuation">(</span><span class="token string">"Passing signal: '%s'"</span><span class="token punctuation">,</span> <span class="token function">strsignal</span><span class="token punctuation">(</span>sig<span class="token punctuation">.</span>si_signo<span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token comment">/* Forward anything else */</span>
+            <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token function">kill</span><span class="token punctuation">(</span>kill_process_group <span class="token operator">?</span> <span class="token operator">-</span>child_pid <span class="token operator">:</span> child_pid<span class="token punctuation">,</span> sig<span class="token punctuation">.</span>si_signo<span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+                <span class="token keyword">if</span> <span class="token punctuation">(</span>errno <span class="token operator">==</span> ESRCH<span class="token punctuation">)</span> <span class="token punctuation">{</span>
+                    <span class="token function">PRINT_WARNING</span><span class="token punctuation">(</span><span class="token string">"Child was dead when forwarding signal"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+                <span class="token punctuation">}</span> <span class="token keyword">else</span> <span class="token punctuation">{</span>
+                    <span class="token function">PRINT_FATAL</span><span class="token punctuation">(</span><span class="token string">"Unexpected error when forwarding signal: '%s'"</span><span class="token punctuation">,</span> <span class="token function">strerror</span><span class="token punctuation">(</span>errno<span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+                    <span class="token keyword">return</span> <span class="token number">1</span><span class="token punctuation">;</span>
+                <span class="token punctuation">}</span>
+            <span class="token punctuation">}</span>
+            <span class="token keyword">break</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+    <span class="token punctuation">}</span>
+    <span class="token keyword">return</span> <span class="token number">0</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>那么我们在这里明确一下，怎么解决停止容器的时候，容器内应用程序被强制杀死的问题呢？</p>
+<p><strong>解决的方法就是在容器的 init 进程中对收到的信号做个转发，发送到容器中的其他子进程，这样容器中的所有进程在停止时，都会收到 SIGTERM，而不是 SIGKILL 信号了。</strong></p>
+<h4 id="重点小结"><a href="#重点小结" class="headerlink" title="重点小结"></a>重点小结</h4><p>这一讲我们要解决的问题是让容器中的进程，在容器停止的时候，有机会 graceful shutdown，而不是收到 SIGKILL 信号而被强制杀死。</p>
+<p>首先我们通过对 kill() 和 signal() 这个两个系统调用的学习，进一步理解了进程是怎样处理 Linux 信号的，重点是信号在接收处理的三个选择： <strong>忽略，捕获和缺省行为。</strong></p>
+<p>通过代码例子，我们知道 SIGTERM 是可以被忽略和捕获的，但是 SIGKILL 是不可以被忽略和捕获的。</p>
+<p>了解这一点以后，我们就找到了问题的解决方向，也就是我们需要在停止容器时，让容器中的应用收到 SIGTERM，而不是 SIGKILL。</p>
+<p>具体怎么操作呢？我们可以在容器的 init 进程中对收到的信号做个转发，发送到容器中的其他子进程。这样一来，容器中的所有进程在停止容器时，都会收到 SIGTERM，而不是 SIGKILL 信号了。</p>
+<p>我认为，解决 init 进程信号的这类问题其实并不难。</p>
+<p>我们只需要先梳理一下和这个问题相关的几个知识点，再写个小程序，让它跑在容器里，稍微做几个试验。然后，我们再看一下内核和 Docker 的源代码，就可以很快得出结论了。</p>
 <h2 id="容器内存"><a href="#容器内存" class="headerlink" title="容器内存"></a>容器内存</h2><h2 id="容器存储"><a href="#容器存储" class="headerlink" title="容器存储"></a>容器存储</h2><h2 id="容器网络"><a href="#容器网络" class="headerlink" title="容器网络"></a>容器网络</h2><h2 id="容器安全"><a href="#容器安全" class="headerlink" title="容器安全"></a>容器安全</h2><h2 id="结束语"><a href="#结束语" class="headerlink" title="结束语"></a>结束语</h2><h2 id="专题加餐"><a href="#专题加餐" class="headerlink" title="专题加餐"></a>专题加餐</h2>
                 
             </div>
@@ -1389,7 +1827,7 @@ CONTAINER ID   IMAGE     COMMAND   CREATED   STATUS    PORTS     NAMES<span aria
             <br>
             
             &nbsp;<i class="fas fa-chart-area"></i>&nbsp;站点总字数:&nbsp;<span
-                class="white-color">1244.7k</span>&nbsp;字
+                class="white-color">1252.5k</span>&nbsp;字
             
             
             
