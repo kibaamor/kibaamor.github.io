@@ -460,14 +460,14 @@
                 
                 <div class="info-break-policy">
                     <i class="far fa-file-word fa-fw"></i>文章字数:&nbsp;&nbsp;
-                    46.4k
+                    54k
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-clock fa-fw"></i>阅读时长:&nbsp;&nbsp;
-                    177 分
+                    207 分
                 </div>
                 
 
@@ -2171,6 +2171,294 @@ I<span class="token string">'m from lower2!
 
 $ cat merged/in_both.txt
 I'</span>m from upper<span class="token operator">!</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<h3 id="12-容器文件Quota：容器为什么把宿主机的磁盘写满了？"><a href="#12-容器文件Quota：容器为什么把宿主机的磁盘写满了？" class="headerlink" title="12 | 容器文件Quota：容器为什么把宿主机的磁盘写满了？"></a>12 | 容器文件Quota：容器为什么把宿主机的磁盘写满了？</h3><p>上一讲，我们学习了容器文件系统 OverlayFS，这个 OverlayFS 有两层，分别是 lowerdir 和 upperdir。lowerdir 里是容器镜像中的文件，对于容器来说是只读的；upperdir 存放的是容器对文件系统里的所有改动，它是可读写的。</p>
+<p>从宿主机的角度看，upperdir 就是一个目录，如果容器不断往容器文件系统中写入数据，实际上就是往宿主机的磁盘上写数据，这些数据也就存在于宿主机的磁盘目录中。</p>
+<p>当然对于容器来说，如果有大量的写操作是不建议写入容器文件系统的，一般是需要给容器挂载一个 volume，用来满足大量的文件读写。</p>
+<p>但是不能避免的是，用户在容器中运行的程序有错误，或者进行了错误的配置。</p>
+<p>比如说，我们把 log 写在了容器文件系统上，并且没有做 log rotation，那么时间一久，就会导致宿主机上的磁盘被写满。这样影响的就不止是容器本身了，而是整个宿主机了。</p>
+<p>那对于这样的问题，我们该怎么解决呢？</p>
+<h4 id="问题再现-7"><a href="#问题再现-7" class="headerlink" title="问题再现"></a>问题再现</h4><p>我们可以自己先启动一个容器，一起试试不断地往容器文件系统中写入数据，看看是一个什么样的情况。</p>
+<p>用 Docker 启动一个容器后，我们看到容器的根目录 (/) 也就是容器文件系统 OverlayFS，它的大小是 160G，已经使用了 100G。其实这个大小也是宿主机上的磁盘空间和使用情况。</p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《容器实战高手课》学习笔记/容器文件Quota一.png" alt="容器文件Quota一"></p>
+<p>这时候，我们可以回到宿主机上验证一下，就会发现宿主机的根目录 (/) 的大小也是 160G，同样是使用了 100G。</p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《容器实战高手课》学习笔记/容器文件Quota二.png" alt="容器文件Quota二"></p>
+<p>好，那现在我们再往容器的根目录里写入 10GB 的数据。</p>
+<p>这里我们可以看到容器的根目录使用的大小增加了，从刚才的 100G 变成现在的 110G。而多写入的 10G 大小的数据，对应的是 test.log 这个文件。</p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《容器实战高手课》学习笔记/容器文件Quota三.png" alt="容器文件Quota三"></p>
+<p>接下来，我们再回到宿主机上，可以看到宿主机上的根目录 (/) 里使用的大小也是 110G 了。</p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《容器实战高手课》学习笔记/容器文件Quota四.png" alt="容器文件Quota四"></p>
+<p>我们还是继续看宿主机，看看 OverlayFS 里 upperdir 目录中有什么文件？</p>
+<p>这里我们仍然可以通过 /proc/mounts 这个路径，找到容器 OverlayFS 对应的 lowerdir 和 upperdir。因为写入的数据都在 upperdir 里，我们就只要看 upperdir 对应的那个目录就行了。果然，里面存放着容器写入的文件 test.log，它的大小是 10GB。</p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《容器实战高手课》学习笔记/容器文件Quota五.png" alt="容器文件Quota五"></p>
+<p>通过这个例子，我们已经验证了在容器中对于 OverlayFS 中写入数据，其实就是往宿主机的一个目录（upperdir）里写数据。我们现在已经写了 10GB 的数据，如果继续在容器中写入数据，结果估计你也知道了，就是会写满宿主机的磁盘。</p>
+<p>那遇到这种情况，我们该怎么办呢？</p>
+<h4 id="知识详解-3"><a href="#知识详解-3" class="headerlink" title="知识详解"></a>知识详解</h4><p>容器写自己的 OverlayFS 根目录，结果把宿主机的磁盘写满了。发生这个问题，我们首先就会想到需要对容器做限制，限制它写入自己 OverlayFS 的数据量，比如只允许一个容器写 100MB 的数据。</p>
+<p>不过我们实际查看 OverlayFS 文件系统的特性，就会发现没有直接限制文件写入量的特性。别担心，在没有现成工具的情况下，我们只要搞懂了原理，就能想出解决办法。</p>
+<p>所以我们再来分析一下 OverlayFS，它是通过 lowerdir 和 upperdir 两层目录联合挂载来实现的，lowerdir 是只读的，数据只会写在 upperdir 中。</p>
+<p>那我们是不是可以通过限制 upperdir 目录容量的方式，来限制一个容器 OverlayFS 根目录的写入数据量呢？</p>
+<p>沿着这个思路继续往下想，因为 upperdir 在宿主机上也是一个普通的目录，这样就要看 <strong>宿主机上的文件系统是否可以支持对一个目录限制容量</strong> 了。</p>
+<p>对于 Linux 上最常用的两个文件系统 XFS 和 ext4，它们有一个特性 Quota，那我们就以 XFS 文件系统为例，学习一下这个 Quota 概念，然后看看这个特性能不能限制一个目录的使用量。</p>
+<h5 id="XFS-Quota"><a href="#XFS-Quota" class="headerlink" title="XFS Quota"></a>XFS Quota</h5><p>在 Linux 系统里的 XFS 文件系统缺省都有 Quota 的特性，这个特性可以为 Linux 系统里的一个用户（user），一个用户组（group）或者一个项目（project）来限制它们使用文件系统的额度（quota），也就是限制它们可以写入文件系统的文件总量。</p>
+<p>因为我们的目标是要限制一个目录中总体的写入文件数据量，那么显然给用户和用户组限制文件系统的写入数据量的模式，并不适合我们的这个需求。</p>
+<p>因为同一个用户或者用户组可以操作多个目录，多个用户或者用户组也可以操作同一个目录，这样对一个用户或者用户组的限制，就很难用来限制一个目录。</p>
+<p>那排除了限制用户或用户组的模式，我们再来看看 Project 模式。Project 模式是怎么工作的呢？</p>
+<p>我举一个例子你会更好理解，对 Linux 熟悉的同学可以一边操作，一边体会一下它的工作方式。不熟悉的同学也没关系，可以重点关注我后面的讲解思路。</p>
+<p>首先我们要使用 XFS Quota 特性，必须在文件系统挂载的时候加上对应的 Quota 选项，比如我们目前需要配置 Project Quota，那么这个挂载参数就是”pquota”。</p>
+<p>对于根目录来说， <strong>这个参数必须作为一个内核启动的参数”rootflags=pquota”，这样设置就可以保证根目录在启动挂载的时候，带上 XFS Quota 的特性并且支持 Project 模式。</strong></p>
+<p>我们可以从 /proc/mounts 信息里，看看根目录是不是带”prjquota”字段。如果里面有这个字段，就可以确保文件系统已经带上了支持 project 模式的 XFS quota 特性。</p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《容器实战高手课》学习笔记/容器文件Quota六.png" alt="容器文件Quota六"></p>
+<p>下一步，我们还需要给一个指定的目录打上一个 Project ID。这个步骤我们可以使用 XFS 文件系统自带的工具 xfs_quota 来完成，然后执行下面的这个命令就可以了。</p>
+<p>执行命令之前，我先对下面的命令和输出做两点解释，让你理解这个命令的含义。</p>
+<p>第一点，新建的目录 /tmp/xfs_prjquota，我们想对它做 Quota 限制。所以在这里要对它打上一个 Project ID。</p>
+<p>第二点，通过 xfs_quota 这条命令，我们给 /tmp/xfs_prjquota 打上 Project ID 值 101，这个 101 是我随便选的一个数字，就是个 ID 标识，你先有个印象。在后面针对 Project 进行 Quota 限制的时候，我们还会用到这个 ID。</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ <span class="token function">mkdir</span> -p  /tmp/xfs_prjquota
+
+$ xfs_quota -x -c <span class="token string">'project -s -p /tmp/xfs_prjquota 101'</span> /
+Setting up project <span class="token number">101</span> <span class="token punctuation">(</span>path /tmp/xfs_prjquota<span class="token punctuation">)</span><span class="token punctuation">..</span>.
+Processed <span class="token number">1</span> <span class="token punctuation">(</span>/etc/projects and cmdline<span class="token punctuation">)</span> paths <span class="token keyword">for</span> project <span class="token number">101</span> with recursion depth infinite <span class="token punctuation">(</span>-1<span class="token punctuation">)</span>.<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>最后，我们还是使用 xfs_quota 命令，对 101（我们刚才建立的这个 Project ID）做 Quota 限制。</p>
+<p>你可以执行下面这条命令，里面的”-p bhard=10m 101”就代表限制 101 这个 project ID，限制它的数据块写入量不能超过 10MB。</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">xfs_quota -x -c <span class="token string">'limit -p bhard=10m 101'</span> /<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>做好限制之后，我们可以尝试往 /tmp/xfs_prjquota 写数据，看看是否可以超过 10MB。比如说，我们尝试写入 20MB 的数据到 /tmp/xfs_prjquota 里。</p>
+<p>我们可以看到，执行 dd 写入命令，就会有个出错返回信息”No space left on device”。这表示已经不能再往这个目录下写入数据了，而最后写入数据的文件 test.file 大小也停留在了 10MB。</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ <span class="token function">dd</span> <span class="token assign-left variable">if</span><span class="token operator">=</span>/dev/zero <span class="token assign-left variable">of</span><span class="token operator">=</span>/tmp/xfs_prjquota/test.file <span class="token assign-left variable">bs</span><span class="token operator">=</span><span class="token number">1024</span> <span class="token assign-left variable">count</span><span class="token operator">=</span><span class="token number">20000</span>
+dd: error writing <span class="token string">'/tmp/xfs_prjquota/test.file'</span><span class="token builtin class-name">:</span> No space left on device
+<span class="token number">10241</span>+0 records <span class="token keyword">in</span>
+<span class="token number">10240</span>+0 records out
+<span class="token number">10485760</span> bytes <span class="token punctuation">(</span><span class="token number">10</span> MB, <span class="token number">10</span> MiB<span class="token punctuation">)</span> copied, <span class="token number">0.0357122</span> s, <span class="token number">294</span> MB/s
+
+$ <span class="token function">ls</span> -l /tmp/xfs_prjquota/test.file
+-rw-r--r-- <span class="token number">1</span> root root <span class="token number">10485760</span> Oct <span class="token number">31</span> <span class="token number">10</span>:00 /tmp/xfs_prjquota/test.file<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>好了，做到这里，我们发现使用 XFS Quota 的 Project 模式，确实可以限制一个目录里的写入数据量，它实现的方式其实也不难，就是下面这两步。</p>
+<p>第一步，给目标目录打上一个 Project ID，这个 ID 最终是写到目录对应的 inode 上。</p>
+<p>这里我解释一下，inode 是文件系统中用来描述一个文件或者一个目录的元数据，里面包含文件大小，数据块的位置，文件所属用户 / 组，文件读写属性以及其他一些属性。</p>
+<p>那么一旦目录打上这个 ID 之后，在这个目录下的新建的文件和目录也都会继承这个 ID。</p>
+<p>第二步，在 XFS 文件系统中，我们需要给这个 project ID 设置一个写入数据块的限制。</p>
+<p>有了 ID 和限制值之后，文件系统就可以统计所有带这个 ID 文件的数据块大小总和，并且与限制值进行比较。一旦所有文件大小的总和达到限制值，文件系统就不再允许更多的数据写入了。</p>
+<p>用一句话概括，XFS Quota 就是通过前面这两步限制了一个目录里写入的数据量。</p>
+<h4 id="解决问题-7"><a href="#解决问题-7" class="headerlink" title="解决问题"></a>解决问题</h4><p>我们理解了 XFS Quota 对目录限流的机制之后，再回到我们最开始的问题，如何确保容器不会写满宿主机上的磁盘。</p>
+<p>你应该已经想到了，方法就是 <strong>对 OverlayFS 的 upperdir 目录做 XFS Quota 的限流</strong> ，没错，就是这个解决办法！</p>
+<p>其实 Docker 也已经实现了限流功能，也就是用 XFS Quota 来限制容器的 OverlayFS 大小。</p>
+<p>我们在用 docker run 启动容器的时候，加上一个参数 —storage-opt size= <size> ，就能限制住容器 OverlayFS 文件系统可写入的最大数据量了。</size></p>
+<p>我们可以一起试一下，这里我们限制的 size 是 10MB。</p>
+<p>进入容器之后，先运行 df -h 命令，这时候你可以看到根目录 (/)overlayfs 文件系统的大小就 10MB，而不是我们之前看到的 160GB 的大小了。这样容器在它的根目录下，最多只能写 10MB 数据，就不会把宿主机的磁盘给写满了。</p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《容器实战高手课》学习笔记/容器文件Quota七.png" alt="容器文件Quota七"></p>
+<p>完成了上面这个小试验之后，我们可以再看一下 Docker 的代码，看看它的实现是不是和我们想的一样。</p>
+<p>Docker 里 <a target="_blank" rel="noopener" href="https://github.com/containers/podman/blob/e136bcc7c97ed9a7576417259cf93f7209f45dd2/vendor/github.com/containers/storage/drivers/quota/projectquota.go#L188">SetQuota()函数</a> 就是用来实现 XFS Quota 限制的，我们可以看到它里面最重要的两步，分别是 setProjectID 和 setProjectQuota 。</p>
+<p>其实，这两步做的就是我们在基本概念中提到的那两步：</p>
+<p>第一步，给目标目录打上一个 Project ID；第二步，为这个 Project ID 在 XFS 文件系统中，设置一个写入数据块的限制。</p>
+<pre class="line-numbers language-go" data-language="go"><code class="language-go"><span class="token comment">// SetQuota - assign a unique project id to directory and set the quota limits</span>
+<span class="token comment">// for that project id</span>
+<span class="token keyword">func</span> <span class="token punctuation">(</span>q <span class="token operator">*</span>Control<span class="token punctuation">)</span> <span class="token function">SetQuota</span><span class="token punctuation">(</span>targetPath <span class="token builtin">string</span><span class="token punctuation">,</span> quota Quota<span class="token punctuation">)</span> <span class="token builtin">error</span> <span class="token punctuation">{</span>
+
+    projectID<span class="token punctuation">,</span> ok <span class="token operator">:=</span> q<span class="token punctuation">.</span>quotas<span class="token punctuation">[</span>targetPath<span class="token punctuation">]</span>
+    <span class="token keyword">if</span> <span class="token operator">!</span>ok <span class="token punctuation">{</span>
+        projectID <span class="token operator">=</span> q<span class="token punctuation">.</span>nextProjectID
+
+        <span class="token comment">//</span>
+        <span class="token comment">// assign project id to new container directory</span>
+        <span class="token comment">//</span>
+        err <span class="token operator">:=</span> <span class="token function">setProjectID</span><span class="token punctuation">(</span>targetPath<span class="token punctuation">,</span> projectID<span class="token punctuation">)</span>
+        <span class="token keyword">if</span> err <span class="token operator">!=</span> <span class="token boolean">nil</span> <span class="token punctuation">{</span>
+            <span class="token keyword">return</span> err
+        <span class="token punctuation">}</span>
+
+        q<span class="token punctuation">.</span>quotas<span class="token punctuation">[</span>targetPath<span class="token punctuation">]</span> <span class="token operator">=</span> projectID
+        q<span class="token punctuation">.</span>nextProjectID<span class="token operator">++</span>
+    <span class="token punctuation">}</span>
+
+    <span class="token comment">//</span>
+    <span class="token comment">// set the quota limit for the container's project id</span>
+    <span class="token comment">//</span>
+    logrus<span class="token punctuation">.</span><span class="token function">Debugf</span><span class="token punctuation">(</span><span class="token string">"SetQuota path=%s, size=%d, inodes=%d, projectID=%d"</span><span class="token punctuation">,</span> targetPath<span class="token punctuation">,</span> quota<span class="token punctuation">.</span>Size<span class="token punctuation">,</span> quota<span class="token punctuation">.</span>Inodes<span class="token punctuation">,</span> projectID<span class="token punctuation">)</span>
+    <span class="token keyword">return</span> <span class="token function">setProjectQuota</span><span class="token punctuation">(</span>q<span class="token punctuation">.</span>backingFsBlockDev<span class="token punctuation">,</span> projectID<span class="token punctuation">,</span> quota<span class="token punctuation">)</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>那 setProjectID 和  setProjectQuota 是如何实现的呢？</p>
+<p>你可以进入到这两个函数里看一下，它们分别调用了 ioctl() 和 quotactl() 这两个系统调用来修改内核中 XFS 的数据结构，从而完成 project ID 的设置和 Quota 值的设置。具体的细节，我不在这里展开了，如果你有兴趣，可以继续去查看内核中对应的代码。</p>
+<p>好了，Docker 里 XFS Quota 操作的步骤完全和我们先前设想的一样，那么还有最后一个问题要解决，XFS Quota 限制的目录是哪一个？</p>
+<p>这个我们可以根据 /proc/mounts 中容器的 OverlayFS Mount 信息，再结合 Docker 的代码，就可以知道限制的目录是 <code>/var/lib/docker/overlay2/&lt;docker_id&gt;</code> 。那这个目录下有什么呢？果然 upperdir 目录中有对应的”diff”目录，就在里面！</p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《容器实战高手课》学习笔记/容器文件Quota八.png" alt="容器文件Quota八"></p>
+<p>讲到这里，我想你已经清楚了对于使用 OverlayFS 的容器，我们应该如何去防止它把宿主机的磁盘给写满了吧？ <strong>方法就是对 OverlayFS 的 upperdir 目录做 XFS Quota 的限流。</strong></p>
+<h4 id="重点总结-10"><a href="#重点总结-10" class="headerlink" title="重点总结"></a>重点总结</h4><p>我们这一讲的问题是，容器写了大量数据到 OverlayFS 文件系统的根目录，在这个情况下，就会把宿主机的磁盘写满。</p>
+<p>由于 OverlayFS 自己没有专门的特性，可以限制文件数据写入量。这时我们通过实际试验找到了解决思路：依靠底层文件系统的 Quota 特性来限制 OverlayFS 的 upperdir 目录的大小，这样就能实现限制容器写磁盘的目的。</p>
+<p>底层文件系统 XFS Quota 的 Project 模式，能够限制一个目录的文件写入量，这个功能具体是通过这两个步骤实现：</p>
+<p>第一步，给目标目录打上一个 Project ID。</p>
+<p>第二步，给这个 Project ID 在 XFS 文件系统中设置一个写入数据块的限制。</p>
+<p>Docker 正是使用了这个方法，也就是 <strong>用 XFS Quota 来限制 OverlayFS 的 upperdir 目录</strong> ，通过这个方式控制容器 OverlayFS 的根目录大小。</p>
+<p>当我们理解了这个方法后，对于不是用 Docker 启动的容器，比如直接由 containerd 启动起来的容器，也可以自己实现 XFS Quota 限制 upperdir 目录。这样就能有效控制容器对 OverlayFS 的写数据操作，避免宿主机的磁盘被写满。</p>
+<h4 id="思考题-4"><a href="#思考题-4" class="headerlink" title="思考题"></a>思考题</h4><p>在正文知识详解的部分，我们使用”xfs_quota”给目录打了 project ID 并且限制了文件写入的数据量。那在做完这样的限制之后，我们是否能用 xfs_quota 命令，查询到被限制目录的 project ID 和限制的数据量呢？</p>
+<p>答：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ <span class="token function">sudo</span> xfs_quota -x -c <span class="token string">'report -h /tmp/xfs_prjquota'</span>
+Project <span class="token function">quota</span> on / <span class="token punctuation">(</span>/dev/sda3<span class="token punctuation">)</span>
+                        Blocks
+Project ID   Used   Soft   Hard Warn/Grace
+---------- ---------------------------------
+<span class="token comment">#0           3.1G      0      0  00 [------]</span>
+<span class="token comment">#101          10M      0    10M  00 [------]</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<h3 id="13-容器磁盘限速：我的容器里磁盘读写为什么不稳定"><a href="#13-容器磁盘限速：我的容器里磁盘读写为什么不稳定" class="headerlink" title="13 | 容器磁盘限速：我的容器里磁盘读写为什么不稳定?"></a>13 | 容器磁盘限速：我的容器里磁盘读写为什么不稳定?</h3><p>上一讲，我给你讲了如何通过 XFS Quota 来限制容器文件系统的大小，这是静态容量大小的一个限制。</p>
+<p>你也许会马上想到，磁盘除了容量的划分，还有一个读写性能的问题。</p>
+<p>具体来说，就是如果多个容器同时读写节点上的同一块磁盘，那么它们的磁盘读写相互之间影响吗？如果容器之间读写磁盘相互影响，我们有什么办法解决呢？</p>
+<p>接下来，我们就带着问题一起学习今天的内容。</p>
+<h4 id="场景再现-1"><a href="#场景再现-1" class="headerlink" title="场景再现"></a>场景再现</h4><p>我们先用这里的 <a target="_blank" rel="noopener" href="https://github.com/chengyli/training/tree/main/filesystem/blkio">代码</a> ，运行一下 make image 来做一个带 fio 的容器镜像，fio 在我们之前的课程里提到过，它是用来测试磁盘文件系统读写性能的工具。</p>
+<p>有了这个带 fio 的镜像，我们可以用它启动一个容器，在容器中运行 fio，就可以得到只有一个容器读写磁盘时的性能数据。</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token function">mkdir</span> -p /tmp/test1
+docker stop fio_test1<span class="token punctuation">;</span>docker <span class="token function">rm</span> fio_test1
+docker run --name fio_test1 --volume /tmp/test1:/tmp registery/fio:v1 <span class="token punctuation">\</span>
+    fio -direct<span class="token operator">=</span><span class="token number">1</span> -rw<span class="token operator">=</span>write -ioengine<span class="token operator">=</span>libaio -bs<span class="token operator">=</span>4k -size<span class="token operator">=</span>1G -numjobs<span class="token operator">=</span><span class="token number">1</span> -name<span class="token operator">=</span>/tmp/fio_test1.log<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span></span></code></pre>
+<p>上面的这个 Docker 命令，我给你简单地解释一下：在这里我们第一次用到了”—volume”这个参数。之前我们讲过容器文件系统，比如 OverlayFS。</p>
+<p>不过容器文件系统并不适合频繁地读写。对于频繁读写的数据，容器需要把他们到放到”volume”中。这里的 volume 可以是一个本地的磁盘，也可以是一个网络磁盘。</p>
+<p>在这个例子里我们就使用了宿主机本地磁盘，把磁盘上的 /tmp/test1 目录作为 volume 挂载到容器的 /tmp 目录下。</p>
+<p>然后在启动容器之后，我们直接运行 fio 的命令，这里的参数和我们第 11 讲最开始的例子差不多，只是这次我们运行的是 write，也就是写磁盘的操作，而写的目标盘就是挂载到 /tmp 目录的 volume。</p>
+<p>可以看到，fio 的运行结果如下图所示，IOPS 是 18K，带宽 (BW) 是 70MB/s 左右。</p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《容器实战高手课》学习笔记/容器磁盘限速一.png" alt="容器磁盘限速一"></p>
+<p>好了，刚才我们模拟了一个容器写磁盘的性能。那么如果这时候有两个容器，都在往同一个磁盘上写数据又是什么情况呢？我们可以再用下面的这个脚本试一下：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token function">mkdir</span> -p /tmp/test1
+<span class="token function">mkdir</span> -p /tmp/test2
+
+docker stop fio_test1<span class="token punctuation">;</span>docker <span class="token function">rm</span> fio_test1
+docker stop fio_test2<span class="token punctuation">;</span>docker <span class="token function">rm</span> fio_test2
+
+docker run --name fio_test1 --volume /tmp/test1:/tmp registry/fio:v1 <span class="token punctuation">\</span>
+    fio -direct<span class="token operator">=</span><span class="token number">1</span> -rw<span class="token operator">=</span>write -ioengine<span class="token operator">=</span>libaio -bs<span class="token operator">=</span>4k -size<span class="token operator">=</span>1G -numjobs<span class="token operator">=</span><span class="token number">1</span> -name<span class="token operator">=</span>/tmp/fio_test1.log <span class="token operator">&amp;</span>
+docker run --name fio_test2 --volume /tmp/test2:/tmp registry/fio:v1
+    fio -direct<span class="token operator">=</span><span class="token number">1</span> -rw<span class="token operator">=</span>write -ioengine<span class="token operator">=</span>libaio -bs<span class="token operator">=</span>4k -size<span class="token operator">=</span>1G -numjobs<span class="token operator">=</span><span class="token number">1</span> -name<span class="token operator">=</span>/tmp/fio_test2.log <span class="token operator">&amp;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>这时候，我们看到的结果，在容器 fio_test1 里，IOPS 是 15K 左右，带宽是 59MB/s 了，比之前单独运行的时候性能下降了不少。</p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《容器实战高手课》学习笔记/容器磁盘限速二.png" alt="容器磁盘限速二"></p>
+<p>显然从这个例子中，我们可以看到多个容器同时写一块磁盘的时候，它的性能受到了干扰。那么有什么办法可以保证每个容器的磁盘读写性能呢？</p>
+<p>之前，我们讨论过用 Cgroups 来保证容器的 CPU 使用率，以及控制 Memroy 的可用大小。那么你肯定想到了，我们是不是也可以用 Cgroups 来保证每个容器的磁盘读写性能？</p>
+<p>没错，在 Cgroup v1 中有 blkio 子系统，它可以来限制磁盘的 I/O。不过 blkio 子系统对于磁盘 I/O 的限制，并不像 CPU，Memory 那么直接，下面我会详细讲解。</p>
+<h4 id="知识详解-4"><a href="#知识详解-4" class="headerlink" title="知识详解"></a>知识详解</h4><h5 id="Blkio-Cgroup"><a href="#Blkio-Cgroup" class="headerlink" title="Blkio Cgroup"></a>Blkio Cgroup</h5><p>在讲解 blkio Cgroup 前，我们先简单了解一下衡量磁盘性能的两个常见的指标 IOPS 和吞吐量（Throughput）是什么意思，后面讲 Blkio Cgroup 的参数配置时会用到。</p>
+<p>IOPS 是 Input/Output Operations Per Second 的简称，也就是每秒钟磁盘读写的次数，这个数值越大，当然也就表示性能越好。</p>
+<p>吞吐量（Throughput）是指每秒钟磁盘中数据的读取量，一般以 MB/s 为单位。这个读取量可以叫作吞吐量，有时候也被称为带宽（Bandwidth）。刚才我们用到的 fio 显示结果就体现了带宽。</p>
+<p>IOPS 和吞吐量之间是有关联的，在 IOPS 固定的情况下，如果读写的每一个数据块越大，那么吞吐量也越大，它们的关系大概是这样的：吞吐量 = 数据块大小 *IOPS。</p>
+<p>好，那么我们再回到 blkio Cgroup 这个概念上，blkio Cgroup 也是 Cgroups 里的一个子系统。 在 Cgroups v1 里，blkio Cgroup 的虚拟文件系统挂载点一般在”/sys/fs/cgroup/blkio/“。</p>
+<p>和我之前讲过的 CPU，memory Cgroup 一样，我们在这个”/sys/fs/cgroup/blkio/“目录下创建子目录作为控制组，再把需要做 I/O 限制的进程 pid 写到控制组的 cgroup.procs 参数中就可以了。</p>
+<p>在 blkio Cgroup 中，有四个最主要的参数，它们可以用来限制磁盘 I/O 性能，我列在了下面。</p>
+<pre class="line-numbers language-txt" data-language="txt"><code class="language-txt">blkio.throttle.read_iops_device
+blkio.throttle.read_bps_device
+blkio.throttle.write_iops_device
+blkio.throttle.write_bps_device<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span></span></code></pre>
+<p>前面我们刚说了磁盘 I/O 的两个主要性能指标 IOPS 和吞吐量，在这里，根据这四个参数的名字，估计你已经大概猜到它们的意思了。</p>
+<p>没错，它们分别表示：磁盘读取 IOPS 限制，磁盘读取吞吐量限制，磁盘写入 IOPS 限制，磁盘写入吞吐量限制。</p>
+<p>对于每个参数写入值的格式，你可以参考内核blkio 的文档。为了让你更好地理解，在这里我给你举个例子。</p>
+<p>如果我们要对一个控制组做限制，限制它对磁盘 /dev/vdb 的写入吞吐量不超过 10MB/s，那么我们对 blkio.throttle.write_bps_device 参数的配置就是下面这个命令。</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token builtin class-name">echo</span> <span class="token string">"252:16 10485760"</span> <span class="token operator">&gt;</span> <span class="token variable">$CGROUP_CONTAINER_PATH</span>/blkio.throttle.write_bps_device<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>在这个命令中，”252:16”是 /dev/vdb 的主次设备号，你可以通过 ls -l /dev/vdb 看到这两个值，而后面的”10485760”就是 10MB 的每秒钟带宽限制。</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ <span class="token function">ls</span> -l /dev/vdb -l
+brw-rw---- <span class="token number">1</span> root disk <span class="token number">252</span>, <span class="token number">16</span> Nov  <span class="token number">2</span> 08:02 /dev/vdb<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre>
+<p>了解了 blkio Cgroup 的参数配置，我们再运行下面的这个例子，限制一个容器 blkio 的读写磁盘吞吐量，然后在这个容器里运行一下 fio，看看结果是什么。</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token function">mkdir</span> -p /tmp/test1
+<span class="token function">rm</span> -f /tmp/test1/*
+docker stop fio_test1<span class="token punctuation">;</span>docker <span class="token function">rm</span> fio_test1
+
+docker run -d --name fio_test1 --volume /tmp/test1:/tmp  registry/fio:v1 <span class="token function">sleep</span> <span class="token number">3600</span>
+
+<span class="token function">sleep</span> <span class="token number">2</span>
+
+<span class="token assign-left variable">CONTAINER_ID</span><span class="token operator">=</span><span class="token variable"><span class="token variable">$(</span><span class="token function">sudo</span> docker <span class="token function">ps</span> --format <span class="token string">"{{.ID}}<span class="token entity" title="\t">\t</span>{{.Names}}"</span> <span class="token operator">|</span> <span class="token function">grep</span> -i fio_test1 <span class="token operator">|</span> <span class="token function">awk</span> <span class="token string">'{print <span class="token variable">$1</span>}'</span><span class="token variable">)</span></span>
+<span class="token builtin class-name">echo</span> <span class="token variable">$CONTAINER_ID</span>
+<span class="token assign-left variable">CGROUP_CONTAINER_PATH</span><span class="token operator">=</span><span class="token variable"><span class="token variable">$(</span><span class="token function">find</span> /sys/fs/cgroup/blkio/ -name <span class="token string">"*<span class="token variable">$CONTAINER_ID</span>*"</span><span class="token variable">)</span></span>
+<span class="token builtin class-name">echo</span> <span class="token variable">$CGROUP_CONTAINER_PATH</span>
+
+<span class="token comment"># To get the device major and minor id from /dev for the device that /tmp/test1 is on.</span>
+<span class="token builtin class-name">echo</span> <span class="token string">"253:0 10485760"</span> <span class="token operator">&gt;</span> <span class="token variable">$CGROUP_CONTAINER_PATH</span>/blkio.throttle.read_bps_device
+<span class="token builtin class-name">echo</span> <span class="token string">"253:0 10485760"</span> <span class="token operator">&gt;</span> <span class="token variable">$CGROUP_CONTAINER_PATH</span>/blkio.throttle.write_bps_device
+
+docker <span class="token builtin class-name">exec</span> fio_test1 fio -direct<span class="token operator">=</span><span class="token number">1</span> -rw<span class="token operator">=</span>write -ioengine<span class="token operator">=</span>libaio -bs<span class="token operator">=</span>4k -size<span class="token operator">=</span>100MB -numjobs<span class="token operator">=</span><span class="token number">1</span>  -name<span class="token operator">=</span>/tmp/fio_test1.log
+docker <span class="token builtin class-name">exec</span> fio_test1 fio -direct<span class="token operator">=</span><span class="token number">1</span> -rw<span class="token operator">=</span>read -ioengine<span class="token operator">=</span>libaio -bs<span class="token operator">=</span>4k -size<span class="token operator">=</span>100MB -numjobs<span class="token operator">=</span><span class="token number">1</span>  -name<span class="token operator">=</span>/tmp/fio_test1.log<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>在这里，我的机器上 /tmp/test1 所在磁盘主次设备号是”253:0”，你在自己运行这组命令的时候，需要把主次设备号改成你自己磁盘的对应值。</p>
+<p>还有一点我要提醒一下，不同数据块大小，在性能测试中可以适用于不同的测试目的。但因为这里不是我们要讲的重点，所以为了方便你理解概念，这里就用固定值。</p>
+<p>在我们后面的例子里，fio 读写的数据块都固定在 4KB。所以对于磁盘的性能限制，我们在 blkio Cgroup 里就只设置吞吐量限制了。</p>
+<p>在加了 blkio Cgroup 限制 10MB/s 后，从 fio 运行后的输出结果里，我们可以看到这个容器对磁盘无论是读还是写，它的最大值就不会再超过 10MB/s 了。</p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《容器实战高手课》学习笔记/容器磁盘限速三.png" alt="容器磁盘限速三"></p>
+<p>在给每个容器都加了 blkio Cgroup 限制，限制为 10MB/s 后，即使两个容器同时在一个磁盘上写入文件，那么每个容器的写入磁盘的最大吞吐量，也不会互相干扰了。</p>
+<p>我们可以用下面的这个脚本来验证一下。</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token function">mkdir</span> -p /tmp/test1
+<span class="token function">rm</span> -f /tmp/test1/*
+docker stop fio_test1<span class="token punctuation">;</span>docker <span class="token function">rm</span> fio_test1
+
+<span class="token function">mkdir</span> -p /tmp/test2
+<span class="token function">rm</span> -f /tmp/test2/*
+docker stop fio_test2<span class="token punctuation">;</span>docker <span class="token function">rm</span> fio_test2
+
+docker run -d --name fio_test1 --volume /tmp/test1:/tmp  registry/fio:v1 <span class="token function">sleep</span> <span class="token number">3600</span>
+docker run -d --name fio_test2 --volume /tmp/test2:/tmp  registry/fio:v1 <span class="token function">sleep</span> <span class="token number">3600</span>
+
+<span class="token function">sleep</span> <span class="token number">2</span>
+
+<span class="token assign-left variable">CONTAINER_ID1</span><span class="token operator">=</span><span class="token variable"><span class="token variable">$(</span><span class="token function">sudo</span> docker <span class="token function">ps</span> --format <span class="token string">"{{.ID}}<span class="token entity" title="\t">\t</span>{{.Names}}"</span> <span class="token operator">|</span> <span class="token function">grep</span> -i fio_test1 <span class="token operator">|</span> <span class="token function">awk</span> <span class="token string">'{print <span class="token variable">$1</span>}'</span><span class="token variable">)</span></span>
+<span class="token builtin class-name">echo</span> <span class="token variable">$CONTAINER_ID1</span>
+<span class="token assign-left variable">CGROUP_CONTAINER_PATH1</span><span class="token operator">=</span><span class="token variable"><span class="token variable">$(</span><span class="token function">find</span> /sys/fs/cgroup/blkio/ -name <span class="token string">"*<span class="token variable">$CONTAINER_ID1</span>*"</span><span class="token variable">)</span></span>
+<span class="token builtin class-name">echo</span> <span class="token variable">$CGROUP_CONTAINER_PATH1</span>
+
+<span class="token comment"># To get the device major and minor id from /dev for the device that /tmp/test1 is on.</span>
+<span class="token builtin class-name">echo</span> <span class="token string">"253:0 10485760"</span> <span class="token operator">&gt;</span> <span class="token variable">$CGROUP_CONTAINER_PATH1</span>/blkio.throttle.read_bps_device
+<span class="token builtin class-name">echo</span> <span class="token string">"253:0 10485760"</span> <span class="token operator">&gt;</span> <span class="token variable">$CGROUP_CONTAINER_PATH1</span>/blkio.throttle.write_bps_device
+
+<span class="token assign-left variable">CONTAINER_ID2</span><span class="token operator">=</span><span class="token variable"><span class="token variable">$(</span><span class="token function">sudo</span> docker <span class="token function">ps</span> --format <span class="token string">"{{.ID}}<span class="token entity" title="\t">\t</span>{{.Names}}"</span> <span class="token operator">|</span> <span class="token function">grep</span> -i fio_test2 <span class="token operator">|</span> <span class="token function">awk</span> <span class="token string">'{print <span class="token variable">$1</span>}'</span><span class="token variable">)</span></span>
+<span class="token builtin class-name">echo</span> <span class="token variable">$CONTAINER_ID2</span>
+<span class="token assign-left variable">CGROUP_CONTAINER_PATH2</span><span class="token operator">=</span><span class="token variable"><span class="token variable">$(</span><span class="token function">find</span> /sys/fs/cgroup/blkio/ -name <span class="token string">"*<span class="token variable">$CONTAINER_ID2</span>*"</span><span class="token variable">)</span></span>
+<span class="token builtin class-name">echo</span> <span class="token variable">$CGROUP_CONTAINER_PATH2</span>
+
+<span class="token comment"># To get the device major and minor id from /dev for the device that /tmp/test1 is on.</span>
+<span class="token builtin class-name">echo</span> <span class="token string">"253:0 10485760"</span> <span class="token operator">&gt;</span> <span class="token variable">$CGROUP_CONTAINER_PATH2</span>/blkio.throttle.read_bps_device
+<span class="token builtin class-name">echo</span> <span class="token string">"253:0 10485760"</span> <span class="token operator">&gt;</span> <span class="token variable">$CGROUP_CONTAINER_PATH2</span>/blkio.throttle.write_bps_device
+
+docker <span class="token builtin class-name">exec</span> fio_test1 fio -direct<span class="token operator">=</span><span class="token number">1</span> -rw<span class="token operator">=</span>write -ioengine<span class="token operator">=</span>libaio -bs<span class="token operator">=</span>4k -size<span class="token operator">=</span>100MB -numjobs<span class="token operator">=</span><span class="token number">1</span> -name<span class="token operator">=</span>/tmp/fio_test1.log <span class="token operator">&amp;</span>
+docker <span class="token builtin class-name">exec</span> fio_test2 fio -direct<span class="token operator">=</span><span class="token number">1</span> -rw<span class="token operator">=</span>write -ioengine<span class="token operator">=</span>libaio -bs<span class="token operator">=</span>4k -size<span class="token operator">=</span>100MB -numjobs<span class="token operator">=</span><span class="token number">1</span> -name<span class="token operator">=</span>/tmp/fio_test2.log <span class="token operator">&amp;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>我们还是看看 fio 运行输出的结果，这时候，fio_test1 和 fio_test2 两个容器里执行的结果都是 10MB/s 了。</p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《容器实战高手课》学习笔记/容器磁盘限速四.png" alt="容器磁盘限速四"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《容器实战高手课》学习笔记/容器磁盘限速五.png" alt="容器磁盘限速五"></p>
+<p>那么做到了这一步，我们是不是就可以认为，blkio Cgroup 可以完美地对磁盘 I/O 做限制了呢？</p>
+<p>你先别急，我们可以再做个试验，把前面脚本里 fio 命令中的 “-direct=1” 给去掉，也就是不让 fio 运行在 Direct I/O 模式了，而是用 Buffered I/O 模式再运行一次，看看 fio 执行的输出。</p>
+<p>同时我们也可以运行 iostat 命令，查看实际的磁盘写入速度。</p>
+<p>这时候你会发现，即使我们设置了 blkio Cgroup，也根本不能限制磁盘的吞吐量了。</p>
+<h5 id="Direct-I-O-和-Buffered-I-O"><a href="#Direct-I-O-和-Buffered-I-O" class="headerlink" title="Direct I/O 和 Buffered I/O"></a>Direct I/O 和 Buffered I/O</h5><p>为什么会这样的呢？这就要提到 Linux 的两种文件 I/O 模式了：Direct I/O 和 Buffered I/O。</p>
+<p>Direct I/O 模式，用户进程如果要写磁盘文件，就会通过 Linux 内核的文件系统层 (filesystem) -&gt; 块设备层 (block layer) -&gt; 磁盘驱动 -&gt; 磁盘硬件，这样一路下去写入磁盘。</p>
+<p>而如果是 Buffered I/O 模式，那么用户进程只是把文件数据写到内存中（Page Cache）就返回了，而 Linux 内核自己有线程会把内存中的数据再写入到磁盘中。 <strong>在 Linux 里，由于考虑到性能问题，绝大多数的应用都会使用 Buffered I/O 模式。</strong></p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《容器实战高手课》学习笔记/DirectIO和BufferedIO.jpg" alt="DirectIO和BufferedIO"></p>
+<p>我们通过前面的测试，发现 Direct I/O 可以通过 blkio Cgroup 来限制磁盘 I/O，但是 Buffered I/O 不能被限制。</p>
+<p>那通过上面的两种 I/O 模式的解释，你是不是可以想到原因呢？是的，原因就是被 Cgroups v1 的架构限制了。</p>
+<p>我们已经学习过了 v1 的 CPU Cgroup，memory Cgroup 和 blkio Cgroup，那么 Cgroup v1 的一个整体结构，你应该已经很熟悉了。它的每一个子系统都是独立的，资源的限制只能在子系统中发生。</p>
+<p>就像下面图里的进程 pid_y，它可以分别属于 memory Cgroup 和 blkio Cgroup。但是在 blkio Cgroup 对进程 pid_y 做磁盘 I/O 做限制的时候，blkio 子系统是不会去关心 pid_y 用了哪些内存，哪些内存是不是属于 Page Cache，而这些 Page Cache 的页面在刷入磁盘的时候，产生的 I/O 也不会被计算到进程 pid_y 上面。</p>
+<p>就是这个原因，导致了 blkio 在 Cgroups v1 里不能限制 Buffered I/O。</p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《容器实战高手课》学习笔记/容器磁盘限速七.jpg" alt="容器磁盘限速七"></p>
+<p>这个 Buffered I/O 限速的问题，在 Cgroup V2 里得到了解决，其实这个问题也是促使 Linux 开发者重新设计 Cgroup V2 的原因之一。</p>
+<h5 id="Cgroup-V2"><a href="#Cgroup-V2" class="headerlink" title="Cgroup V2"></a>Cgroup V2</h5><p>Cgroup v2 相比 Cgroup v1 做的最大的变动就是一个进程属于一个控制组，而每个控制组里可以定义自己需要的多个子系统。</p>
+<p>比如下面的 Cgroup V2 示意图里，进程 pid_y 属于控制组 group2，而在 group2 里同时打开了 io 和 memory 子系统 （Cgroup V2 里的 io 子系统就等同于 Cgroup v1 里的 blkio 子系统）。</p>
+<p>那么，Cgroup 对进程 pid_y 的磁盘 I/O 做限制的时候，就可以考虑到进程 pid_y 写入到 Page Cache 内存的页面了，这样 buffered I/O 的磁盘限速就实现了。</p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《容器实战高手课》学习笔记/容器磁盘限速八.jpg" alt="容器磁盘限速八.jpg"></p>
+<p>下面我们在 Cgroup v2 里，尝试一下设置了 blkio Cgroup+Memory Cgroup 之后，是否可以对 Buffered I/O 进行磁盘限速。</p>
+<p>我们要做的第一步，就是在 Linux 系统里打开 Cgroup v2 的功能。因为目前即使最新版本的 Ubuntu Linux 或者 Centos Linux，仍然在使用 Cgroup v1 作为缺省的 Cgroup。</p>
+<p>打开方法就是配置一个 kernel 参数”cgroup_no_v1=blkio,memory”，这表示把 Cgroup v1 的 blkio 和 Memory 两个子系统给禁止，这样 Cgroup v2 的 io 和 Memory 这两个子系统就打开了。</p>
+<p>我们可以把这个参数配置到 grub 中，然后我们重启 Linux 机器，这时 Cgroup v2 的 io 还有 Memory 这两个子系统，它们的功能就打开了。</p>
+<p>系统重启后，我们会看到 Cgroup v2 的虚拟文件系统被挂载到了 /sys/fs/cgroup/unified 目录下。</p>
+<p>然后，我们用下面的这个脚本做 Cgroup v2 io 的限速配置，并且运行 fio，看看 buffered I/O 是否可以被限速。</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token comment"># Create a new control group</span>
+<span class="token function">mkdir</span> -p /sys/fs/cgroup/unified/iotest
+
+<span class="token comment"># enable the io and memory controller subsystem</span>
+<span class="token builtin class-name">echo</span> <span class="token string">"+io +memory"</span> <span class="token operator">&gt;</span> /sys/fs/cgroup/unified/cgroup.subtree_control
+
+<span class="token comment"># Add current bash pid in iotest control group.</span>
+<span class="token comment"># Then all child processes of the bash will be in iotest group too,</span>
+<span class="token comment"># including the fio</span>
+<span class="token builtin class-name">echo</span> <span class="token variable">$$</span> <span class="token operator">&gt;</span>/sys/fs/cgroup/unified/iotest/cgroup.procs
+
+<span class="token comment"># 256:16 are device major and minor ids, /mnt is on the device.</span>
+<span class="token builtin class-name">echo</span> <span class="token string">"252:16 wbps=10485760"</span> <span class="token operator">&gt;</span> /sys/fs/cgroup/unified/iotest/io.max
+<span class="token builtin class-name">cd</span> /mnt
+
+<span class="token comment">#Run the fio in non direct I/O mode</span>
+fio -iodepth<span class="token operator">=</span><span class="token number">1</span> -rw<span class="token operator">=</span>write -ioengine<span class="token operator">=</span>libaio -bs<span class="token operator">=</span>4k -size<span class="token operator">=</span>1G -numjobs<span class="token operator">=</span><span class="token number">1</span>  -name<span class="token operator">=</span>./fio.test<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>运行 fio 写入 1GB 的数据后，你会发现 fio 马上就执行完了，因为系统上有足够的内存，fio 把数据写入内存就返回了，不过只要你再运行 “iostat -xz 10” 这个命令，你就可以看到磁盘 vdb 上稳定的写入速率是 10240wkB/s，也就是我们在 io Cgroup 里限制的 10MB/s。</p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《容器实战高手课》学习笔记/容器磁盘限速九.png" alt="容器磁盘限速九"></p>
+<p>看到这个结果，我们证实了 Cgoupv2 io+Memory 两个子系统一起使用，就可以对 buffered I/O 控制磁盘写入速率。</p>
+<h4 id="重点总结-11"><a href="#重点总结-11" class="headerlink" title="重点总结"></a>重点总结</h4><p>这一讲，我们主要想解决的问题是如何保证容器读写磁盘速率的稳定，特别是当多个容器同时读写同一个磁盘的时候，需要减少相互的干扰。</p>
+<p>Cgroup V1 的 blkiio 控制子系统，可以用来限制容器中进程的读写的 IOPS 和吞吐量（Throughput），但是它只能对于 Direct I/O 的读写文件做磁盘限速，对 Buffered I/O 的文件读写，它无法进行磁盘限速。</p>
+<p>这是因为 Buffered I/O 会把数据先写入到内存 Page Cache 中，然后由内核线程把数据写入磁盘，而 Cgroup v1 blkio 的子系统独立于 memory 子系统，无法统计到由 Page Cache 刷入到磁盘的数据量。</p>
+<p>这个 Buffered I/O 无法被限速的问题，在 Cgroup v2 里被解决了。Cgroup v2 从架构上允许一个控制组里有多个子系统协同运行，这样在一个控制组里只要同时有 io 和 Memory 子系统，就可以对 Buffered I/O 作磁盘读写的限速。</p>
+<p>虽然 Cgroup v2 解决了 Buffered I/O 磁盘读写限速的问题，但是在现实的容器平台上也不是能够立刻使用的，还需要等待一段时间。目前从 runC、containerd 到 Kubernetes 都是刚刚开始支持 Cgroup v2，而对生产环境中原有运行 Cgroup v1 的节点要迁移转化成 Cgroup v2 需要一个过程。</p>
 <h2 id="容器网络"><a href="#容器网络" class="headerlink" title="容器网络"></a>容器网络</h2><h2 id="容器安全"><a href="#容器安全" class="headerlink" title="容器安全"></a>容器安全</h2><h2 id="结束语"><a href="#结束语" class="headerlink" title="结束语"></a>结束语</h2><h2 id="专题加餐"><a href="#专题加餐" class="headerlink" title="专题加餐"></a>专题加餐</h2>
                 
             </div>
@@ -2568,7 +2856,7 @@ I'</span>m from upper<span class="token operator">!</span><span aria-hidden="tru
             <br>
             
             &nbsp;<i class="fas fa-chart-area"></i>&nbsp;站点总字数:&nbsp;<span
-                class="white-color">1279.5k</span>&nbsp;字
+                class="white-color">1287.1k</span>&nbsp;字
             
             
             
