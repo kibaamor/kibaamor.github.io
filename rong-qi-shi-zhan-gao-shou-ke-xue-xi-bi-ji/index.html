@@ -453,21 +453,21 @@
                 
                 <div class="post-date info-break-policy">
                     <i class="far fa-calendar-check fa-fw"></i>更新日期:&nbsp;&nbsp;
-                    2022-09-05
+                    2022-09-06
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-file-word fa-fw"></i>文章字数:&nbsp;&nbsp;
-                    68.7k
+                    72k
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-clock fa-fw"></i>阅读时长:&nbsp;&nbsp;
-                    266 分
+                    278 分
                 </div>
                 
 
@@ -3116,6 +3116,134 @@ bytes  Bytes  bytes    bytes   secs.    per sec
 <p>我们通过对 veth 实现的代码做分析，可以看到由于 veth 接口是成对工作， <strong>在对外发送数据的时候，peer veth 接口都会 raise softirq 来完成一次收包操作，这样就会带来数据包处理的额外开销。</strong></p>
 <p>如果要减小容器网络延时，就可以给容器配置 ipvlan/macvlan 的网络接口来替代 veth 网络接口。Ipvlan/macvlan 直接在物理网络接口上虚拟出接口，在发送对外数据包的时候可以直接通过物理接口完成，没有节点内部类似 veth 的那种 softirq 的开销。 <strong>容器使用 ipvlan/maclan 的网络接口，它的网络延时可以非常接近物理网络接口的延时。</strong></p>
 <p>对于延时敏感的应用程序，我们可以考虑使用 ipvlan/macvlan 网络接口的容器。不过，由于 ipvlan/macvlan 网络接口直接挂载在物理网络接口上，对于需要使用 iptables 规则的容器，比如 Kubernetes 里使用 service 的容器，就不能工作了。这就需要你结合实际应用的需求做个判断，再选择合适的方案。</p>
+<h3 id="18-容器网络配置（3）：容器中的网络乱序包怎么这么高？"><a href="#18-容器网络配置（3）：容器中的网络乱序包怎么这么高？" class="headerlink" title="18 | 容器网络配置（3）：容器中的网络乱序包怎么这么高？"></a>18 | 容器网络配置（3）：容器中的网络乱序包怎么这么高？</h3><p>这个问题也同样来自于工作实践，我们的用户把他们的应用程序从物理机迁移到容器之后，从网络监控中发现，容器中数据包的重传的数量要比在物理机里高了不少。</p>
+<p>在网络的前面几讲里，我们已经知道了容器网络缺省的接口是 veth，veth 接口都是成对使用的。容器通过 veth 接口向外发送数据，首先需要从 veth 的一个接口发送给跟它成对的另一个接口。</p>
+<p>那么这种接口会不会引起更多的网络重传呢？如果会引起重传，原因是什么，我们又要如何解决呢？接下来我们就带着这三个问题开始今天的学习。</p>
+<h4 id="问题重现-2"><a href="#问题重现-2" class="headerlink" title="问题重现"></a>问题重现</h4><p>我们可以在容器里运行一下 iperf3 命令，向容器外部发送一下数据，从 iperf3 的输出”Retr”列里，我们可以看到有多少重传的数据包。</p>
+<p>比如下面的例子里，我们可以看到有 162 个重传的数据包。</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ iperf3 -c <span class="token number">192.168</span>.147.51
+Connecting to <span class="token function">host</span> <span class="token number">192.168</span>.147.51, port <span class="token number">5201</span>
+<span class="token punctuation">[</span>  <span class="token number">5</span><span class="token punctuation">]</span> <span class="token builtin class-name">local</span> <span class="token number">192.168</span>.225.12 port <span class="token number">51700</span> connected to <span class="token number">192.168</span>.147.51 port <span class="token number">5201</span>
+<span class="token punctuation">[</span> ID<span class="token punctuation">]</span> Interval           Transfer     Bitrate                        Retr    Cwnd
+<span class="token punctuation">[</span>  <span class="token number">5</span><span class="token punctuation">]</span>   <span class="token number">0.00</span>-1.00   sec  <span class="token number">1001</span> MBytes  <span class="token number">8.40</span> Gbits/sec  <span class="token number">162</span>    <span class="token number">192</span> KBytes
+…
+- - - - - - - - - - - - - - - - - - - - - - - - -
+<span class="token punctuation">[</span> ID<span class="token punctuation">]</span> Interval           Transfer     Bitrate         Retr
+<span class="token punctuation">[</span>  <span class="token number">5</span><span class="token punctuation">]</span>   <span class="token number">0.00</span>-10.00  sec  <span class="token number">9.85</span> GBytes  <span class="token number">8.46</span> Gbits/sec  <span class="token number">162</span>             sender
+<span class="token punctuation">[</span>  <span class="token number">5</span><span class="token punctuation">]</span>   <span class="token number">0.00</span>-10.04  sec  <span class="token number">9.85</span> GBytes  <span class="token number">8.42</span> Gbits/sec                  receiver
+
+iperf Done.<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p><strong>网络中发生了数据包的重传，有可能是数据包在网络中丢了，也有可能是数据包乱序导致的。</strong> 那么，我们怎么来判断到底是哪一种情况引起的重传呢？</p>
+<p>最直接的方法就是用 tcpdump 去抓包，不过对于大流量的网络，用 tcpdump 抓包瞬间就会有几个 GB 的数据。可是这样做的话，带来的额外系统开销比较大，特别是在生产环境中这个方法也不太好用。</p>
+<p>所以这里我们有一个简单的方法，那就是运行 netstat 命令来查看协议栈中的丢包和重传的情况。比如说，在运行上面的 iperf3 命令前后，我们都在容器的 Network Namespace 里运行一下 netstat 看看重传的情况。</p>
+<p>我们会发现，一共发生了 162 次（604-442）快速重传（fast retransmits），这个数值和 iperf3 中的 Retr 列里的数值是一样的。</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">-bash-4.2 $ nsenter -t <span class="token number">51598</span> -n <span class="token function">netstat</span> -s <span class="token operator">|</span> <span class="token function">grep</span> retran
+    <span class="token number">454</span> segments retransmited
+    <span class="token number">442</span> fast retransmits
+
+-bash-4.2 $ nsenter -t <span class="token number">51598</span> -n <span class="token function">netstat</span> -s <span class="token operator">|</span> <span class="token function">grep</span> retran
+    <span class="token number">616</span> segments retransmited
+    <span class="token number">604</span> fast retransmits<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<h4 id="问题分析"><a href="#问题分析" class="headerlink" title="问题分析"></a>问题分析</h4><h5 id="快速重传（fast-retransmit）"><a href="#快速重传（fast-retransmit）" class="headerlink" title="快速重传（fast retransmit）"></a>快速重传（fast retransmit）</h5><p>在刚才的问题重现里，我们运行 netstat 命令后，统计了快速重传的次数。那什么是快速重传（fast retransmit）呢？这里我给你解释一下。</p>
+<p>我们都知道 TCP 协议里，发送端（sender）向接受端（receiver）发送一个数据包，接受端（receiver）都回应 ACK。如果超过一个协议栈规定的时间（RTO），发送端没有收到 ACK 包，那么发送端就会重传（Retransmit）数据包，就像下面的示意图一样。</p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《容器实战高手课》学习笔记/容器网络配置3一.jpg" alt="容器网络配置3一"></p>
+<p>不过呢，这样等待一个超时之后再重传数据，对于实际应用来说太慢了，所以 TCP 协议又定义了快速重传 （fast retransmit）的概念。它的基本定义是这样的： <strong>如果发送端收到 3 个重复的 ACK，那么发送端就可以立刻重新发送 ACK 对应的下一个数据包。</strong></p>
+<p>就像下面示意图里描述的那样，接受端没有收到 Seq 2 这个包，但是收到了 Seq 3-5 的数据包，那么接收端在回应 Ack 的时候，Ack 的数值只能是 2。这是因为按顺序来说收到 Seq 1 的包之后，后面 Seq 2 一直没有到，所以接收端就只能一直发送 Ack 2。</p>
+<p>那么当发送端收到 3 个重复的 Ack 2 后，就可以马上重新发送 Seq 2 这个数据包了，而不用再等到重传超时之后了。</p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《容器实战高手课》学习笔记/容器网络配置3二.jpg" alt="容器网络配置3二"></p>
+<p>虽然 TCP 快速重传的标准定义是需要收到 3 个重复的 Ack，不过你会发现在 Linux 中常常收到一个 Dup Ack（重复的 Ack）后，就马上重传数据了。这是什么原因呢？</p>
+<p>这里先需要提到 <strong>SACK</strong> 这个概念，SACK 也就是选择性确认（Selective Acknowledgement）。其实跟普通的 ACK 相比呢，SACK 会把接收端收到的所有包的序列信息，都反馈给发送端。</p>
+<p>你看看下面这张图，就能明白这是什么意思了。</p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《容器实战高手课》学习笔记/容器网络配置3三.jpg" alt="容器网络配置3三"></p>
+<p>那有了 SACK，对于发送端来说，在收到 SACK 之后就已经知道接收端收到了哪些数据，没有收到哪些数据。</p>
+<p>在 Linux 内核中会有个判断（你可以看看下面的这个函数），大概意思是这样的：如果在接收端收到的数据和还没有收到的数据之间，两者数据量差得太大的话（超过了 reordering*mss_cache），也可以马上重传数据。</p>
+<p>这里你需要注意一下， <strong>这里的数据量差是根据 bytes 来计算的，而不是按照包的数目来计算的，所以你会看到即使只收到一个 SACK，Linux 也可以重发数据包。</strong></p>
+<p><a target="_blank" rel="noopener" href="https://github.com/torvalds/linux/blob/7e18e42e4b280c85b76967a9106a13ca61c16179/net/ipv4/tcp_input.c#L2868">tcp_force_fast_retransmit</a></p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">static bool tcp_force_fast_retransmit<span class="token punctuation">(</span>struct sock *sk<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    struct tcp_sock *tp <span class="token operator">=</span> tcp_sk<span class="token punctuation">(</span>sk<span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+    <span class="token builtin class-name">return</span> after<span class="token punctuation">(</span>tcp_highest_sack_seq<span class="token punctuation">(</span>tp<span class="token punctuation">)</span>,
+                tp-<span class="token operator">&gt;</span>snd_una + tp-<span class="token operator">&gt;</span>reordering * tp-<span class="token operator">&gt;</span>mss_cache<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>好了，了解了快速重传的概念之后，我们再来看看，如果 netstat 中有大量的”fast retransmits”意味着什么？</p>
+<p>如果你再用 netstat 查看”reordering”，就可以看到大量的 SACK 发现的乱序包。</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">-bash-4.2 $ nsenter -t <span class="token number">51598</span> -n <span class="token function">netstat</span> -s  <span class="token operator">|</span> <span class="token function">grep</span> reordering
+    Detected reordering <span class="token number">501067</span> <span class="token builtin class-name">times</span> using SACK<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre>
+<p><strong>其实在云平台的这种网络环境里，网络包乱序 +SACK 之后，产生的数据包重传的量要远远高于网络丢包引起的重传。</strong></p>
+<p>比如说像下面这张图里展示的这样，Seq 2 与 Seq 3 这两个包如果乱序的话，那么就会引起 Seq 2 的立刻重传。</p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《容器实战高手课》学习笔记/容器网络配置3四.jpg" alt="容器网络配置3四"></p>
+<h5 id="Veth-接口的数据包的发送"><a href="#Veth-接口的数据包的发送" class="headerlink" title="Veth 接口的数据包的发送"></a>Veth 接口的数据包的发送</h5><p>现在我们知道了网络包乱序会造成数据包的重传，接着我们再来看看容器的 veth 接口配置有没有可能会引起数据包的乱序。</p>
+<p>在上一讲里，我们讲过通过 veth 接口从容器向外发送数据包，会触发 peer veth 设备去接收数据包，这个接收的过程就是一个网络的 softirq 的处理过程。</p>
+<p>在触发 softirq 之前，veth 接口会模拟硬件接收数据的过程，通过 enqueue_to_backlog() 函数把数据包放到某个 CPU 对应的数据包队列里（softnet_data）。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">static</span> <span class="token keyword">int</span> <span class="token function">netif_rx_internal</span><span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">sk_buff</span> <span class="token operator">*</span>skb<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token keyword">int</span> ret<span class="token punctuation">;</span>
+
+    <span class="token function">net_timestamp_check</span><span class="token punctuation">(</span>netdev_tstamp_prequeue<span class="token punctuation">,</span> skb<span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+    <span class="token function">trace_netif_rx</span><span class="token punctuation">(</span>skb<span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">ifdef</span> <span class="token expression">CONFIG_RPS</span></span>
+    <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token function">static_branch_unlikely</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>rps_needed<span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+        <span class="token keyword">struct</span> <span class="token class-name">rps_dev_flow</span> voidflow<span class="token punctuation">,</span> <span class="token operator">*</span>rflow <span class="token operator">=</span> <span class="token operator">&amp;</span>voidflow<span class="token punctuation">;</span>
+        <span class="token keyword">int</span> cpu<span class="token punctuation">;</span>
+
+        <span class="token function">preempt_disable</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token function">rcu_read_lock</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+        cpu <span class="token operator">=</span> <span class="token function">get_rps_cpu</span><span class="token punctuation">(</span>skb<span class="token operator">-&gt;</span>dev<span class="token punctuation">,</span> skb<span class="token punctuation">,</span> <span class="token operator">&amp;</span>rflow<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span>cpu <span class="token operator">&lt;</span> <span class="token number">0</span><span class="token punctuation">)</span>
+                cpu <span class="token operator">=</span> <span class="token function">smp_processor_id</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+        ret <span class="token operator">=</span> <span class="token function">enqueue_to_backlog</span><span class="token punctuation">(</span>skb<span class="token punctuation">,</span> cpu<span class="token punctuation">,</span> <span class="token operator">&amp;</span>rflow<span class="token operator">-&gt;</span>last_qtail<span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+        <span class="token function">rcu_read_unlock</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token function">preempt_enable</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span> <span class="token keyword">else</span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">endif</span></span>
+    <span class="token punctuation">{</span>
+        <span class="token keyword">unsigned</span> <span class="token keyword">int</span> qtail<span class="token punctuation">;</span>
+
+        ret <span class="token operator">=</span> <span class="token function">enqueue_to_backlog</span><span class="token punctuation">(</span>skb<span class="token punctuation">,</span> <span class="token function">get_cpu</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">,</span> <span class="token operator">&amp;</span>qtail<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token function">put_cpu</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+    <span class="token keyword">return</span> ret<span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>从上面的代码，我们可以看到，在缺省的状况下（也就是没有 RPS 的情况下），enqueue_to_backlog() 把数据包放到了”当前运行的 CPU”（get_cpu()）对应的数据队列中。如果是从容器里通过 veth 对外发送数据包，那么这个”当前运行的 CPU”就是容器中发送数据的进程所在的 CPU。</p>
+<p>对于多核的系统，这个发送数据的进程可以在多个 CPU 上切换运行。进程在不同的 CPU 上把数据放入队列并且 raise softirq 之后，因为每个 CPU 上处理 softirq 是个异步操作，所以两个 CPU network softirq handler 处理这个进程的数据包时，处理的先后顺序并不能保证。</p>
+<p>所以，veth 对的这种发送数据方式增加了容器向外发送数据出现乱序的几率。</p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《容器实战高手课》学习笔记/容器网络配置3五.jpg" alt="容器网络配置3五"></p>
+<h5 id="RSS-和-RPS"><a href="#RSS-和-RPS" class="headerlink" title="RSS 和 RPS"></a>RSS 和 RPS</h5><p>那么对于 veth 接口的这种发包方式，有办法减少一下乱序的几率吗？</p>
+<p>其实，我们在上面 netif_rx_internal() 那段代码中，有一段在”#ifdef CONFIG_RPS”中的代码。</p>
+<p>我们看到这段代码中在调用 enqueue_to_backlog() 的时候，传入的 CPU 并不是当前运行的 CPU，而是通过 get_rps_cpu() 得到的 CPU，那么这会有什么不同呢？这里的 RPS 又是什么意思呢？</p>
+<p>要解释 RPS 呢，需要先看一下 RSS，这个 RSS 不是我们之前说的内存 RSS，而是和网卡硬件相关的一个概念，它是 Receive Side Scaling 的缩写。</p>
+<p>现在的网卡性能越来越强劲了，从原来一条 RX 队列扩展到了 N 条 RX 队列，而网卡的硬件中断也从一个硬件中断，变成了每条 RX 队列都会有一个硬件中断。</p>
+<p>每个硬件中断可以由一个 CPU 来处理，那么对于多核的系统，多个 CPU 可以并行的接收网络包，这样就大大地提高了系统的网络数据的处理能力.</p>
+<p>同时，在网卡硬件中，可以根据数据包的 4 元组或者 5 元组信息来保证同一个数据流，比如一个 TCP 流的数据始终在一个 RX 队列中，这样也能保证同一流不会出现乱序的情况。</p>
+<p>下面这张图，大致描述了一下 RSS 是怎么工作的。</p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《容器实战高手课》学习笔记/容器网络配置3六.jpg" alt="容器网络配置3六"></p>
+<p>RSS 的实现在网卡硬件和驱动里面，而 RPS（Receive Packet Steering）其实就是在软件层面实现类似的功能。它主要实现的代码框架就在上面的 netif_rx_internal() 代码里，原理也不难。</p>
+<p>就像下面的这张示意图里描述的这样：在硬件中断后，CPU2 收到了数据包，再一次对数据包计算一次四元组的 hash 值，得到这个数据包与 CPU1 的映射关系。接着会把这个数据包放到 CPU1 对应的 softnet_data 数据队列中，同时向 CPU1 发送一个 IPI 的中断信号。</p>
+<p>这样一来，后面 CPU1 就会继续按照 Netowrk softirq 的方式来处理这个数据包了。</p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《容器实战高手课》学习笔记/容器网络配置3七.jpg" alt="容器网络配置3七"></p>
+<p>RSS 和 RPS 的目的都是把数据包分散到更多的 CPU 上进行处理，使得系统有更强的网络包处理能力。在把数据包分散到各个 CPU 时，保证了同一个数据流在一个 CPU 上，这样就可以减少包的乱序。</p>
+<p>明白了 RPS 的概念之后，我们再回头来看 veth 对外发送数据时候，在 enqueue_to_backlog() 的时候选择 CPU 的问题。显然，如果对应的 veth 接口上打开了 RPS 的配置以后，那么对于同一个数据流，就可以始终选择同一个 CPU 了。</p>
+<p>其实我们打开 RPS 的方法挺简单的，只要去 /sys 目录下，在网络接口设备接收队列中修改队列里的 rps_cpus 的值，这样就可以了。rps_cpus 是一个 16 进制的数，每个 bit 代表一个 CPU。</p>
+<p>比如说，我们在一个 12CPU 的节点上，想让 host 上的 veth 接口在所有的 12 个 CPU 上，都可以通过 RPS 重新分配数据包。那么就可以执行下面这段命令：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ <span class="token function">cat</span> /sys/devices/virtual/net/veth57703b6/queues/rx-0/rps_cpus
+000
+$ <span class="token builtin class-name">echo</span> fff <span class="token operator">&gt;</span> /sys/devices/virtual/net/veth57703b6/queues/rx-0/rps_cpus
+$ <span class="token function">cat</span> /sys/devices/virtual/net/veth57703b6/queues/rx-0/rps_cpus
+fff<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<h4 id="重点小结-3"><a href="#重点小结-3" class="headerlink" title="重点小结"></a>重点小结</h4><p>由于在容器平台中看到大部分的重传是快速重传（fast retransmits），我们先梳理了什么是快速重传。快速重传的基本定义是： <strong>如果发送端收到 3 个重复的 ACK，那么发送端就可以立刻重新发送 ACK 对应的下一个数据包，而不用等待发送超时。</strong></p>
+<p>不过我们在 Linux 系统上还会看到发送端收到一个重复的 ACK 就快速重传的，这是因为 Linux 下对 SACK 做了一个特别的判断之后，就可以立刻重传数据包。</p>
+<p>我们再对容器云平台中的快速重传做分析，就会发现这些重传大部分是由包的乱序触发的。</p>
+<p>通过对容器 veth 网络接口进一步研究，我们知道它可能会增加数据包乱序的几率。同时在这个分析过程中，我们也看到了 Linux 网络 RPS 的特性。</p>
+<p><strong>RPS 和 RSS 的作用类似，都是把数据包分散到更多的 CPU 上进行处理，使得系统有更强的网络包处理能力。它们的区别是 RSS 工作在网卡的硬件层，而 RPS 工作在 Linux 内核的软件层。</strong></p>
+<p>在把数据包分散到各个 CPU 时，RPS 保证了同一个数据流是在一个 CPU 上的，这样就可以有效减少包的乱序。那么我们可以把 RPS 的这个特性配置到 veth 网络接口上，来减少数据包乱序的几率。</p>
+<p>不过，我这里还要说明的是，RPS 的配置还是会带来额外的系统开销，在某些网络环境中会引起 softirq CPU 使用率的增大。那接口要不要打开 RPS 呢？这个问题你需要根据实际情况来做个权衡。</p>
+<p>同时你还要注意，TCP 的乱序包，并不一定都会产生数据包的重传。想要减少网络数据包的重传，我们还可以考虑协议栈中其他参数的设置，比如 /proc/sys/net/ipv4/tcp_reordering。</p>
 <h2 id="容器安全"><a href="#容器安全" class="headerlink" title="容器安全"></a>容器安全</h2><h2 id="结束语"><a href="#结束语" class="headerlink" title="结束语"></a>结束语</h2><h2 id="专题加餐"><a href="#专题加餐" class="headerlink" title="专题加餐"></a>专题加餐</h2>
                 
             </div>
@@ -3513,7 +3641,7 @@ bytes  Bytes  bytes    bytes   secs.    per sec
             <br>
             
             &nbsp;<i class="fas fa-chart-area"></i>&nbsp;站点总字数:&nbsp;<span
-                class="white-color">1301.8k</span>&nbsp;字
+                class="white-color">1305.1k</span>&nbsp;字
             
             
             
