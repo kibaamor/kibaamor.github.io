@@ -453,21 +453,21 @@
                 
                 <div class="post-date info-break-policy">
                     <i class="far fa-calendar-check fa-fw"></i>更新日期:&nbsp;&nbsp;
-                    2022-09-07
+                    2022-09-08
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-file-word fa-fw"></i>文章字数:&nbsp;&nbsp;
-                    82.2k
+                    86.1k
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-clock fa-fw"></i>阅读时长:&nbsp;&nbsp;
-                    317 分
+                    332 分
                 </div>
                 
 
@@ -3550,7 +3550,7 @@ redhat   <span class="token number">29433</span> <span class="token number">2941
 <h5 id="perf-定位热点"><a href="#perf-定位热点" class="headerlink" title="perf 定位热点"></a>perf 定位热点</h5><p>对于查找高 CPU 使用率情况下的热点函数，perf 显然是最有力的工具。我们只需要执行一下后面的这条命令，看一下 CPU32 上的函数调用的热度。</p>
 <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">perf record -C <span class="token number">32</span> -g -- <span class="token function">sleep</span> <span class="token number">10</span><span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
 <p>为了方便查看，我们可以把 perf record 输出的结果做成一个火焰图，具体的方法我在下一讲里介绍，这里你需要先理解定位热点的整体思路。</p>
-<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《容器实战高手课》学习笔记/案例分析四.jpg" alt="案例分析四"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《容器实战高手课》学习笔记/加餐案例火焰图.jpg" alt="加餐案例火焰图"></p>
 <p>结合前面的数据分析，我们已经知道了问题出现在 softirq 的处理过程中，那么在查看火焰图的时候，就要特别关注在 softirq 中被调用到的函数。</p>
 <p>从上面这张图里，我们可以看到，run_timer_softirq 所占的比例是比较大的，而在 run_timer_softirq 中的绝大部分比例又是被一个叫作 estimation_timer() 的函数所占用的。</p>
 <p>运行完 perf 之后，我们离真相又近了一步。现在，我们知道了 CPU32 上 softirq 的繁忙是因为 TIMER softirq 引起的，而 TIMER softirq 里又在不断地调用 <strong>estimation_timer() 这个函数。</strong></p>
@@ -3580,6 +3580,184 @@ redhat   <span class="token number">29433</span> <span class="token number">2941
 <p>通过这些步骤，我们最终锁定了问题出在 IPVS 的这个 estimation_timer() 函数里，也找到了问题的根本原因： <strong>在我们的节点上存在大量的 IPVS 规则，每次遍历这些规则都会消耗很多时间，最终导致了网络超时现象。</strong></p>
 <p>知道了原因之后，因为我们在生产环境中并不需要读取 IPVS 规则状态，所以为了快速解决生产环境上的问题，我们可以使用内核livepatch的机制在线地把 estimation_timer() 函数替换成了一个空函数。</p>
 <p>这样，我们就暂时规避了因为 estimation_timer() 耗时长而影响其他 softirq 的问题。至于长期的解决方案，我们可以把 IPVS 规则的状态统计从 TIMER softirq 中转移到 kernel thread 中处理。</p>
+<h3 id="加餐02-理解perf：怎么用perf聚焦热点函数？"><a href="#加餐02-理解perf：怎么用perf聚焦热点函数？" class="headerlink" title="加餐02 | 理解perf：怎么用perf聚焦热点函数？"></a>加餐02 | 理解perf：怎么用perf聚焦热点函数？</h3><p>上一讲中，我们分析了一个生产环境里的一个真实例子，由于节点中的大量的 IPVS 规则导致了容器在往外发送网络包的时候，时不时会有很高的延时。在调试分析这个网络延时问题的过程中，我们会使用多种 Linux 内核的调试工具，利用这些工具，我们就能很清晰地找到这个问题的根本原因。</p>
+<p>在后面的课程里，我们会挨个来讲解这些工具，其中 perf 工具的使用相对来说要简单些，所以这一讲我们先来看 perf 这个工具。</p>
+<h4 id="问题回顾"><a href="#问题回顾" class="headerlink" title="问题回顾"></a>问题回顾</h4><p>在具体介绍 perf 之前，我们先来回顾一下，上一讲中，我们是在什么情况下开始使用 perf 工具的，使用了 perf 工具之后给我们带来了哪些信息。</p>
+<p>在调试网路延时的时候，我们使用了 ebpf 的工具之后，发现了节点上一个 CPU，也就是 CPU32 的 Softirq CPU Usage（在运行 top 时，%Cpu 那行中的 si 数值就是 Softirq CPU Usage）时不时地会增高一下。</p>
+<p>在发现 CPU Usage 异常增高的时候，我们肯定想知道是什么程序引起了 CPU Usage 的异常增高，这时候我们就可以用到 perf 了。</p>
+<p>具体怎么操作呢？我们可以通过 <strong>抓取数据、数据读取和异常聚焦</strong> 三个步骤来实现。</p>
+<p>第一步，抓取数据。当时我们运行了下面这条 perf 命令，这里的参数 -C 32 是指定只抓取 CPU32 的执行指令；-g 是指 call-graph enable，也就是记录函数调用关系； sleep 10 主要是为了让 perf 抓取 10 秒钟的数据。</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">perf record -C <span class="token number">32</span> -g -- <span class="token function">sleep</span> <span class="token number">10</span><span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>执行完 perf record 之后，我们可以用 perf report 命令进行第二步，也就是读取数据。为了更加直观地看到 CPU32 上的函数调用情况，我给你生成了一个火焰图（火焰图的生产方法，我们在后面介绍）。</p>
+<p>通过这个火焰图，我们发现了在 Softirq 里 TIMER softirq （run_timer_softirq）的占比很高，并且 timer 主要处理的都是 estimation_timer() 这个函数，也就是看火焰图 X 轴占比比较大的函数。这就是第三步异常聚焦，也就是说我们通过 perf 在 CPU Usage 异常的 CPU32 上，找到了具体是哪一个内核函数使用占比较高。这样在后面的调试分析中，我们就可以聚焦到这个内核函数 estimation_timer() 上了。</p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《容器实战高手课》学习笔记/加餐案例火焰图.jpg" alt="加餐案例火焰图"></p>
+<p>好了，通过回顾我们在网络延时例子中是如何使用 perf 的，我们知道了这一点， <strong>perf 可以在 CPU Usage 增高的节点上找到具体的引起 CPU 增高的函数，然后我们就可以有针对性地聚焦到那个函数做分析。</strong></p>
+<p>既然 perf 工具这么有用，想要更好地使用这个工具，我们就要好好认识一下它，那我们就一起看看 perf 的基本概念和常用的使用方法。</p>
+<h5 id="如何理解-Perf-的概念和工作机制？"><a href="#如何理解-Perf-的概念和工作机制？" class="headerlink" title="如何理解 Perf 的概念和工作机制？"></a>如何理解 Perf 的概念和工作机制？</h5><p>Perf 这个工具最早是 Linux 内核著名开发者 Ingo Molnar 开发的，它的源代码在内核源码tools 目录下，在每个 Linux 发行版里都有这个工具，比如 CentOS 里我们可以运行 yum install perf 来安装，在 Ubuntu 里我们可以运行 apt install linux-tools-common 来安装。</p>
+<h4 id="Event"><a href="#Event" class="headerlink" title="Event"></a>Event</h4><p>第一次上手使用 perf 的时候，我们可以先运行一下 perf list 这个命令，然后就会看到 perf 列出了大量的 event，比如下面这个例子就列出了常用的 event。</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ perf list
+…
+  branch-instructions OR branches                    <span class="token punctuation">[</span>Hardware event<span class="token punctuation">]</span>
+  branch-misses                                      <span class="token punctuation">[</span>Hardware event<span class="token punctuation">]</span>
+  bus-cycles                                         <span class="token punctuation">[</span>Hardware event<span class="token punctuation">]</span>
+  cache-misses                                       <span class="token punctuation">[</span>Hardware event<span class="token punctuation">]</span>
+  cache-references                                   <span class="token punctuation">[</span>Hardware event<span class="token punctuation">]</span>
+  cpu-cycles OR cycles                               <span class="token punctuation">[</span>Hardware event<span class="token punctuation">]</span>
+  instructions                                       <span class="token punctuation">[</span>Hardware event<span class="token punctuation">]</span>
+  ref-cycles                                         <span class="token punctuation">[</span>Hardware event<span class="token punctuation">]</span>
+
+  alignment-faults                                   <span class="token punctuation">[</span>Software event<span class="token punctuation">]</span>
+  bpf-output                                         <span class="token punctuation">[</span>Software event<span class="token punctuation">]</span>
+  context-switches OR cs                             <span class="token punctuation">[</span>Software event<span class="token punctuation">]</span>
+  cpu-clock                                          <span class="token punctuation">[</span>Software event<span class="token punctuation">]</span>
+  cpu-migrations OR migrations                       <span class="token punctuation">[</span>Software event<span class="token punctuation">]</span>
+  dummy                                              <span class="token punctuation">[</span>Software event<span class="token punctuation">]</span>
+  emulation-faults                                   <span class="token punctuation">[</span>Software event<span class="token punctuation">]</span>
+  major-faults                                       <span class="token punctuation">[</span>Software event<span class="token punctuation">]</span>
+  minor-faults                                       <span class="token punctuation">[</span>Software event<span class="token punctuation">]</span>
+  page-faults OR faults                              <span class="token punctuation">[</span>Software event<span class="token punctuation">]</span>
+  task-clock                                         <span class="token punctuation">[</span>Software event<span class="token punctuation">]</span>
+…
+
+  block:block_bio_bounce                             <span class="token punctuation">[</span>Tracepoint event<span class="token punctuation">]</span>
+  block:block_bio_complete                           <span class="token punctuation">[</span>Tracepoint event<span class="token punctuation">]</span>
+  block:block_bio_frontmerge                         <span class="token punctuation">[</span>Tracepoint event<span class="token punctuation">]</span>
+  block:block_bio_queue                              <span class="token punctuation">[</span>Tracepoint event<span class="token punctuation">]</span>
+  block:block_bio_remap                              <span class="token punctuation">[</span>Tracepoint event<span class="token punctuation">]</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>从这里我们可以了解到 event 都有哪些类型， perf list 列出的每个 event 后面都有一个”[]”，里面写了这个 event 属于什么类型，比如”Hardware event”、”Software event”等。完整的 event 类型，我们在内核代码枚举结构 perf_type_id 里可以看到。</p>
+<p>接下来我们就说三个主要的 event，它们分别是 Hardware event、Software event 还有 Tracepoints event。</p>
+<h5 id="Hardware-event"><a href="#Hardware-event" class="headerlink" title="Hardware event"></a>Hardware event</h5><p>Hardware event 来自处理器中的一个 PMU（Performance Monitoring Unit），这些 event 数目不多，都是底层处理器相关的行为，perf 中会命名几个通用的事件，比如 cpu-cycles，执行完成的 instructions，Cache 相关的 cache-misses。</p>
+<p>不同的处理器有自己不同的 PMU 事件，对于 Intel x86 处理器，PMU 的使用和编程都可以在”Intel 64 and IA-32 Architectures Developer’s Manual: Vol. 3B”（Intel 架构的开发者手册）里查到。</p>
+<p>我们运行一下 perf stat ，就可以看到在这段时间里这些 Hardware event 发生的数目。</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ perf <span class="token function">stat</span>
+^C
+ Performance counter stats <span class="token keyword">for</span> <span class="token string">'system wide'</span><span class="token builtin class-name">:</span>
+
+          <span class="token number">58667.77</span> msec cpu-clock                 <span class="token comment">#   63.203 CPUs utilized</span>
+            <span class="token number">258666</span>      context-switches          <span class="token comment">#    0.004 M/sec</span>
+              <span class="token number">2554</span>      cpu-migrations            <span class="token comment">#    0.044 K/sec</span>
+             <span class="token number">30763</span>      page-faults               <span class="token comment">#    0.524 K/sec</span>
+       <span class="token number">21275365299</span>      cycles                    <span class="token comment">#    0.363 GHz</span>
+       <span class="token number">24827718023</span>      instructions              <span class="token comment">#    1.17  insn per cycle</span>
+        <span class="token number">5402114113</span>      branches                  <span class="token comment">#   92.080 M/sec</span>
+          <span class="token number">59862316</span>      branch-misses             <span class="token comment">#    1.11% of all branches</span>
+
+       <span class="token number">0.928237838</span> seconds <span class="token function">time</span> elapsed<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<h5 id="Software-event"><a href="#Software-event" class="headerlink" title="Software event"></a>Software event</h5><p>Software event 是定义在 Linux 内核代码中的几个特定的事件，比较典型的有进程上下文切换（内核态到用户态的转换）事件 context-switches、发生缺页中断的事件 page-faults 等。</p>
+<p>为了让你更容易理解，这里我举个例子。就拿 page-faults 这个 perf 事件来说，我们可以看到，在内核代码处理缺页中断的函数里，就是调用了 perf_sw_event() 来注册了这个 page-faults。</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token comment">/*
+ * Explicitly marked noinline such that the function tracer sees this as the
+ * page_fault entry point. __do_page_fault 是Linux内核处理缺页中断的主要函数
+ */</span>
+<span class="token keyword">static</span> noinline <span class="token keyword">void</span>
+<span class="token function">__do_page_fault</span><span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">pt_regs</span> <span class="token operator">*</span>regs<span class="token punctuation">,</span> <span class="token keyword">unsigned</span> <span class="token keyword">long</span> hw_error_code<span class="token punctuation">,</span>
+                <span class="token keyword">unsigned</span> <span class="token keyword">long</span> address<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token function">prefetchw</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>current<span class="token operator">-&gt;</span>mm<span class="token operator">-&gt;</span>mmap_sem<span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+    <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token function">unlikely</span><span class="token punctuation">(</span><span class="token function">kmmio_fault</span><span class="token punctuation">(</span>regs<span class="token punctuation">,</span> address<span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">)</span>
+        <span class="token keyword">return</span><span class="token punctuation">;</span>
+
+    <span class="token comment">/* Was the fault on kernel-controlled part of the address space? */</span>
+    <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token function">unlikely</span><span class="token punctuation">(</span><span class="token function">fault_in_kernel_space</span><span class="token punctuation">(</span>address<span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">)</span>
+        <span class="token function">do_kern_addr_fault</span><span class="token punctuation">(</span>regs<span class="token punctuation">,</span> hw_error_code<span class="token punctuation">,</span> address<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">else</span>
+        <span class="token function">do_user_addr_fault</span><span class="token punctuation">(</span>regs<span class="token punctuation">,</span> hw_error_code<span class="token punctuation">,</span> address<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token comment">/* 在do_user_addr_fault()里面调用了perf_sw_event() */</span>
+
+<span class="token punctuation">}</span>
+
+<span class="token comment">/* Handle faults in the user portion of the address space */</span>
+<span class="token keyword">static</span> <span class="token keyword">inline</span>
+<span class="token keyword">void</span> <span class="token function">do_user_addr_fault</span><span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">pt_regs</span> <span class="token operator">*</span>regs<span class="token punctuation">,</span>
+                        <span class="token keyword">unsigned</span> <span class="token keyword">long</span> hw_error_code<span class="token punctuation">,</span>
+                        <span class="token keyword">unsigned</span> <span class="token keyword">long</span> address<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+…
+    <span class="token function">perf_sw_event</span><span class="token punctuation">(</span>PERF_COUNT_SW_PAGE_FAULTS<span class="token punctuation">,</span> <span class="token number">1</span><span class="token punctuation">,</span> regs<span class="token punctuation">,</span> address<span class="token punctuation">)</span><span class="token punctuation">;</span>
+…
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<h5 id="Tracepoints-event"><a href="#Tracepoints-event" class="headerlink" title="Tracepoints event"></a>Tracepoints event</h5><p>你可以在 perf list 中看到大量的 Tracepoints event，这是因为内核中很多关键函数里都有 Tracepoints。它的实现方式和 Software event 类似，都是在内核函数中注册了 event。</p>
+<p>不过，这些 tracepoints 不仅是用在 perf 中，它已经是 Linux 内核 tracing 的标准接口了，ftrace，ebpf 等工具都会用到它，后面我们还会再详细介绍 tracepoint。</p>
+<p>好了，讲到这里，你要重点掌握的内容是， <strong>event 是 perf 工作的基础，主要有两种：有使用硬件的 PMU 里的 event，也有在内核代码中注册的 event。</strong></p>
+<p>那么在这些 event 都准备好了之后，perf 又是怎么去使用这些 event 呢？前面我也提到过，有计数和采样两种方式，下面我们分别来看看。</p>
+<h5 id="计数（count）"><a href="#计数（count）" class="headerlink" title="计数（count）"></a>计数（count）</h5><p>计数的这种工作方式比较好理解，就是统计某个 event 在一段时间里发生了多少次。</p>
+<p>那具体我们怎么进行计数的呢？perf stat 这个命令就是来查看 event 的数目的，前面我们已经运行过 perf stat 来查看所有的 Hardware events。</p>
+<p>这里我们可以加上”-e”参数，指定某一个 event 来看它的计数，比如 page-faults，这里我们看到在当前 CPU 上，这个 event 在 1 秒钟内发生了 49 次：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">
+$ perf <span class="token function">stat</span> -e page-faults -- <span class="token function">sleep</span> <span class="token number">1</span>
+
+ Performance counter stats <span class="token keyword">for</span> <span class="token string">'sleep 1'</span><span class="token builtin class-name">:</span>
+
+                <span class="token number">49</span>      page-faults
+
+       <span class="token number">1.001583032</span> seconds <span class="token function">time</span> elapsed
+
+       <span class="token number">0.001556000</span> seconds user
+       <span class="token number">0.000000000</span> seconds sys<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<h5 id="采样（sample）"><a href="#采样（sample）" class="headerlink" title="采样（sample）"></a>采样（sample）</h5><p>说完了计数，我们再来看看采样。在开头回顾网路延时问题的时候，我提到通过 perf record -C 32 -g — sleep 10 这个命令，来找到 CPU32 上 CPU 开销最大的 Softirq 相关函数。这里使用的 perf record 命令就是通过采样来得到热点函数的，我们来分析一下它是怎么做的。</p>
+<p>perf record 在不加 -e 指定 event 的时候，它缺省的 event 就是 Hardware event cycles。我们先用 perf stat来查看 1 秒钟 cycles 事件的数量，在下面的例子里这个数量是 1878165 次。</p>
+<p>我们可以想一下，如果每次 cycles event 发生的时候，我们都记录当时的 IP（就是处理器当时要执行的指令地址）、IP 所属的进程等信息的话，这样系统的开销就太大了。所以 perf 就使用了对 event 采样的方式来记录 IP、进程等信息。</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ perf <span class="token function">stat</span> -e cycles -- <span class="token function">sleep</span> <span class="token number">1</span>
+
+ Performance counter stats <span class="token keyword">for</span> <span class="token string">'sleep 1'</span><span class="token builtin class-name">:</span>
+
+           <span class="token number">1878165</span>      cycles<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>Perf 对 event 的采样有两种模式：</p>
+<p>第一种是按照 event 的数目（period），比如每发生 10000 次 cycles event 就记录一次 IP、进程等信息， perf record 中的  -c 参数可以指定每发生多少次，就做一次记录。</p>
+<p>比如在下面的例子里，我们指定了每 10000 cycles event 做一次采样之后，在 1 秒里总共就做了 191 次采样，比我们之前看到 1 秒钟 1878165 次 cycles 的次数要少多了。</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ perf record  -e cycles -c <span class="token number">10000</span> -- <span class="token function">sleep</span> <span class="token number">1</span>
+<span class="token punctuation">[</span> perf record: Woken up <span class="token number">1</span> <span class="token builtin class-name">times</span> to <span class="token function">write</span> data <span class="token punctuation">]</span>
+<span class="token punctuation">[</span> perf record: Captured and wrote <span class="token number">0.024</span> MB perf.data <span class="token punctuation">(</span><span class="token number">191</span> samples<span class="token punctuation">)</span> <span class="token punctuation">]</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span></span></code></pre>
+<p>第二种是定义一个频率（frequency）， perf record 中的 -F 参数就是指定频率的，比如 perf record -e cycles -F 99 — sleep 1 ，就是指采样每秒钟做 99 次。</p>
+<p>在 perf record 运行结束后，会在磁盘的当前目录留下 perf.data 这个文件，里面记录了所有采样得到的信息。然后我们再运行 perf report 命令，查看函数或者指令在这些采样里的分布比例，后面我们会用一个例子说明。</p>
+<p>好，说到这里，我们已经把 perf 的基本概念和使用机制都讲完了。接下来，我们看看在容器中怎么使用 perf？</p>
+<h5 id="容器中怎样使用-perf？"><a href="#容器中怎样使用-perf？" class="headerlink" title="容器中怎样使用 perf？"></a>容器中怎样使用 perf？</h5><p>如果你的 container image 是基于 Ubuntu 或者 CentOS 等 Linux 发行版的，你可以尝试用它们的 package repo 安装 perf 的包。不过，这么做可能会有个问题，我们在前面介绍 perf 的时候提过，perf 是和 Linux kernel 一起发布的，也就是说 perf 版本最好是和 Linux kernel 使用相同的版本。</p>
+<p>如果容器中 perf 包是独立安装的，那么容器中安装的 perf 版本可能会和宿主机上的内核版本不一致，这样有可能导致 perf 无法正常工作。</p>
+<p>所以，我们在容器中需要跑 perf 的时候，最好从相应的 Linux kernel 版本的源代码里去编译，并且采用静态库（-static）的链接方式。然后，我们把编译出来的 perf 直接 copy 到容器中就可以使用了。</p>
+<p>如何在 Linux kernel 源代码里编译静态链接的 perf，你可以参考后面的代码：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ <span class="token builtin class-name">cd</span> <span class="token variable"><span class="token variable">$(</span>KERNEL_SRC_ROOT<span class="token variable">)</span></span>/tools/perf
+
+$ <span class="token function">vi</span> Makefile.perf
+  <span class="token comment">#### ADD "LDFLAGS=-static" in Makefile.perf</span>
+
+$ <span class="token function">make</span> clean<span class="token punctuation">;</span> <span class="token function">make</span>
+
+$ <span class="token function">file</span> perf
+perf: ELF <span class="token number">64</span>-bit LSB executable, x86-64, version <span class="token number">1</span> <span class="token punctuation">(</span>GNU/Linux<span class="token punctuation">)</span>, statically linked, <span class="token keyword">for</span> GNU/Linux <span class="token number">3.2</span>.0, BuildID<span class="token punctuation">[</span>sha1<span class="token punctuation">]</span><span class="token operator">=</span>9a42089e52026193fabf693da3c0adb643c2313e, with debug_info, not stripped, too many notes <span class="token punctuation">(</span><span class="token number">256</span><span class="token punctuation">)</span>
+
+$ <span class="token function">ls</span> -lh perf
+-rwxr-xr-x <span class="token number">1</span> root root 19M Aug <span class="token number">14</span> 07:08 perf<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>我这里给了一个带静态链接 perf（kernel 5.4）的 container image <a target="_blank" rel="noopener" href="https://github.com/chengyli/training/tree/main/perf">例子</a> ，你可以运行 make image 来生成这个 image。</p>
+<p>在容器中运行 perf，还要注意一个权限的问题，有两点注意事项需要你留意。</p>
+<p>第一点，Perf 通过系统调用 perf_event_open() 来完成对 perf event 的计数或者采样。不过 Docker 使用 seccomp（seccomp 是一种技术，它通过控制系统调用的方式来保障 Linux 安全）会默认禁止 perf_event_open()。</p>
+<p>所以想要让 Docker 启动的容器可以运行 perf，我们要怎么处理呢？</p>
+<p>其实这个也不难，在用 Docker 启动容器的时候，我们需要在 seccomp 的 profile 里，允许 perf_event_open() 这个系统调用在容器中使用。在我们的例子中，启动 container 的命令里，已经加了这个参数允许了，参数是”—security-opt seccomp=unconfined”。</p>
+<p>第二点，需要允许容器在没有 SYS_ADMIN 这个 capability（Linux capability 我们在第 19 讲说过）的情况下，也可以让 perf 访问这些 event。那么现在我们需要做的就是，在宿主机上设置出 echo -1 &gt; /proc/sys/kernel/perf_event_paranoid，这样普通的容器里也能执行 perf 了。</p>
+<p>完成了权限设置之后，在容器中运行 perf，就和在 VM/BM 上运行没有什么区别了。</p>
+<p>最后，我们再来说一下我们在定位 CPU Uage 异常时最常用的方法，常规的步骤一般是这样的：</p>
+<p>首先，调用 perf record 采样几秒钟，一般需要加 -g 参数，也就是 call-graph，还需要抓取函数的调用关系。在多核的机器上，还要记得加上 -a 参数，保证获取所有 CPU Core 上的函数运行情况。至于采样数据的多少，在讲解 perf 概念的时候说过，我们可以用 -c 或者 -F 参数来控制。</p>
+<p>接着，我们需要运行 perf report 读取数据。不过很多时候，为了更加直观地看到各个函数的占比，我们会用 perf script 命令把 perf record 生成的 perf.data 转化成分析脚本，然后用 FlameGraph 工具来读取这个脚本，生成火焰图。</p>
+<p>下面这组命令，就是刚才说过的使用 perf 的常规步骤：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">perf record -a -g -- <span class="token function">sleep</span> <span class="token number">60</span>
+perf script <span class="token operator">&gt;</span> out.perf
+<span class="token function">git</span> clone --depth <span class="token number">1</span> https://github.com/brendangregg/FlameGraph.git
+FlameGraph/stackcollapse-perf.pl out.perf <span class="token operator">&gt;</span> out.folded
+FlameGraph/flamegraph.pl out.folded <span class="token operator">&gt;</span> out.svg<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<h4 id="重点总结-14"><a href="#重点总结-14" class="headerlink" title="重点总结"></a>重点总结</h4><p>我们这一讲学习了如何使用 perf，这里我来给你总结一下重点。</p>
+<p>首先，我们在线上网络延时异常的那个实际例子中使用了 perf。我们发现可以用 perf 工具，通过 <strong>抓取数据、数据读取和异常聚焦</strong> 这三个步骤的操作，在 CPU Usage 增高的节点上找到具体引起 CPU 增高的函数。</p>
+<p>之后我带你更深入地学习了 perf 是什么，它的工作方式是怎样的？这里我把 perf 的重点再给你强调一遍：</p>
+<p>Perf 的实现基础是 event，有两大类，一类是基于硬件 PMU 的，一类是内核中的软件注册。而 Perf 在使用时的工作方式也是两大类，计数和采样。</p>
+<p>先看一下计数，它执行的命令是 perf stat，用来查看每种 event 发生的次数；</p>
+<p>采样执行的命令是perf record，它可以使用 period 方式，就是每 N 个 event 发生后记录一次 event 发生时的 IP/ 进程信息，或者用 frequency 方式，每秒钟以固定次数来记录信息。记录的信息会存在当前目录的 perf.data 文件中。</p>
+<p>如果我们要在容器中使用 perf，要注意这两点：</p>
+<ol>
+<li><p>容器中的 perf 版本要和宿主机内核版本匹配，可以直接从源代码编译出静态链接的 perf。</p>
+</li>
+<li><p>我们需要解决两个权限的问题，一个是 seccomp 对系统调用的限制，还有一个是内核对容器中没有 SYC_ADMIN capability 的限制。</p>
+</li>
+</ol>
+<p><strong>在我们日常分析系统性能异常的时候，使用 perf 最常用的方式是perf record获取采样数据，然后用 FlameGraph 工具来生成火焰图。</strong></p>
 
                 
             </div>
@@ -3977,7 +4155,7 @@ redhat   <span class="token number">29433</span> <span class="token number">2941
             <br>
             
             &nbsp;<i class="fas fa-chart-area"></i>&nbsp;站点总字数:&nbsp;<span
-                class="white-color">1315.3k</span>&nbsp;字
+                class="white-color">1319.2k</span>&nbsp;字
             
             
             
