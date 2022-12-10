@@ -392,7 +392,7 @@
                 
                 <div class="post-date info-break-policy">
                     <i class="far fa-calendar-check fa-fw"></i>更新日期:&nbsp;&nbsp;
-                    2022-12-09
+                    2022-12-10
                 </div>
                 
 
@@ -477,33 +477,41 @@
 <li><details><summary>使用 http 代理</summary>
 
 <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">
-<span class="token builtin class-name">export</span> <span class="token assign-left variable">http_proxy</span><span class="token operator">=</span>http://http_proxy:3128
-<span class="token builtin class-name">export</span> <span class="token assign-left variable">https_proxy</span><span class="token operator">=</span>http://http_proxy:3128
+<span class="token builtin class-name">export</span> <span class="token assign-left variable">http_proxy</span><span class="token operator">=</span>http://localhost:7890
+<span class="token builtin class-name">export</span> <span class="token assign-left variable">https_proxy</span><span class="token operator">=</span>http://localhost:7890
 
 <span class="token comment"># minikube proxy</span>
 <span class="token comment"># https://minikube.sigs.k8s.io/docs/handbook/vpn_and_proxy/</span>
-<span class="token builtin class-name">export</span> <span class="token assign-left variable">HTTP_PROXY</span><span class="token operator">=</span>http://http_proxy:3128
-<span class="token builtin class-name">export</span> <span class="token assign-left variable">HTTPS_PROXY</span><span class="token operator">=</span>https://http_proxy:3128
+<span class="token builtin class-name">export</span> <span class="token assign-left variable">HTTP_PROXY</span><span class="token operator">=</span>http://localhost:7890
+<span class="token builtin class-name">export</span> <span class="token assign-left variable">HTTPS_PROXY</span><span class="token operator">=</span>https://localhost:7890
 <span class="token builtin class-name">export</span> <span class="token assign-left variable">NO_PROXY</span><span class="token operator">=</span>localhost,127.0.0.1,10.96.0.0/12,192.168.59.0/24,192.168.49.0/24,192.168.39.0/24
 
 <span class="token comment"># git http/https proxy</span>
-<span class="token function">git</span> config --global http.proxy http://http_proxy:3128
-<span class="token function">git</span> config --global https.proxy http://http_proxy:3128
+<span class="token function">git</span> config --global http.proxy http://localhost:7890
+<span class="token function">git</span> config --global https.proxy http://localhost:7890
 
-<span class="token comment"># ssh proxy</span>
+<span class="token comment"># ssh proxy (linux)</span>
 <span class="token function">cat</span> <span class="token operator">&lt;&lt;</span> <span class="token string">EOF<span class="token bash punctuation"> <span class="token operator">&gt;&gt;</span> ~/.ssh/config</span>
 Host github.com
     User git
-    ProxyCommand nc -x http_proxy:3128 -Xconnect %h %p
+    ProxyCommand nc -x localhost:7890 -Xconnect %h %p
+EOF</span>
+
+<span class="token comment"># ssh proxy (windows)</span>
+<span class="token comment"># ncat command comes from nmap(https://nmap.org/dist/nmap-7.92-setup.exe)</span>
+<span class="token function">cat</span> <span class="token operator">&lt;&lt;</span> <span class="token string">EOF<span class="token bash punctuation"> <span class="token operator">&gt;&gt;</span> ~/.ssh/config</span>
+Host github.com
+    User git
+    ProxyCommand ncat --proxy localhost:7890 --proxy-type http %h %p
 EOF</span>
 
 <span class="token comment"># apt proxy</span>
 <span class="token function">cat</span> <span class="token operator">&lt;&lt;</span> <span class="token string">EOF<span class="token bash punctuation"> <span class="token operator">|</span> <span class="token function">sudo</span> <span class="token function">tee</span> /etc/apt/apt.conf.d/proxy.conf</span>
 Acquire {
-    HTTP::proxy "http://http_proxy:3128";
-    HTTPS::proxy "http://http_proxy:3128";
+    HTTP::proxy "http://localhost:7890";
+    HTTPS::proxy "http://localhost:7890";
 }
-EOF</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+EOF</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
 在使用 sudo 时，如果想环境变量中的代理设置依然有效，可以编辑 `/etc/sudoers` 文件
 
 <pre class="line-numbers language-diff" data-language="diff"><code class="language-diff"><span class="token inserted-sign inserted"><span class="token prefix inserted">+</span><span class="token line"> Defaults:%sudo env_keep += "http_proxy https_proxy ftp_proxy all_proxy no_proxy"</span></span><span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
