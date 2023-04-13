@@ -416,14 +416,14 @@
                 
                 <div class="info-break-policy">
                     <i class="far fa-file-word fa-fw"></i>文章字数:&nbsp;&nbsp;
-                    70.8k
+                    85.7k
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-clock fa-fw"></i>阅读时长:&nbsp;&nbsp;
-                    247 分
+                    300 分
                 </div>
                 
 
@@ -1664,7 +1664,7 @@ doctor not available<span aria-hidden="true" class="line-numbers-rows"><span></s
 <p> 这意味着，我们将假设一旦发生分区，节点之间的信息同步时间可以无限制地延长，那么这个问题就相当于退化到了上一讲所讨论的全局事务的场景之中，即一个系统可以使用多个数据源。我们可以通过 2PC/3PC 等手段，同时获得分区容错性和一致性。</p>
 <p> 在现实中，除了 DTP 模型的分布式数据库事务外，著名的 HBase 也是属于 CP 系统。以它的集群为例，假如某个 RegionServer 宕机了，这个 RegionServer 持有的所有键值范围都将离线，直到数据恢复过程完成为止，这个时间通常会是很长的。</p>
 </li>
-<li><p>如果放弃一致性（AP without C）</p>
+<li><p><strong>如果放弃一致性（AP without C）</strong></p>
 <p> 这意味着，我们将假设一旦发生分区，节点之间所提供的数据可能不一致。</p>
 <p> AP 系统目前是分布式系统设计的主流选择，大多数的 NoSQL 库和支持分布式的缓存都是 AP 系统。因为 P 是分布式网络的天然属性，你不想要也无法丢弃；而 A 通常是建设分布式的目的，如果可用性随着节点数量增加反而降低的话，很多分布式系统可能就没有存在的价值了（除非银行这些涉及到金钱交易的服务，宁可中断也不能出错）。</p>
 <p> 以 Redis 集群为例，如果某个 Redis 节点出现网络分区，那也不妨碍每个节点仍然会以自己本地的数据对外提供服务。但这时有可能出现这种情况，即请求分配到不同节点时，返回给客户端的是不同的数据。</p>
@@ -1806,6 +1806,316 @@ doctor not available<span aria-hidden="true" class="line-numbers-rows"><span></s
 <p>所以到这里，你其实能发现，分布式事务中并没有能一揽子包治百病的解决办法，你只有因地制宜地选用合适的事务处理方案，才是唯一有效的做法。</p>
 <h4 id="小结-11"><a href="#小结-11" class="headerlink" title="小结"></a>小结</h4><p>通过上一讲和今天这节课的学习，我们已经知道，CAP 定理决定了 C 与 A 不可兼得，传统的 ACID 强一致性在分布式环境中，要想能保证一致性（C），就不得不牺牲可用性（A）。那么这个时候，随着分布式系统中节点数量的增加，整个系统发生服务中断的概率和时间都会随之增长。</p>
 <p>所以，我们只能退而求其次，把”最终一致性”作为分布式架构下事务处理的目标。在这两节课中，我给你介绍的可靠事件队列、TCC 和 SAGA，都是实现最终一致性的三种主流模式。</p>
+<h3 id="16-域名解析系统，优化HTTP性能的第一步"><a href="#16-域名解析系统，优化HTTP性能的第一步" class="headerlink" title="16 | 域名解析系统，优化HTTP性能的第一步"></a>16 | 域名解析系统，优化HTTP性能的第一步</h3><p>从今天这节课开始，我们一起来学习下，如何引导流量分配到最合适的系统部件中进行响应。</p>
+<p>那么在正式开始学习之前，我们先来了解下所谓的透明多级分流系统的定义。</p>
+<h4 id="理解透明多级分流系统的设计原则"><a href="#理解透明多级分流系统的设计原则" class="headerlink" title="理解透明多级分流系统的设计原则"></a>理解透明多级分流系统的设计原则</h4><p>我们都知道，用户在使用信息系统的过程中，请求首先是从浏览器出发，在 DNS 的指引下找到系统的入口，然后经过了网关、负载均衡器、缓存、服务集群等一系列设施，最后接触到了系统末端存储于数据库服务器中的信息，然后再逐级返回到用户的浏览器之中。</p>
+<p>这个过程需要经过许许多多的技术部件。那么作为系统的设计者，我们应该意识到不同的设施、部件在系统中，都具有各自不同的价值：</p>
+<ul>
+<li>有一些部件位于客户端或网络的边缘，能够迅速响应用户的请求，避免给后方的 I/O 与 CPU 带来压力，典型的如 <strong>本地缓存、内容分发网络、反向代理</strong> 等。</li>
+<li>有一些部件的处理能力能够线性拓展，易于伸缩，可以通过使用较小的代价堆叠机器，来获得与用户数量相匹配的并发性能，并且应尽量作为业务逻辑的主要载体，典型的如 <strong>集群中能够自动扩缩的服务节点。</strong></li>
+<li>有一些部件的稳定服务，对系统运行具有全局性的影响，要时刻保持着容错备份，维护着高可用性，典型的如 <strong>服务注册中心、配置中心。</strong></li>
+<li>有一些设施是天生的单点部件，只能依靠升级机器本身的网络、存储和运算性能来提升处理能力，比如位于 <strong>系统入口的路由、网关或者负载均衡器</strong> （它们都可以做集群，但一次网络请求中无可避免至少有一个是单点的部件）、 <strong>位于请求调用链末端的传统关系数据库</strong> 等，都是典型的容易形成单点部件。</li>
+</ul>
+<p>所以，在对系统进行流量规划时，我们需要充分理解这些部件的价值差异。这里，我认为有两个简单、普适的原则，能指导我们进行设计。</p>
+<p><strong>第一个原则是尽可能减少单点部件，如果某些单点是无可避免的，则应尽最大限度减少到达单点部件的流量。</strong></p>
+<p>用户的请求在系统中往往会有多个部件都能够处理响应，比如要获取一张存储在数据库的用户头像图片，浏览器缓存、内容分发网络、反向代理、Web 服务器、文件服务器、数据库等，都可能会提供这张图片。</p>
+<p>所以，恰如其分地引导请求分流至最合适的组件中，避免绝大多数流量汇集到单点部件（如数据库），同时依然能够、或者在绝大多数时候能够保证处理结果的准确性，在单点系统出现故障时，仍能自动而迅速地实施补救措施，这便是系统架构中多级分流的意义。</p>
+<p>那么，缓存、节流、主备、负载均衡等措施，就都是为了达成该目标所采用的工具与手段，而高可用架构、高并发架构，则是通过该原则所获得的价值。</p>
+<p>许多介绍架构设计的资料呢，都会以”高可用、高并发架构”为主题，主要聚焦于流量到达服务端后，如何构建强大的服务端集群来应对。</p>
+<p>而在这个小章节中，我们是以”透明多级分流系统”为主题，聚焦于流量从客户端发出，到达服务端处理节点前的过程，并会去了解在这个过程中对流量削峰填谷的基础设施与通用组件。</p>
+<p><strong>第二个原则是奥卡姆剃刀原则，它更为关键。</strong></p>
+<blockquote>
+<p><strong>奥卡姆剃刀原则</strong></p>
+<p>Entities should not be multiplied without necessity.</p>
+<p>如无必要，勿增实体。</p>
+<p>—— <a target="_blank" rel="noopener" href="https://en.wikipedia.org/wiki/Occam%27s_razor">Occam’s Razor</a> ，<a target="_blank" rel="noopener" href="https://en.wikipedia.org/wiki/William_of_Ockham">William of Ockham</a></p>
+</blockquote>
+<p>作为一个架构设计者，你应该对前面提到的多级分流的手段，有一个全面的理解与充分的准备。同时你也要清晰地意识到，这些设施并不是越多越好，在实际构建系统的时候，你要在有明确需求、真正有必要的时候，再去考虑部署它们。</p>
+<p>因为并不是每一个系统都要追求高并发、高可用的，从系统的用户量、峰值流量和团队本身的技术与运维能力出发，来考虑如何布置这些设施，才是最合理的做法。</p>
+<p><strong>在能满足需求的前提下，最简单的系统就是最好的系统。</strong></p>
+<p>所以，在这个章节的第一节课当中，我们就先来学习一个相对简单，但又是全世界最大规模的查询系统，即 DNS 域名解析查询系统，我们一起来看看它是如何实现多级分流的。</p>
+<h4 id="DNS-的工作原理"><a href="#DNS-的工作原理" class="headerlink" title="DNS 的工作原理"></a>DNS 的工作原理</h4><p>我们都知道， <strong>DNS 的作用是把便于人类理解的域名地址，转换为便于计算机处理的 IP 地址。</strong></p>
+<p>说到 DNS，我想到了一件事，你可能会觉得有点儿好笑：我在刚接触计算机网络有一小段时间以后，一直都把 DNS 想像成是一个部署在世界上某个神秘机房里的大型电话本式的翻译服务。直到后来，当我第一次了解到 DNS 的工作原理，也知道了世界根域名服务器的 ZONE 文件只有 2MB 大小，甚至可以打印出来物理备份的时候，我就对 DNS 系统的设计惊叹得不得了。</p>
+<p>域名解析对于大多数信息系统，尤其是基于互联网的系统来说是必不可少的组件，可是现在想想，它在我们的开发工作里其实根本没有特别高的存在感，通常它都是不会受到重点关注的设施。这就导致了很多程序员还不太了解 DNS 本身的工作过程，以及它对系统流量能够施加的影响；而且，DNS 本身就堪称是示范性的透明多级分流系统，非常符合我们这个章节的主题，也很值得我们去借鉴。</p>
+<p>无论是使用浏览器，还是在程序代码中访问某个网址域名，如果没有缓存的话，都会先经过 DNS 服务器的解析翻译，找到域名对应的 IP 地址，才能开始通讯。</p>
+<p>后面我就以 www.icyfenix.com.cn 为例吧。这项操作是操作系统自动完成的，一般不需要用户程序的介入。</p>
+<p>不过，DNS 服务器并不是一次性地把 www.icyfenix.com.cn 直接解析成 IP 地址的，这个解析需要经历一个递归的过程。</p>
+<p>首先，DNS 会把域名还原为”www.icyfenix.com.cn.”。注意这里最后多了一个点”.”，它是”.root”的意思。早期的域名都必须得带这个点，DNS 才能正确解析，不过现在几乎所有的操作系统、DNS 服务器都可以自动补上结尾的点号了。</p>
+<p>然后，DNS 就开始进行解析了。它的解析步骤是这样的：</p>
+<ol>
+<li><p>第一步，客户端先检查本地的 DNS 缓存，查看是否存在并且是存活着的该域名的地址记录。</p>
+<p> DNS 是以 <a target="_blank" rel="noopener" href="https://en.wikipedia.org/wiki/Time_to_live">存活时间</a> （Time to Live，TTL）来衡量缓存的有效情况的，因此如果某个域名改变了 IP 地址，它也无法去通知缓存了该地址的机器来更新或失效掉缓存，只能依靠 TTL 超期后重新获取来保证一致性。后续每一级 DNS 查询的过程，都会有类似的缓存查询操作，所以我就不重复说了。</p>
+</li>
+<li><p>第二步，客户端将地址发送给本机操作系统中配置的本地 DNS（Local DNS）。这个本地 DNS 服务器可以由用户手工设置，也可以在 DHCP 分配时或者在拨号时，从 PPP 服务器中自动获取。</p>
+</li>
+<li><p>第三步，本地 DNS 收到查询请求后，会按照”是否有 www.icyfenix.com.cn 的权威服务器”→”是否有 icyfenix.com.cn 的权威服务器”→”是否有 com.cn 的权威服务器”→”是否有 cn 的权威服务器”的顺序，依次查询自己的地址记录。如果都没有查询到，本地 DNS 就会一直找到最后点号代表的根域名服务器为止。</p>
+<p> 这个步骤里涉及了两个重要名词，你需要好好掌握：</p>
+<ol>
+<li><p><strong>权威域名服务器（Authoritative DNS）</strong> ：是指负责翻译特定域名的 DNS 服务器，”权威”的意思就是说，服务器决定了这个域名应该翻译出怎样的结果。DNS 翻译域名的时候，不需要像查电话本一样刻板地一对一翻译，它可以根据来访机器、网络链路、服务内容等各种信息，玩出很多花样。权威 DNS 的灵活应用，在后面的内容分发网络、服务发现等课程内容中都还会涉及到。</p>
+</li>
+<li><p><strong>根域名服务器（Root DNS）</strong> ：是指固定的、无需查询的 <a target="_blank" rel="noopener" href="https://en.wikipedia.org/wiki/Top-level_domain">顶级域名</a> （Top-Level Domain）服务器，可以默认为它们已内置在操作系统代码之中。全世界一共有 13 组根域名服务器（注意并不是 13 台，每一组根域名都通过 <a target="_blank" rel="noopener" href="https://en.wikipedia.org/wiki/Anycast">任播</a> 的方式建立了一大群镜像，根据维基百科的数据，迄今已经超过 1000 台根域名服务器的镜像了），之所以有 13 这个数字的限制是因为，DNS 主要是采用 UDP 传输协议（在需要稳定性保证的时候也可以采用 TCP）来进行数据交换的，未分片的 UDP 数据包在 IPv4 下最大有效值为 512 字节，最多可以存放 13 组地址记录。</p>
+</li>
+</ol>
+</li>
+<li><p>第四步，现在假设本地 DNS 是全新的，上面不存在任何域名的权威服务器记录，所以当 DNS 查询请求按步骤 3 的顺序，一直查到根域名服务器之后，它将会得到”cn 的权威服务器”的地址记录，然后通过”cn 的权威服务器”，得到”com.cn 的权威服务器”的地址记录，以此类推，最后找到能够解释 www.icyfenix.com.cn 的权威服务器地址。</p>
+</li>
+<li><p>第五步，通过”www.icyfenix.com.cn 的权威服务器”，查询 www.icyfenix.com.cn 的地址记录。这里的地址记录并不一定就是指 IP 地址，在 RFC 规范中，有定义的地址记录类型已经 <a target="_blank" rel="noopener" href="https://en.wikipedia.org/wiki/List_of_DNS_record_types">多达几十种</a> ，比如 IPv4 下的 IP 地址为 A 记录，IPv6 下的 AAAA 记录、主机别名 CNAME 记录，等等。</p>
+</li>
+</ol>
+<p>我给你举一个例子。假设一个域名下配置了多条不同的 A 记录，此时权威服务器就可以根据自己的策略来进行选择，典型的应用是智能线路：根据访问者所处的不同地区（如华北、华南、东北）、不同服务商（如电信、联通、移动）等因素，来确定返回最合适的 A 记录，将访问者路由到最合适的数据中心，达到智能加速的目的。</p>
+<p>可见，DNS 系统多级分流的设计，就让 DNS 系统能够经受住全球网络流量不间断的冲击，但它也并不是没有缺点。</p>
+<p>典型的问题就是 <strong>响应速度会受影响</strong> 。在极端情况（如各级服务器均无缓存）下，域名解析可能会导致每个域名都必须递归多次才能查询到结果，显著影响传输的响应速度。</p>
+<p>如下图所示，你可以看到其高达 310 毫秒的 DNS 查询速度：</p>
+<p><img src="https://fastly.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《周志明的软件架构课》学习笔记/首次DNS请求耗时.webp" alt="首次DNS请求耗时"></p>
+<p>所以，为了避免产生这种问题，专门就有一种前端优化手段，叫做 <a target="_blank" rel="noopener" href="https://en.wikipedia.org/wiki/Link_prefetching">DNS 预取</a> （DNS Prefetching）：如果网站后续要使用来自于其他域的资源，那就在网页加载时便生成一个 link 请求，促使浏览器提前对该域名进行预解释，如下所示：</p>
+<pre class="line-numbers language-html" data-language="html"><code class="language-html"><span class="token tag"><span class="token tag"><span class="token punctuation">&lt;</span>link</span> <span class="token attr-name">rel</span><span class="token attr-value"><span class="token punctuation attr-equals">=</span><span class="token punctuation">"</span>dns-prefetch<span class="token punctuation">"</span></span> <span class="token attr-name">href</span><span class="token attr-value"><span class="token punctuation attr-equals">=</span><span class="token punctuation">"</span>//domain.not-icyfenx.cn<span class="token punctuation">"</span></span><span class="token punctuation">&gt;</span></span><span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>而另一种可能更严重的缺陷，就是 <strong>DNS 的分级查询意味着每一级都有可能受到中间人攻击的威胁，产生被劫持的风险。</strong></p>
+<p>我们应该都知道，要攻陷位于递归链条顶层的（如根域名服务器，cn 权威服务器）服务器和链路是非常困难的，它们都有很专业的安全防护措施。但很多位于递归链底层的、或者来自本地运营商的 Local DNS 服务器，安全防护就相对松懈，甚至不少地区的运行商自己就会主动进行劫持，专门返回一个错的 IP，通过在这个 IP 上代理用户请求，以便给特定类型的资源（主要是 HTML）注入广告，进行牟利。</p>
+<p>所以针对这种情况，最近几年出现了一种新的 DNS 工作模式： <a target="_blank" rel="noopener" href="https://en.wikipedia.org/wiki/DNS_over_HTTPS">HTTPDNS</a> （也称为 DNS over HTTPS，DoH）。它把原本的 DNS 解析服务开放为一个基于 HTTPS 协议的查询服务，替代基于 UDP 传输协议的 DNS 域名解析，通过程序代替操作系统直接从权威 DNS，或者可靠 Local DNS 获取解析数据，从而绕过传统 Local DNS。</p>
+<p>这种做法的好处是完全免去了”中间商赚差价”的环节，不再惧怕底层的域名劫持，能有效避免 Local DNS 不可靠导致的域名生效缓慢、来源 IP 不准确、产生的智能线路切换错误等问题。</p>
+<h4 id="小结-12"><a href="#小结-12" class="headerlink" title="小结"></a>小结</h4><p>这节课作为”透明多级分流系统”的第一讲，我给你介绍了这个名字的意义与来由。在开发过程中没有太多存在感的 DNS 系统，其实就很符合透明和多级分流的特点。所以我也以此为例，给你简要介绍了它的工作原理。</p>
+<p>根据请求从浏览器发出到最终查询或修改数据库的信息，除了 DNS 以外，还会有客户端浏览器、网络传输链路、内容分发网络、负载均衡器和缓存中间件这些位于服务器、数据库之外的组件，可以帮助分担流量，便于我们构建出更加高并发、高可用的系统。在后面的几节课中，我们就会逐一来探讨它们的工作原理。</p>
+<h3 id="17-客户端缓存是如何帮助服务器分担流量的？"><a href="#17-客户端缓存是如何帮助服务器分担流量的？" class="headerlink" title="17 | 客户端缓存是如何帮助服务器分担流量的？"></a>17 | 客户端缓存是如何帮助服务器分担流量的？</h3><p>这节课，我们继续来讨论透明多级分流系统中，最靠近用户一侧的分流部件：浏览器的客户端缓存。</p>
+<p>当万维网刚刚出现的时候，浏览器的缓存机制差不多就已经存在了。在 HTTP 协议设计之初，人们便确定了服务端与客户端之间”无状态”（Stateless）的交互原则，即要求客户端的每次请求是独立的，每次请求无法感知、也不能依赖另一个请求的存在，这既简化了 HTTP 服务器的设计，也为它的水平扩展能力留下了广阔的空间。</p>
+<p>但无状态并不是只有好的一面。因为客户端的每次请求都是独立的，服务端不会保存之前请求的状态和资源，所以也不可避免地导致它会携带重复的数据，造成网络性能的降低。</p>
+<p>那么，HTTP 协议针对这个问题的解决方案，就是客户端缓存。从 HTTP/1.0 到 1.1、再到 2.0 版本的演进中，逐步形成了现在被称为”状态缓存”、”强制缓存”（或简称为”强缓存”）和”协商缓存”这三种 HTTP 缓存机制。</p>
+<p>这其中的状态缓存，是指不经过服务器，客户端直接根据缓存信息来判断目标网站的状态。以前只有 301/Moved Permanently（永久重定向）这一种；后来在 <a target="_blank" rel="noopener" href="https://tools.ietf.org/html/rfc6797">RFC6797</a> 中增加了 <a target="_blank" rel="noopener" href="https://en.wikipedia.org/wiki/HTTP_Strict_Transport_Security">HSTS</a> （HTTP Strict Transport Security）机制，用来避免依赖 301/302 跳转 HTTPS 时，可能产生的降级中间人劫持问题（在第 28、29 讲中，我还会展开讲解这个问题），这也属于另一种状态缓存。</p>
+<p>因为状态缓存涉及的内容只有这么一点，所以后面，我们就只聚焦在强制缓存与协商缓存这两种机制的探讨上。</p>
+<p>下面我们就先来看看强制缓存的实现机制吧。</p>
+<h4 id="实现强制缓存机制的两类-Headers"><a href="#实现强制缓存机制的两类-Headers" class="headerlink" title="实现强制缓存机制的两类 Headers"></a>实现强制缓存机制的两类 Headers</h4><p>就像”强制缓存”这个名字一样，它对一致性问题的处理策略十分直接：假设在某个时间点内，比如服务器收到响应后的 10 分钟内，资源的内容和状态一定不会被改变，因此客户端可以不需要经过任何请求，在该时间点到来之前一直持有和使用该资源的本地缓存副本。</p>
+<p>根据约定，在浏览器的地址输入、页面链接跳转、新开窗口、前进和后退中，强制缓存都可以生效，但在用户主动刷新页面时应当自动失效。</p>
+<p>在 HTTP 协议中，设置了两类可以实现强制缓存的 Headers（标头）：Expires 和 Cache-Control。</p>
+<h5 id="第一类：Expires"><a href="#第一类：Expires" class="headerlink" title="第一类：Expires"></a>第一类：Expires</h5><p>Expires 是 HTTP/1.0 协议中开始提供的 Header，后面跟随了一个截止时间参数。当服务器返回某个资源时，如果带有该 Header 的话，就意味着服务器承诺在截止时间之前，资源不会发生变动，浏览器可直接缓存该数据，不再重新发请求。我们直接来看一个 Expires 头的示例程序：</p>
+<pre class="line-numbers language-http" data-language="http"><code class="language-http"><span class="token response-status">HTTP/1.1 <span class="token property">200 OK</span></span>
+<span class="token header-name keyword">Expires:</span> Wed, 8 Apr 2020 07:28:00 GMT<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre>
+<p>那么，你能看到，Expires 设计得非常直观易懂，但它考虑得其实并不周全。我给你简单举几个例子。</p>
+<ul>
+<li><p><strong>受限于客户端的本地时间</strong></p>
+<p>  比如，在收到响应后，客户端修改了本地时间，将时间点前后调整了几分钟，这就可能会造成缓存提前失效或超期持有。</p>
+</li>
+<li><p><strong>无法处理涉及到用户身份的私有资源</strong></p>
+<p>  比如，合理的做法是，某些资源被登录用户缓存在了自己的浏览器上。但如果被代理服务器或者内容分发网络（CDN）缓存起来，就可能会被其他未认证的用户获取。</p>
+</li>
+<li><p><strong>无法描述”不缓存”的语义</strong></p>
+<p>  比如，一般浏览器为了提高性能，往往会自动在当次会话中缓存某些 MINE 类型的资源，这会造成设计者不希望缓存的资源无法被及时更新。而在 HTTP/1.0 的设计中，Expires 并没有考虑这方面的需求，导致无法强制浏览器不允许缓存某个资源。</p>
+<p>  所以，以前为了实现这类功能，我们通常不得不使用脚本，或者手工在资源后面增加时间戳（如”xx.js?t=1586359920””xx.jpg?t=1586359350”）来保证每次资源都会重新获取。</p>
+<p>  不过，关于”不缓存”的语义，在 HTTP/1.0 中其实是预留了”Pragma: no-cache”来表达的，但在 HTTP/1.0 中，并没有确切地描述 Pragma 参数的具体行为，随后它就被 HTTP/1.1 中出现过的 Cache-Control 给替代了。</p>
+<p>  现在，尽管主流的浏览器也通常都会支持 Pragma，但它的行为仍然是不确定的，实际上并没有什么使用价值。而 Cache-Control 的出现，进一步压缩了 Pragma 的生存空间。所以接下来，我们就一起来看看，它是如何支持强制缓存机制的实现的。</p>
+</li>
+</ul>
+<h5 id="第二类：Cache-Control"><a href="#第二类：Cache-Control" class="headerlink" title="第二类：Cache-Control"></a>第二类：Cache-Control</h5><p>Cache-Control 是 HTTP/1.1 协议中定义的强制缓存 Header，它的语义比起 Expires 来说就丰富了很多。而如果 Cache-Control 和 Expires 同时存在，并且语义存在冲突（比如 Expires 与 max-age / s-maxage 冲突）的话，IETF 规定必须以 Cache-Control 为准。</p>
+<p>同样这里，我们也看看 Cache-Control 的使用示例：</p>
+<pre class="line-numbers language-httpHTTP/1.1" data-language="httpHTTP/1.1"><div class="caption"><span>200 OK</span></div><code class="language-httpHTTP/1.1">Cache-Control: max-age=600<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>那么，你能看到，这里的示例中使用的参数是 max-age。实际上，在客户端的请求 Header 或服务器的响应 Header 中，Cache-Control 都可以存在，它定义了一系列的参数，并且允许自行扩展（即不在标准 RFC 协议中，由浏览器自行支持的参数）。Cache-Control 标准的参数主要包括 6 种，下面我就带你一一了解下。</p>
+<ul>
+<li><p><strong>max-age 和 s-maxage</strong></p>
+<p>  在前面的示例中，你会发现 max-age 后面跟随了一个数字，它是以秒为单位的，表明相对于请求时间（在 Date Header 中会注明请求时间）多少秒以内，缓存是有效的，资源不需要重新从服务器中获取。这个相对时间，就避免了 Expires 中，采用的绝对时间可能受客户端时钟影响的问题。</p>
+<p>  另一个类似的参数是 s-maxage，其中的”s”是”Share”的缩写，意味着”共享缓存”的有效时间，即允许被 CDN、代理等持有的缓存有效时间，这个参数主要是用来提示 CDN 这类服务器如何对缓存进行失效。</p>
+</li>
+<li><p><strong>public 和 private</strong></p>
+<p>  这一类参数表明了是否涉及到用户身份的私有资源。如果是 public，就意味着资源可以被代理、CDN 等缓存；如果是 private，就意味着只能由用户的客户端进行私有缓存。</p>
+</li>
+<li><p><strong>no-cache 和 no-store</strong></p>
+<p>  no-cache 表明该资源不应该被缓存，哪怕是同一个会话中对同一个 URL 地址的请求，也必须从服务端获取，从而令强制缓存完全失效（但此时的协商缓存机制依然是生效的）；no-store 不强制会话中是否重复获取相同的 URL 资源，但它禁止浏览器、CDN 等以任何形式保存该资源。</p>
+</li>
+<li><p><strong>no-transform</strong></p>
+<p>  no-transform 禁止资源以任何形式被修改。比如，某些 CDN、透明代理支持自动 GZip 压缩图片或文本，以提升网络性能，而 no-transform 就禁止了这样的行为，它要求 Content-Encoding、Content-Range、Content-Type 均不允许进行任何形式的修改。</p>
+</li>
+<li><p><strong>min-fresh 和 only-if-cached</strong></p>
+<p>  这两个参数是仅用于客户端的请求 Header。min-fresh 后续跟随了一个以秒为单位的数字，用于建议服务器能返回一个不少于该时间的缓存资源（即包含 max-age 且不少于 min-fresh 的数字）；only-if-cached 表示服务器希望客户端不要发送请求，只使用缓存来进行响应，若缓存不能命中，就直接返回 503/Service Unavailable 错误。</p>
+</li>
+<li><p><strong>must-revalidate 和 proxy-revalidate</strong></p>
+<p>  must-revalidate 表示在资源过期后，一定要从服务器中进行获取，即超过了 max-age 的时间后，就等同于 no-cache 的行为；proxy-revalidate 用于提示代理、CDN 等设备资源过期后的缓存行为，除对象不同外，语义与 must-revalidate 完全一致。</p>
+</li>
+</ul>
+<p>好了，现在你应该就已经理解了强制缓存的实现机制了。但是，强制缓存是基于时效性的，无论是人还是服务器，在大多数情况下，其实都没有什么把握去承诺某项资源多久不会发生变化。</p>
+<p>所以，接下来我就要给你介绍另一种基于变化检测的缓存机制，也就是协商缓存。它在处理一致性问题上，比强制缓存会有更好的表现。不过它需要一次变化检测的交互开销，在性能上就会略差一些。</p>
+<h4 id="协商缓存的两种变动检查机制"><a href="#协商缓存的两种变动检查机制" class="headerlink" title="协商缓存的两种变动检查机制"></a>协商缓存的两种变动检查机制</h4><p>那么，在开始了解协商缓存的实现机制之前，你要先注意一个地方，就是在 HTTP 中，协商缓存与强制缓存并没有互斥性，这两套机制是并行工作的。</p>
+<p>比如说，当强制缓存存在时，客户端可以直接从强制缓存中返回资源，无需进行变动检查；而当强制缓存超过时效，或者被禁止（no-cache / must-revalidate），协商缓存也仍然可以正常工作。</p>
+<p>协商缓存有两种变动检查机制， <strong>一种是根据资源的修改时间进行检查，另一种是根据资源唯一标识是否发生变化来进行检查。</strong> 它们都是靠一组成对出现的请求、响应 Header 来实现的。</p>
+<h5 id="根据资源的修改时间进行检查"><a href="#根据资源的修改时间进行检查" class="headerlink" title="根据资源的修改时间进行检查"></a>根据资源的修改时间进行检查</h5><p>我们先来看看根据资源的修改时间进行检查的协商缓存机制。它的语义中包含了两种标准参数：<strong>Last-Modified</strong> 和 <strong>If-Modified-Since</strong> 。</p>
+<p>Last-Modified 是服务器的响应 Header，用来告诉客户端这个资源的最后修改时间。</p>
+<p>而对于带有这个 Header 的资源，当客户端需要再次请求时，会通过 If-Modified-Since，把之前收到的资源最后修改时间发送回服务端。</p>
+<p>如果此时，服务端发现资源在该时间后没有被修改过，就只要返回一个 304/Not Modified 的响应即可，无需附带消息体，从而达到了节省流量的目的：</p>
+<pre class="line-numbers language-http" data-language="http"><code class="language-http"><span class="token response-status">HTTP/1.1 <span class="token property">304 Not Modified</span></span>
+<span class="token header-name keyword">Cache-Control:</span> public, max-age=600
+<span class="token header-name keyword">Last-Modified:</span> Wed, 8 Apr 2020 15:31:30 GMT<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span></span></code></pre>
+<p>而如果此时，服务端发现资源在该时间之后有变动，就会返回 200/OK 的完整响应，在消息体中包含最新的资源。</p>
+<pre class="line-numbers language-http" data-language="http"><code class="language-http"><span class="token response-status">HTTP/1.1 <span class="token property">200 OK</span></span>
+<span class="token header-name keyword">Cache-Control:</span> public, max-age=600
+<span class="token header-name keyword">Last-Modified:</span> Wed, 8 Apr 2020 15:31:30 GMT
+
+Content<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<h5 id="根据资源唯一标识是否发生变化来进行检查"><a href="#根据资源唯一标识是否发生变化来进行检查" class="headerlink" title="根据资源唯一标识是否发生变化来进行检查"></a>根据资源唯一标识是否发生变化来进行检查</h5><p>好，我们再来看看”根据资源唯一标识是否发生变化来进行检查”的协商缓存机制。它的语义中也包含了两种标准参数： <strong>Etag</strong> 和 <strong>If-None-Match</strong> 。</p>
+<p>Etag 是服务器的响应 Header，用于告诉客户端这个资源的唯一标识。HTTP 服务器可以根据自己的意愿，来选择如何生成这个标识，比如 Apache 服务器的 Etag 值，就默认是对文件的索引节点（INode）、大小和最后修改时间进行哈希计算后而得到的。</p>
+<p>然后，对于带有这个 Header 的资源，当客户端需要再次请求时，就会通过 If-None-Match，把之前收到的资源唯一标识发送回服务端。</p>
+<p>如果此时，服务端计算后发现资源的唯一标识与上传回来的一致，就说明资源没有被修改过，同样也只需要返回一个 <strong>304/Not Modified</strong> 的响应即可，无需附带消息体，达到节省流量的目的：</p>
+<pre class="line-numbers language-http" data-language="http"><code class="language-http"><span class="token response-status">HTTP/1.1 <span class="token property">304 Not Modified</span></span>
+<span class="token header-name keyword">Cache-Control:</span> public, max-age=600
+<span class="token header-name keyword">ETag:</span> "28c3f612-ceb0-4ddc-ae35-791ca840c5fa"<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span></span></code></pre>
+<p>而如果此时，服务端发现资源的唯一标识有变动，也一样会返回 200/OK 的完整响应，在消息体中包含最新的资源。</p>
+<pre class="line-numbers language-http" data-language="http"><code class="language-http"><span class="token response-status">HTTP/1.1 <span class="token property">200 OK</span></span>
+<span class="token header-name keyword">Cache-Control:</span> public, max-age=600
+<span class="token header-name keyword">ETag:</span> "28c3f612-ceb0-4ddc-ae35-791ca840c5fa"
+
+Content<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>另外，我还想强调的是， <strong>Etag 是 HTTP 中一致性最强的缓存机制。</strong></p>
+<p>为什么会这么说呢？我直接给你举个例子。</p>
+<p>前面我提到的 Last-Modified 参数，它标注的最后修改只能精确到秒级，而如果某些文件在一秒钟以内被修改多次的话，它就不能准确标注文件的修改时间了；又或者，如果某些文件会被定期生成，可能内容上并没有任何变化，但 Last-Modified 却改变了，导致文件无法有效使用缓存。而这些情况，Last-Modified 都有可能产生资源一致性的问题，只能使用 Etag 解决。</p>
+<p><strong>但是，Etag 又是 HTTP 中性能最差的缓存机制。</strong> 这个”最差”体现在每次请求时，服务端都必须对资源进行哈希计算，这比起简单获取一下修改时间，开销要大了很多。</p>
+<p>所以，Etag 和 Last-Modified 是允许一起使用的，服务器会优先验证 Etag，在 Etag 一致的情况下，再去对比 Last-Modified，这是为了防止有一些 HTTP 服务器没有把文件修改日期纳入哈希范围内。</p>
+<h4 id="HTTP-的内容协商机制"><a href="#HTTP-的内容协商机制" class="headerlink" title="HTTP 的内容协商机制"></a>HTTP 的内容协商机制</h4><p>那到这里为止，HTTP 的协商缓存机制，就已经能很好地处理通过 URL 获取单个资源的场景了。不过你可能要问了： <strong>为什么要强调”单个资源”呢？</strong></p>
+<p>我们知道，在 HTTP 协议的设计中，一个 URL 地址是有可能提供多份不同版本的资源的，比如说，一段文字的不同语言版本，一个文件的不同编码格式版本，一份数据的不同压缩方式版本，等等。因此针对请求的缓存机制，也必须能够提供对应的支持。</p>
+<p>所以，针对这种情况，HTTP 协议设计了以 <code>Accept*</code> （Accept、Accept-Language、Accept-Charset、Accept-Encoding）开头的一套请求 Header，以及对应的以 <code>Content-*</code> （Content-Language、Content-Type、Content-Encoding）开头的响应 Header。 <strong>这些 Headers 被称为 HTTP 的内容协商机制。</strong></p>
+<p>那么，与之对应的，对于一个 URL 能够获取多个资源的场景中，缓存同样也需要有明确的标识来获知，它要根据什么内容来对同一个 URL 返回给用户正确的资源。这个就是 Vary Header 的作用，Vary 后面应该跟随一组其他 Header 的名字，比如说：</p>
+<pre class="line-numbers language-http" data-language="http"><code class="language-http"><span class="token response-status">HTTP/1.1 <span class="token property">200 OK</span></span>
+<span class="token header-name keyword">Vary:</span> Accept, User-Agent<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre>
+<p>这里你要知道，这个响应的含义是应该根据 MINE 类型和浏览器类型来缓存资源，另外服务端在获取资源时，也需要根据请求 Header 中对应的字段，来筛选出适合的资源版本。</p>
+<p>根据约定，协商缓存不仅可以在浏览器的地址输入、页面链接跳转、新开窗口、前进、后退中生效，而且在用户主动刷新页面（F5）时也同样是生效的。只有用户强制刷新（Ctrl+F5）或者明确禁用缓存（比如在 DevTools 中设定）时才会失效，此时客户端向服务端发出的请求会自动带有”Cache-Control: no-cache”。</p>
+<h4 id="小结-13"><a href="#小结-13" class="headerlink" title="小结"></a>小结</h4><p>HTTP 协议以”无状态”作为基本的交互原则，那么由此而来的资源重复访问问题，就需要通过网络链路中的缓存来解决了。现在你也已经知道，客户端缓存具体包括了”状态缓存”、”强制缓存”和”协商缓存”三类。</p>
+<p>这节课，我们详细分析了强制缓存和协商缓存的工作原理。利用好客户端的缓存，能够节省大量网络流量，这是为后端系统分流，以实现更高并发的第一步。</p>
+<h3 id="18-传输链路，优化HTTP传输速度的小技巧"><a href="#18-传输链路，优化HTTP传输速度的小技巧" class="headerlink" title="18 | 传输链路，优化HTTP传输速度的小技巧"></a>18 | 传输链路，优化HTTP传输速度的小技巧</h3><p>在经过了客户端缓存的节流和 DNS 服务的解析指引以后，程序发出的请求流量就正式离开了客户端，踏上以服务器为目的地的旅途了。而这个过程就是我们今天这节课要讨论的主角： <strong>传输链路。</strong></p>
+<h4 id="以优化链路传输为目的的前端设计原则未来或许不再适用"><a href="#以优化链路传输为目的的前端设计原则未来或许不再适用" class="headerlink" title="以优化链路传输为目的的前端设计原则未来或许不再适用"></a>以优化链路传输为目的的前端设计原则未来或许不再适用</h4><p>可能不少人的第一直觉都会认为，传输链路是完全不受开发者控制的因素，觉得网络路由跳点的数量、运营商铺设线路的质量，已经决定了线路带宽的大小、速率的高低。不过事实并非如此，程序发出的请求能否与应用层、传输层协议提倡的方式相匹配，对传输的效率也会有非常大的影响。</p>
+<p>最容易体现出这点的，就是那些前端网页的优化技巧。我们只要简单搜索一下，就能找到很多以优化链路传输为目的的前端设计原则，比如经典的 <a target="_blank" rel="noopener" href="https://developer.yahoo.com/performance/rules.html">雅虎 YSlow-23 条规则</a> 中，就涵盖了很多与传输相关的内容。</p>
+<p>下面我来给你简单举几个例子。</p>
+<ul>
+<li><p><strong>Minimize HTTP Requests</strong></p>
+<p>  即减少请求数量：对于客户端发出的请求，服务器每次都需要建立通信链路进行数据传输，这些开销很昂贵，所以减少请求的数量，就可以有效地提高访问性能。如果你是做前端开发的，那你可能就听说过下面这几种减少请求数量的手段：</p>
+<blockquote>
+<p>a. 雪碧图（ <a target="_blank" rel="noopener" href="https://en.wikipedia.org/w/index.php?title=CSS_Sprites&amp;redirect=no">CSS Sprites</a> ）</p>
+<p>b. CSS、JS 文件合并 / 内联（Concatenation / Inline）</p>
+<p>c. 分段文档（ <a target="_blank" rel="noopener" href="https://www.w3.org/Protocols/rfc1341/7_2_Multipart.html">Multipart Document</a> ）</p>
+<p>d. 媒体（图片、音频）内联（ <a target="_blank" rel="noopener" href="https://en.wikipedia.org/wiki/Data_URI_scheme">Data Base64 URI</a> ）</p>
+<p>e. 合并 Ajax 请求（Batch Ajax Request）</p>
+<p>f. ……</p>
+</blockquote>
+</li>
+<li><p><strong>Split Components Across Domains</strong></p>
+<p>  即扩大并发请求数：现代浏览器（Chrome、Firefox）一般可以为每个域名支持 6 个（IE 为 8-13 个）并发请求。如果你希望更快地加载大量图片或其他资源，就需要进行域名分片（Domain Sharding），将图片同步到不同主机或者同一个主机的不同域名上。</p>
+</li>
+<li><p><strong>GZip Components</strong></p>
+<p>  即启用压缩传输：启用压缩能够大幅度减少需要在网络上传输内容的大小，节省网络流量。</p>
+</li>
+<li><p><strong>Avoid Redirects</strong></p>
+<p>  即避免页面重定向：当页面发生了重定向，就会延迟整个文档的传输。在 HTML 文档到达之前，页面中不会呈现任何东西，会降低用户的体验。</p>
+</li>
+<li><p><strong>Put Stylesheets at the Top，Put Scripts at the Bottom</strong></p>
+<p>  即按重要性调节资源优先级：将重要的、马上就要使用的、对客户端展示影响大的资源，放在 HTML 的头部，以便优先下载。</p>
+</li>
+<li><p>……</p>
+</li>
+</ul>
+<p>这些原则在今天暂且仍算得上是有一定价值，但如果在若干年后的未来再回头看它们，大概率其中的多数原则已经成了奇技淫巧，有些甚至成了反模式。</p>
+<p>我为什么这么说呢？这是因为 HTTP 协议还在持续发展，从上世纪 90 年代的 HTTP/1.0 和 HTTP/1.1，到 2015 年发布的 HTTP/2，再到 2019 年的 HTTP/3，由于 HTTP 协议本身的变化，造成了”适合 HTTP 传输的请求”的特征也在不断变化。</p>
+<p>那么接下来，我们就来看看这里所说的特征变化指的都是什么。</p>
+<h4 id="连接数优化"><a href="#连接数优化" class="headerlink" title="连接数优化"></a>连接数优化</h4><p>我们知道，HTTP（特指 HTTP/3 以前）是以 TCP 为传输层的应用层协议， <strong>但 HTTP over TCP 这种搭配，只能说是 TCP 目前在互联网中的统治性地位所造就的结果，而不能说它们两者配合工作就是合适的。</strong></p>
+<p>为啥呢？一方面，你可以回想一下，平常你在上网的时候，平均每个页面停留的时间都有多长？然后你也可以大概估算一下每个页面中包含的资源（HTML、JS、CSS、图片等）数量，由此你其实就可以大致总结出 HTTP 传输对象的主要特征了，那就是数量多、时间短、资源小、切换快。</p>
+<p>另一方面，TCP 协议要求必须在 <a target="_blank" rel="noopener" href="https://en.wikipedia.org/wiki/Transmission_Control_Protocol#Connection_establishment">三次握手</a> 完成之后才能开始数据传输，这是一个可能高达”百毫秒”为计时尺度的事件；另外，TCP 还有 <a target="_blank" rel="noopener" href="https://en.wikipedia.org/wiki/TCP_congestion_control#Slow_start">慢启动</a> 的特性，这就会导致通信双方在刚刚建立连接时的传输速度是最低的，后面再逐步加速直至稳定。</p>
+<p><strong>由于 TCP 协议本身是面向长时间、大数据传输来设计的，所以只有在一段较长的时间尺度内，TCP 协议才能展现出稳定性和可靠性的优势，不会因为建立连接的成本太高，成为了使用瓶颈。</strong></p>
+<p>所以我才说，HTTP over TCP 这种搭配在目标特征上确实是有矛盾的，以至于 HTTP/1.x 时代，大量短而小的 TCP 连接导致了网络性能的瓶颈。</p>
+<h4 id="开发-Tricks-的使用困境"><a href="#开发-Tricks-的使用困境" class="headerlink" title="开发 Tricks 的使用困境"></a>开发 Tricks 的使用困境</h4><p>那么，为了缓解 HTTP 与 TCP 之间的矛盾，聪明的程序员们一面致力于减少发出的请求数量，另一面也在致力于增加客户端到服务端的连接数量。这就是我在前面提到的 Yslow 规则中，”Minimize HTTP Requests”与”Split Components Across Domains”两条优化措施的根本依据所在。</p>
+<p>由此可见，通过前端开发者的各种 Tricks，确实能够减少 TCP 连接数量的消耗，这是有数据统计作为支撑的。</p>
+<p><a target="_blank" rel="noopener" href="https://httparchive.org/">HTTP Archive</a> 就对最近 5 年来数百万个 URL 地址进行了采样，并得出了一个结论：页面平均请求没有改变的情况下（桌面端下降 3.8%，移动端上升 1.4%），TCP 连接正在持续且幅度较大地下降（桌面端下降 36.4%，移动端下降 28.6%）。我们一起来具体看看这个变化：</p>
+<p><img src="https://fastly.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《周志明的软件架构课》学习笔记/HTTP平均请求数量.webp" alt="HTTP 平均请求数量，70 余个，没有明显变化"></p>
+<p><img src="https://fastly.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《周志明的软件架构课》学习笔记/TCP连接数量.webp" alt="TCP 连接数量，约 15 个，有明显下降趋势"></p>
+<p>但是，这些开发 Tricks 除了可以节省 TCP 连接以外，其实也给我们带来了不少的副作用，比如说：</p>
+<ul>
+<li>如果你用 CSS Sprites 合并了多张图片，就意味着在任何场景下，哪怕你只用到了其中一张小图，也必须要完整地加载整个大图片；或者哪怕只有一张小图需要修改，也都会导致整个大图的缓存失效。类似的，样式、脚本等其他文件的合并，也会造成同样的问题。</li>
+<li>如果你使用了媒体内嵌，除了要承受 Base64 编码导致传输容量膨胀 1/3 的代价以外（Base64 以 8 bit 表示 6 bit 数据），也会无法有效利用缓存。</li>
+<li>如果你合并了异步请求，就会导致所有请求的返回时间，都要受最慢的那个请求拖累，页面整体的响应速度会下降。</li>
+<li>如果你把图片放到了不同子域下面，将会导致更大的 DNS 解析负担，而且浏览器对两个不同子域下的同一图片必须持有两份缓存，这也使得缓存效率下降。</li>
+<li>……</li>
+</ul>
+<p>所以我们也不难看出，一旦需要使用者通过各种 Tricks，来解决基于技术根基而出现的各种问题时，就会导致 TA 再也没办法摆脱”两害相权取其轻”的困境。否则，这就不是 Tricks，而是会成为一种标准的设计模式了。</p>
+<h4 id="连接复用技术的优势和缺陷"><a href="#连接复用技术的优势和缺陷" class="headerlink" title="连接复用技术的优势和缺陷"></a>连接复用技术的优势和缺陷</h4><p>实际上，HTTP 的设计者们也不是没有尝试过在 <strong>协议层面</strong> 去解决连接成本过高的问题，即使是 HTTP 协议的最初版本（指 HTTP/1.0，忽略非正式的 HTTP/0.9 版本），就已经支持（HTTP/1.0 中不是默认开启的，HTTP/1.1 中变为默认）连接复用技术了，也就是今天我们所熟知的 <a target="_blank" rel="noopener" href="https://en.wikipedia.org/wiki/HTTP_persistent_connection">持久连接</a> （Persistent Connection），或者叫连接 <a target="_blank" rel="noopener" href="https://en.wikipedia.org/wiki/Keepalive">Keep-Alive</a> 机制。</p>
+<p>它的原理是，让客户端对同一个域名长期持有一个或多个不会用完即断的 TCP 连接。典型做法是在客户端维护一个 FIFO 队列，每次取完数据之后的一段时间内，不自动断开连接，以便获取下一个资源时可以直接复用，避免创建 TCP 连接的成本。</p>
+<p><strong>但是，连接复用技术依然是不完美的，最明显的副作用就是” <a target="_blank" rel="noopener" href="https://en.wikipedia.org/wiki/Head-of-line_blocking">队首阻塞</a> “（Head-of-Line Blocking）问题。</strong></p>
+<p>我们来设想一下这样的场景：浏览器有 10 个资源需要从服务器中获取，这个时候它把 10 个资源放入队列，入列顺序只能是按照浏览器预见这些资源的先后顺序来决定。但是，如果这 10 个资源中的第 1 个就让服务器陷入了长时间运算状态，会发生怎样的状况呢？</p>
+<p>答案是，当它的请求被发送到服务端之后，服务端就会开始计算，而在运算结果出来之前，TCP 连接中并没有任何数据返回，此时后面的 9 个资源都必须阻塞等待。</p>
+<p>虽然说服务端可以并行处理另外 9 个请求，比如第 1 个是复杂运算请求，消耗 CPU 资源；第 2 个是数据库访问，消耗数据库资源；第 3 个是访问某张图片，消耗磁盘 I/O 资源，等等，这就很适合并行。</p>
+<p>但问题是，这些请求的处理结果无法及时发回给客户端，服务端也不能哪个请求先完成就返回哪个，更不可能把所有要返回的资源混杂到一起交叉传输。这是因为，只使用一个 TCP 连接来传输多个资源的话，一旦顺序乱了，客户端就很难区分清楚哪个数据包归属哪个资源了。</p>
+<p>因此，在 2014 年 IETF 发布的 <a target="_blank" rel="noopener" href="https://tools.ietf.org/html/rfc7230#section-6.3.2">RFC 7230</a> 中，提出了名为”HTTP 管道”（HTTP Pipelining）复用技术，试图在 HTTP 服务器中也建立类似客户端的 FIFO 队列，让客户端一次性将所有要请求的资源名单全部发给服务端，由服务端来安排返回顺序，管理传输队列。</p>
+<p>不过，无论队列维护是在服务端还是在客户端，其实都无法完全避免队首阻塞的问题。这是因为很难在真正传输之前，完全精确地评估出传输队列中每一项的时间成本，但由于服务端能够较为准确地评估资源消耗情况，这样确实能更紧凑地安排资源传输，保证队列中两项工作之间尽量减少空隙，甚至可能做到并行化传输，从而提升链路传输的效率。</p>
+<p>可是，因为 HTTP 管道需要多方共同支持，协调起来相当复杂，因此推广得并不算成功。</p>
+<p>后来，队首阻塞问题一直持续到 HTTP/2 发布后，才算是被比较完美地解决了。</p>
+<h4 id="解决方案：HTTP-2-的多路复用技术"><a href="#解决方案：HTTP-2-的多路复用技术" class="headerlink" title="解决方案：HTTP/2 的多路复用技术"></a>解决方案：HTTP/2 的多路复用技术</h4><p>在 HTTP/1.x 中，HTTP 请求就是传输过程中最小粒度的信息单位了，所以如果将多个请求切碎，再混杂在一块传输，客户端势必难以分辨重组出有效信息。</p>
+<p><strong>而在 HTTP/2 中，帧（Frame）才是最小粒度的信息单位</strong> ，它可以用来描述各种数据，比如请求的 Headers、Body，或者是用来做控制标识，如打开流、关闭流。</p>
+<p>这里我说的 <strong>流（Stream）</strong> ，是一个逻辑上的数据通道概念，每个帧都附带有一个流 ID，以标识这个帧属于哪个流。这样，在同一个 TCP 连接中，传输的多个数据帧就可以根据流 ID 轻易区分出来，在客户端就能毫不费力地将不同流中的数据，重组出不同 HTTP 请求和响应报文来。</p>
+<p>这项设计是 HTTP/2 的最重要的技术特征之一，被称为 <strong>HTTP/2 <a target="_blank" rel="noopener" href="https://tools.ietf.org/html/rfc7540#page-15">多路复用</a> （HTTP/2 Multiplexing）技术。</strong></p>
+<p><img src="https://fastly.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《周志明的软件架构课》学习笔记/HTTP2的多路复用.webp" alt="HTTP2的多路复用"></p>
+<p><a target="_blank" rel="noopener" href="https://hpbn.co/http2">HTTP/2 的多路复用</a></p>
+<p>这样，有了多路复用的支持，HTTP/2 就可以对每个域名只维持一个 TCP 连接（One Connection Per Origin），来以任意顺序传输任意数量的资源。这样就既减轻了服务器的连接压力，开发者也不用去考虑域名分片这种事情，来突破浏览器对每个域名最多 6 个连接数的限制了。</p>
+<p>而更重要的是，没有了 TCP 连接数的压力，客户端就不需要再刻意压缩 HTTP 请求了，所有通过合并、内联文件（无论是图片、样式、脚本）以减少请求数的需求都不再成立，甚至反而是徒增副作用的反模式。</p>
+<p>当然，我说这是反模式，可能还会有一些前端开发者不同意，觉得 HTTP 请求少一些总是好的。减少请求数量，最起码还减少了传输中耗费的 Headers。</p>
+<p>这里我们必须要先承认一个事实，在 HTTP 传输中，Headers 占传输成本的比重是相当地大，对于许多小资源，甚至可能出现 Headers 的容量比 Body 的还要大，以至于在 HTTP/2 中必须专门考虑如何进行 Header 压缩的问题。</p>
+<p>但实际上，有这样几个因素，就决定了即使是通过合并资源文件来减少请求数，对节省 Headers 成本来说，也并没有太大的帮助：</p>
+<ul>
+<li>Header 的传输成本在 Ajax（尤其是只返回少量数据的请求）请求中可能是比重很大的开销，但在图片、样式、脚本这些 <strong>静态资源的请求中，一般并不占主要比重。</strong></li>
+<li>在 HTTP/2 中，Header 压缩的原理是基于字典编码的信息复用，简而言之是同一个连接上产生的请求和响应越多，动态字典积累得越全，头部压缩效果也就越好。所以， <strong>HTTP/2 是单域名单连接的机制</strong> ，合并资源和域名分片反而对性能提升不利。</li>
+<li>与 HTTP/1.x 相反，HTTP/2 本身反而变得 <strong>更适合传输小资源</strong> 了，比如传输 1000 张 10K 的小图，HTTP/2 要比 HTTP/1.x 快，但传输 10 张 1000K 的大图，则应该 HTTP/1.x 会更快。这其中有 TCP 连接数量（相当于多点下载）的影响，更多的是由于 TCP 协议 <a target="_blank" rel="noopener" href="https://en.wikipedia.org/wiki/Transmission_Control_Protocol#Reliable_transmission">可靠传输机制</a> 导致的，一个错误的 TCP 包会导致所有的流都必须等待这个包重传成功，而这个问题就是 HTTP/3.0 要解决的目标了。因此，把小文件合并成大文件，在 HTTP/2 下是毫无好处的。</li>
+</ul>
+<h4 id="传输压缩"><a href="#传输压缩" class="headerlink" title="传输压缩"></a>传输压缩</h4><p>好，了解了 TCP 连接数的各种优化机制之后，我们再来讨论下，在链路优化中除缓存、连接之外的另一个重要话题： <strong>压缩</strong> 。同时，这也可以解决我们之前遗留的一个问题： <strong>如何不以断开 TCP 连接为标志，来判断资源已传输完毕？</strong></p>
+<p>HTTP 很早就支持了 <a target="_blank" rel="noopener" href="https://en.wikipedia.org/wiki/Gzip">GZip</a> 压缩，因为 HTTP 传输的主要内容，比如 HTML、CSS、Script 等，主要是文本数据，因此对于文本数据启用压缩的收益是非常高的，传输数据量一般会降至原有的 20% 左右。而对于那些不适合压缩的资源，Web 服务器则能根据 MIME 类型，来自动判断是否对响应进行压缩。这样，对于已经采用过压缩算法存储的资源，比如 JPEG、PNG 图片，就不会被二次压缩，空耗性能了。</p>
+<p>不过，大概没有多少人想过， <strong>压缩其实跟我们前面提到的，用于节约 TCP 的持久连接机制是存在冲突的。</strong></p>
+<p>在网络时代的早期，服务器的处理能力还很薄弱，为了启用压缩，会把静态资源预先压缩为.gz 文件的形式给存放起来。当客户端可以接受压缩版本的资源时（请求的 Header 中包含 Accept-Encoding: gzip），就返回压缩后的版本（响应的 Header 中包含 Content-Encoding: gzip），否则就返回未压缩的原版。这种方式被称为” <a target="_blank" rel="noopener" href="http://nginx.org/en/docs/http/ngx_http_gzip_static_module.html">静态预压缩</a> “（Static Precompression）。</p>
+<p>而现代的 Web 服务器处理能力有了大幅提升，已经没有人再采用这种麻烦的预压缩方式了，都是由服务器对符合条件的请求，在即将输出时进行” <a target="_blank" rel="noopener" href="https://www.usenix.org/legacy/publications/library/proceedings/jvm01/full_papers/hovemeyer/hovemeyer_html/node7.html">即时压缩</a> “（On-The-Fly Compression），整个压缩过程全部在内存的数据流中完成，不必等资源压缩完成再返回响应，这样可以显著提高” <a target="_blank" rel="noopener" href="https://en.wikipedia.org/wiki/Time_to_first_byte">首字节时间</a> “（Time To First Byte，TTFB），改善 Web 性能体验。</p>
+<p>而这个过程中唯一不好的地方，就是 <strong>服务器再也没有办法给出 Content-Length 这个响应 Header</strong> 了。因为输出 Header 时，服务器还不知道压缩后资源的确切大小。</p>
+<p>那看到这里，你想明白即时压缩与持久连接的冲突在哪了吗？</p>
+<p>实际上，持久连接机制不再依靠 TCP 连接是否关闭，来判断资源请求是否结束了。它会重用同一个连接，以便向同一个域名请求多个资源。这样，客户端就必须要有除了关闭连接之外的其他机制，来判断一个资源什么时候才算是传递完毕。</p>
+<p>这个机制最初（在 HTTP/1.0 时）就只有 Content-Length，即靠着请求 Header 中明确给出资源的长度，传输到达该长度即宣告一个资源的传输已经结束。不过，由于启用即时压缩后就无法给出 Content-Length 了，如果是 HTTP/1.0 的话，持久连接和即时压缩只能二选其一。事实上，在 HTTP/1.0 中这两者都支持，却默认都是不启用的。</p>
+<p>另外，依靠 Content-Length 来判断传输结束的缺陷，不仅只有即时压缩这一种场景，对于动态内容（Ajax、PHP、JSP 等输出）等应用场景，服务器也同样无法事先得知 Content-Length。</p>
+<p>不过，HTTP/1.1 版本中已经修复了这个缺陷，并 <strong>增加了另一种” <a target="_blank" rel="noopener" href="https://en.wikipedia.org/wiki/Chunked_transfer_encoding">分块传输编码</a> “（Chunked Transfer Encoding）的资源结束判断机制</strong> ，彻底解决了 Content-Length 与持久连接的冲突问题。</p>
+<p>分块编码的工作原理相当简单：在响应 Header 中加入”Transfer-Encoding: chunked”之后，就代表这个响应报文将采用分块编码。此时，报文中的 Body 需要改为用一系列”分块”来传输。每个分块包含十六进制的长度值和对应长度的数据内容，长度值独占一行，数据从下一行开始。最后以一个长度值为 0 的分块，来表示资源结束。</p>
+<p>给你举个具体的例子（例子来自于 <a target="_blank" rel="noopener" href="https://en.wikipedia.org/wiki/Chunked_transfer_encoding">维基百科</a> ，为便于观察，只分块，未压缩）：</p>
+<pre class="line-numbers language-http" data-language="http"><code class="language-http"><span class="token response-status">HTTP/1.1 <span class="token property">200 OK</span></span>
+<span class="token header-name keyword">Date:</span> Sat, 11 Apr 2020 04:44:00 GMT
+<span class="token header-name keyword">Transfer-Encoding:</span> chunked
+<span class="token header-name keyword">Connection:</span> keep-alive
+
+25
+This is the data in the first chunk
+
+1C
+and this is the second one
+
+3
+con
+
+8
+sequence
+
+0<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>根据分块长度就可以知道，前两个分块包含显式的回车换行符（CRLF，即\r\n 字符）</p>
+<pre class="line-numbers language-txt" data-language="txt"><code class="language-txt">"This is the data in the first chunk\r\n"      (37 字符 =&gt; 十六进制: 0x25)
+"and this is the second one\r\n"               (28 字符 =&gt; 十六进制: 0x1C)
+"con"                                          (3  字符 =&gt; 十六进制: 0x03)
+"sequence"                                     (8  字符 =&gt; 十六进制: 0x08)<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span></span></code></pre>
+<p>所以解码后的内容为：</p>
+<pre class="line-numbers language-txt" data-language="txt"><code class="language-txt">This is the data in the first chunk
+and this is the second one
+consequence<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span></span></code></pre>
+<p>另外，这里你要知道的是，一般来说，Web 服务器给出的数据分块大小应该（但并不强制）是一致的，而不是像这个例子一样随意。</p>
+<p>HTTP/1.1 通过分块传输解决了即时压缩与持久连接并存的问题，到了 HTTP/2，由于多路复用和单域名单连接的设计，已经不需要再刻意去强调持久连接机制了，但数据压缩仍然有节约传输带宽的重要价值。</p>
+<h4 id="快速-UDP-网络连接"><a href="#快速-UDP-网络连接" class="headerlink" title="快速 UDP 网络连接"></a>快速 UDP 网络连接</h4><p>OK，那么到这里，我们还需要明确一件事情，就是 HTTP 是应用层协议，而不是传输层协议，它的设计原本并不应该过多地考虑底层的传输细节。从职责上来讲，持久连接、多路复用、分块编码这些能力，已经或多或少超过了应用层的范畴。</p>
+<p>所以说，要想从根本上改进 HTTP，就必须直接替换掉 HTTP over TCP 的根基，即 TCP 传输协议，这便是最新一代 HTTP/3 协议的设计重点。</p>
+<p>推动替换 TCP 协议的先驱者并不是 IETF，而是 Google 公司。目前，世界上只有 Google 公司具有这样的能力，这并不是因为 Google 的技术实力雄厚，而是由于它同时持有着占浏览器市场 70% 份额的 Chrome 浏览器，与占移动领域半壁江山的 Android 操作系统。</p>
+<p>2013 年，Google 在它的服务器（如 Google.com、YouTube.com 等）及 Chrome 浏览器上，同时启用了名为” <a target="_blank" rel="noopener" href="https://en.wikipedia.org/wiki/QUIC">快速 UDP 网络连接</a> “（Quick UDP Internet Connections，QUIC）的全新传输协议。</p>
+<p>在 2015 年，Google 将 QUIC 提交给了 IETF，并在 IETF 的推动下，对 QUIC 进行重新规范化（为以示区别，业界习惯将此前的版本称为 gQUIC，规范化后的版本称为 iQUIC），使其不仅能满足 HTTP 传输协议，日后还能支持 SMTP、DNS、SSH、Telnet、NTP 等多种其他上层协议。</p>
+<p>2018 年末，IETF 正式批准了 HTTP over QUIC 使用 HTTP/3 的版本号，将其确立为最新一代的互联网标准。</p>
+<p>那么，你从 QUIC 的名字上就能看出，它会以 UDP 协议作为基础。UDP 协议没有丢包自动重传的特性，因此 QUIC 的可靠传输能力并不是由底层协议提供的，而是完全由自己来实现。 <strong>由 QUIC 自己实现的好处是能对每个流能做单独的控制</strong> ，如果在一个流中发生错误，协议栈仍然可以独立地继续为其他流提供服务。</p>
+<p>这个特性对提高易出错链路的性能方面非常有用。因为在大多数情况下，TCP 协议接到数据包丢失或损坏通知之前，可能已经收到了大量的正确数据，但是在纠正错误之前，其他的正常请求都会等待甚至被重发。这也是前面我在讲连接数优化的时候，提到 HTTP/2 没能解决传输大文件慢的根本原因。</p>
+<p>此外，QUIC 的另一个设计目标是 <strong>面向移动设备的专门支持。</strong></p>
+<p>以前 TCP、UDP 传输协议在设计的时候，根本不可能设想到今天移动设备盛行的场景，因此肯定不会有任何专门的支持。 <strong>而 QUIC 在移动设备上的优势就体现在网络切换时的响应速度上</strong> ，比如当移动设备在不同 WiFi 热点之间切换，或者从 WiFi 切换到移动网络时，如果使用 TCP 协议，现存的所有连接都必定会超时、中断，然后根据需要重新创建。这个过程会带来很高的延迟，因为超时和重新握手都需要大量的时间。</p>
+<p>为此，QUIC 提出了 <strong>连接标识符</strong> 的概念，该标识符可以唯一地标识客户端与服务器之间的连接，而无需依靠 IP 地址。这样，在切换网络后，只需向服务端发送一个包含此标识符的数据包，就可以重用既有的连接。因为即使用户的 IP 地址发生了变化，原始连接标识符依然是有效的。</p>
+<p>到现在，无论是 TCP 协议还是 HTTP 协议，都已经存在了数十年的时间。它们积累了大量用户的同时，也承载了很重的技术惯性。就算是 Google 和 IETF，要是想把 HTTP 从 TCP 迁移出去，也不是件容易的事儿。最主要的一个问题就是，互联网基础设施中的许多中间设备，都只面向 TCP 协议去建造，也只对 UDP 做很基础的支持，有的甚至会完全阻止 UDP 的流量。</p>
+<p>所以，Google 在 Chromium 的网络协议栈中，同时启用了 QUIC 和传统 TCP 连接，并在 QUIC 连接失败时，能以零延迟回退到 TCP 连接，尽可能让用户无感知地、逐步地扩大 QUIC 的使用面。</p>
+<p>根据 <a target="_blank" rel="noopener" href="https://w3techs.com/technologies/overview/site_element">W3Techs</a> 的数据，截至 2020 年 10 月，全球已经有 48.9% 的网站支持了 HTTP/2 协议，按照维基百科中的记录，这个数字在 2019 年 6 月份的时候，还只是 36.5%。另外在 HTTP/3 方面，今天也已经有了 7.2% 的使用比例。</p>
+<p>由此我们可以肯定地说，目前网络链路传输这个领域正处于新旧交替的时代，许多既有的设备、程序、知识，都会在未来几年的时间里出现重大更新。</p>
+<h4 id="小结-14"><a href="#小结-14" class="headerlink" title="小结"></a>小结</h4><p>这节课，我们一起了解了 HTTP 传输的优化技巧。HTTP 的意思就是超文本传输协议，但它并不是只将内容顺利传输到客户端就算完成任务了，其中，如何做到高效、无状态也是很重要的目标。</p>
+<p>另外你还要记住的是，在 HTTP/2 之前，要想在应用一侧优化传输，就必须要同时在其他方面付出相应的成本，而 HTTP/2 中的多路复用、头压缩等改进项，就从根本上给出了传输优化的解决方案。</p>
+<h4 id="留言"><a href="#留言" class="headerlink" title="留言"></a>留言</h4><p>QUIC相对于TCP补充:</p>
+<p>1.自定义重传机制:TCP是通过采样往返时间 RTT 不断调整的，但这个采样存在不准的问题。第一次发送包A超时未返回，第二次重发包A，这时收到了包A的响应，但TCP并不能识别当前包A的响应是第一次发送还是第二次重发返回的，这时不管怎么减都可能出现计时偏长或过偏短的问题。而QUIC为每次发送包都打了版本号（包括重发），所以可以很好的识别返回的包是那次发送包的。进而计算就相对准确。<br>2.自定义流量控制：TCP 的流量控制是通过滑动窗口协议，是在连接上控制的窗口。QUIC也玩滑动窗口，但是力度是可以细分到具体的stream的。</p>
+<p>其实应用层的协议多种多样，直播的RTMP，物联网终端的MQTT等等，但感觉都是两害取其轻的专项优化对症下药。只有QUIC，直面TCP的问题，通过应用层的编码实现，系统的提供更好的”TCP连接”。</p>
 
                 
             </div>
@@ -2203,7 +2513,7 @@ doctor not available<span aria-hidden="true" class="line-numbers-rows"><span></s
             <br>
             
             &nbsp;<i class="fas fa-chart-area"></i>&nbsp;站点总字数:&nbsp;<span
-                class="white-color">1405.3k</span>&nbsp;字
+                class="white-color">1420.2k</span>&nbsp;字
             
             
             
