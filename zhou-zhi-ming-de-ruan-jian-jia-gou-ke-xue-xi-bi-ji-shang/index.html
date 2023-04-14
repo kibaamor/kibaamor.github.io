@@ -416,14 +416,14 @@
                 
                 <div class="info-break-policy">
                     <i class="far fa-file-word fa-fw"></i>文章字数:&nbsp;&nbsp;
-                    132.2k
+                    145.6k
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-clock fa-fw"></i>阅读时长:&nbsp;&nbsp;
-                    461 分
+                    508 分
                 </div>
                 
 
@@ -3061,6 +3061,269 @@ icyfenix.cn.cdn.dnsv1.com. <span class="token number">599</span>   IN     CNAME 
 <h4 id="小结-20"><a href="#小结-20" class="headerlink" title="小结"></a>小结</h4><p>Cookie-Session 机制是为 HTTP 量身定做的经典凭证实现方案，它曾经为信息系统解决过无数问题。不过，随着微服务的流行，分布式系统变得越来越主流，因此由于分布式下共享数据的 CAP 矛盾，就导致了 Cookie-Session 在一些场景中遇到了 C 与 A 难以取舍的情况。</p>
 <p>而无状态的 JWT 方案在合适的场景下，确实可以带来实实在在的好处，它可以让服务端水平扩容变得异常容易，不用担心 Session 复制的效率问题，也不用担心 Session 挂掉后，整个集群全部无法正常工作的问题。</p>
 <p>然而，场景二字仍然是关键词，脱离了具体场景，我们就很难说哪种凭证方案更好或者更坏，在这节课中，我也特别强调了 JWT 的几个缺点。你要记住，权衡才是架构设计中最关键的地方。</p>
+<h3 id="27-保密：系统如何保证敏感数据无法被内外部人员窃取滥用？"><a href="#27-保密：系统如何保证敏感数据无法被内外部人员窃取滥用？" class="headerlink" title="27 | 保密：系统如何保证敏感数据无法被内外部人员窃取滥用？"></a>27 | 保密：系统如何保证敏感数据无法被内外部人员窃取滥用？</h3><p>你好，我是周志明。这节课，我们来讨论在信息系统中，一个一直非常受人关注的安全性议题：保密。</p>
+<p>保密是加密和解密的统称，意思就是以某种特殊的算法改变原有的信息数据，使得未授权的用户即使获得了已加密的信息，但因为不知道解密的方法，或者就算知晓解密的算法、但缺少解密所需的必要信息，所以仍然无法了解数据的真实内容。</p>
+<p>那么，根据需要保密信息所处的不同环节，我们可以将其划分为”信息在客户端时的保密””信息在传输时的保密”和”信息在服务端时的保密”三类，或者也可以进一步概括为”端的保密”和”链路的保密”两类。</p>
+<p>这里，我们先把最复杂、最有效，但是又最早就有了标准解决方案的”传输”环节单独拿出来，放到后面两讲中展开探讨。在今天的这节课当中，我们只讨论两个端的环节，即在客户端和服务端中的信息保密问题。</p>
+<h4 id="保密的强度"><a href="#保密的强度" class="headerlink" title="保密的强度"></a>保密的强度</h4><p>好，首先我们要知道，保密是有成本的，追求越高的安全等级，我们就要付出越多的工作量与算力消耗。就连国家保密法都会把秘密信息划分为秘密、机密、绝密三级来区别对待，可见即使是信息安全，也应该有所取舍。</p>
+<p>那么接下来，我就以用户登录为例，给你列举几种不同强度的保密手段，看看它们的防御关注点与弱点分别都是什么。这里你需要注意的是，以下提及到的不同保密手段，并不一定就是正确的做法，只是为了强调保密手段是有成本、有不同的强度的。</p>
+<ol>
+<li><p>以摘要代替明文</p>
+<p> 如果密码本身比较复杂，那么一次简单的哈希摘要就至少可以保证，即使在传输过程中有信息泄露，也不会被逆推出原信息；即使密码在一个系统中泄露了，也不至于威胁到其他系统的使用。但这种处理不能防止弱密码被 <a target="_blank" rel="noopener" href="https://en.wikipedia.org/wiki/Rainbow_table">彩虹表攻击</a> 所破解。</p>
+</li>
+<li><p>先加 <a target="_blank" rel="noopener" href="https://en.wikipedia.org/wiki/Salt_(cryptography">盐值</a>) 再做哈希是应对弱密码的常用方法</p>
+<p> 盐值可以替弱密码建立一道防御屏障，在一定程度上可以防御已有的彩虹表攻击。但它并不能阻止加密结果被监听、窃取后，攻击者直接发送加密结果给服务端进行冒认。</p>
+</li>
+<li><p>将盐值变为动态值能有效防止冒认</p>
+<p> 如果每次向服务端传输时，密码都掺入了动态的盐值，让每次加密的结果都不一样，那么即使传输给服务端的加密结果被窃取了，攻击者也不能冒用来进行另一次调用。不过，尽管在双方通讯均可能泄露的前提下，协商出只有通讯双方才知道的保密信息是完全可行的（后面两讲介绍”传输安全层”时会提到），但这样协商出盐值的过程将变得极为复杂，而且每次协商只能保护一次操作，因而也很难阻止攻击者对其他服务的 <a target="_blank" rel="noopener" href="https://en.wikipedia.org/wiki/Replay_attack">重放攻击</a> 。</p>
+</li>
+<li><p>加入动态令牌防止重放攻击</p>
+<p> 我们可以给服务加入动态令牌，这样在网关或其他流量公共位置建立校验逻辑，服务端愿意付出在集群中分发令牌信息等代价的前提下，就可以做到防止重放攻击。但这种手段的弱点是，依然不能抵御传输过程中被嗅探而泄露信息的问题。</p>
+</li>
+<li><p>启用 HTTPS 来应对因嗅探而导致的信息泄露问题</p>
+<p> 启用 HTTPS 可以防御链路上的恶意嗅探，也能在通讯层面解决重放攻击的问题。但是它依然有因客户端被攻破而产生伪造根证书的风险、因服务端被攻破产生证书泄露被中间人冒认的风险、因 <a target="_blank" rel="noopener" href="https://en.wikipedia.org/wiki/Certificate_revocation_list">CRL</a> 更新不及时或者 <a target="_blank" rel="noopener" href="https://en.wikipedia.org/wiki/Online_Certificate_Status_Protocol">OCSP</a> Soft-fail 产生吊销证书被冒用的风险，以及因 TLS 的版本过低或密码学套件选用不当产生加密强度不足的风险。</p>
+</li>
+<li><p>进一步提升保密强度的不同手段</p>
+<p> 为了抵御前面提到的这种种风险，我们还要进一步提升保密强度。比如说，银行会使用独立于客户端的存储证书的物理设备（俗称的 U 盾），来避免根证书被客户端中的恶意程序窃取伪造；当大型网站涉及到账号、金钱等操作时，会使用双重验证开辟出一条独立于网络的信息通道（如手机验证码、电子邮件），来显著提高冒认的难度；甚至一些关键企业（如国家电网）或机构（如军事机构），会专门建设遍布全国各地的、与公网物理隔离的专用内部网络，来保障通讯安全。</p>
+</li>
+</ol>
+<p>现在，通过了解以上这些逐步升级的保密措施，你应该能对”更高的安全强度同时也意味着要付出更多的代价”，有更加具体的理解了，并不是任何一个网站、系统、服务都需要无限拔高的安全性。</p>
+<p>也许这个时候，你还会好奇另一个问题： <strong>安全的强度有尽头吗？存不存在某种绝对安全的保密方式？</strong></p>
+<p>答案可能会出乎你的意料，确实是有的。信息论之父香农就严格证明了 <a target="_blank" rel="noopener" href="https://en.wikipedia.org/wiki/One-time_password">一次性密码</a>（One Time Password）的绝对安全性。</p>
+<p>但是使用一次性密码必须有个前提，就是我们已经提前安全地把密码或密码列表传达给了对方。比如说，你给朋友人肉送去一本存储了完全随机密码的密码本，然后每次使用其中一条密码来进行加密通讯，用完一条丢弃一条。这样理论上可以做到绝对的安全，但显然这种绝对安全对于互联网来说没有任何的可行性。</p>
+<p>所以下面，我们就来看一下在互联网中，信息在客户端的加密是否有必要和有价值。</p>
+<h4 id="客户端加密的意义"><a href="#客户端加密的意义" class="headerlink" title="客户端加密的意义"></a>客户端加密的意义</h4><p>其实，客户端在用户登录、注册一类场景里是否需要对密码进行加密，这个问题一直存有争议。而 <strong>我的观点很明确：为了保证信息不被黑客窃取而去做客户端加密，其实没有太大意义，对绝大多数的信息系统来说，启用 HTTPS 可以说是唯一的实际可行的方案。但是！为了保证密码不在服务端被滥用，而在客户端就开始加密的做法，还是很有意义的。</strong></p>
+<p>现在，大网站被拖库的事情层出不穷，密码明文被写入数据库、被输出到日志中之类的事情也屡见不鲜。所以在做系统设计的时候，我们就应该把明文密码这种东西当成是最烫手的山芋来看待，越早消灭掉越好。毕竟把一个潜在的炸弹从客户端运到服务端，对绝大多数系统来说都没有必要。</p>
+<p><strong>那我为什么会说，客户端加密对防御泄密没有意义呢？</strong> 原因是网络通讯并不是由发送方和接收方点对点进行的，客户端无法决定用户送出的信息能不能到达服务端，或者会经过怎样的路径到达服务端，所以在传输链路必定是不安全的前提下，无论客户端做什么防御措施，最终都会沦为”马其诺防线”。</p>
+<p>此外，前面我还多次提到过中间人攻击（即攻击者），它是指通过劫持掉客户端到服务端之间的某个节点，包括但不限于代理（通过 HTTP 代理返回赝品）、路由器（通过路由导向赝品）、DNS 服务（直接将机器的 DNS 查询结果替换为赝品地址）等，来给你访问的页面或服务注入恶意的代码。极端情况下，甚至可能把你要访问的服务或页面整个给取代掉，此时不管你在页面上设计了多么精巧严密的加密措施，也都不会有保护作用。而攻击者只需劫持路由器，或者是在局域网内的其他机器上释放 <a target="_blank" rel="noopener" href="https://en.wikipedia.org/wiki/ARP_spoofing">ARP 病毒</a> ，便有可能做到这一点。</p>
+<blockquote>
+<p><strong>额外知识：中间人攻击（Man-in-the-Middle Attack，MitM）</strong></p>
+<p>在消息发出方和接收方之间拦截双方通讯。我们用写信来做个类比：你给朋友写了一封信，而邮递员可以拆开看你寄出去的信，甚至把信的内容改掉，然后重新封起来，再寄出去给你的朋友。朋友收到信之后给你回信，邮递员又可以拆开看，看完随便改，改完封好再送到你手上。你全程都不知道自己寄出去的信和收到的信都经过邮递员这个”中间人”转手和处理。换句话说，对于你和你朋友来讲，邮递员这个”中间人”角色是不可见的。</p>
+</blockquote>
+<p>当然了， <strong>对于”不应把明文传递到服务端”的这个观点</strong> ，很多人也会有一些不同的意见。比如其中一种保存明文密码的理由是为了便于客户端做动态加盐，因为这样需要服务端先存储明文，或者是存储某种盐值 / 密钥固定的加密结果，才能每次用新的盐值重新加密，然后与客户端传上来的加密结果进行比对。</p>
+<p>而对此 <strong>我的看法</strong> 是，这种每次从服务端请求动态盐值，在客户端加盐传输的做法通常都得不偿失，因为客户端无论是否动态加盐，都不可能代替 HTTPS。真正防御性的密码加密存储确实应该在服务端中进行，但这是为了防御服务端被攻破而批量泄露密码的风险，并不是为了增强传输过程的安全性。</p>
+<p>那么，在服务端是如何处理信息的保密问题的呢？</p>
+<h4 id="密码的存储和验证"><a href="#密码的存储和验证" class="headerlink" title="密码的存储和验证"></a>密码的存储和验证</h4><p>接下来，我就以 Fenix’s Bookstore 中的真实代码为例，给你介绍一下针对一个普通安全强度的信息系统，密码要如何从客户端传输到服务端，然后存储进数据库。</p>
+<p>这里的”普通安全强度”的意思是，在具有一定保密安全性的同时，避免消耗过多的运算资源，这样验证起来也相对便捷。毕竟对多数信息系统来说，只要配合一定的密码规则约束，比如密码要求长度、特殊字符等等，再配合 HTTPS 传输，就已经足够防御大多数风险了。即使是用户采用了弱密码、客户端通讯被监听、服务端被拖库、泄露了存储的密文和盐值等问题同时发生，也能够最大限度地避免用户明文密码被逆推出来。</p>
+<p>好，下面我们就先来看看，在 Fenix’s Bookstore 中密码是如何创建出来的。</p>
+<p>首先，用户在客户端注册，输入明文密码：123456。</p>
+<pre class="line-numbers language-javascript" data-language="javascript"><code class="language-javascript">password <span class="token operator">=</span> <span class="token number">123456</span><span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>然后，客户端对用户密码进行简单哈希摘要，我们可选的算法有 MD2/4/5、SHA1/256/512、BCrypt、PBKDF1/2，等等。这里为了突出”简单”的哈希摘要，我故意没有排除掉 MD 系这些已经有了高效碰撞手段的算法。</p>
+<pre class="line-numbers language-javascript" data-language="javascript"><code class="language-javascript">client_hash <span class="token operator">=</span> <span class="token constant">MD5</span><span class="token punctuation">(</span>password<span class="token punctuation">)</span> <span class="token comment">// e10adc3949ba59abbe56e057f20f883e</span><span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>接着，为了防御彩虹表攻击，我们应进行加盐处理，客户端加盐只需要取固定的字符串即可，如果实在不安心，可以使用伪动态的盐值（”伪动态”是指服务端不需要额外通讯就可以得到的信息，比如由日期或用户名等自然变化的内容，加上固定字符串构成）。</p>
+<pre class="line-numbers language-javascript" data-language="javascript"><code class="language-javascript">client_hash <span class="token operator">=</span> <span class="token constant">MD5</span><span class="token punctuation">(</span><span class="token constant">MD5</span><span class="token punctuation">(</span>password<span class="token punctuation">)</span> <span class="token operator">+</span> salt<span class="token punctuation">)</span>  <span class="token comment">// SALT = $2a$10$o5L.dWYEjZjaejOmN3x4Qu</span><span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>现在，我们假设攻击者截获了客户端发出的信息，得到了摘要结果和采用的盐值，那攻击者就可以枚举遍历所有 8 位字符以内（”8 位”只是举个例子，反正就是指弱密码，你如果拿 1024 位随机字符当密码用，加不加盐，彩虹表都跟你没什么关系）的弱密码，然后对每个密码再加盐计算，就得到了一个针对固定盐值的对照彩虹表。</p>
+<p>所以为了应对这种暴力破解，我并不提倡在盐值上做动态化，更理想的方式是引入 <strong>慢哈希函数</strong> 来解决。</p>
+<p>慢哈希函数是指这个函数的执行时间是可以调节的哈希函数，它通常是以控制调用次数来实现的。BCrypt 算法就是一种典型的慢哈希函数，它在做哈希计算时，接受盐值 Salt 和执行成本 Cost 两个参数（代码层面 Cost 一般是混入在 Salt 中，比如上面例子中的 Salt 就是混入了 10 轮运算的盐值，10 轮的意思是 2 的 10 次方哈希，Cost 参数是放在指数上的，最大取值就 31）。</p>
+<p>那么，如果我们控制 BCrypt 的执行时间，大概是 0.1 秒完成一次哈希计算的话，按照 1 秒生成 10 个哈希值的速度，要算完所有的 10 位大小写字母和数字组成的弱密码，就大概需要 P(62,10)/(360024365)/0.1=1,237,204,169 年的时间。</p>
+<pre class="line-numbers language-javascript" data-language="javascript"><code class="language-javascript">client_hash <span class="token operator">=</span> <span class="token function">BCrypt</span><span class="token punctuation">(</span><span class="token constant">MD5</span><span class="token punctuation">(</span>password<span class="token punctuation">)</span> <span class="token operator">+</span> salt<span class="token punctuation">)</span>  <span class="token comment">// MFfTW3uNI4eqhwDkG7HP9p2mzEUu/r2</span><span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>好，接下来，我们要做的就只是防御服务端被拖库后，针对固定盐值的批量彩虹表攻击。具体做法是为每一个密码（指客户端传来的哈希值）产生一个随机的盐值。我建议采用” <a target="_blank" rel="noopener" href="https://en.wikipedia.org/wiki/Cryptographically_secure_pseudorandom_number_generator">密码学安全伪随机数生成器</a> “（Cryptographically Secure Pseudo-Random Number Generator，CSPRNG），来生成一个长度与哈希值相等的随机字符串。</p>
+<p>对于 Java 语言来说，从 Java SE 7 开始，就提供了 java.security.SecureRandom 类，用于支持 CSPRNG 字符串生成。</p>
+<pre class="line-numbers language-java" data-language="java"><code class="language-java"><span class="token class-name">SecureRandom</span> random <span class="token operator">=</span> <span class="token keyword">new</span> <span class="token class-name">SecureRandom</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token keyword">byte</span> server_salt<span class="token punctuation">[</span><span class="token punctuation">]</span> <span class="token operator">=</span> <span class="token keyword">new</span> <span class="token keyword">byte</span><span class="token punctuation">[</span><span class="token number">36</span><span class="token punctuation">]</span><span class="token punctuation">;</span>
+random<span class="token punctuation">.</span><span class="token function">nextBytes</span><span class="token punctuation">(</span>server_salt<span class="token punctuation">)</span><span class="token punctuation">;</span>   <span class="token comment">// tq2pdxrblkbgp8vt8kbdpmzdh1w8bex</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span></span></code></pre>
+<p>好，我们继续进行这个密码的创建过程。我们把动态盐值混入客户端传来的哈希值，再做一次哈希，产生出最终的密文，并和上一步随机生成的盐值一起写入到同一条数据库记录中（由于慢哈希算法会占用大量的处理器资源，所以我并不推荐在服务端中采用）。</p>
+<p>不过，如果你在学习课程后面的实战模块时，阅读了 <a target="_blank" rel="noopener" href="https://icyfenix.cn/exploration/projects/">Fenix’s Bookstore 的源码</a> ，就会发现这步依然采用了 Spring Security 5 中的 BcryptPasswordEncoder。但是请注意，它默认构造函数中的 Cost 参数值为 -1，经转换后实际只进行了 2 的 10 次方 =1024 次计算，所以不会对服务端造成额外的压力。</p>
+<p>另外你还可以看到，代码中并没有显式地传入 CSPRNG 生成的盐值，这是因为 BCryptPasswordEncoder 本身就会自动调用 CSPRNG 产生盐值，并将该盐值输出在结果的前 32 位之中，所以也不需要专门在数据库中设计存储盐值字段。</p>
+<p>这个过程我们用伪代码来表示一下：</p>
+<pre class="line-numbers language-javascript" data-language="javascript"><code class="language-javascript">server_hash <span class="token operator">=</span> <span class="token constant">SHA256</span><span class="token punctuation">(</span>client_hash <span class="token operator">+</span> server_salt<span class="token punctuation">)</span><span class="token punctuation">;</span>  <span class="token comment">// 55b4b5815c216cf80599990e781cd8974a1e384d49fbde7776d096e1dd436f67</span>
+<span class="token constant">DB</span><span class="token punctuation">.</span><span class="token function">save</span><span class="token punctuation">(</span>server_hash<span class="token punctuation">,</span> server_salt<span class="token punctuation">)</span><span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre>
+<p>到这里，你会发现这个加密存储的过程其实相对比较复杂，但是运算压力最大的过程（慢哈希）是在客户端完成的，对服务端的压力很小，也不用怕因网络通讯被截获而导致明文密码泄露的问题。</p>
+<p>OK，等密码存储完之后，后面验证的过程就跟加密的操作是类似的，我们简单了解下这个步骤就可以了：</p>
+<p>首先，在客户端，用户在登录页面中输入密码明文：123456，经过与注册相同的加密过程，向服务端传输加密后的结果。</p>
+<pre class="line-numbers language-javascript" data-language="javascript"><code class="language-javascript">authentication_hash <span class="token operator">=</span> MFfTW3uNI4eqhwDkG7HP9p2mzEUu<span class="token operator">/</span>r2<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>然后，在服务端，接收到客户端传输上来的哈希值，从数据库中取出登录用户对应的密文和盐值，采用相同的哈希算法，针对客户端传来的哈希值、服务端存储的盐值计算摘要结果。</p>
+<pre class="line-numbers language-javascript" data-language="javascript"><code class="language-javascript">result <span class="token operator">=</span> <span class="token constant">SHA256</span><span class="token punctuation">(</span>authentication_hash <span class="token operator">+</span> server_salt<span class="token punctuation">)</span><span class="token punctuation">;</span>  <span class="token comment">// 55b4b5815c216cf80599990e781cd8974a1e384d49fbde7776d096e1dd436f67</span><span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>最后，比较上一步的结果和数据库储存的哈希值是否相同，如果相同就说明密码正确，反之密码错误。</p>
+<pre class="line-numbers language-javascript" data-language="javascript"><code class="language-javascript">authentication <span class="token operator">=</span> <span class="token function">compare</span><span class="token punctuation">(</span>result<span class="token punctuation">,</span> server_hash<span class="token punctuation">)</span> <span class="token comment">// yes</span><span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<h4 id="小结-21"><a href="#小结-21" class="headerlink" title="小结"></a>小结</h4><p>这节课我们其实讨论了两个观点：</p>
+<ol>
+<li>第一个观点是，安全并不是一个非此即彼的二元选项，它是连续值，而不是安全与不安全的问题。</li>
+<li>第二个观点是，你要明确在信息系统里，客户端加密、服务端解密两项操作的意义是什么。</li>
+</ol>
+<p>另外，针对”如何取得相对安全与良好性能之间平衡”这个问题，也是你在进行架构设计时必须权衡取舍的。</p>
+<h3 id="28-传输（上）：传输安全的基础，摘要、加密与签名"><a href="#28-传输（上）：传输安全的基础，摘要、加密与签名" class="headerlink" title="28 | 传输（上）：传输安全的基础，摘要、加密与签名"></a>28 | 传输（上）：传输安全的基础，摘要、加密与签名</h3><p>其实在前面几讲中，我已经为传输安全层挖下了不少坑，比如说：</p>
+<ul>
+<li>基于信道的认证是怎样实现的？</li>
+<li>为什么说，HTTPS 是绝大部分信息系统防御通讯被窃听和篡改的唯一可行手段？</li>
+<li>传输安全层难道不也是一种自动化的加密吗？</li>
+<li>为什么说客户端如何加密都不能代替 HTTPS 呢？</li>
+</ul>
+<p>所以接下来，我会花两讲的时间，通过”假设链路上的安全得不到保障，攻击者要如何摧毁之前在认证、授权、凭证、保密中所提到的种种安全机制”这个场景，来给你讲解传输层安全所要解决的问题，同时这也能给你解答前面提到的这些问题。</p>
+<p>另外，在上节课的开篇里我也提到过，安全架构中的传输环节是最复杂、最有效，但又是最早就有了标准解决方案的，它包含了许多今天在开发中经常听说，但却不为多数开发人员所知的细节，比如传输安全中的摘要、加密与签名，以及数字证书与传输安全层，等等。那么今天这一讲，我们就先来理清系统安全中，摘要、加密与签名这三种行为的异同之处。</p>
+<h4 id="哈希摘要的特点和作用"><a href="#哈希摘要的特点和作用" class="headerlink" title="哈希摘要的特点和作用"></a>哈希摘要的特点和作用</h4><p>现在，让我们先从 JWT 令牌的一小段”题外话”，来引出这一讲要讨论的话题吧。</p>
+<p>你应该已经知道，JWT 令牌携带信息的可信度源于它是被签名过的信息，所以是不可篡改的，是令牌签发者真实意图的体现。然而，你是否了解过签名具体做了什么呢？为什么有签名就能够让负载中的信息变得不可篡改和不可抵赖呢？</p>
+<p>要解释 <a target="_blank" rel="noopener" href="https://en.wikipedia.org/wiki/Digital_signature">数字签名</a> （Digital Signature）的话，就必须先从密码学算法的另外两种基础应用”摘要”和”加密”说起。</p>
+<p><a target="_blank" rel="noopener" href="https://en.wikipedia.org/wiki/Cryptographic_hash_function">摘要</a> 也被叫做是数字摘要（Digital Digest）或数字指纹（Digital Fingerprint）。在 JWT 令牌中，默认的签名信息就是通过令牌头中指定的哈希算法（HMAC SHA256），针对令牌头、负载和密钥所计算出来的摘要值。</p>
+<p>我们来看一个例子：</p>
+<pre class="line-numbers language-javascript" data-language="javascript"><code class="language-javascript">signature <span class="token operator">=</span> <span class="token constant">SHA256</span><span class="token punctuation">(</span><span class="token function">base64UrlEncode</span><span class="token punctuation">(</span>header<span class="token punctuation">)</span> <span class="token operator">+</span> <span class="token string">"."</span> <span class="token operator">+</span> <span class="token function">base64UrlEncode</span><span class="token punctuation">(</span>payload<span class="token punctuation">)</span> <span class="token punctuation">,</span> secret<span class="token punctuation">)</span><span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>理想的哈希算法都具备这样两个特性：</p>
+<ol>
+<li><p><strong>一是易变性</strong> 。这是指算法的输入端发生了任何一点细微变动，都会引发 <a target="_blank" rel="noopener" href="https://en.wikipedia.org/wiki/Avalanche_effect">雪崩效应</a> （Avalanche Effect），导致输出端的结果产生极大的变化。</p>
+<p> 这个特性经常被用来做校验，以此保护信息在传输的过程中不会被篡改。比如在互联网下载大文件，通常都会附有一个哈希校验码，用来确保下载下来的文件没有因网络或其他原因，与原文件产生任何偏差。</p>
+</li>
+<li><p><strong>二是不可逆性</strong> 。要知道，摘要的过程是单向的，我们不可能从摘要的结果中，逆向还原出输入值来。</p>
+<p> 其实这点只要你具备初中数学知识就能想明白，世间的信息有无穷多种，而不管摘要结果的位数是 32、128 还是 512 Bit，即使它再大也总归是个有限的数字，所以输入数据与输出的摘要结果必然不是一一对应的关系。</p>
+<p> 可以想想看，如果我把一部电影进行了摘要，形成 256 Bit 的哈希值，应该不会有人指望能从这个哈希值中还原出一部电影的。</p>
+<p> 实际上，现在我们偶尔还能听到 MD5、SHA1 或其他哈希算法被破解了的新闻，这里的”破解”并不是”解密”的意思，而是指找到了该算法的高效率碰撞方法，它能够在合理的时间内，生成一个摘要结果为指定内容的输入比特流，但它并不能代表这个碰撞产生的比特流就会是原来的输入源。</p>
+</li>
+</ol>
+<p>所以通过这两个特性，我们能发现， <strong>摘要的意义就是在源信息不泄露的前提下辨别其真伪。</strong> 易变性保证了，从公开的特征上就可以甄别出摘要结果是否来自于源信息；而不可逆性保证了，从公开的特征并不会暴露出源信息。这跟我们今天用来做身份识别的指纹、面容和虹膜的生物特征是具有高度可比性的。</p>
+<h4 id="摘要与加密和签名的本质区别"><a href="#摘要与加密和签名的本质区别" class="headerlink" title="摘要与加密和签名的本质区别"></a>摘要与加密和签名的本质区别</h4><p>另外，在一些场合中，摘要也会被借用来做加密（如上节课”保密”中介绍的慢哈希 Bcrypt 算法）和签名（如第 26 讲中提到 JWT 签名中的 HMAC SHA256 算法）。但从严格意义上看，摘要与这两者是有本质的区别的。</p>
+<p>加密与摘要的本质区别就在于，摘要是不可逆的，而加密是可逆的，逆过程就是解密。</p>
+<p>在经典密码学时代，加密的安全主要是依靠机密性来保证的，也就是依靠保护加密算法或算法的执行参数不被泄露，来保障信息的安全。</p>
+<p>而现代密码学并不依靠机密性，加解密算法都是完全公开的，信息的安全是建立在特定问题的计算复杂度之上。具体来说，就是算法根据输入端计算输出结果，这里耗费的算力资源很小；但根据输出端的结果反过来推算原本的输入，耗费的算力就极其庞大。</p>
+<p>一个经常被用来说明计算复杂度的例子，就是大数的 <a target="_blank" rel="noopener" href="https://en.wikipedia.org/wiki/Integer_factorization">质因数分解</a> ，我们可以轻而易举地（ <a target="_blank" rel="noopener" href="https://www.reddit.com/r/math/comments/b5aiz1/harvey_and_van_der_hoeven_claim_to_have_found_an/?utm_medium=android_app&amp;utm_source=share">以 O(nlogn) 的复杂度</a> ）计算出两个大素数的乘积：</p>
+<pre class="line-numbers language-javascript" data-language="javascript"><code class="language-javascript"><span class="token number">97667323933</span> <span class="token operator">*</span> <span class="token number">128764321253</span> <span class="token operator">=</span> <span class="token number">12576066674829627448049</span><span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>我们知道，根据 <a target="_blank" rel="noopener" href="https://en.wikipedia.org/wiki/Fundamental_theorem_of_arithmetic">算术基本定理</a> ，质因数的分解形式是唯一的，而且示例前面的计算条件中，给出的运算因子已经是质数了，所以 12,576,066,674,829,627,448,049 的分解形式，就只有一种，即上面给出的唯一答案。</p>
+<p>然而，如何对大数进行质因数分解，其实到今天都还没有找到多项式时间的算法，甚至我们都无法确切地知道，这个问题属于哪个 <a target="_blank" rel="noopener" href="https://en.wikipedia.org/wiki/Complexity_class">复杂度类</a> （Complexity Class）。</p>
+<p>所以说，尽管这个加密过程理论上一定是可逆的，但实际上的算力差异决定了其逆过程根本无法实现。</p>
+<blockquote>
+<p>注：24 位十进制数的因数分解完全在现代计算机的暴力处理能力范围内，这里只是举例。但目前很多计算机科学家都相信，大数分解问题就是一种 <a target="_blank" rel="noopener" href="https://en.wikipedia.org/wiki/P_versus_NP_problem">P!=NP</a> 的证例，尽管也并没有人能证明它一定不存在多项式时间的解法。除了质因数分解外，离散对数和椭圆曲线也是具备实用性的复杂问题。</p>
+</blockquote>
+<p>那既然我们提到了密码学，下面我们就来了解下密码学中最重要的应用，信息加密算法，一起来学习、理解下加密是如何保护信息不被泄露的。</p>
+<h4 id="加密算法的两大类型：对称与非对称"><a href="#加密算法的两大类型：对称与非对称" class="headerlink" title="加密算法的两大类型：对称与非对称"></a>加密算法的两大类型：对称与非对称</h4><p>在现代密码学算法中，根据加密与解密是否采用了同一个密钥，将算法分为了对称加密和非对称加密两大类型。这两类算法各有明确的优劣势与应用场景。</p>
+<p>首先我们来看看 <strong>对称加密算法</strong> 。</p>
+<p>对称加密的缺点显而易见：因为加密和解密都使用相同的密钥，那么当通讯的成员数量增加时，为了保证两两通讯都能采用独立的密钥，密钥数量就要与成员数量的平方成正比，这必然就会面临密钥管理的难题。</p>
+<p>而更尴尬的难题是，当通讯双方原本就不存在安全的信道时，如何才能把一个只能让通讯双方才能知道的密钥传输给对方？而如果有通道可以安全地传输密钥，那为何不使用现有的通道传输信息呢？这个” <a target="_blank" rel="noopener" href="https://en.wikipedia.org/wiki/Chicken_or_the_egg">蛋鸡悖论</a> “曾经在很长的时间里，严重阻碍了密码学在真实世界中的推广应用。</p>
+<p>因此，在 1970 年代中后期出现的非对称加密算法，就从根本上解决了密钥分发的难题。</p>
+<p>非对称加密算法把密钥分成了公钥和私钥，公钥可以完全公开，无需安全传输的保证。私钥由用户自行保管，不参与任何通讯传输。这两个密钥谁加密、谁解密，就构成了两种不同的用途：</p>
+<ul>
+<li><strong>公钥加密，私钥解密，这种就是加密</strong> ，用于向私钥所有者发送信息，这个信息可能被他人篡改，但是无法被他人得知。举个例子，如果甲想给乙发一个安全保密的数据，那么应该甲乙各自有一个私钥，甲先用乙的公钥加密这段数据，再用自己的私钥加密这段加密后的数据，最后再发给乙。这样确保了内容既不会被读取，也不能被篡改。</li>
+<li><strong>私钥加密，公钥解密，这种就是签名</strong> ，用于让所有公钥所有者验证私钥所有者的身份，并能用来防止私钥所有者发布的内容被篡改。但是它不用来保证内容不被他人获得。</li>
+</ul>
+<p>这两种用途理论上肯定是成立的，但在现实中一般却不成立，因为单靠非对称加密算法，既做不了加密也做不了签名。原因是， <strong>不管加密还是解密，非对称加密算法的计算复杂度都相当高，性能比对称加密要差上好几个数量级</strong> （不是好几倍）。</p>
+<p>要知道，加解密的性能不仅影响运行速度，还导致了现行的非对称加密算法都没有支持分组加密模式。分组的意思就是，由于明文长度与密钥长度在安全上具有相关性，通俗地说就是多长的密钥决定了它能加密多长的明文，如果明文太短就需要进行填充，太长就需要进行分组。</p>
+<p>这也就是说，因为非对称加密本身的效率所限，难以支持分组，所以主流的非对称加密算法都只能加密不超过密钥长度的数据，这就决定了非对称加密不能直接用于大量数据的加密。</p>
+<p>所以 <strong>在加密方面，现在一般会结合对称与非对称加密的优点，通过混合加密来保护信道传输的安全。</strong> 具体是怎么做的呢？</p>
+<p>通常我们的做法是，用非对称加密来安全地传递少量数据给通讯的另一方，然后再以这些数据为密钥，采用对称加密来安全高效地大量加密传输数据。这种由多种加密算法组合的应用形式，就被称为” <strong>密码学套件</strong> “，非对称加密在这个场景中发挥的作用被称为” <strong>密钥协商</strong> “。</p>
+<p>然后， <strong>在签名方面，现在一般会结合摘要与非对称加密的优点，通过对摘要结果做加密的形式来保证签名的适用性。</strong> 由于对任何长度的输入源做摘要之后，都能得到固定长度的结果，所以只要对摘要的结果进行签名，就相当于对整个输入源进行了背书，这样就能保证一旦内容遭到了篡改，摘要结果就会变化，签名也就马上失效了。</p>
+<p>这里，我也汇总了前面提到的这三种与密码学相关的应用，你可以参考下表格，去深入理解它们的主要特征、用途和局限性：</p>
+<p><img src="https://fastly.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《周志明的软件架构课》学习笔记/摘要与加密的对比.webp" alt="摘要与加密的对比"></p>
+<p>那么现在，让我们再回到开篇中提到的关于 JWT 令牌的几个问题上来： <strong>有了哈希摘要、对称和非对称加密，JWT 令牌的签名就能保证负载中的信息不可篡改、不可抵赖吗？</strong></p>
+<p>其实还是不行的，在这个场景里，数字签名的安全性仍然存在一个致命的漏洞：公钥虽然是公开的，但在网络世界里，”公开”具体是一种什么操作？如何保证每一个获取公钥的服务，拿到的公钥就是授权服务器所希望它拿到的？</p>
+<p>在网络传输是不可信任的前提下，公钥在网络传输的过程中可能已经被篡改了，所以如果获取公钥的网络请求被攻击者截获并篡改，返回了攻击者自己的公钥，那以后攻击者就可以用自己的私钥来签名，让资源服务器无条件信任它的所有行为了。</p>
+<p>也就是说，如果是在现实世界中公开公钥，我们可以通过打电话、发邮件、发短信、登报纸、同时发布在多个网站上等多种网络通讯之外的途径来达成。但在程序与网络的世界中，就必须找到一种可信任的公开方法，而且这种方法不能依赖加密来实现，否则又会陷入到蛋鸡的问题之中。</p>
+<h4 id="小结-22"><a href="#小结-22" class="headerlink" title="小结"></a>小结</h4><p>今天，我们从哈希摘要、对称加密和非对称加密这三种安全架构中常见的保密操作说起，一起学习了摘要、加密、签名这三种现代密码学算法基础应用的主要用途和区别差异。</p>
+<p>首先我们要明确的是，哈希是不可逆的，它不能解密，并不是加密算法，只是一些场景把它当作加密算法使用。哈希的特点是易变性，输入发生 1Bit 变动，就可能导致输出结果 50% 的内容发生改变；无论输入长度多少，都有长度固定的输出（2 的 N 次幂）。所以这些特点决定了哈希的主要应用是做摘要，用来保证原文未被修改。</p>
+<p>而加密是现代密码学算法的关键应用，对称加密的设计难度比较小，执行速度快，加密明文长度不受限制，这些特点就决定了对于大量数据的加密传输，目前都是靠对称加密来完成的。但是对称加密难以解决如何把密钥传递给对方的问题，因而出现了非对称加密，它的特点是加密和解密使用的是不同的密钥，但是性能和加密明文的长度都受限。</p>
+<h3 id="29-传输（下）：数字证书与传输安全层"><a href="#29-传输（下）：数字证书与传输安全层" class="headerlink" title="29 | 传输（下）：数字证书与传输安全层"></a>29 | 传输（下）：数字证书与传输安全层</h3><p>上节课，我们花了很多时间来学习传输安全层中的摘要、加密和签名的主要用途和差别，在最后，我给你留了一个问题：数字签名需要分发公钥，但在网络世界里，”公开”具体是一种什么操作？如何保证每一个获取公钥的服务，拿到的公钥就是授权服务器所希望它拿到的呢？在网络中一切皆不可信任的假设前提下，任何传输都有可能被篡改，那这个问题能够解决吗？</p>
+<p>答案其实是可以的，这就是数字证书要解决的问题。</p>
+<p>所以接下来，我们就先从数字证书如何达成共同信任开始说起，一起来了解下在传输安全的过程中，数字证书与传输安全层的相关实现细节。</p>
+<h4 id="如何通过数字证书达成共同信任？"><a href="#如何通过数字证书达成共同信任？" class="headerlink" title="如何通过数字证书达成共同信任？"></a>如何通过数字证书达成共同信任？</h4><p>有了哈希摘要、对称和非对称加密之后，签名还是无法保证负载中的信息不可篡改、不可抵赖。所以，当我们无法以”签名”的手段来达成信任时，就只能求助于其他途径。</p>
+<p>现在，你不妨想想真实的世界中，我们是如何达成信任的。其实不外乎以下这两种：</p>
+<ol>
+<li><p><strong>基于共同私密信息的信任</strong></p>
+<p> 比如某个陌生号码找你，说是你的老同学，生病了要找你借钱。你能够信任他的方式是向对方询问一些你们两个应该知道，而且只有你们两个知道的私密信息，如果对方能够回答上来，他有可能真的是你的老同学，否则他十有八九就是个诈骗犯。</p>
+</li>
+<li><p><strong>基于权威公证人的信任</strong></p>
+<p> 如果有个陌生人找你，说他是警察，让你把存款转到他们的安全账号上。你能够信任他的方式是去一趟公安局，如果公安局担保他确实是个警察，那他有可能真的是警察，否则他也十有八九就是个诈骗犯。</p>
+</li>
+</ol>
+<p>那回到网络世界中，我们其实并不能假设授权服务器和资源服务器是互相认识的，所以通常不太会采用第一种方式。而第二种就是目前保证公钥可信分发的标准，这个标准有一个名字： <a target="_blank" rel="noopener" href="https://zh.wikipedia.org/wiki/%E5%85%AC%E9%96%8B%E9%87%91%E9%91%B0%E5%9F%BA%E7%A4%8E%E5%BB%BA%E8%A8%AD">公开密钥基础设施</a> （Public Key Infrastructure，PKI）。</p>
+<blockquote>
+<p>额外知识：公开密钥基础设施（Public Key Infrastructure，PKI）</p>
+<p>又称公开密钥基础架构、公钥基础建设、公钥基础设施、公开密码匙基础建设或公钥基础架构，是一组由硬件、软件、参与者、管理政策与流程组成的基础架构，其目的在于创造、管理、分配、使用、存储以及撤销数字证书。</p>
+<p>密码学上，公开密钥基础建设借着数字证书认证中心（Certificate Authority，CA）将用户的个人身份跟公开密钥链接在一起。对每个证书中心用户的身份必须是唯一的。链接关系通过注册和发布过程创建，取决于担保级别，链接关系可能由 CA 的各种软件或在人为监督下完成。PKI 的确定链接关系的这一角色称为注册管理中心（Registration Authority，RA）。RA 确保公开密钥和个人身份链接，可以防抵赖。</p>
+</blockquote>
+<p>咱们不必纠缠于 PKI 概念上的内容，只要知道里面定义的”数字证书认证中心”，就相当于前面例子中”权威公证人”的角色，它是负责发放和管理数字证书的权威机构。</p>
+<p>当然，任何人包括你我，也都可以签发证书，只是不权威罢了，而 CA 作为受信任的第三方，就承担了公钥体系中公钥的合法性检验的责任。</p>
+<p>可是，这里和现实世界仍然有一些区别。在现实世界里，你去找的公安局大楼不太可能是剧场布景冒认的；而网络世界里，在假设所有网络传输都有可能被截获冒认的前提下，”去 CA 中心进行认证”本身也是一种网络操作。那你就要问了， <strong>这跟之前的”去获取公钥”的操作，在本质上不是没什么差别吗？</strong></p>
+<p>其实还是有差别的，世界上的公钥成千上万、不可枚举，而权威的 CA 中心则应该是可数的。”可数的”就意味着可以不通过网络，而是在浏览器与操作系统出厂时就预置好，或者是提前就安装好（如银行的证书）。比如说，下图就是我机器上现存的根证书：</p>
+<p><img src="https://fastly.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《周志明的软件架构课》学习笔记/Windows系统的CA证书.webp" alt="Windows系统的CA证书"></p>
+<p>那到这里，其实就出现了我们这节课要探讨的主角之一： <strong>证书（Certificate）</strong> 。</p>
+<p>证书是权威 CA 中心对特定公钥信息的一种公证载体，你也可以理解为是权威 CA 对特定公钥未被篡改的签名背书。由于客户的机器上已经预置了这些权威 CA 中心本身的证书（可以叫做 CA 证书或者根证书），这样就让我们在不依靠网络的前提下，使用根证书里面的公钥信息，对其所签发的证书中的签名进行确认。</p>
+<p>所以到这里，我们就终于打破了鸡生蛋、蛋生鸡的循环，使得整套数字签名体系有了坚实的逻辑基础。</p>
+<p>PKI 中采用的证书格式是 <a target="_blank" rel="noopener" href="https://en.wikipedia.org/wiki/X.509">X.509 标准格式</a> ，它定义了证书中应该包含哪些信息，并描述了这些信息是如何编码的。 <strong>其中最关键的，就是认证机构的数字签名和公钥信息两项内容。</strong></p>
+<p>那么下面，我们就通过一个标准 X.509 格式的 CA 证书的例子，来看看一个数字证书具体都包含了哪些内容。</p>
+<ol>
+<li><p>第一是 <strong>版本号（Version）</strong> ：它会指出该证书使用了哪种版本的 X.509 标准（版本 1、版本 2 或是版本 3）。版本号会影响证书中的一些特定信息，在这个例子当中，目前的版本为 3。</p>
+ <pre class="line-numbers language-txt" data-language="txt"><code class="language-txt">Version: 3 (0x2)<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre></li>
+<li><p>第二是 <strong>序列号（Serial Number）</strong> ：这是由证书颁发者分配的本证书的唯一标识符。</p>
+ <pre class="line-numbers language-txt" data-language="txt"><code class="language-txt">Serial Number: 04:00:00:00:00:01:15:4b:5a:c3:94<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre></li>
+<li><p>第三是 <strong>签名算法标识符（Signature Algorithm ID）</strong> ：它是签证书的算法标识，由对象标识符加上相关的参数组成，用于说明本证书所用的数字签名算法。比如，SHA1 和 RSA 的对象标识符就用来说明，该数字签名是利用 RSA 对 SHA1 的摘要结果进行加密。</p>
+ <pre class="line-numbers language-txt" data-language="txt"><code class="language-txt">Signature Algorithm: sha1WithRSAEncryption<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre></li>
+<li><p>第四是 <strong>认证机构的数字签名（Certificate Signature）</strong> ：这是使用证书发布者私钥生成的签名，以确保这个证书在发放之后没有被篡改过。</p>
+</li>
+<li><p>第五是 <strong>认证机构（Issuer Name）</strong> ： 即证书颁发者的可识别名。</p>
+ <pre class="line-numbers language-txt" data-language="txt"><code class="language-txt">Issuer: C=BE, O=GlobalSign nv-sa, CN=GlobalSign Organization Validation CA - SHA256 - G2<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre></li>
+<li><p>第六是 <strong>有效期限（Validity Period）</strong> ： 即证书起始日期和时间以及终止日期和时间，意为指明证书在这两个时间内有效。</p>
+ <pre class="line-numbers language-txt" data-language="txt"><code class="language-txt">Validity
+    Not Before: Nov 21 08:00:00 2020 GMT
+    Not After : Nov 22 07:59:59 2021 GMT<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span></span></code></pre></li>
+<li><p>第七是 <strong>主题信息（Subject）</strong> ：证书持有人唯一的标识符（Distinguished Name），这个名字在整个互联网上应该是唯一的，通常使用的是网站的域名。</p>
+ <pre class="line-numbers language-txt" data-language="txt"><code class="language-txt">Subject: C=CN, ST=GuangDong, L=Zhuhai, O=Awosome-Fenix, CN=*.icyfenix.cn<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>第八是公钥信息（Public-Key）： 它包括了证书持有人的公钥、算法 (指明密钥属于哪种密码系统) 的标识符和其他相关的密钥参数。</p>
+</li>
+</ol>
+<p>那么，到此为止，数字签名的安全性其实已经可以完全自洽了，但相信你大概也已经感受到了这条信任链的复杂与繁琐：如果从确定加密算法，到生成密钥、公钥分发、CA 认证、核验公钥、签名、验证，每一个步骤都要由最终用户来完成的话，这种意义的”安全”估计只能一直是存于实验室中的阳春白雪。</p>
+<p>所以，如何把这套繁琐的技术体系，自动化地应用于无处不在的网络通讯之中，就是接下来我们要讨论的主题了。</p>
+<h4 id="传输安全层是如何隐藏繁琐的安全过程的？"><a href="#传输安全层是如何隐藏繁琐的安全过程的？" class="headerlink" title="传输安全层是如何隐藏繁琐的安全过程的？"></a>传输安全层是如何隐藏繁琐的安全过程的？</h4><p>在计算机科学里， <strong>隔离复杂性的最有效手段（没有之一）就是分层</strong> ，如果一层不够就再加一层，这点在网络中更是体现得淋漓尽致。</p>
+<p>OSI 模型、TCP/IP 模型从物理特性（比特流）开始，将网络逐层封装隔离，到了 HTTP 协议这种面向应用的协议里，使用者就已经不会去关心网卡 / 交换机是如何处理数据帧、MAC 地址的了；也不会去关心 ARP 如何做地址转换；不会去关心 IP 寻址、TCP 传输控制等细节。</p>
+<p>那么，想要在网络世界中， <strong>让用户无感知地实现安全通讯，最合理的做法就是在传输层之上、应用层之下加入专门的安全层来实现。</strong> 这样对上层原本是基于 HTTP 的 Web 应用来说，甚至都察觉不到有什么影响。</p>
+<p>而且，构建传输安全层这个想法，几乎可以说是和万维网的历史一样长，早在 1994 年，就已经有公司开始着手去实践了：</p>
+<ul>
+<li>1994 年，网景（Netscape）公司开发了 SSL 协议（Secure Sockets Layer）的 1.0 版，这是构建传输安全层的起源，但是 SSL 1.0 从未正式对外发布过。</li>
+<li>1995 年，Netscape 把 SSL 升级到 2.0 版，正式对外发布，但是刚刚发布不久，就被发现有严重漏洞，所以并未大规模使用。</li>
+<li>1996 年，修补好漏洞的 SSL 3.0 对外发布，这个版本得到了广泛的应用，很快成为 Web 网络安全层的事实标准。</li>
+<li>1999 年，互联网标准化组织接替网景公司，将 SSL 改名为 TLS（Transport Layer Security），随即就形成了传输安全层的国际标准。第一个正式的版本是 <a target="_blank" rel="noopener" href="https://tools.ietf.org/html/rfc2246">RFC 2246</a> 定义的 TLS 1.0，该版 TLS 的生命周期极长，直到 2020 年 3 月，主流浏览器（Chrome、Firefox、IE、Safari）才刚刚宣布同时停止 TLS 1.0/1.1 的支持。而讽刺的是，由于停止后许多政府网站被无法被浏览，此时又正值新冠病毒的爆发期，Firefox 紧急 <a target="_blank" rel="noopener" href="https://www.mozilla.org/en-US/firefox/74.0/releasenotes/">发布公告</a> 宣布撤回该改动，因此目前 TLS 1.0 的生命还在顽强延续。</li>
+<li>2006 年，TLS 的第一个升级版 1.1 发布（ <a target="_blank" rel="noopener" href="https://tools.ietf.org/html/rfc4346">RFC 4346</a> ），但它除了增加对 CBC 攻击的保护外，几乎没有任何改变，沦为了被遗忘的孩子，当时也很少有人会使用 TLS 1.1，甚至 TLS 1.1 根本都没有被提出过有啥已知的协议漏洞。</li>
+<li>2008 年，TLS 1.1 发布 2 年之后，TLS 1.2 标准发布（ <a target="_blank" rel="noopener" href="https://tools.ietf.org/html/rfc5246">RFC 5246</a> ），迄今超过 90% 的互联网 HTTPS 流量都是由 TLS 1.2 所支持的，现在我们仍在使用的浏览器几乎都完美支持了该协议。</li>
+<li>2018 年，最新的 TLS 1.3（ <a target="_blank" rel="noopener" href="https://tools.ietf.org/html/rfc8446">RFC 8446</a> ）发布，比起前面版本相对温和的升级，TLS 1.3 做出了一些激烈的改动，修改了从 1.0 起一直没有大变化的两轮四次（2-RTT）握手，首次连接仅需一轮（1-RTT）握手即可完成；在有连接复用支持的时候，甚至可以把 TLS 1.2 原本的 1-RTT 下降到 0-RTT，显著提升了访问速度。</li>
+</ul>
+<p>那么接下来，我就以现在被广泛使用的 TLS 1.2 为例，给你介绍一下传输安全层是如何保障所有信息都是第三方无法窃听（加密传输）、无法篡改（一旦篡改通讯算法会立刻发现）、无法冒充（证书验证身份）的。</p>
+<p>TLS 1.2 在传输之前的握手过程中，一共需要进行上下两轮、共计四次的通讯。我们来看一下这个握手过程的时序图：</p>
+<p><img src="https://fastly.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《周志明的软件架构课》学习笔记/TLS1.2握手过程.webp" alt="TLS1.2握手过程"></p>
+<p>下面，我们就一一来详细解读一下这个过程。</p>
+<ol>
+<li><p><strong>第一步，客户端请求：Client Hello</strong></p>
+<p> 客户端向服务器请求进行加密通讯，在这个请求里面，它会以明文的形式，向服务端提供以下信息：</p>
+<ul>
+<li>支持的协议版本，比如 TLS 1.2。但是你要注意，1.0 至 3.0 分别代表了 SSL1.0 至 3.0，而 TLS1.0 则是 3.1，一直到 TLS1.3 的 3.4。</li>
+<li>一个客户端生成的 32 Bytes 随机数。这个随机数将稍后用于产生加密的密钥。</li>
+<li>一个可选的 SessionID。注意，你不要和前面的 Cookie-Session 机制混淆了，这个 SessionID 是指传输安全层的 Session，它是为了 TLS 的连接复用而设计的。</li>
+<li>一系列支持的 <a target="_blank" rel="noopener" href="https://en.wikipedia.org/wiki/Cipher_suite">密码学算法套件</a> 。比如 TLS_RSA_WITH_AES_128_GCM_SHA256，代表着密钥交换算法是 RSA，加密算法是 AES128-GCM，消息认证码算法是 SHA256。</li>
+<li>一系列支持的数据压缩算法。</li>
+<li>其他可扩展的信息。为了保证协议的稳定，后续对协议的功能扩展大多都是添加到这个变长结构中。比如 TLS 1.0 中，由于发送的数据并不包含服务器的域名地址，导致了一台服务器只能安装一张数字证书，这对虚拟主机来说就很不方便，所以从 TLS 1.1 起，就增加了名为”Server Name”的扩展信息，以便一台服务器给不同的站点安装不同的证书。</li>
+</ul>
+</li>
+<li><p><strong>第二步，服务器回应：Server Hello</strong></p>
+<p> 服务器接收到客户端的通讯请求后，如果客户端声明支持的协议版本和加密算法组合，与服务端相匹配的话，就向客户端发出回应。如果不匹配，将会返回一个握手失败的警告提示。这次回应同样是以明文发送的，主要包括以下信息：</p>
+<ul>
+<li>服务端确认使用的 TLS 协议版本。</li>
+<li>第二个 32 Bytes 的随机数，稍后用于产生加密的密钥。</li>
+<li>一个 SessionID，以后可通过连接复用减少一轮握手。</li>
+<li>服务端在列表中选定的密码学算法套件。</li>
+<li>服务端在列表中选定的数据压缩方法。</li>
+<li>其他可扩展的信息。</li>
+<li>如果协商出的加密算法组合是依赖证书认证的，服务端还要发送出自己的 X.509 证书，而证书中的公钥是什么，也必须根据协商的加密算法组合来决定。</li>
+<li>密钥协商消息，这部分内容对于不同的密码学套件有着不同的价值。比如对于 ECDH + anon 这样的密钥协商算法组合来说（基于椭圆曲线的 <a target="_blank" rel="noopener" href="https://en.wikipedia.org/wiki/Elliptic-curve_Diffie%E2%80%93Hellman">ECDH 算法</a> 可以在双方通讯都公开的情况下，协商出一组只有通讯双方知道的密钥），就不需要依赖证书中的公钥，而是通过 Server Key Exchange 消息协商出密钥。</li>
+</ul>
+</li>
+<li><p><strong>第三步，客户端确认：Client Handshake Finished</strong></p>
+<p> 由于密码学套件的组合复杂多样，这里我就只用 RSA 算法作为密钥交换算法来给你举个例子，介绍下客户端确认的后续过程。</p>
+<p> 首先，客户端在收到服务器应答后，要先验证服务器的证书合法性。然后，如果证书不是可信机构颁布的，或者是证书中的信息存在问题，比如域名与实际域名不一致、或证书已经过期、或通过在线证书状态协议得知证书已被吊销，等等，这都会向访问者显示一个”证书不可信任”的警告，由用户自行选择是否还要继续通信。</p>
+<p> 而如果证书没有问题，客户端就会从证书中取出服务器的公钥，并向服务器发送以下信息：</p>
+<ul>
+<li>客户端证书（可选）。部分服务端并不是面向全公众的，而是只对特定的客户端提供服务，此时客户端就需要发送它自身的证书来证明身份。如果不发送，或者验证不通过，服务端可自行决定是否要继续握手，或者返回一个握手失败的信息。 <strong>客户端需要证书的 TLS 通讯，也被称为”双向 TLS”</strong> （Mutual TLS，常简写为 mTLS），这是云原生基础设施的主要认证方法，也是基于信道认证的最主流形式。</li>
+<li>第三个 32 Bytes 的随机数，这个随机数不再是明文发送，而是以服务端传过来的公钥加密的，它被称为 PreMasterSecret，将与前两次发送的随机数一起，根据 <a target="_blank" rel="noopener" href="https://tls.ulfheim.net/files/curve25519-mult.c">特定算法</a> 计算出 48 Bytes 的 MasterSecret，这个 MasterSecret 也就是为后续内容传输时的对称加密算法所采用的私钥。</li>
+<li>编码改变通知，表示随后的信息都将用双方商定的加密方法和密钥发送。</li>
+<li>客户端握手结束通知，表示客户端的握手阶段已经结束。这一项同时也是前面发送的所有内容的哈希值，以供服务器校验。</li>
+</ul>
+</li>
+<li><p><strong>第四步，服务端确认：Server Handshake Finished</strong></p>
+<p> 服务端向客户端回应最后的确认通知，包括以下信息：</p>
+<ul>
+<li>编码改变通知，表示随后的信息都将用双方商定的加密方法和密钥发送。</li>
+<li>服务器握手结束通知，表示服务器的握手阶段已经结束。这一项同时也是前面发送的所有内容的哈希值，以供客户端校验。</li>
+</ul>
+</li>
+</ol>
+<p>那么到这里，整个 TLS 握手阶段就宣告完成，一个安全的连接就成功建立了。你要知道，每一个连接建立的时候，客户端和服务端都会通过上面的握手过程协商出许多信息，比如一个只有双方才知道的随机产生的密钥、传输过程中要采用的对称加密算法（例子中的 AES128）、压缩算法等，此后该连接的通讯将使用此密钥和加密算法进行加密、解密和压缩。</p>
+<p>这种处理方式对上层协议的功能上完全透明的，在传输性能上会有下降，但在功能上完全不会感知到有 TLS 的存在。建立在这层安全传输层之上的 HTTP 协议，就被称为”HTTP Over SSL/TLS”，也即是我们所熟知的 HTTPS。</p>
+<p>另外，从上面握手协商的过程中我们还可以得知，HTTPS 并非不是只有”启用了 HTTPS”和”未启用 HTTPS”的差别，采用不同的协议版本、不同的密码学套件、证书是否有效、服务端 / 客户端对面对无效证书时的处理策略如何，都会导致不同 HTTPS 站点的安全强度的不同。因此并不能说只要启用了 HTTPS，就必定能够安枕无忧。</p>
+<h4 id="小结-23"><a href="#小结-23" class="headerlink" title="小结"></a>小结</h4><p>今天，我们通过在网络中如何安全分发公钥这个问题，引出了如何通过数字证书达成共同信任、如何通过 PKI 体系来签发数字证书。在了解了数字证书的工作原理后，你还要了解的重点是如何通过传输安全层，把繁琐的安全过程隐藏起来，让开发者不需要时刻注意到那些麻烦而又琐碎的安全细节。</p>
+<h4 id="留言-1"><a href="#留言-1" class="headerlink" title="留言"></a>留言</h4><p>关于数字证书，有一篇我觉得非常经典的文章： <a target="_blank" rel="noopener" href="http://www.youdzone.com/signature.html">http://www.youdzone.com/signature.html</a></p>
 
                 
             </div>
@@ -3458,7 +3721,7 @@ icyfenix.cn.cdn.dnsv1.com. <span class="token number">599</span>   IN     CNAME 
             <br>
             
             &nbsp;<i class="fas fa-chart-area"></i>&nbsp;站点总字数:&nbsp;<span
-                class="white-color">1466.6k</span>&nbsp;字
+                class="white-color">1480.1k</span>&nbsp;字
             
             
             
