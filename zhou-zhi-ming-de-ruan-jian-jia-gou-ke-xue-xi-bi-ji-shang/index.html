@@ -416,14 +416,14 @@
                 
                 <div class="info-break-policy">
                     <i class="far fa-file-word fa-fw"></i>文章字数:&nbsp;&nbsp;
-                    126.5k
+                    132.2k
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-clock fa-fw"></i>阅读时长:&nbsp;&nbsp;
-                    442 分
+                    461 分
                 </div>
                 
 
@@ -2936,6 +2936,131 @@ icyfenix.cn.cdn.dnsv1.com. <span class="token number">599</span>   IN     CNAME 
 <li>为避免对每一个用户设定权限，RBAC 提出了角色和许可等概念，角色为的是解耦用户与权限之间的多对多关系，而许可为的是解耦操作与资源之间的多对多关系。</li>
 <li>建立访问控制模型的基本目的就是为了管理垂直权限和水平权限。垂直权限即功能权限，水平权限则是数据权限，它很难抽象与通用。</li>
 </ul>
+<h3 id="26-凭证：系统如何保证与用户之间的承诺是准确完整且不可抵赖的？"><a href="#26-凭证：系统如何保证与用户之间的承诺是准确完整且不可抵赖的？" class="headerlink" title="26 | 凭证：系统如何保证与用户之间的承诺是准确完整且不可抵赖的？"></a>26 | 凭证：系统如何保证与用户之间的承诺是准确完整且不可抵赖的？</h3><p>在 <a target="_blank" rel="noopener" href="https://time.geekbang.org/column/article/331411">第 24 讲</a> 我给你介绍 OAuth  2.0 协议的时候，提到过每一种授权模式的最终目标都是拿到访问令牌，但我并没有讲拿回来的令牌应该长什么样子，反而还挖了一些坑没有填，即为什么说 OAuth  2.0 的一个主要缺陷是令牌难以主动失效。</p>
+<p>所以，这节课我们要讨论的主角就是令牌了。我会带你了解令牌的结构、原理与实现，让你明确系统是如何保证它和用户之间的承诺是双方当时意图的体现、是准确完整且不可抵赖的；另外我还会跟你一起看看，如果不使用 OAuth 2.0 的话，通过最传统的状态管理机制的方式，系统要如何完成认证和授权。</p>
+<p>好，那接下来，我们就先来看看 HTTP 协议中最传统的状态管理机制，Cookie-Session 是如何运作的吧。</p>
+<h4 id="Cookie-Session：HTTP-的状态管理机制"><a href="#Cookie-Session：HTTP-的状态管理机制" class="headerlink" title="Cookie-Session：HTTP 的状态管理机制"></a>Cookie-Session：HTTP 的状态管理机制</h4><p>我们应该都知道，HTTP 协议是一种无状态的传输协议，也就是协议对事务处理没有上下文的记忆能力，每一个请求都是完全独立的。但是我想，肯定很多人都没有意识到 HTTP 协议无状态的重要性。</p>
+<p>为什么这么说呢？假如你做了一个简单的网页，其中包含了 1 个 HTML、2 个 Script 脚本、3 个 CSS，还有 10 张图片，那么这个网页要想成功地展示在用户屏幕前，就需要完成 16 次与服务器的交互来获取这些资源。</p>
+<p>但是，因为网络传输等各种因素的影响，服务器发送的顺序与客户端请求的先后并没有必然的联系，所以按照可能出现的响应顺序，理论上最多会有 P(16,16) = 20,922,789,888,000 种可能性。</p>
+<p>所以我们可以试想一下，如果 HTTP 协议不是设计成无状态的，这 16 次请求每一个都有依赖关联，先调用哪一个、先返回哪一个，都会对结果产生影响的话，那么服务器与客户端交互的协调工作会有多么复杂。</p>
+<p>可是，HTTP 协议的无状态特性，又有悖于我们最常见的网络应用场景，典型的就是认证授权，毕竟系统总得要获知用户身份才能提供合适的服务。因此，我们也希望 HTTP 能有一种手段，让服务器至少有办法区分出发送请求的用户是谁。</p>
+<p>所以，为了实现这个目的， <a target="_blank" rel="noopener" href="https://tools.ietf.org/html/rfc6265#section-4.1">RFC 6265</a> 规范就定义了 HTTP 的状态管理机制，在 HTTP 协议中增加了 Set-Cookie 指令。</p>
+<p>这个指令的含义是以键值对的方式向客户端发送一组信息，在此后一段时间内的每次 HTTP 请求中，这组信息会附带着名为 Cookie 的 Header 重新发回给服务端，以便服务器区分来自不同客户端的请求。</p>
+<p>我们直接来看一个典型的 Set-Cookie 指令具体是怎么做的：</p>
+<pre class="line-numbers language-http" data-language="http"><code class="language-http"><span class="token header-name keyword">Set-Cookie:</span> id=icyfenix; Expires=Wed, 21 Feb 2020 07:28:00 GMT; Secure; HttpOnly<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>服务器在收到该指令以后，客户端再对同一个域的请求中，就会自动附带有键值对信息”id=icyfenix”，比如说：</p>
+<pre class="line-numbers language-http" data-language="http"><code class="language-http"><span class="token request-line"><span class="token property">GET</span> /index.html HTTP/2.0</span>
+<span class="token header-name keyword">Host:</span> icyfenix.cn
+<span class="token header-name keyword">Cookie:</span> id=icyfenix<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span></span></code></pre>
+<p>那么，根据每次请求传到服务端的 Cookie，服务器就能分辨出请求来自于哪一个用户。由于 Cookie 是放在请求头上的，属于额外的传输负担，不应该携带过多的内容，而且放在 Cookie 中传输也并不安全，容易被中间人窃取或篡改，所以在实际情况中，通常是不会像这个例子一样，设置”id=icyfenix”这样的明文信息的。</p>
+<p>一般来说，系统会把状态信息保存在服务端，而在 Cookie 里只传输一个无字面意义的、不重复的字符串，通常习惯上是以 sessionid 或者 jsessionid 为名。然后，服务器拿这个字符串为 Key，在内存中开辟一块空间，以 Key/Entity 的结构，来存储每一个在线用户的上下文状态，再辅以一些超时自动清理之类的管理措施。</p>
+<p>这种服务端的状态管理机制，就是今天我们非常熟悉的 Session。 <strong>Cookie-Session 也就是最传统的，但在今天依然广泛应用于大量系统中的、由服务端与客户端联动来完成的状态管理机制。</strong></p>
+<p>Cookie-Session 的方案在安全架构的系统当中，其实是占有一定天生优势的：因为状态信息都存储于服务器，只要依靠客户端的 <a target="_blank" rel="noopener" href="https://en.wikipedia.org/wiki/Same-origin_policy">同源策略</a> 和 HTTPS 的传输层安全，保证 Cookie 中的键值不被窃取而出现被冒认身份的情况，就能完全规避掉信息在传输过程中被泄露和篡改的风险。</p>
+<p>Cookie-Session 方案另一大优点是服务端有主动的状态管理能力，可以根据自己的意愿随时修改、清除任意的上下文信息，比如很轻易就能实现强制某用户下线这样的功能。</p>
+<p>不过，Cookie-Session 在单节点的单体服务环境中确实是最合适的方案，但当服务器需要具备水平扩展服务能力，要部署集群时就有点儿麻烦了。</p>
+<p>因为 Session 存储在服务器的内存中，那么当服务器水平拓展成多节点时，我们在设计时就必须在以下三种方案中选择其一：</p>
+<ul>
+<li><strong>要么就牺牲集群的一致性（Consistency）</strong> ，让均衡器采用亲和式的负载均衡算法。比如根据用户 IP 或者 Session 来分配节点，每一个特定用户发出的所有请求，都一直被分配到其中某一个节点来提供服务，每个节点都不重复地保存着一部分用户的状态，如果这个节点崩溃了，里面的用户状态便完全丢失。</li>
+<li><strong>要么就牺牲集群的可用性（Availability）</strong> ，让各个节点之间采用复制式的 Session，每一个节点中的 Session 变动，都会发送到组播地址的其他服务器上，这样即使某个节点崩溃了，也不会中断某个用户的服务。但 Session 之间组播复制的同步代价比较高昂，节点越多时，同步成本就越高。</li>
+<li><strong>要么就牺牲集群的分区容错性（Partition Tolerance）</strong> ，让普通的服务节点中不再保留状态，将上下文集中放在一个所有服务节点都能访问到的数据节点中进行存储。此时的矛盾是数据节点就成为了单点，一旦数据节点损坏或出现网络分区，整个集群都不能再提供服务。</li>
+</ul>
+<p>通过 <a target="_blank" rel="noopener" href="https://time.geekbang.org/column/article/322287">第 14 讲</a> 内容的学习，现在我们已经知道了，只要在分布式系统中共享信息，CAP 就不可兼得，所以分布式环境中的状态管理一定会受到 CAP 的局限，无论怎样都不可能完美。</p>
+<p>但如果，我们只是解决分布式下的认证授权问题，并顺带解决少量状态的问题，就不一定只能依靠共享信息去实现了。</p>
+<p>我说这句话的言外之意是想先提醒一下你，接下来我要给你介绍的 JWT 令牌，跟 Cookie-Session 并不是完全对等的解决方案，它只用来处理认证授权问题，是 Cookie-Session 在认证授权问题上的替代品，充其量能携带少量非敏感的信息。而我们不能说，JWT 要比 Cookie-Session 更加先进，它也更不可能全面取代 Cookie-Session 机制。</p>
+<h4 id="JWT：解决认证授权问题的无状态方案"><a href="#JWT：解决认证授权问题的无状态方案" class="headerlink" title="JWT：解决认证授权问题的无状态方案"></a>JWT：解决认证授权问题的无状态方案</h4><p>好，现在我们知道了，Cookie-Session 机制在分布式环境下会遇到 CAP 不可兼得的问题，而在多方系统中，也就更不可能谈什么 Session 层面的数据共享了，哪怕服务端之间能共享数据，客户端的 Cookie 也没法跨域。</p>
+<p>所以，我们不得不重新捡起最初被抛弃的思路： <strong>当服务器存在多个，客户端只有一个时，那就把状态信息存储在客户端，每次随着请求发回服务器中去。</strong> 可是奇怪了，前面我才说过，这样做的缺点是无法携带大量信息，而且有泄露和篡改的安全风险。</p>
+<p>其实啊，信息量受限的问题目前并没有太好的解决办法，但是要确保信息不被中间人篡改，还是可以实现的，JWT 便是这个问题的标准答案。</p>
+<p>JWT（JSON Web Token）定义于 <a target="_blank" rel="noopener" href="https://tools.ietf.org/html/rfc7519">RFC 7519</a> 标准之中，是目前广泛使用的一种令牌格式，尤其经常与 OAuth  2.0 配合应用于分布式的、涉及多方的应用系统中。</p>
+<p>那么，在介绍 JWT 的具体构成之前，我们先来直观地看一下它是什么样子的：</p>
+<p><img src="https://fastly.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《周志明的软件架构课》学习笔记/JWT令牌结构.webp" alt="JWT令牌结构"></p>
+<p>这个示意图来源于 <a target="_blank" rel="noopener" href="https://jwt.io/">JWT 官网</a> ，数据则是我随意编的。图上右边的 JSON 结构，是 JWT 令牌中携带的信息，左边的字符串呈现了 JWT 令牌的本体。它最常见的使用方式是附在名为 Authorization 的 Header 发送给服务端，其前缀在 <a target="_blank" rel="noopener" href="https://tools.ietf.org/html/rfc6750">RFC 6750</a> 中被规定为 Bearer。</p>
+<p>如果你没有忘记 <a target="_blank" rel="noopener" href="https://time.geekbang.org/column/article/329954">第 23 讲</a> “认证方案”与 <a target="_blank" rel="noopener" href="https://time.geekbang.org/column/article/331411">第 24 讲</a> “OAuth 2.0”的知识内容，那么当你在看到 Authorization 这个 Header 与 Bearer 这个前缀的时候，就应该能意识到，它是 HTTP 认证框架中的 OAuth 2.0 认证方案。下面的示例代码就展示了一次采用 JWT 令牌的 HTTP 实际请求：</p>
+<pre class="line-numbers language-http" data-language="http"><code class="language-http"><span class="token request-line"><span class="token property">GET</span> /restful/products/1 HTTP/1.1</span>
+<span class="token header-name keyword">Host:</span> icyfenix.cn
+<span class="token header-name keyword">Connection:</span> keep-alive
+<span class="token header-name keyword">Authorization:</span> Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX25hbWUiOiJpY3lmZW5peCIsInNjb3BlIjpbIkFMTCJdLCJleHAiOjE1ODQ5NDg5NDcsImF1dGhvcml0aWVzIjpbIlJPTEVfVVNFUiIsIlJPTEVfQURNSU4iXSwianRpIjoiOWQ3NzU4NmEtM2Y0Zi00Y2JiLTk5MjQtZmUyZjc3ZGZhMzNkIiwiY2xpZW50X2lkIjoiYm9va3N0b3JlX2Zyb250ZW5kIiwidXNlcm5hbWUiOiJpY3lmZW5peCJ9.539WMzbjv63wBtx4ytYYw_Fo1ECG_9vsgAn8bheflL8<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span></span></code></pre>
+<p>另外我还要跟你强调的是，在前面的令牌结构示意图中，右边的状态信息是对令牌使用 Base64URL 转码后得到的明文， <strong>请你特别注意它是明文。</strong></p>
+<p>毕竟 JWT 只解决防篡改的问题，并不解决防泄露的问题，所以令牌默认是不加密的。尽管你自己要加密的话也并不难做到，接收时自行解密即可，但这样做其实没有太大的意义，具体原因我这里先卖个关子，下一节课我讲”保密”的时候再给你详细解释。</p>
+<h4 id="JWT-令牌的三部分结构"><a href="#JWT-令牌的三部分结构" class="headerlink" title="JWT 令牌的三部分结构"></a>JWT 令牌的三部分结构</h4><p>那么，从前面给出的明文中你已经知道，JWT 令牌是以 JSON 结构（毕竟名字就叫 JSON Web Token）存储的，其结构总体上可以划分为三个部分，每个部分用点号” . “分隔开。</p>
+<p><strong>令牌的第一部分是令牌头（Header）</strong> ，其内容如下所示：</p>
+<pre class="line-numbers language-json" data-language="json"><code class="language-json"><span class="token punctuation">{</span>
+  <span class="token property">"alg"</span><span class="token operator">:</span> <span class="token string">"HS256"</span><span class="token punctuation">,</span>
+  <span class="token property">"typ"</span><span class="token operator">:</span> <span class="token string">"JWT"</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span></span></code></pre>
+<p>这里你可以看到，它描述了令牌的类型（统一为 typ:JWT）以及令牌签名的算法，示例中 HS256 为 HMAC SHA256 算法的缩写，其他各种系统支持的签名算法你可以参考 <a target="_blank" rel="noopener" href="https://jwt.io/">JWT 官网</a> 。</p>
+<blockquote>
+<p><strong>额外知识：散列消息认证码</strong></p>
+<p>在这一讲及后面其他关于安全的课程内容中，你会经常看到在某种哈希算法前出现”HMAC”的前缀，这是指散列消息认证码（Hash-based Message Authentication Code，HMAC）。你可以简单将它理解为一种带有密钥的哈希摘要算法，实现形式上通常是把密钥以加盐方式混入，与内容一起做哈希摘要。</p>
+<p>HMAC 哈希与普通哈希算法的差别是，普通的哈希算法通过 Hash 函数结果易变性，保证了原有内容未被篡改，而 HMAC 不仅保证了内容未被篡改过，还保证了该哈希确实是由密钥的持有人所生成的。</p>
+<p><img src="https://fastly.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《周志明的软件架构课》学习笔记/HMAC哈希与普通哈希算法的差别.webp" alt="HMAC哈希与普通哈希算法的差别"></p>
+</blockquote>
+<p><strong>令牌的第二部分是负载（Payload）</strong> ，这是令牌真正需要向服务端传递的信息。针对认证问题，负载至少应该包含能够告知服务端”这个用户是谁”的信息；针对授权问题，令牌至少应该包含能够告知服务端”这个用户拥有什么角色 / 权限”的信息。</p>
+<p>JWT 的负载部分是可以完全自定义的，我们可以根据具体要解决的问题，设计自己所需要的信息，只是总容量不能太大，毕竟它受 HTTP Header 大小的限制。下面我们来看一个 JWT 负载的例子：</p>
+<pre class="line-numbers language-json" data-language="json"><code class="language-json"><span class="token punctuation">{</span>
+  <span class="token property">"username"</span><span class="token operator">:</span> <span class="token string">"icyfenix"</span><span class="token punctuation">,</span>
+  <span class="token property">"authorities"</span><span class="token operator">:</span> <span class="token punctuation">[</span>
+    <span class="token string">"ROLE_USER"</span><span class="token punctuation">,</span>
+    <span class="token string">"ROLE_ADMIN"</span>
+  <span class="token punctuation">]</span><span class="token punctuation">,</span>
+  <span class="token property">"scope"</span><span class="token operator">:</span> <span class="token punctuation">[</span>
+    <span class="token string">"ALL"</span>
+  <span class="token punctuation">]</span><span class="token punctuation">,</span>
+  <span class="token property">"exp"</span><span class="token operator">:</span> <span class="token number">1584948947</span><span class="token punctuation">,</span>
+  <span class="token property">"jti"</span><span class="token operator">:</span> <span class="token string">"9d77586a-3f4f-4cbb-9924-fe2f77dfa33d"</span><span class="token punctuation">,</span>
+  <span class="token property">"client_id"</span><span class="token operator">:</span> <span class="token string">"bookstore_frontend"</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>另外，JWT 在 RFC  7519 标准中，推荐（非强制约束）了七项声明名称（Claim Name），如果你在设计令牌时需要用到这些内容，我建议其字段名要与官方的保持一致：</p>
+<ul>
+<li>iss（Issuer）：签发人。</li>
+<li>exp（Expiration Time）：令牌过期时间。</li>
+<li>sub（Subject）：主题。</li>
+<li>aud （Audience）：令牌受众。</li>
+<li>nbf （Not Before）：令牌生效时间。</li>
+<li>iat （Issued At）：令牌签发时间。</li>
+<li>jti （JWT ID）：令牌编号。</li>
+</ul>
+<blockquote>
+<p>补充：除此之外，在 RFC 8225、RFC 8417、RFC 8485 等规范文档，以及 OpenID 等协议当中，都定义有约定好公有含义的名称，内容比较多，我就不贴出来了，你可以参考IANA JSON Web Token Registry。</p>
+</blockquote>
+<p><strong>令牌的第三部分是签名（Signature）</strong> 。签名的意思是：使用在对象头中公开的特定签名算法，通过特定的密钥（Secret，由服务器进行保密，不能公开）对前面两部分内容进行加密计算，产生签名值。</p>
+<p>这里我们继续以前面例子里使用的 JWT 默认的 HMAC SHA256 算法为例，它会通过以下公式产生签名值：</p>
+<pre class="line-numbers language-txt" data-language="txt"><code class="language-txt">HMACSHA256(base64UrlEncode(header) + "." + base64UrlEncode(payload) , secret)<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>签名的意义在于，它可以确保负载中的信息是可信的、没有被篡改的，也没有在传输过程中丢失任何信息。因为被签名的内容哪怕是发生了一个字节的变动，也会导致整个签名发生显著变化。</p>
+<p>此外，由于签名这件事情，只能由认证授权服务器完成（只有它知道 Secret），任何人都无法在篡改后重新计算出合法的签名值，所以服务端才能够完全信任客户端传上来的 JWT 中的负载信息。</p>
+<p>JWT 默认的签名算法 HMAC SHA256 是一种带密钥的哈希摘要算法，加密与验证过程都只能由中心化的授权服务来提供，所以 <strong>这种方式一般只适合于授权服务与应用服务处于同一个进程中的单体应用。</strong></p>
+<p>另外，在多方系统，或者是授权服务与资源服务分离的分布式应用当中，通常会采用非对称加密算法来进行签名。这时候，除了授权服务端持有的可以用于签名的私钥以外，还会对其他服务器公开一个公钥，公开方式一般遵循 <a target="_blank" rel="noopener" href="https://tools.ietf.org/html/rfc7517">JSON Web Key 规范</a> 。</p>
+<p>不过，这个公钥不能用来签名，但它能被其他服务用于验证签名是否由私钥所签发的。这样，其他服务器就也能不依赖授权服务器、无需远程通讯，即可独立判断 JWT 令牌中的信息的真伪了。</p>
+<blockquote>
+<p>在后面课程会展示的 Fenix’s Bookstore 的单体服务版本中，我们采用了默认的 HMAC SHA256 算法来加密签名，而在 Istio 服务网格版本里，终端用户认证会由服务网格的基础设施来完成，此时就改用了非对称加密的 RSA SHA256 算法来进行签名。如果你还想更深入地了解凭证安全，到时不妨对比一下这两部分的代码。更多关于哈希摘要、对称和非对称加密的讨论，我将会在”传输”这个小章节中继续展开介绍。</p>
+</blockquote>
+<h4 id="JWT-令牌的缺陷"><a href="#JWT-令牌的缺陷" class="headerlink" title="JWT 令牌的缺陷"></a>JWT 令牌的缺陷</h4><p>现在我们知道，JWT 令牌是多方系统中的一种优秀的凭证载体，它不需要任何一个服务节点保留任何一点状态信息，就能够保障认证服务与用户之间的承诺是双方当时真实意图的体现，是准确、完整、不可篡改且不可抵赖的。</p>
+<p>同时，由于 JWT 本身可以携带少量信息，这十分有利于 RESTful API 的设计，比较容易地做成无状态服务，我们在做水平扩展时就不需要像前面 Cookie-Session 方案那样，考虑如何部署的问题了。在现实应用中，也确实有一些项目直接采用 JWT 来承载上下文信息，以此实现完全无状态的服务端，这样就可以获得任意加入或移除服务节点的巨大便利，天然具有完美的水平扩缩能力。</p>
+<p>比如，在调试 <a target="_blank" rel="noopener" href="https://icyfenix.cn/exploration/projects/">Fenix’s Bookstore 的代码</a> 时，你随时都可以重启服务，在重启后，客户端仍然能毫无感知地继续操作流程；而对于有状态的系统，就必须通过重新登录、进行前置业务操作，来为服务端重建状态。尽管在大型系统中，只使用 JWT 来维护上下文状态，服务端完全不持有状态是不太现实的，不过将热点的服务单独抽离出来做成无状态，仍然是一种有效提升系统吞吐能力的架构技巧。</p>
+<p>但是，JWT 也并不是一种完美的解决方案，它存在着以下几个经常被提及的缺点：</p>
+<ol>
+<li><p><strong>令牌难以主动失效</strong></p>
+<p> JWT 令牌一旦签发，理论上就和认证服务器没有什么瓜葛了，在到期之前就会始终有效，除非我们在服务器部署额外的逻辑去处理失效问题，而这对某些管理功能的实现是很不利的。比如说，一种十分常见的需求是：要求一个用户只能在一台设备上登录，在 B 设备登录后，之前已经登录过的 A 设备就应该自动退出。</p>
+<p> 如果我们采用 JWT，就必须设计一个”黑名单”的额外逻辑，把要主动失效的令牌集中存储起来，而无论这个黑名单是实现在 Session、Redis 还是数据库当中，都会让服务退化成有状态服务，这就降低了 JWT 本身的价值。但在使用 JWT 时，设置黑名单依然是很常见的做法，需要维护的黑名单一般是很小的状态量，因此在许多场景中还是有存在价值的。</p>
+</li>
+<li><p><strong>相对更容易遭受重放攻击</strong></p>
+<p> 这里首先我要说明，Cookie-Session 也是有重放攻击问题的，只是因为 Session 中的数据控制在服务端手上，应对重放攻击会相对主动一些。</p>
+<p> 但是，要在 JWT 层面解决重放攻击，就需要付出比较大的代价了，因为无论是加入全局序列号（HTTPS 协议的思路）、Nonce 字符串（HTTP Digest 验证的思路）、挑战应答码（当下网银动态令牌的思路）、还是缩短令牌有效期强制频繁刷新令牌，在真正应用起来时都很麻烦。</p>
+<p> 而真要处理重放攻击的话，我建议的解决方案是在信道层次（比如启用 HTTPS）上解决，而不提倡在服务层次（比如在令牌或接口其他参数上增加额外逻辑）上解决。</p>
+</li>
+<li><p><strong>只能携带相当有限的数据</strong></p>
+<p> HTTP 协议并没有强制约束 Header 的最大长度，但是，各种服务器、浏览器都会有自己的约束，比如 Tomcat 就要求 Header 最大不超过 8KB，而在 Nginx 中则默认为 4KB。所以在令牌中存储过多的数据，不仅耗费传输带宽，还有额外的出错风险。</p>
+</li>
+<li><p><strong>必须考虑令牌在客户端如何存储</strong></p>
+<p> 严谨地说，这个并不是 JWT 的问题，而是系统设计的问题。如果在授权之后，操作完关掉浏览器就结束了，那把令牌放到内存里面，压根不考虑持久化，其实才是最理想的方案。</p>
+<p> 但并不是谁都能忍受一个网站关闭之后，下次就一定强制要重新登录的。这样的话，你想想客户端该把令牌存放到哪里呢？Cookie？localStorage？还是 Indexed DB？它们都有泄露的可能，而令牌一旦泄露，别人就可以冒充用户的身份做任何事情。</p>
+</li>
+<li><p><strong>无状态也不总是好的</strong></p>
+<p> 这个其实不也是 JWT 的问题。如果不能想像无状态会有什么不好的话，我给你提个需求：请基于无状态 JWT 的方案，做一个在线用户实时统计功能。兄弟，难搞哦。</p>
+</li>
+</ol>
+<h4 id="小结-20"><a href="#小结-20" class="headerlink" title="小结"></a>小结</h4><p>Cookie-Session 机制是为 HTTP 量身定做的经典凭证实现方案，它曾经为信息系统解决过无数问题。不过，随着微服务的流行，分布式系统变得越来越主流，因此由于分布式下共享数据的 CAP 矛盾，就导致了 Cookie-Session 在一些场景中遇到了 C 与 A 难以取舍的情况。</p>
+<p>而无状态的 JWT 方案在合适的场景下，确实可以带来实实在在的好处，它可以让服务端水平扩容变得异常容易，不用担心 Session 复制的效率问题，也不用担心 Session 挂掉后，整个集群全部无法正常工作的问题。</p>
+<p>然而，场景二字仍然是关键词，脱离了具体场景，我们就很难说哪种凭证方案更好或者更坏，在这节课中，我也特别强调了 JWT 的几个缺点。你要记住，权衡才是架构设计中最关键的地方。</p>
 
                 
             </div>
@@ -3333,7 +3458,7 @@ icyfenix.cn.cdn.dnsv1.com. <span class="token number">599</span>   IN     CNAME 
             <br>
             
             &nbsp;<i class="fas fa-chart-area"></i>&nbsp;站点总字数:&nbsp;<span
-                class="white-color">1461k</span>&nbsp;字
+                class="white-color">1466.6k</span>&nbsp;字
             
             
             
