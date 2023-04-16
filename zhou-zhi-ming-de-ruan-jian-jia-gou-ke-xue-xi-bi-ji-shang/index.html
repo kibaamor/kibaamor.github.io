@@ -409,21 +409,21 @@
                 
                 <div class="post-date info-break-policy">
                     <i class="far fa-calendar-check fa-fw"></i>更新日期:&nbsp;&nbsp;
-                    2023-04-14
+                    2023-04-16
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-file-word fa-fw"></i>文章字数:&nbsp;&nbsp;
-                    145.6k
+                    148.9k
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-clock fa-fw"></i>阅读时长:&nbsp;&nbsp;
-                    508 分
+                    520 分
                 </div>
                 
 
@@ -3324,6 +3324,140 @@ random<span class="token punctuation">.</span><span class="token function">nextB
 <p>另外，从上面握手协商的过程中我们还可以得知，HTTPS 并非不是只有”启用了 HTTPS”和”未启用 HTTPS”的差别，采用不同的协议版本、不同的密码学套件、证书是否有效、服务端 / 客户端对面对无效证书时的处理策略如何，都会导致不同 HTTPS 站点的安全强度的不同。因此并不能说只要启用了 HTTPS，就必定能够安枕无忧。</p>
 <h4 id="小结-23"><a href="#小结-23" class="headerlink" title="小结"></a>小结</h4><p>今天，我们通过在网络中如何安全分发公钥这个问题，引出了如何通过数字证书达成共同信任、如何通过 PKI 体系来签发数字证书。在了解了数字证书的工作原理后，你还要了解的重点是如何通过传输安全层，把繁琐的安全过程隐藏起来，让开发者不需要时刻注意到那些麻烦而又琐碎的安全细节。</p>
 <h4 id="留言-1"><a href="#留言-1" class="headerlink" title="留言"></a>留言</h4><p>关于数字证书，有一篇我觉得非常经典的文章： <a target="_blank" rel="noopener" href="http://www.youdzone.com/signature.html">http://www.youdzone.com/signature.html</a></p>
+<h3 id="30-验证：系统如何确保提交给服务的数据是安全的？"><a href="#30-验证：系统如何确保提交给服务的数据是安全的？" class="headerlink" title="30 | 验证：系统如何确保提交给服务的数据是安全的？"></a>30 | 验证：系统如何确保提交给服务的数据是安全的？</h3><p>你好，我是周志明。今天是安全架构这个小章节的最后一讲，我们来讨论下”验证”这个话题，一起来看看，关于”系统如何确保提交到每项服务中的数据是合乎规则的，不会对系统稳定性、数据一致性、正确性产生风险”这个问题的具体解决方案。</p>
+<h4 id="数据验证也很重要"><a href="#数据验证也很重要" class="headerlink" title="数据验证也很重要"></a>数据验证也很重要</h4><p>数据验证与程序如何编码是密切相关的，你在做开发的时候可能都不会把它归入安全的范畴之中。但你细想一下，如果说关注”你是谁”（认证）、”你能做什么”（授权）等问题是很合理的安全，那么关注”你做的对不对”（验证）不也同样合理吗？</p>
+<p>首先，从数量上来讲，因为数据验证不严谨而导致的安全问题，要比其他安全攻击所导致的问题多得多；其次，从风险上来讲，由于数据质量而导致的安全问题，要承受的风险可能有高有低，可当我们真的遇到了高风险的数据问题，面临的损失不一定就比被黑客拖库来得小。</p>
+<p>当然不可否认的是，相比其他富有挑战性的安全措施，比如说，防御与攻击之间精彩的缠斗需要人们综合运用数学、心理、社会工程和计算机等跨学科知识，数据验证这项常规工作确实有点儿无聊。在日常的开发工作当中，它会贯穿于代码的各个层次，我们每个人肯定都写过。</p>
+<p>但是，这种常见的代码反而是迫切需要被架构约束的。</p>
+<p>这里我们要先明确一个要点： <strong>缺失的校验会影响数据质量，而过度的校验也不会让系统更加健壮，反而在某种意义上会制造垃圾代码，甚至还会有副作用。</strong></p>
+<p>我们来看看下面这个实际的段子：</p>
+<pre class="line-numbers language-txt" data-language="txt"><code class="language-txt">前  端： 提交一份用户数据（姓名:某, 性别:男, 爱好:女, 签名:xxx, 手机:xxx, 邮箱:null）
+控制器： 发现邮箱是空的，抛ValidationException("邮箱没填")
+前  端： 已修改，重新提交
+安  全： 发送验证码时发现手机号少一位，抛RemoteInvokeException("无法发送验证码")
+前  端： 已修改，重新提交
+服务层： 邮箱怎么有重复啊，抛BusinessRuntimeException("不允许开小号")
+前  端： 已修改，重新提交
+持久层： 签名字段超长了插不进去，抛SQLException("插入数据库失败，SQL：xxx")
+…… ……
+前  端： 你们这些坑管挖不管埋的后端，各种异常都往前抛！
+用  户： 这系统牙膏厂生产的？<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>你应该也知道，最基础的数据问题可以在前端做表单校验来处理，但服务端验证肯定也是要做的。那么在看完了前面这个段子以后，你可以想一想， <strong>服务端应该在哪一层去做校验呢？</strong> 我想你可能会得出这样的答案：</p>
+<ul>
+<li><strong>在 Controller 层做，在 Service 层不做。</strong> 理由是从 Service 开始会有同级重用，当出现 ServiceA.foo(params) 调用 ServiceB.bar(params) 的时候，就会对 params 重复校验两次。</li>
+<li><strong>在 Service 层做，在 Controller 层不做。</strong> 理由是无业务含义的格式校验，已经在前端表单验证处理过了；而有业务含义的校验，不应该放在 Controller 中，毕竟页面控制器的职责是管理页面流，不该承载业务。</li>
+<li><strong>在 Controller、Service 层各做各的。</strong> Controller 做格式校验，Service 层做业务校验，听起来很合理，但这其实就是前面段子中被嘲笑的行为。</li>
+<li>还有其他一些意见，比如说在持久层做校验，理由是这是最终入口，把守好写入数据库的质量最重要。</li>
+</ul>
+<p>这样的讨论大概是不会有一个统一、正确的结论的，但是在 Java 里确实是有验证的标准做法，即 Java Bean Validation。这也是我比较提倡的做法，那就是 <strong>把校验行为从分层中剥离出来，不是在哪一层做，而是在 Bean 上做。</strong></p>
+<h4 id="Java-Bean-Validation"><a href="#Java-Bean-Validation" class="headerlink" title="Java Bean Validation"></a>Java Bean Validation</h4><p>从 2009 年 <a target="_blank" rel="noopener" href="https://beanvalidation.org/1.0/spec/">JSR 303</a> 的 1.0，到 2013 年 <a target="_blank" rel="noopener" href="https://jcp.org/en/jsr/detail?id=349">JSR 349</a> 更新的 1.1，到目前最新的 2017 年发布的 <a target="_blank" rel="noopener" href="https://beanvalidation.org/2.0/">JSR 380</a> ，Java 定义了 Bean 验证的全套规范。这种单独将验证提取、封装的做法，可以让我们获得不少好处：</p>
+<ul>
+<li>对于无业务含义的格式验证，可以做到预置。</li>
+<li>对于有业务含义的业务验证，可以做到重用。一个 Bean 作为参数或返回值，被用于多个方法的情况是很常见的，因此针对 Bean 做校验，就比针对方法做校验更有价值，这样利于我们集中管理，比如统一认证的异常体系、统一做国际化、统一给客户端的返回格式，等等。</li>
+<li><p>避免对输入数据的防御污染到业务代码。如果你的代码里面有很多像是下面这样的条件判断，就应该考虑重构了：</p>
+  <pre class="line-numbers language-java" data-language="java"><code class="language-java"><span class="token comment">// 一些已执行的逻辑</span>
+<span class="token keyword">if</span> <span class="token punctuation">(</span>someParam <span class="token operator">==</span> <span class="token keyword">null</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+    <span class="token keyword">throw</span> <span class="token keyword">new</span> <span class="token class-name">RuntimeExcetpion</span><span class="token punctuation">(</span><span class="token string">"客官不可以！"</span><span class="token punctuation">)</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span></span></code></pre></li>
+<li>利于多个校验器统一执行，统一返回校验结果，避免用户踩地雷、挤牙膏式的试错体验。</li>
+</ul>
+<p>据我所知，国内的项目使用 Bean Validation 的并不少见，但大多数程序员都只使用到它的 Built-In Constraint，来做一些与业务逻辑无关的通用校验，也就是下面展示的这堆注解，看类名我们基本上就能明白它们的含义了：</p>
+<pre class="line-numbers language-java" data-language="java"><code class="language-java"><span class="token annotation punctuation">@Null</span>、<span class="token annotation punctuation">@NotNull</span>、<span class="token annotation punctuation">@AssertTrue</span>、<span class="token annotation punctuation">@AssertFalse</span>、<span class="token annotation punctuation">@Min</span>、<span class="token annotation punctuation">@Max</span>、<span class="token annotation punctuation">@DecimalMin</span>、<span class="token annotation punctuation">@DecimalMax</span>、<span class="token annotation punctuation">@Negative</span>、<span class="token annotation punctuation">@NegativeOrZero</span>、<span class="token annotation punctuation">@Positive</span>、<span class="token annotation punctuation">@PositiveOrZeor</span>、<span class="token annotation punctuation">@Szie</span>、<span class="token annotation punctuation">@Digits</span>、<span class="token annotation punctuation">@Pass</span>、<span class="token annotation punctuation">@PassOrPresent</span>、<span class="token annotation punctuation">@Future</span>、<span class="token annotation punctuation">@FutureOrPresent</span>、<span class="token annotation punctuation">@Pattern</span>、<span class="token annotation punctuation">@NotEmpty</span>、<span class="token annotation punctuation">@NotBlank</span>、<span class="token annotation punctuation">@Email</span><span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>不过我们要知道，与业务相关的校验往往才是最复杂的校验。而把简单的校验交给 Bean  Validation，把复杂的校验留给自己，这简直是买椟还珠故事的程序员版本。其实，以 Bean Validation 的标准方式来做业务校验是非常优雅的。</p>
+<p>接下来，我就用 Fenix’s Bookstore 项目在用户资源上的两个方法：”创建新用户”和”更新用户信息”，来给你举个例子：</p>
+<pre class="line-numbers language-java" data-language="java"><code class="language-java"><span class="token comment">/**
+* 创建新的用户
+*/</span>
+<span class="token annotation punctuation">@POST</span>
+<span class="token keyword">public</span> <span class="token class-name">Response</span> <span class="token function">createUser</span><span class="token punctuation">(</span><span class="token annotation punctuation">@Valid</span> <span class="token annotation punctuation">@UniqueAccount</span> <span class="token class-name">Account</span> user<span class="token punctuation">)</span> <span class="token punctuation">{</span>
+    <span class="token keyword">return</span> <span class="token class-name">CommonResponse</span><span class="token punctuation">.</span><span class="token function">op</span><span class="token punctuation">(</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token operator">-&gt;</span> service<span class="token punctuation">.</span><span class="token function">createAccount</span><span class="token punctuation">(</span>user<span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+
+<span class="token comment">/**
+* 更新用户信息
+*/</span>
+<span class="token annotation punctuation">@PUT</span>
+<span class="token annotation punctuation">@CacheEvict</span><span class="token punctuation">(</span>key <span class="token operator">=</span> <span class="token string">"#user.username"</span><span class="token punctuation">)</span>
+<span class="token keyword">public</span> <span class="token class-name">Response</span> <span class="token function">updateUser</span><span class="token punctuation">(</span><span class="token annotation punctuation">@Valid</span> <span class="token annotation punctuation">@AuthenticatedAccount</span> <span class="token annotation punctuation">@NotConflictAccount</span> <span class="token class-name">Account</span> user<span class="token punctuation">)</span> <span class="token punctuation">{</span>
+    <span class="token keyword">return</span> <span class="token class-name">CommonResponse</span><span class="token punctuation">.</span><span class="token function">op</span><span class="token punctuation">(</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token operator">-&gt;</span> service<span class="token punctuation">.</span><span class="token function">updateAccount</span><span class="token punctuation">(</span>user<span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>这里你要注意其中的三个自定义校验注解，它们的含义分别是：</p>
+<ul>
+<li><strong>@UniqueAccount</strong> ：传入的用户对象必须是唯一的，不与数据库中任何已有用户的名称、手机、邮箱产生重复。</li>
+<li><strong>@AuthenticatedAccount</strong> ：传入的用户对象必须与当前登录的用户一致。</li>
+<li><strong>@NotConflictAccount</strong> ：传入的用户对象中的信息与其他用户是无冲突的，比如将一个注册用户的邮箱，修改成与另外一个已存在的注册用户一致的值，这便是冲突。</li>
+</ul>
+<p>这里的需求我们其实很容易就能想明白：当注册新用户时，要约束其不与任何已有用户的关键信息重复；而当用户修改自己的信息时，只能与自己的信息重复，而且只能修改当前登录用户的信息。</p>
+<p>这些约束规则不仅仅是为这两个方法服务，它们还可能会在用户资源中的其他入口被使用到，乃至在其他分层的代码中被使用到。而在 Bean 上做校验，我们就能一揽子地覆盖前面提到的这些使用场景。</p>
+<p>现在我们来看前面代码中用到的三个自定义注解对应校验器的实现类：</p>
+<pre class="line-numbers language-java" data-language="java"><code class="language-java"><span class="token keyword">public</span> <span class="token keyword">static</span> <span class="token keyword">class</span> <span class="token class-name">AuthenticatedAccountValidator</span> <span class="token keyword">extends</span> <span class="token class-name">AccountValidation</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token class-name">AuthenticatedAccount</span><span class="token punctuation">&gt;</span></span> <span class="token punctuation">{</span>
+    <span class="token keyword">public</span> <span class="token keyword">void</span> <span class="token function">initialize</span><span class="token punctuation">(</span><span class="token class-name">AuthenticatedAccount</span> constraintAnnotation<span class="token punctuation">)</span> <span class="token punctuation">{</span>
+        predicate <span class="token operator">=</span> c <span class="token operator">-&gt;</span> <span class="token punctuation">{</span>
+            <span class="token class-name">AuthenticAccount</span> loginUser <span class="token operator">=</span> <span class="token punctuation">(</span><span class="token class-name">AuthenticAccount</span><span class="token punctuation">)</span> <span class="token class-name">SecurityContextHolder</span><span class="token punctuation">.</span><span class="token function">getContext</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">getAuthentication</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">getPrincipal</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token keyword">return</span> c<span class="token punctuation">.</span><span class="token function">getId</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">equals</span><span class="token punctuation">(</span>loginUser<span class="token punctuation">.</span><span class="token function">getId</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+<span class="token punctuation">}</span>
+
+<span class="token keyword">public</span> <span class="token keyword">static</span> <span class="token keyword">class</span> <span class="token class-name">UniqueAccountValidator</span> <span class="token keyword">extends</span> <span class="token class-name">AccountValidation</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token class-name">UniqueAccount</span><span class="token punctuation">&gt;</span></span> <span class="token punctuation">{</span>
+    <span class="token keyword">public</span> <span class="token keyword">void</span> <span class="token function">initialize</span><span class="token punctuation">(</span><span class="token class-name">UniqueAccount</span> constraintAnnotation<span class="token punctuation">)</span> <span class="token punctuation">{</span>
+        predicate <span class="token operator">=</span> c <span class="token operator">-&gt;</span> <span class="token operator">!</span>repository<span class="token punctuation">.</span><span class="token function">existsByUsernameOrEmailOrTelephone</span><span class="token punctuation">(</span>c<span class="token punctuation">.</span><span class="token function">getUsername</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">,</span> c<span class="token punctuation">.</span><span class="token function">getEmail</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">,</span> c<span class="token punctuation">.</span><span class="token function">getTelephone</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+<span class="token punctuation">}</span>
+
+<span class="token keyword">public</span> <span class="token keyword">static</span> <span class="token keyword">class</span> <span class="token class-name">NotConflictAccountValidator</span> <span class="token keyword">extends</span> <span class="token class-name">AccountValidation</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token class-name">NotConflictAccount</span><span class="token punctuation">&gt;</span></span> <span class="token punctuation">{</span>
+    <span class="token keyword">public</span> <span class="token keyword">void</span> <span class="token function">initialize</span><span class="token punctuation">(</span><span class="token class-name">NotConflictAccount</span> constraintAnnotation<span class="token punctuation">)</span> <span class="token punctuation">{</span>
+        predicate <span class="token operator">=</span> c <span class="token operator">-&gt;</span> <span class="token punctuation">{</span>
+            <span class="token class-name">Collection</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token class-name">Account</span><span class="token punctuation">&gt;</span></span> collection <span class="token operator">=</span> repository<span class="token punctuation">.</span><span class="token function">findByUsernameOrEmailOrTelephone</span><span class="token punctuation">(</span>c<span class="token punctuation">.</span><span class="token function">getUsername</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">,</span> c<span class="token punctuation">.</span><span class="token function">getEmail</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">,</span> c<span class="token punctuation">.</span><span class="token function">getTelephone</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token comment">// 将用户名、邮件、电话改成与现有完全不重复的，或者只与自己重复的，就不算冲突</span>
+            <span class="token keyword">return</span> collection<span class="token punctuation">.</span><span class="token function">isEmpty</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token operator">||</span> <span class="token punctuation">(</span>collection<span class="token punctuation">.</span><span class="token function">size</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token operator">==</span> <span class="token number">1</span> <span class="token operator">&amp;&amp;</span> collection<span class="token punctuation">.</span><span class="token function">iterator</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">next</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">getId</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">equals</span><span class="token punctuation">(</span>c<span class="token punctuation">.</span><span class="token function">getId</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>这样，业务校验就可以和业务逻辑完全分离开，在需要校验时，你可以用 @Valid 注解自动触发，或者通过代码手动触发执行。你可以根据自己项目的要求，把这些注解应用于控制器、服务层、持久层等任何层次的代码之中。</p>
+<p>而且，采用 Bean Validation 也便于我们统一处理校验结果不满足时的提示信息。比如提供默认值、提供国际化支持（这里没做）、提供统一的客户端返回格式（创建一个用于 ConstraintViolationException 的异常处理器来实现），以及批量执行全部校验，避免出现开篇那个段子中挤牙膏的尴尬情况。</p>
+<p>除此之外，对于 Bean 与 Bean 校验器，我还想给你两条关于编码的建议。</p>
+<ol>
+<li><p>第一条建议是，要对校验项预置好默认的提示信息，这样当校验不通过时，用户能获得明确的修正提示。这里你可以参考下面的代码示例：</p>
+ <pre class="line-numbers language-java" data-language="java"><code class="language-java"><span class="token comment">/**
+ * 表示一个用户的信息是无冲突的
+ *
+ * "无冲突"是指该用户的敏感信息与其他用户不重合，比如将一个注册用户的邮箱，修改成与另外一个已存在的注册用户一致的值，这便是冲突
+ **/</span>
+<span class="token annotation punctuation">@Documented</span>
+<span class="token annotation punctuation">@Retention</span><span class="token punctuation">(</span>RUNTIME<span class="token punctuation">)</span>
+<span class="token annotation punctuation">@Target</span><span class="token punctuation">(</span><span class="token punctuation">{</span>FIELD<span class="token punctuation">,</span> METHOD<span class="token punctuation">,</span> PARAMETER<span class="token punctuation">,</span> TYPE<span class="token punctuation">}</span><span class="token punctuation">)</span>
+<span class="token annotation punctuation">@Constraint</span><span class="token punctuation">(</span>validatedBy <span class="token operator">=</span> <span class="token class-name">AccountValidation</span><span class="token punctuation">.</span><span class="token class-name">NotConflictAccountValidator</span><span class="token punctuation">.</span><span class="token keyword">class</span><span class="token punctuation">)</span>
+<span class="token keyword">public</span> <span class="token annotation punctuation">@interface</span> <span class="token class-name">NotConflictAccount</span> <span class="token punctuation">{</span>
+    <span class="token class-name">String</span> <span class="token function">message</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token keyword">default</span> <span class="token string">"用户名称、邮箱、手机号码与现存用户产生重复"</span><span class="token punctuation">;</span>
+    <span class="token class-name">Class</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token operator">?</span><span class="token punctuation">&gt;</span></span><span class="token punctuation">[</span><span class="token punctuation">]</span> <span class="token function">groups</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token keyword">default</span> <span class="token punctuation">{</span><span class="token punctuation">}</span><span class="token punctuation">;</span>
+    <span class="token class-name">Class</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token operator">?</span> <span class="token keyword">extends</span> <span class="token class-name">Payload</span><span class="token punctuation">&gt;</span></span><span class="token punctuation">[</span><span class="token punctuation">]</span> <span class="token function">payload</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token keyword">default</span> <span class="token punctuation">{</span><span class="token punctuation">}</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre></li>
+<li><p>第二条建议是，要把不带业务含义的格式校验注解放到 Bean 的类定义之上，把带业务逻辑的校验放到 Bean 的类定义的外面。</p>
+<p> 这两者的区别是，放在类定义中的注解能够自动运行，而放到类外面的业务校验需要像前面的示例代码那样，明确标出注解时才会运行。比如用户账号实体中的部分代码为：</p>
+ <pre class="line-numbers language-java" data-language="java"><code class="language-java"><span class="token keyword">public</span> <span class="token keyword">class</span> <span class="token class-name">Account</span> <span class="token keyword">extends</span> <span class="token class-name">BaseEntity</span> <span class="token punctuation">{</span>
+    <span class="token annotation punctuation">@NotEmpty</span><span class="token punctuation">(</span>message <span class="token operator">=</span> <span class="token string">"用户不允许为空"</span><span class="token punctuation">)</span>
+    <span class="token keyword">private</span> <span class="token class-name">String</span> username<span class="token punctuation">;</span>
+
+    <span class="token annotation punctuation">@NotEmpty</span><span class="token punctuation">(</span>message <span class="token operator">=</span> <span class="token string">"用户姓名不允许为空"</span><span class="token punctuation">)</span>
+    <span class="token keyword">private</span> <span class="token class-name">String</span> name<span class="token punctuation">;</span>
+
+    <span class="token keyword">private</span> <span class="token class-name">String</span> avatar<span class="token punctuation">;</span>
+
+    <span class="token annotation punctuation">@Pattern</span><span class="token punctuation">(</span>regexp <span class="token operator">=</span> <span class="token string">"1\\d{10}"</span><span class="token punctuation">,</span> message <span class="token operator">=</span> <span class="token string">"手机号格式不正确"</span><span class="token punctuation">)</span>
+    <span class="token keyword">private</span> <span class="token class-name">String</span> telephone<span class="token punctuation">;</span>
+
+    <span class="token annotation punctuation">@Email</span><span class="token punctuation">(</span>message <span class="token operator">=</span> <span class="token string">"邮箱格式不正确"</span><span class="token punctuation">)</span>
+    <span class="token keyword">private</span> <span class="token class-name">String</span> email
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>你可以发现，这些校验注解都直接放在了类定义中，每次执行校验的时候它们都会被运行。因为 Bean Validation 是 Java 的标准规范，它执行的频率可能比编写代码的程序所预想的更高，比如使用 Hibernate 来做持久化时，便会自动执行 Data Object 上的校验注解。</p>
+</li>
+</ol>
+<p>对于那些不带业务含义的注解，在运行时是不需要其他外部资源的参与的，它们不会调用远程服务、访问数据库，这种校验重复执行实际上并没有什么成本。</p>
+<p>但带业务逻辑的校验，通常就需要外部资源参与执行，这不仅仅是多消耗一点时间和运算资源的问题，因为我们很难保证依赖的每个服务都是幂等的，重复执行校验很可能会带来额外的副作用。因此应该放到外面，让使用者自行判断是否要触发。</p>
+<p>另外，还有一些”需要触发一部分校验”的非典型情况，比如”新增”操作 A 需要执行全部校验规则，”修改”操作 B 中希望不校验某个字段，”删除”操作 C 中希望改变某一条校验规则，这个时候，我们就要启用分组校验来处理，设计一套”新增””修改””删除”这样的标识类，置入到校验注解的 groups 参数中去实现。</p>
+<h4 id="小结-24"><a href="#小结-24" class="headerlink" title="小结"></a>小结</h4><p>这节课算是 JSR 380 Bean Validation 的小科普，Bean 验证器在 Java 中存在的时间已经超过了十年，应用范围也非常广泛，但现在还是有很多的信息系统选择自己制造轮子，去解决数据验证的问题，而且做的也并没有 Bean 验证器好。</p>
+<p>所以在这节课里，我给你总结了正确使用 Bean 验证器的一些最佳实践，涉及到不少具体的代码，建议你好好结合着代码进行学习和实践。在课程后面的实战模块中，我还会给你具体展示 Fenix’s Bookstore 的工程代码，到时你也可以结合着该模块一起学习，印证或增强实战学习的效果。</p>
 
                 
             </div>
@@ -3721,7 +3855,7 @@ random<span class="token punctuation">.</span><span class="token function">nextB
             <br>
             
             &nbsp;<i class="fas fa-chart-area"></i>&nbsp;站点总字数:&nbsp;<span
-                class="white-color">1480.1k</span>&nbsp;字
+                class="white-color">1483.3k</span>&nbsp;字
             
             
             
