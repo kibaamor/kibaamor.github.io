@@ -457,7 +457,7 @@
 <p> SS是栈寄存器（Stack Register）。栈是程序运行中一个特殊的数据结构，数据的存取只能从一端进行，秉承后进先出的原则，push就是入栈，pop就是出栈。</p>
 <p> ES为扩展段寄存器。</p>
 <p> 在CS和DS中都存放着一个段的起始地址。代码段的偏移量在IP寄存器中，数据段的偏移量会放在通用寄存器中。</p>
-<p> 这时候问题来了，CS和DS都是16位的，也就是说，起始地址都是16位的，IP寄存器和通用寄存器都是16位的，偏移量也是16位的，但是8086的地址总线地址是20位。怎么凑够这20位呢？方法就是“起始地址*16+偏移量”，也就是把CS和DS中的值左移4位，变成20位的，加上16位的偏移量，这样就可以得到最终20位的数据地址。</p>
+<p> 这时候问题来了，CS和DS都是16位的，也就是说，起始地址都是16位的，IP寄存器和通用寄存器都是16位的，偏移量也是16位的，但是8086的地址总线地址是20位。怎么凑够这20位呢？方法就是”起始地址*16+偏移量”，也就是把CS和DS中的值左移4位，变成20位的，加上16位的偏移量，这样就可以得到最终20位的数据地址。</p>
 <p> 因为偏移量只能是16位的，所以一个段最大的大小是2^16=64k。</p>
 </li>
 </ol>
@@ -545,7 +545,7 @@
 <h4 id="3-5-初始化-rootfs-文件系统"><a href="#3-5-初始化-rootfs-文件系统" class="headerlink" title="3.5 初始化 rootfs 文件系统"></a>3.5 初始化 rootfs 文件系统</h4><p>vfs_caches_init()会用来初始化基于内存的文件系统rootfs。在这个函数里面，会调用mnt_init()-&gt;init_rootfs()。这里面有一行代码，register_filesystem(&amp;rootfs_fs_type)。在VFS虚拟文件系统里面注册了一种类型，我们定义为struct file_system_type rootfs_fs_type。</p>
 <h4 id="3-6-其他初始化"><a href="#3-6-其他初始化" class="headerlink" title="3.6 其他初始化"></a>3.6 其他初始化</h4><p>最后，start_kernel()调用的是rest_init()，用来做其他方面的初始化，这里面做了好多的工作。</p>
 <h5 id="3-6-1-初始化1号进程"><a href="#3-6-1-初始化1号进程" class="headerlink" title="3.6.1 初始化1号进程"></a>3.6.1 初始化1号进程</h5><p>rest_init的第一大工作是，用kernel_thread(kernel_init, NULL, CLONE_FS)创建第二个进程，这个是 <strong>1号进程</strong> 。</p>
-<p>1号进程对于操作系统来讲，有“划时代”的意义。因为它将运行一个用户进程。</p>
+<p>1号进程对于操作系统来讲，有”划时代”的意义。因为它将运行一个用户进程。</p>
 <p>x86提供了分层的权限机制，把区域分成了四个Ring，越往里权限越高，越往外权限越低。</p>
 <p><img src="https://fastly.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《趣谈Linux操作系统》学习笔记/x86提供的分层权限机制.jpg" alt="x86提供的分层权限机制"></p>
 <p>操作系统很好地利用了这个机制，将能够访问关键资源的代码放在Ring0，我们称为 <strong>内核态（Kernel Mode）</strong> ；将普通的程序代码放在Ring3，我们称为 <strong>用户态（User Mode）</strong> 。</p>
@@ -574,10 +574,10 @@
         <span class="token punctuation">(</span><span class="token keyword">const</span> <span class="token keyword">char</span> __user <span class="token operator">*</span><span class="token keyword">const</span> __user <span class="token operator">*</span><span class="token punctuation">)</span>argv_init<span class="token punctuation">,</span>
         <span class="token punctuation">(</span><span class="token keyword">const</span> <span class="token keyword">char</span> __user <span class="token operator">*</span><span class="token keyword">const</span> __user <span class="token operator">*</span><span class="token punctuation">)</span>envp_init<span class="token punctuation">)</span><span class="token punctuation">;</span>
 <span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
-<p> execve是一个系统调用，它的作用是运行一个执行文件。加一个do_的往往是内核系统调用的实现。没错，这就是一个系统调用，它会尝试运行ramdisk的“/init”，或者普通文件系统上的“/sbin/init”“/etc/init”“/bin/init”“/bin/sh”。不同版本的Linux会选择不同的文件启动，但是只要有一个起来了就可以。</p>
+<p> execve是一个系统调用，它的作用是运行一个执行文件。加一个do_的往往是内核系统调用的实现。没错，这就是一个系统调用，它会尝试运行ramdisk的”/init”，或者普通文件系统上的”/sbin/init””/etc/init””/bin/init””/bin/sh”。不同版本的Linux会选择不同的文件启动，但是只要有一个起来了就可以。</p>
 </li>
 <li><p>如何利用执行init文件的机会，从内核态回到用户态呢？</p>
-<p> 从系统调用的过程可以得到启发，“用户态-系统调用-保存寄存器-内核态执行系统调用-恢复寄存器-返回用户态”，然后接着运行。而咱们刚才运行init，是调用do_execve，正是上面的过程的后半部分，从内核态执行系统调用开始。</p>
+<p> 从系统调用的过程可以得到启发，”用户态-系统调用-保存寄存器-内核态执行系统调用-恢复寄存器-返回用户态”，然后接着运行。而咱们刚才运行init，是调用do_execve，正是上面的过程的后半部分，从内核态执行系统调用开始。</p>
 <p> do_execve-&gt;do_execveat_common-&gt;exec_binprm-&gt;search_binary_handler，这里面会调用这段内容：</p>
  <pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">int</span> <span class="token function">search_binary_handler</span><span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">linux_binprm</span> <span class="token operator">*</span>bprm<span class="token punctuation">)</span>
 <span class="token punctuation">{</span>
@@ -627,7 +627,7 @@ regs<span class="token operator">-&gt;</span>flags <span class="token operator">
 <p> 先别忙着高兴，rest_init的第一个大事情才完成。我们仅仅形成了用户态所有进程的祖先。</p>
 </li>
 </ol>
-<h5 id="3-6-2-创建2号进程"><a href="#3-6-2-创建2号进程" class="headerlink" title="3.6.2 创建2号进程"></a>3.6.2 创建2号进程</h5><p>kernel_thread(kthreadd, NULL, CLONE_FS | CLONE_FILES)又一次使用kernel_thread函数创建进程。这里需要指出一点，函数名thread可以翻译成“线程”，这也是操作系统很重要的一个概念。它和进程有什么区别呢？为什么这里创建的是进程，函数名却是线程呢？</p>
+<h5 id="3-6-2-创建2号进程"><a href="#3-6-2-创建2号进程" class="headerlink" title="3.6.2 创建2号进程"></a>3.6.2 创建2号进程</h5><p>kernel_thread(kthreadd, NULL, CLONE_FS | CLONE_FILES)又一次使用kernel_thread函数创建进程。这里需要指出一点，函数名thread可以翻译成”线程”，这也是操作系统很重要的一个概念。它和进程有什么区别呢？为什么这里创建的是进程，函数名却是线程呢？</p>
 <p>从用户态来看，创建进程其实就是立项，也就是启动一个项目。这个项目需要人去执行。有多个人并行执行不同的部分，这就叫 <strong>多线程（Multithreading）</strong> 。如果只有一个人，那它就是这个项目的主线程。</p>
 <p>但是从内核态来看，无论是进程，还是线程，我们都可以统称为任务（Task），都使用相同的数据结构，平放在同一个链表中。</p>
 <p>这里的函数kthreadd，负责所有内核态的线程的调度和管理，是内核态所有线程运行的祖先。</p>
@@ -670,7 +670,7 @@ open        -      open            Ci:siv  __libc_open __open open<span aria-hid
 <p>在Linux的源代码注释里面，我们可以清晰地看到，这些寄存器是如何传递系统调用号和参数的。</p>
 <p>这里面的ENTER_KERNEL是什么呢？</p>
 <pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token macro property"><span class="token directive-hash">#</span> <span class="token directive keyword">define</span> <span class="token expression">ENTER_KERNEL <span class="token keyword">int</span> $<span class="token number">0x80</span></span></span><span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
-<p>int就是interrupt，也就是“中断”的意思。int $0x80就是触发一个软中断，通过它就可以陷入（trap）内核。</p>
+<p>int就是interrupt，也就是”中断”的意思。int $0x80就是触发一个软中断，通过它就可以陷入（trap）内核。</p>
 <p>在内核启动的时候，还记得有一个trap_init()，其中有这样的代码：</p>
 <pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token function">set_system_intr_gate</span><span class="token punctuation">(</span>IA32_SYSCALL_VECTOR<span class="token punctuation">,</span> entry_INT80_32<span class="token punctuation">)</span><span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
 <p>这是一个软中断的陷入门。当接收到一个系统调用的时候，entry_INT80_32就被调用了。</p>
@@ -865,7 +865,7 @@ asmlinkage <span class="token keyword">const</span> sys_call_ptr_t sys_call_tabl
 <span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;asm/syscalls_64.h&gt;</span></span>
 <span class="token punctuation">}</span><span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
 <!----fix markdown render issues---->
-<h2 id="二、进程管理"><a href="#二、进程管理" class="headerlink" title="二、进程管理"></a>二、进程管理</h2><h3 id="5-进程"><a href="#5-进程" class="headerlink" title="5. 进程"></a>5. 进程</h3><h4 id="5-1-源码编译"><a href="#5-1-源码编译" class="headerlink" title="5.1 源码编译"></a>5.1 源码编译</h4><p>CPU是不能执行文本文件里面的指令的，这些指令只有人能看懂，CPU能够执行的命令是二进制的，比如“0101”这种，所以这些指令还需要翻译一下，这个翻译的过程就是编译（Compile）。</p>
+<h2 id="二、进程管理"><a href="#二、进程管理" class="headerlink" title="二、进程管理"></a>二、进程管理</h2><h3 id="5-进程"><a href="#5-进程" class="headerlink" title="5. 进程"></a>5. 进程</h3><h4 id="5-1-源码编译"><a href="#5-1-源码编译" class="headerlink" title="5.1 源码编译"></a>5.1 源码编译</h4><p>CPU是不能执行文本文件里面的指令的，这些指令只有人能看懂，CPU能够执行的命令是二进制的，比如”0101”这种，所以这些指令还需要翻译一下，这个翻译的过程就是编译（Compile）。</p>
 <p>在Linux下面，二进制的程序也要有严格的格式，这个格式我们称为ELF（Executeable and Linkable Format，可执行与可链接格式）。这个格式可以根据编译的结果不同，分为不同的格式。</p>
 <p><img src="https://fastly.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《趣谈Linux操作系统》学习笔记/从文本文件编译成二进制格式.jpeg" alt="从文本文件编译成二进制格式"></p>
 <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">gcc -c -fPIC mylib.c
@@ -1222,7 +1222,7 @@ u64    real_start_time<span class="token punctuation">;</span><span class="token
 <span class="token comment">/* Effective (overridable) subjective task credentials (COW): */</span>
 <span class="token keyword">const</span> <span class="token keyword">struct</span> <span class="token class-name">cred</span> __rcu   <span class="token operator">*</span>cred<span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span></span></code></pre>
 <p>这个结构的注释里，有两个名词比较拗口，Objective和Subjective。事实上，所谓的权限，就是我能操纵谁，谁能操纵我。</p>
-<p>“谁能操作我”，很显然，这个时候我就是被操作的对象，就是Objective，那个想操作我的就是Subjective。“我能操作谁”，这个时候我就是Subjective，那个要被我操作的就是Objectvie。</p>
+<p>“谁能操作我”，很显然，这个时候我就是被操作的对象，就是Objective，那个想操作我的就是Subjective。”我能操作谁”，这个时候我就是Subjective，那个要被我操作的就是Objectvie。</p>
 <p>“操作”，就是一个对象对另一个对象进行某些动作。当动作要实施的时候，就要审核权限，当两边的权限匹配上了，就可以实施操作。其中，real_cred就是说明谁能操作我这个进程，而cred就是说明我这个进程能够操作谁。</p>
 <p>这里cred的定义如下：</p>
 <pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">struct</span> <span class="token class-name">cred</span> <span class="token punctuation">{</span>
@@ -1247,7 +1247,7 @@ u64    real_start_time<span class="token punctuation">;</span><span class="token
 <ol>
 <li><p>第一个是uid和gid，注释是real user/group id。一般情况下，谁启动的进程，就是谁的ID。但是权限审核的时候，往往不比较这两个，也就是说不大起作用。</p>
 </li>
-<li><p>第二个是euid和egid，注释是effective user/group id。一看这个名字，就知道这个是起“作用”的。当这个进程要操作消息队列、共享内存、信号量等对象的时候，其实就是在比较这个用户和组是否有权限。</p>
+<li><p>第二个是euid和egid，注释是effective user/group id。一看这个名字，就知道这个是起”作用”的。当这个进程要操作消息队列、共享内存、信号量等对象的时候，其实就是在比较这个用户和组是否有权限。</p>
 </li>
 <li><p>第三个是fsuid和fsgid，也就是filesystem user/group id。这个是对文件操作会审核的权限。</p>
 </li>
@@ -1530,7 +1530,7 @@ u64    real_start_time<span class="token punctuation">;</span><span class="token
 <li>idle_sched_class就是空闲进程的调度策略。</li>
 </ul>
 <p>这里实时进程的调度策略RR和FIFO相对简单一些，而且由于咱们平时常遇到的都是普通进程，在这里，咱们就重点分析普通进程的调度问题。普通进程使用的调度策略是fair_sched_class，顾名思义，对于普通进程来讲，公平是最重要的。</p>
-<h4 id="10-4-完全公平调度算法"><a href="#10-4-完全公平调度算法" class="headerlink" title="10.4 完全公平调度算法"></a>10.4 完全公平调度算法</h4><p>在Linux里面，实现了一个基于CFS的调度算法。CFS全称Completely Fair Scheduling，叫完全公平调度。听起来很“公平”。那这个算法的原理是什么呢？我们来看看。</p>
+<h4 id="10-4-完全公平调度算法"><a href="#10-4-完全公平调度算法" class="headerlink" title="10.4 完全公平调度算法"></a>10.4 完全公平调度算法</h4><p>在Linux里面，实现了一个基于CFS的调度算法。CFS全称Completely Fair Scheduling，叫完全公平调度。听起来很”公平”。那这个算法的原理是什么呢？我们来看看。</p>
 <p>首先，你需要记录下进程的运行时间。CPU会提供一个时钟，过一段时间就触发一个时钟中断。就像咱们的表滴答一下，这个我们叫Tick。CFS会为每一个进程安排一个虚拟运行时间vruntime。如果一个进程在运行，随着时间的增长，也就是一个个tick的到来，进程的vruntime将不断增大。没有得到执行的进程vruntime不变。</p>
 <p>显然，那些vruntime少的，原来受到了不公平的对待，需要给它补上，所以会优先运行这样的进程。</p>
 <p>这有点像让你把一筐球平均分到N个口袋里面，你看着哪个少，就多放一些；哪个多了，就先不放。这样经过多轮，虽然不能保证球完全一样多，但是也差不多公平。</p>
@@ -1999,7 +1999,7 @@ END(__switch_to_asm)<span aria-hidden="true" class="line-numbers-rows"><span></s
 <p>内核栈的栈顶指针呢？在<strong>switch_to_asm里面已经切换了栈顶指针，并且将栈顶指针在</strong>switch_to加载到了TSS里面。</p>
 <p>用户栈的栈顶指针呢？如果当前在内核里面的话，它当然是在内核栈顶部的pt_regs结构里面呀。当从内核返回用户态运行的时候，pt_regs里面有所有当时在用户态的时候运行的上下文信息，就可以开始运行了。</p>
 <p>唯一让人不容易理解的是指令指针寄存器，它应该指向下一条指令的，那它是如何切换的呢？这里有点绕，请你仔细看。</p>
-<p>这里我先明确一点，进程的调度都最终会调用到__schedule函数。为了方便你记住，我姑且给它起个名字，就叫“ <strong>进程调度第一定律</strong> ”。后面我们会多次用到这个定律，你一定要记住。</p>
+<p>这里我先明确一点，进程的调度都最终会调用到__schedule函数。为了方便你记住，我姑且给它起个名字，就叫” <strong>进程调度第一定律</strong> “。后面我们会多次用到这个定律，你一定要记住。</p>
 <p>我们用最前面的例子仔细分析这个过程。本来一个进程A在用户态是要写一个文件的，写文件的操作用户态没办法完成，就要通过系统调用到达内核态。在这个切换的过程中，用户态的指令指针寄存器是保存在pt_regs里面的，到了内核态，就开始沿着写文件的逻辑一步一步执行，结果发现需要等待，于是就调用__schedule函数。</p>
 <p>这个时候，进程A在内核态的指令指针是指向<strong>schedule了。这里请记住，A进程的内核栈会保存这个</strong>schedule的调用，而且知道这是从btrfs_wait_for_no_snapshoting_writes这个函数里面进去的。</p>
 <p>__schedule里面经过上面的层层调用，到达了context_switch的最后三行指令（其中barrier语句是一个编译器指令，用于保证switch_to和finish_task_switch的执行顺序，不会因为编译阶段优化而改变，这里咱们可以忽略它）。</p>
@@ -2008,12 +2008,12 @@ END(__switch_to_asm)<span aria-hidden="true" class="line-numbers-rows"><span></s
 <span class="token keyword">return</span> <span class="token function">finish_task_switch</span><span class="token punctuation">(</span>prev<span class="token punctuation">)</span><span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span></span></code></pre>
 <p>当进程A在内核里面执行switch_to的时候，内核态的指令指针也是指向这一行的。但是在switch_to里面，将寄存器和栈都切换到成了进程B的，唯一没有变的就是指令指针寄存器。当switch_to返回的时候，指令指针寄存器指向了下一条语句finish_task_switch。</p>
 <p>但这个时候的finish_task_switch已经不是进程A的finish_task_switch了，而是进程B的finish_task_switch了。</p>
-<p>这样合理吗？你怎么知道进程B当时被切换下去的时候，执行到哪里了？恢复B进程执行的时候一定在这里呢？这时候就要用到咱的“进程调度第一定律”了。</p>
+<p>这样合理吗？你怎么知道进程B当时被切换下去的时候，执行到哪里了？恢复B进程执行的时候一定在这里呢？这时候就要用到咱的”进程调度第一定律”了。</p>
 <p>当年B进程被别人切换走的时候，也是调用__schedule，也是调用到switch_to，被切换成为C进程的，所以，B进程当年的下一个指令也是finish_task_switch，这就说明指令指针指到这里是没有错的。</p>
 <p>接下来，我们要从finish_task_switch完毕后，返回__schedule的调用了。返回到哪里呢？按照函数返回的原理，当然是从内核栈里面去找，是返回到btrfs_wait_for_no_snapshoting_writes吗？当然不是了，因为btrfs_wait_for_no_snapshoting_writes是在A进程的内核栈里面的，它早就被切换走了，应该从B进程的内核栈里面找。</p>
 <p>假设，B就是最前面例子里面调用tap_do_read读网卡的进程。它当年调用__schedule的时候，是从tap_do_read这个函数调用进去的。</p>
 <p>当然，B进程的内核栈里面放的是tap_do_read。于是，从__schedule返回之后，当然是接着tap_do_read运行，然后在内核运行完毕后，返回用户态。这个时候，B进程内核栈的pt_regs也保存了用户态的指令指针寄存器，就接着在用户态的下一条指令开始运行就可以了。</p>
-<p>假设，我们只有一个CPU，从B切换到C，从C又切换到A。在C切换到A的时候，还是按照“进程调度第一定律”，C进程还是会调用__schedule到达switch_to，在里面切换成为A的内核栈，然后运行finish_task_switch。</p>
+<p>假设，我们只有一个CPU，从B切换到C，从C又切换到A。在C切换到A的时候，还是按照”进程调度第一定律”，C进程还是会调用__schedule到达switch_to，在里面切换成为A的内核栈，然后运行finish_task_switch。</p>
 <p>这个时候运行的finish_task_switch，才是A进程的finish_task_switch。运行完毕从__schedule返回的时候，从内核栈上才知道，当年是从btrfs_wait_for_no_snapshoting_writes调用进去的，因而应该返回btrfs_wait_for_no_snapshoting_writes继续执行，最后内核执行完毕返回用户态，同样恢复pt_regs，恢复用户态的指令指针寄存器，从用户态接着运行。</p>
 <p>到这里你是不是有点理解为什么switch_to有三个参数呢？为啥有两个prev呢？其实我们从定义就可以看到。</p>
 <pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">define</span> <span class="token expression"><span class="token function">switch_to</span><span class="token punctuation">(</span>prev<span class="token punctuation">,</span> next<span class="token punctuation">,</span> last<span class="token punctuation">)</span>             </span><span class="token punctuation">\</span>
@@ -2023,7 +2023,7 @@ END(__switch_to_asm)<span aria-hidden="true" class="line-numbers-rows"><span></s
     <span class="token expression"><span class="token punctuation">(</span><span class="token punctuation">(</span>last<span class="token punctuation">)</span> <span class="token operator">=</span> <span class="token function">__switch_to_asm</span><span class="token punctuation">(</span><span class="token punctuation">(</span>prev<span class="token punctuation">)</span><span class="token punctuation">,</span> <span class="token punctuation">(</span>next<span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span> </span><span class="token punctuation">\</span>
 <span class="token expression"><span class="token punctuation">}</span> <span class="token keyword">while</span> <span class="token punctuation">(</span><span class="token number">0</span><span class="token punctuation">)</span></span></span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
 <p>在上面的例子中，A切换到B的时候，运行到<strong>switch_to_asm这一行的时候，是在A的内核栈上运行的，prev是A，next是B。但是，A执行完</strong>switch_to_asm之后就被切换走了，当C再次切换到A的时候，运行到<strong>switch_to_asm，是从C的内核栈运行的。这个时候，prev是C，next是A，但是</strong>switch_to_asm里面切换成为了A当时的内核栈。</p>
-<p>还记得当年的场景“prev是A，next是B”，__switch_to_asm里面return prev的时候，还没return的时候，prev这个变量里面放的还是C，因而它会把C放到返回结果中。但是，一旦return，就会弹出A当时的内核栈。这个时候，prev变量就变成了A，next变量就变成了B。这就还原了当年的场景，好在返回值里面的last还是C。</p>
+<p>还记得当年的场景”prev是A，next是B”，__switch_to_asm里面return prev的时候，还没return的时候，prev这个变量里面放的还是C，因而它会把C放到返回结果中。但是，一旦return，就会弹出A当时的内核栈。这个时候，prev变量就变成了A，next变量就变成了B。这就还原了当年的场景，好在返回值里面的last还是C。</p>
 <p>通过三个变量switch_to(prev = A, next=B, last=C)，A进程就明白了，我当时被切换走的时候，是切换成B，这次切换回来，是从C回来的。</p>
 <h4 id="11-4-总结"><a href="#11-4-总结" class="headerlink" title="11.4 总结"></a>11.4 总结</h4><p>这一节我们讲主动调度的过程，也即一个运行中的进程主动调用<strong>schedule让出CPU。在</strong>schedule里面会做两件事情，第一是选取下一个进程，第二是进行上下文切换。而上下文切换又分用户态进程空间的切换和内核态的切换。</p>
 <p><img src="https://fastly.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《趣谈Linux操作系统》学习笔记/主动调度.png" alt="主动调度"></p>
@@ -2266,7 +2266,7 @@ retint_kernel:
 <p>轮到权限相关了，copy_creds主要做了下面几件事情：</p>
 <ul>
 <li>调用prepare_creds，准备一个新的struct cred *new。如何准备呢？其实还是从内存中分配一个新的struct cred结构，然后调用memcpy复制一份父进程的cred；</li>
-<li>接着p-&gt;cred = p-&gt;real_cred = get_cred(new)，将新进程的“我能操作谁”和“谁能操作我”两个权限都指向新的cred。</li>
+<li>接着p-&gt;cred = p-&gt;real_cred = get_cred(new)，将新进程的”我能操作谁”和”谁能操作我”两个权限都指向新的cred。</li>
 </ul>
 <p>接下来，copy_process重新设置进程运行的统计量。</p>
 <pre class="line-numbers language-c" data-language="c"><code class="language-c">p<span class="token operator">-&gt;</span>utime <span class="token operator">=</span> p<span class="token operator">-&gt;</span>stime <span class="token operator">=</span> p<span class="token operator">-&gt;</span>gtime <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span>
@@ -2716,7 +2716,7 @@ internal_function
 <h4 id="14-4-总结"><a href="#14-4-总结" class="headerlink" title="14.4 总结"></a>14.4 总结</h4><p>线程的调用过程解析完毕了，我画了一个图总结一下。这个图对比了创建进程和创建线程在用户态和内核态的不同。</p>
 <p>创建进程的话，调用的系统调用是fork，在copy_process函数里面，会将五大结构files_struct、fs_struct、sighand_struct、signal_struct、mm_struct都复制一遍，从此父进程和子进程各用各的数据结构。而创建线程的话，调用的是系统调用clone，在copy_process函数里面， 五大结构仅仅是引用计数加一，也即线程共享进程的数据结构。</p>
 <p><img src="https://fastly.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《趣谈Linux操作系统》学习笔记/创建进程和创建线程过程对比.jpeg" alt="创建进程和创建线程过程对比"></p>
-<h2 id="三、内存管理"><a href="#三、内存管理" class="headerlink" title="三、内存管理"></a>三、内存管理</h2><h3 id="15-内存管理（上）"><a href="#15-内存管理（上）" class="headerlink" title="15. 内存管理（上）"></a>15. 内存管理（上）</h3><p>平时我们说计算机的“计算”两个字，其实说的就是两方面，第一，进程和线程对于CPU的使用；第二，对于内存的管理。</p>
+<h2 id="三、内存管理"><a href="#三、内存管理" class="headerlink" title="三、内存管理"></a>三、内存管理</h2><h3 id="15-内存管理（上）"><a href="#15-内存管理（上）" class="headerlink" title="15. 内存管理（上）"></a>15. 内存管理（上）</h3><p>平时我们说计算机的”计算”两个字，其实说的就是两方面，第一，进程和线程对于CPU的使用；第二，对于内存的管理。</p>
 <h4 id="15-1-独享内存空间的原理"><a href="#15-1-独享内存空间的原理" class="headerlink" title="15.1 独享内存空间的原理"></a>15.1 独享内存空间的原理</h4><p>内存都被分成一块一块儿的，都编好了号。</p>
 <p>操作系统会给进程分配一个虚拟地址。所有进程看到的这个地址都是一样的，里面的内存都是从0开始编号。</p>
 <p>在程序里面，指令写入的地址是虚拟地址。例如，位置为10M的内存区域，操作系统会提供一种机制，将不同进程的虚拟地址和不同内存的物理地址映射起来。</p>
@@ -2784,8 +2784,8 @@ internal_function
 <li>在内核里面也有动态分配的内存；</li>
 <li>虚拟地址到物理地址的映射表放在哪里？</li>
 </ul>
-<p>对于内存的访问，用户态的进程使用虚拟地址，这点毫无疑问，内核态的也基本都是使用虚拟地址，只有最后一项容易让人产生疑问。虚拟地址到物理地址的映射表，这个感觉起来是内存管理模块的一部分，这个是“实”是“虚”呢？这个问题先保留，我们暂不讨论，放到内存映射那一节见分晓。</p>
-<p>既然都是虚拟地址，我们就先不管映射到物理地址以后是如何布局的，反正现在至少从“虚”的角度来看，这一大片连续的内存空间都是我的了。</p>
+<p>对于内存的访问，用户态的进程使用虚拟地址，这点毫无疑问，内核态的也基本都是使用虚拟地址，只有最后一项容易让人产生疑问。虚拟地址到物理地址的映射表，这个感觉起来是内存管理模块的一部分，这个是”实”是”虚”呢？这个问题先保留，我们暂不讨论，放到内存映射那一节见分晓。</p>
+<p>既然都是虚拟地址，我们就先不管映射到物理地址以后是如何布局的，反正现在至少从”虚”的角度来看，这一大片连续的内存空间都是我的了。</p>
 <p>首先，这么大的虚拟空间一切二，一部分用来放内核的东西，称为 <strong>内核空间</strong> ，一部分用来放进程的东西，称为 <strong>用户空间</strong> 。用户空间在下，在低地址，内核空间在上，在高地址。这两部分空间的分界线因为32位和64位的不同而不同。</p>
 <p>对于普通进程来说，内核空间的那部分虽然虚拟地址在那里，但是不能访问。</p>
 <p>我们从最低位开始排起，先是 <strong>Text Segment</strong> 、 <strong>Data Segment</strong> 和 <strong>BSS Segment</strong> 。Text Segment是存放二进制可执行代码的位置，Data Segment存放静态常量，BSS Segment存放未初始化的静态变量。是不是觉得这几个名字很熟悉？没错，咱们前面讲ELF格式的时候提到过，在二进制执行文件里面，就有这三个部分。这里就是把二进制执行文件的三个部分加载到内存里面。</p>
@@ -3069,7 +3069,7 @@ out<span class="token operator">:</span>
 <p>这896M还需要仔细分解。在系统启动的时候，物理内存的前1M已经被占用了，从1M开始加载内核代码段，然后就是内核的全局变量、BSS等，也是ELF里面涵盖的。这样内核的代码段，全局变量，BSS也就会被映射到3G后的虚拟地址空间里面。具体的物理内存布局可以查看/proc/iomem。</p>
 <p>在内核运行的过程中，如果碰到系统调用创建进程，会创建task_struct这样的实例，内核的进程管理代码会将实例创建在3G至3G+896M的虚拟空间中，当然也会被放在物理内存里面的前896M里面，相应的页表也会被创建。</p>
 <p>在内核运行的过程中，会涉及内核栈的分配，内核的进程管理的代码会将内核栈创建在3G至3G+896M的虚拟空间中，当然也就会被放在物理内存里面的前896M里面，相应的页表也会被创建。</p>
-<p>896M这个值在内核中被定义为high_memory，在此之上常称为“高端内存”。这是个很笼统的说法，到底是虚拟内存的3G+896M以上的是高端内存，还是物理内存896M以上的是高端内存呢？</p>
+<p>896M这个值在内核中被定义为high_memory，在此之上常称为”高端内存”。这是个很笼统的说法，到底是虚拟内存的3G+896M以上的是高端内存，还是物理内存896M以上的是高端内存呢？</p>
 <p>这里仍然需要辨析一下，高端内存是物理内存的概念。它仅仅是内核中的内存管理模块看待物理内存的时候的概念。前面我们也说过，在内核中，除了内存管理模块直接操作物理地址之外，内核的其他模块，仍然要操作虚拟地址，而虚拟地址是需要内存管理模块分配和映射好的。</p>
 <p>假设咱们的电脑有2G内存，现在如果内核的其他模块想要访问物理内存1.5G的地方，应该怎么办呢？如果你觉得，我有32位的总线，访问个2G还不小菜一碟，这就错了。</p>
 <p>首先，你不能使用物理地址。你需要使用内存管理模块给你分配的虚拟地址，但是虚拟地址的0到3G已经被用户态进程占用去了，你作为内核不能使用。因为你写1.5G的虚拟内存位置，一方面你不知道应该根据哪个进程的页表进行映射；另一方面，就算映射了也不是你真正想访问的物理内存的地方，所以你发现你作为内核，能够使用的虚拟内存地址，只剩下1G减去896M的空间了。</p>
@@ -3287,7 +3287,7 @@ out<span class="token operator">:</span>
 <span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
 <!----fix markdown render issues---->
 <h4 id="18-5-页的分配"><a href="#18-5-页的分配" class="headerlink" title="18.5 页的分配"></a>18.5 页的分配</h4><p>对于要分配比较大的内存，例如到分配页级别的，可以使用 <strong>伙伴系统（Buddy System）</strong> 。</p>
-<p>Linux中的内存管理的“页”大小为4KB。把所有的空闲页分组为11个页块链表，每个块链表分别包含很多个大小的页块，有1、2、4、8、16、32、64、128、256、512和1024个连续页的页块。最大可以申请1024个连续页，对应4MB大小的连续内存。每个页块的第一个页的物理地址是该页块大小的整数倍。</p>
+<p>Linux中的内存管理的”页”大小为4KB。把所有的空闲页分组为11个页块链表，每个块链表分别包含很多个大小的页块，有1、2、4、8、16、32、64、128、256、512和1024个连续页的页块。最大可以申请1024个连续页，对应4MB大小的连续内存。每个页块的第一个页的物理地址是该页块大小的整数倍。</p>
 <p><img src="https://fastly.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《趣谈Linux操作系统》学习笔记/伙伴系统.jpeg" alt="伙伴系统"></p>
 <p>第i个页块链表中，页块中页的数目为2^i。</p>
 <p>在struct zone里面有以下的定义：</p>
@@ -4516,9 +4516,9 @@ L3_START_KERNEL <span class="token operator">=</span> <span class="token functio
 <h3 id="23-硬盘文件系统"><a href="#23-硬盘文件系统" class="headerlink" title="23. 硬盘文件系统"></a>23. 硬盘文件系统</h3><p>这一节我们重点目前Linux下最主流的文件系统格式—— <strong>ext系列</strong> 的文件系统的格式。</p>
 <h4 id="23-1-inode与块的存储"><a href="#23-1-inode与块的存储" class="headerlink" title="23.1 inode与块的存储"></a>23.1 inode与块的存储</h4><p>硬盘分成相同大小的单元，我们称为 <strong>块（Block）</strong> 。一块的大小是扇区大小的整数倍，默认是4K。在格式化的时候，这个值是可以设定的。</p>
 <p>一大块硬盘被分成了一个个小的块，用来存放文件的数据部分。这样一来，如果我们像存放一个文件，就不用给他分配一块连续的空间了。我们可以分散成一个个小块进行存放。这样就灵活得多，也比较容易添加、删除和插入数据。</p>
-<p>但是这也带来一个新的问题，那就是文件的数据存放得太散，找起来就比较困难。有什么办法解决呢？我们是不是可以像图书馆那样，也设立一个索引区域，用来维护“某个文件分成几块、每一块在哪里“等等这些 <strong>基本信息</strong> ?</p>
+<p>但是这也带来一个新的问题，那就是文件的数据存放得太散，找起来就比较困难。有什么办法解决呢？我们是不是可以像图书馆那样，也设立一个索引区域，用来维护”某个文件分成几块、每一块在哪里”等等这些 <strong>基本信息</strong> ?</p>
 <p>另外，文件还有 <strong>元数据</strong> 部分，例如名字、权限等，这就需要一个结构<strong>inode</strong>来存放。</p>
-<p>什么是inode呢？inode的“i”是index的意思，其实就是“索引”。既然如此，我们每个文件都会对应一个inode；一个文件夹就是一个文件，也对应一个inode。</p>
+<p>什么是inode呢？inode的”i”是index的意思，其实就是”索引”。既然如此，我们每个文件都会对应一个inode；一个文件夹就是一个文件，也对应一个inode。</p>
 <p>至于inode里面有哪些信息，其实我们在内核中就有定义。你可以看下面这个数据结构。</p>
 <pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">struct</span> <span class="token class-name">ext4_inode</span> <span class="token punctuation">{</span>
     __le16  i_mode<span class="token punctuation">;</span>         <span class="token comment">/* File mode */</span>
@@ -4542,7 +4542,7 @@ L3_START_KERNEL <span class="token operator">=</span> <span class="token functio
 <p>从这个数据结构中，我们可以看出，inode里面有文件的读写权限i_mode，属于哪个用户i_uid，哪个组i_gid，大小是多少i_size_io，占用多少个块i_blocks_io。咱们讲ls命令行的时候，列出来的权限、用户、大小这些信息，就是从这里面取出来的。</p>
 <p>另外，这里面还有几个与文件相关的时间。i_atime是access time，是最近一次访问文件的时间；i_ctime是change time，是最近一次<strong>更改inode的时间</strong>；i_mtime是modify time，是最近一次<strong>更改文件的时间</strong>。</p>
 <p>这里你需要注意区分几个地方。首先，访问了，不代表修改了，也可能只是打开看看，就会改变access time。其次，修改inode，有可能修改的是用户和权限，没有修改数据部分，就会改变change time。只有数据也修改了，才改变modify time。</p>
-<p>我们刚才说的“某个文件分成几块、每一块在哪里”，这些在inode里面，应该保存在i_block里面。</p>
+<p>我们刚才说的”某个文件分成几块、每一块在哪里”，这些在inode里面，应该保存在i_block里面。</p>
 <p>具体如何保存的呢？EXT4_N_BLOCKS有如下的定义，计算下来一共有15项。</p>
 <pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">define</span> <span class="token expression">EXT4_NDIR_BLOCKS        <span class="token number">12</span></span></span>
 <span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">define</span> <span class="token expression">EXT4_IND_BLOCK          EXT4_NDIR_BLOCKS</span></span>
@@ -4656,7 +4656,7 @@ ino <span class="token operator">=</span> <span class="token function">ext4_find
 <p>对于block位图，在写入文件的时候，也会有这个过程，我就不展开说了。感兴趣的话，你可以自己去找代码看。</p>
 <h4 id="23-3-文件系统的格式"><a href="#23-3-文件系统的格式" class="headerlink" title="23.3 文件系统的格式"></a>23.3 文件系统的格式</h4><p>看起来，我们现在应该能够很顺利地通过inode位图和block位图创建文件了。如果仔细计算一下，其实还是有问题的。</p>
 <p>数据块的位图是放在一个块里面的，共4k。每位表示一个数据块，共可以表示 <code>4 * 1024 * 8 = 2^{15}</code> 个数据块。如果每个数据块也是按默认的4K，最大可以表示空间为 <code>2^{15} * 4 * 1024 = 2^{27}</code> 个byte，也就是128M。</p>
-<p>也就是说按照上面的格式，如果采用“<strong>一个块的位图+一系列的块</strong>”，外加“<strong>一个块的inode的位图+一系列的inode的结构</strong>”，最多能够表示128M。是不是太小了？现在很多文件都比这个大。我们先把这个结构称为一个<strong>块组</strong>。有N多的块组，就能够表示N大的文件。</p>
+<p>也就是说按照上面的格式，如果采用”<strong>一个块的位图+一系列的块</strong>“，外加”<strong>一个块的inode的位图+一系列的inode的结构</strong>“，最多能够表示128M。是不是太小了？现在很多文件都比这个大。我们先把这个结构称为一个<strong>块组</strong>。有N多的块组，就能够表示N大的文件。</p>
 <p>对于块组，我们也需要一个数据结构来表示为ext4_group_desc。这里面对于一个块组里的inode位图bg_inode_bitmap_lo、块位图bg_block_bitmap_lo、inode列表bg_inode_table_lo，都有相应的成员变量。</p>
 <p>这样一个个块组，就基本构成了我们整个文件系统的结构。因为块组有多个，块组描述符也同样组成一个列表，我们把这些称为<strong>块组描述符表</strong>。</p>
 <p>当然，我们还需要有一个数据结构，对整个文件系统的情况进行描述，这个就是<strong>超级块</strong>。ext4_super_block。这里面有整个文件系统一共有多少inode，s_inodes_count；一共有多少块，s_blocks_count_lo，每个块组有多少inode，s_inodes_per_group，每个块组有多少块，s_blocks_per_group等。这些都是这类的全局信息。</p>
@@ -4699,7 +4699,7 @@ ino <span class="token operator">=</span> <span class="token function">ext4_find
     <span class="token keyword">char</span>    name<span class="token punctuation">[</span>EXT4_NAME_LEN<span class="token punctuation">]</span><span class="token punctuation">;</span>    <span class="token comment">/* File name */</span>
 <span class="token punctuation">}</span><span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
 <p>在目录文件的块中，最简单的保存格式是列表，就是一项一项地将ext4_dir_entry_2列在哪里。</p>
-<p>每一项都会保存这个目录的下一级的文件的文件名和对应的inode，通过这个inode，就能找到真正的文件。第一项是“.”，表示当前目录，第二项是“…”，表示上一级目录，接下来就是一项一项的文件名和inode。</p>
+<p>每一项都会保存这个目录的下一级的文件的文件名和对应的inode，通过这个inode，就能找到真正的文件。第一项是”.”，表示当前目录，第二项是”…”，表示上一级目录，接下来就是一项一项的文件名和inode。</p>
 <p>有时候，如果一个目录下面的文件太多的时候，我们想在这个目录下找一个文件，按照列表一个个去找，太慢了，于是我们就添加了索引的模式。</p>
 <p>如果在inode中设置EXT4_INDEX_FL标志，则目录文件的块的组织形式将发生变化，变成了下面定义的这个样子：</p>
 <pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">struct</span> <span class="token class-name">dx_root</span>
@@ -4719,7 +4719,7 @@ ino <span class="token operator">=</span> <span class="token function">ext4_find
     info<span class="token punctuation">;</span>
     <span class="token keyword">struct</span> <span class="token class-name">dx_entry</span> entries<span class="token punctuation">[</span><span class="token number">0</span><span class="token punctuation">]</span><span class="token punctuation">;</span>
 <span class="token punctuation">}</span><span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
-<p>当然，首先出现的还是差不多的，第一项是“.”，表示当前目录；第二项是“…”，表示上一级目录，这两个不变。接下来就开始发生改变了。是一个dx_root_info的结构，其中最重要的成员变量是indirect_levels，表示间接索引的层数。</p>
+<p>当然，首先出现的还是差不多的，第一项是”.”，表示当前目录；第二项是”…”，表示上一级目录，这两个不变。接下来就开始发生改变了。是一个dx_root_info的结构，其中最重要的成员变量是indirect_levels，表示间接索引的层数。</p>
 <p>接下来我们来看索引项dx_entry。这个也很简单，其实就是文件名的哈希值和数据块的一个映射关系。</p>
 <pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">struct</span> <span class="token class-name">dx_entry</span>
 <span class="token punctuation">{</span>
@@ -4895,7 +4895,7 @@ ino <span class="token operator">=</span> <span class="token function">ext4_find
 <ul>
 <li>get_empty_filp生成一个struct file结构；</li>
 <li>path_init初始化nameidata，准备开始节点路径查找；</li>
-<li>link_path_walk对于路径名逐层进行节点路径查找，这里面有一个大的循环，用“/”分隔逐层处理；</li>
+<li>link_path_walk对于路径名逐层进行节点路径查找，这里面有一个大的循环，用”/“分隔逐层处理；</li>
 <li>do_last获取文件对应的inode对象，并且初始化file对象。</li>
 </ul>
 <pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">static</span> <span class="token keyword">struct</span> <span class="token class-name">file</span> <span class="token operator">*</span><span class="token function">path_openat</span><span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">nameidata</span> <span class="token operator">*</span>nd<span class="token punctuation">,</span>
@@ -4914,7 +4914,7 @@ ino <span class="token operator">=</span> <span class="token function">ext4_find
 <span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token punctuation">.</span>
     <span class="token keyword">return</span> file<span class="token punctuation">;</span>
 <span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
-<p>例如，文件“/root/hello/world/data”，link_path_walk会解析前面的路径部分“/root/hello/world”，解析完毕的时候nameidata的dentry为路径名的最后一部分的父目录“/root/hello/world”，而nameidata的filename为路径名的最后一部分“data”。</p>
+<p>例如，文件”/root/hello/world/data”，link_path_walk会解析前面的路径部分”/root/hello/world”，解析完毕的时候nameidata的dentry为路径名的最后一部分的父目录”/root/hello/world”，而nameidata的filename为路径名的最后一部分”data”。</p>
 <p>最后一部分的解析和处理，我们交给do_last。</p>
 <pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">static</span> <span class="token keyword">int</span> <span class="token function">do_last</span><span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">nameidata</span> <span class="token operator">*</span>nd<span class="token punctuation">,</span>
         <span class="token keyword">struct</span> <span class="token class-name">file</span> <span class="token operator">*</span>file<span class="token punctuation">,</span> <span class="token keyword">const</span> <span class="token keyword">struct</span> <span class="token class-name">open_flags</span> <span class="token operator">*</span>op<span class="token punctuation">,</span>
@@ -5758,7 +5758,7 @@ crct10dif_common       <span class="token number">12595</span>  <span class="tok
 <span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">define</span> <span class="token expression"><span class="token function">_IOC_TYPE</span><span class="token punctuation">(</span>nr<span class="token punctuation">)</span>       <span class="token punctuation">(</span><span class="token punctuation">(</span><span class="token punctuation">(</span>nr<span class="token punctuation">)</span> <span class="token operator">&gt;&gt;</span> _IOC_TYPESHIFT<span class="token punctuation">)</span> <span class="token operator">&amp;</span> _IOC_TYPEMASK<span class="token punctuation">)</span></span></span>
 <span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">define</span> <span class="token expression"><span class="token function">_IOC_NR</span><span class="token punctuation">(</span>nr<span class="token punctuation">)</span>         <span class="token punctuation">(</span><span class="token punctuation">(</span><span class="token punctuation">(</span>nr<span class="token punctuation">)</span> <span class="token operator">&gt;&gt;</span> _IOC_NRSHIFT<span class="token punctuation">)</span> <span class="token operator">&amp;</span> _IOC_NRMASK<span class="token punctuation">)</span></span></span>
 <span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">define</span> <span class="token expression"><span class="token function">_IOC_SIZE</span><span class="token punctuation">(</span>nr<span class="token punctuation">)</span>       <span class="token punctuation">(</span><span class="token punctuation">(</span><span class="token punctuation">(</span>nr<span class="token punctuation">)</span> <span class="token operator">&gt;&gt;</span> _IOC_SIZESHIFT<span class="token punctuation">)</span> <span class="token operator">&amp;</span> _IOC_SIZEMASK<span class="token punctuation">)</span></span></span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
-<p>在用户程序中，可以通过上面的”Used to create numbers“这些宏，根据参数生成cmd，在驱动程序中，可以通过下面的”used to decode ioctl numbers“这些宏，解析cmd后，执行指令。</p>
+<p>在用户程序中，可以通过上面的”Used to create numbers”这些宏，根据参数生成cmd，在驱动程序中，可以通过下面的”used to decode ioctl numbers”这些宏，解析cmd后，执行指令。</p>
 <p>ioctl中会调用do_vfs_ioctl，这里面对于已经定义好的cmd，进行相应的处理。如果不是默认定义好的cmd，则执行默认操作。对于普通文件，调用file_ioctl；对于其他文件调用vfs_ioctl。</p>
 <pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">int</span> <span class="token function">do_vfs_ioctl</span><span class="token punctuation">(</span><span class="token keyword">struct</span> <span class="token class-name">file</span> <span class="token operator">*</span>filp<span class="token punctuation">,</span> <span class="token keyword">unsigned</span> <span class="token keyword">int</span> fd<span class="token punctuation">,</span> <span class="token keyword">unsigned</span> <span class="token keyword">int</span> cmd<span class="token punctuation">,</span>
          <span class="token keyword">unsigned</span> <span class="token keyword">long</span> arg<span class="token punctuation">)</span>
@@ -7448,8 +7448,8 @@ out_unlock<span class="token operator">:</span>
 <p><img src="https://fastly.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《趣谈Linux操作系统》学习笔记/瀑布模型.png" alt="瀑布模型"></p>
 <p>这种模型类似进程间通信的<strong>管道模型</strong>。还记得咱们最初学Linux命令的时候，有下面这样一行命令：</p>
 <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token function">ps</span> -ef <span class="token operator">|</span> <span class="token function">grep</span> 关键字 <span class="token operator">|</span> <span class="token function">awk</span> <span class="token string">'{print <span class="token variable">$2</span>}'</span> <span class="token operator">|</span> <span class="token function">xargs</span> <span class="token function">kill</span> -9<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
-<p>这里面的竖线“|”就是一个管道。它会将前一个命令的输出，作为后一个命令的输入。从管道的这个名称可以看出来，管道是一种单向传输数据的机制，它其实是一段缓存，里面的数据只能从一端写入，从另一端读出。如果想互相通信，我们需要创建两个管道才行。</p>
-<p>管道分为两种类型，“|” 表示的管道称为<strong>匿名管道</strong>，意思就是这个类型的管道没有名字，用完了就销毁了。就像上面那个命令里面的一样，竖线代表的管道随着命令的执行自动创建、自动销毁。用户甚至都不知道自己在用管道这种技术，就已经解决了问题。所以这也是面试题里面经常会问的，到时候千万别说这是竖线，而要回答背后的机制，管道。</p>
+<p>这里面的竖线”|”就是一个管道。它会将前一个命令的输出，作为后一个命令的输入。从管道的这个名称可以看出来，管道是一种单向传输数据的机制，它其实是一段缓存，里面的数据只能从一端写入，从另一端读出。如果想互相通信，我们需要创建两个管道才行。</p>
+<p>管道分为两种类型，”|” 表示的管道称为<strong>匿名管道</strong>，意思就是这个类型的管道没有名字，用完了就销毁了。就像上面那个命令里面的一样，竖线代表的管道随着命令的执行自动创建、自动销毁。用户甚至都不知道自己在用管道这种技术，就已经解决了问题。所以这也是面试题里面经常会问的，到时候千万别说这是竖线，而要回答背后的机制，管道。</p>
 <p>另外一种类型是<strong>命名管道</strong>。这个类型的管道需要通过mkfifo命令显式地创建。</p>
 <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token function">mkfifo</span> hello<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
 <p>hello就是这个管道的名称。管道以文件的形式存在，这也符合Linux里面一切皆文件的原则。这个时候，我们ls一下，可以看到，这个文件的类型是p，就是pipe的意思。</p>
@@ -7508,7 +7508,7 @@ Message queue id: <span class="token number">32768</span>.<span aria-hidden="tru
 key        msqid      owner      perms      used-bytes   messages
 0x00016978 <span class="token number">32768</span>      root       <span class="token number">777</span>        <span class="token number">0</span>            <span class="token number">0</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span></span></code></pre>
 <p>接下来，我们来看如何发送信息。发送消息主要调用<strong>msgsnd函数</strong>。第一个参数是message queue的id，第二个参数是消息的结构体，第三个参数是消息的长度，最后一个参数是flag。这里IPC_NOWAIT表示发送的时候不阻塞，直接返回。</p>
-<p>下面的这段程序，getopt_long、do-while循环以及switch，是用来解析命令行参数的。命令行参数的格式定义在long_options里面。每一项的第一个成员“id”“type““message”是参数选项的全称，第二个成员都为1，表示参数选项后面要跟参数，最后一个成员’i’‘t’’m’是参数选项的简称。</p>
+<p>下面的这段程序，getopt_long、do-while循环以及switch，是用来解析命令行参数的。命令行参数的格式定义在long_options里面。每一项的第一个成员”id””type””message”是参数选项的全称，第二个成员都为1，表示参数选项后面要跟参数，最后一个成员’i’’t’’m’是参数选项的简称。</p>
 <pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;stdio.h&gt;</span></span>
 <span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;stdlib.h&gt;</span></span>
 <span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">include</span> <span class="token string">&lt;sys/msg.h&gt;</span></span>
@@ -7677,7 +7677,7 @@ key        shmid    owner perms    bytes nattch status
 <!----fix markdown render issues---->
 <h4 id="31-5-信号"><a href="#31-5-信号" class="headerlink" title="31.5 信号"></a>31.5 信号</h4><p>上面讲的进程间通信的方式，都是常规状态下的工作模式，对应到咱们平时的工作交接，收发邮件、联合开发等，其实还有一种异常情况下的工作模式。</p>
 <p>例如出现线上系统故障，这个时候，什么流程都来不及了，不可能发邮件，也来不及开会，所有的架构师、开发、运维都要被通知紧急出动。所以，7乘24小时不间断执行的系统都需要有告警系统，一旦出事情，就要通知到人，哪怕是半夜，也要电话叫起来，处理故障。</p>
-<p>对应到操作系统中，就是信号。信号没有特别复杂的数据结构，就是用一个代号一样的数字。Linux提供了几十种信号，分别代表不同的意义。信号之间依靠它们的值来区分。这就像咱们看警匪片，对于紧急的行动，都是说，“1号作战任务”开始执行，警察就开始行动了。情况紧急，不能啰里啰嗦了。</p>
+<p>对应到操作系统中，就是信号。信号没有特别复杂的数据结构，就是用一个代号一样的数字。Linux提供了几十种信号，分别代表不同的意义。信号之间依靠它们的值来区分。这就像咱们看警匪片，对于紧急的行动，都是说，”1号作战任务”开始执行，警察就开始行动了。情况紧急，不能啰里啰嗦了。</p>
 <p>信号可以在任何时候发送给某一进程，进程需要为这个信号配置信号处理函数。当某个信号发生的时候，就默认执行这个函数就可以了。这就相当于咱们运维一个系统应急手册，当遇到什么情况，做什么事情，都事先准备好，出了事情照着做就可以了。</p>
 <h3 id="32-信号（上）"><a href="#32-信号（上）" class="headerlink" title="32. 信号（上）"></a>32. 信号（上）</h3><p>在Linux操作系统中，为了响应各种各样的事件，也是定义了非常多的信号。我们可以通过kill -l命令，查看所有的信号。</p>
 <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ <span class="token function">kill</span> -l

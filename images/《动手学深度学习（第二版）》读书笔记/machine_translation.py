@@ -56,14 +56,14 @@ def download_extract(name, folder=None):
 
 
 def read_data_nmt():
-    """载入“英语－法语”数据集。"""
+    """载入"英语－法语"数据集。"""
     data_dir = download_extract("fra-eng")
     with open(os.path.join(data_dir, "fra.txt"), "r", encoding="utf-8") as f:
         return f.read()
 
 
 def preprocess_nmt(text):
-    """预处理“英语－法语”数据集。"""
+    """预处理"英语－法语"数据集。"""
 
     def no_space(char, prev_char):
         return char in set(",.!?") and prev_char != " "
@@ -77,7 +77,7 @@ def preprocess_nmt(text):
 
 
 def tokenize_nmt(text, num_examples=None):
-    """词元化“英语－法语”数据数据集。"""
+    """词元化"英语－法语"数据数据集。"""
     source, target = [], []
     for i, line in enumerate(text.split("\n")):
         if num_examples and i > num_examples:
@@ -307,7 +307,7 @@ def train_seq2seq(net, data_iter, lr, num_epochs, tgt_vocab, device):
             dec_input = torch.cat([bos, Y[:, :-1]], 1)  # 教师强制
             Y_hat, _ = net(X, dec_input, X_valid_len)
             l = loss(Y_hat, Y, Y_valid_len)
-            l.sum().backward()  # 损失函数的标量进行“反传”
+            l.sum().backward()  # 损失函数的标量进行"反传"
             grad_clipping(net, 1)
             num_tokens = Y_valid_len.sum()
             optimizer.step()

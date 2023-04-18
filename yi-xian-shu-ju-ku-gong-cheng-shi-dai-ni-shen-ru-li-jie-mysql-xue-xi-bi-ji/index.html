@@ -1109,7 +1109,7 @@ MISSING_BYTES_BEYOND_MAX_MEM_SIZE: 0 --该字段表示分析过程丢弃的文�
 </ul>
 <p>三种排序模式比较：</p>
 <p>第二种模式相对第一种模式，避免了二次回表，可以理解为用空间换时间。由于 sort buffer 有限，如果需要查询的数据比较大的话，会增加磁盘排序时间，效率可能比第一种方式更低。</p>
-<p>MySQL 提供了一个参数：max_length_for_sort_data，当“排序的键值对大小” &gt; max_length_for_sort_data 时，MySQL 认为磁盘外部排序的 IO 效率不如回表的效率，会选择第一种排序模式；否则，会选择第二种模式。</p>
+<p>MySQL 提供了一个参数：max_length_for_sort_data，当”排序的键值对大小” &gt; max_length_for_sort_data 时，MySQL 认为磁盘外部排序的 IO 效率不如回表的效率，会选择第一种排序模式；否则，会选择第二种模式。</p>
 <p>第三种模式主要解决变长字符数据存储空间浪费的问题。</p>
 <p><strong>知识点二：优化器在估计符合条件的行数时有两个选择：</strong></p>
 <ul>
@@ -1453,7 +1453,7 @@ MISSING_BYTES_BEYOND_MAX_MEM_SIZE: 0 --该字段表示分析过程丢弃的文�
 +----+-------------+-------+------------+------+---------------+---------+---------+-------+------+----------+-------------+
 |  1 | SIMPLE      | t1    | NULL       | ref  | idx_a_b       | idx_a_b | 5       | const | 1001 |   100.00 | Using index |
 +----+-------------+-------+------------+------+---------------+---------+---------+-------+------+----------+-------------+<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span></span></code></pre>
-<p>可以在 Extra 字段中看到“Using index”，说明使用的是索引排序。</p>
+<p>可以在 Extra 字段中看到”Using index”，说明使用的是索引排序。</p>
 <p>因此，对于先等值查询再排序的语句，可以通过在条件字段和排序字段添加联合索引来优化此类排序语句。</p>
 <h4 id="2-2-去掉不必要的返回字段"><a href="#2-2-去掉不必要的返回字段" class="headerlink" title="2.2 去掉不必要的返回字段"></a>2.2 去掉不必要的返回字段</h4><p>有时，我们其实并不需要查询出所有字段，但是可能因为习惯问题，就写成查所有字段的数据了。我们看下下面两条 SQL 的执行计划：</p>
 <pre class="line-numbers language-sql" data-language="sql"><code class="language-sql"><span class="token keyword">select</span> <span class="token operator">*</span> <span class="token keyword">from</span> t1 <span class="token keyword">order</span> <span class="token keyword">by</span> a<span class="token punctuation">,</span>b<span class="token punctuation">;</span>           <span class="token comment">/* 根据a和b字段排序查出所有字段的值 */</span>
@@ -1489,7 +1489,7 @@ mysql&gt; explain select id,a,b from t1 order by a,b;
 +----+-------------+-------+------------+-------+---------------+---------+---------+------+------+----------+------------------------------------------+
 |  1 | SIMPLE      | t1    | NULL       | range | idx_a_b       | idx_a_b | 5       | NULL |    1 |   100.00 | Using where; Using index; Using filesort |
 +----+-------------+-------+------------+-------+---------------+---------+---------+------+------+----------+------------------------------------------+<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span></span></code></pre>
-<p>这里对上面执行计划做下解释：首先条件 a&gt;9000 使用了索引（关注 key 字段对应的值为 idx_a_b）；在 Extra 中，看到了“Using filesort”，表示使用了 filesort 排序，并没有使用索引排序。所以联合索引中前面的字段使用了范围查询，对后面的字段排序使用不了索引排序。</p>
+<p>这里对上面执行计划做下解释：首先条件 a&gt;9000 使用了索引（关注 key 字段对应的值为 idx_a_b）；在 Extra 中，看到了”Using filesort”，表示使用了 filesort 排序，并没有使用索引排序。所以联合索引中前面的字段使用了范围查询，对后面的字段排序使用不了索引排序。</p>
 <p>原因是：a、b 两个字段的联合索引，对于单个 a 的值，b 是有序的。而对于 a 字段的范围查询，也就是 a 字段会有多个值，取到 a，b 的值 b 就不一定有序了，因此要额外进行排序。联合索引结果如下图（为了便于理解，该图的值与上面所创建的表 t1 数据不一样）：</p>
 <p><img src="https://fastly.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《一线数据库工程师带你深入理解MySQL》学习笔记/使用范围查询再排序.png" alt="使用范围查询再排序"></p>
 <p>如上图所示，对于有 a、b 两个字段联合索引的表，如果对 a 字段范围查询，b 字段整体来看是无序的（如上图 b 的值为：1，2，3，1，2，3······）。</p>
@@ -1897,13 +1897,13 @@ Rows: 10147
 <p>B 树中同一键值不会出现多次，要么在叶子节点，要么在内节点上。</p>
 <p>比如用 1、2、3、5、6、7、9 这些数字构建一个 B 树结构，其图形如下：<br><img src="https://fastly.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《一线数据库工程师带你深入理解MySQL》学习笔记/B树.png" alt="B树"></p>
 <p>与平衡二叉树相比，B 树利用多个分支（平衡二叉树只有两个分支）节点，减少获取记录时所经历的节点数。</p>
-<p>B 树也是有缺点的，因为每个节点都包含 key 值和 data 值，因此如果 data 比较大时，每一页存储的 key 会比较少；当数据比较多时，同样会有：“要经历多层节点才能查询在叶子节点的数据”的问题。这时，B+ 树站了出来。</p>
+<p>B 树也是有缺点的，因为每个节点都包含 key 值和 data 值，因此如果 data 比较大时，每一页存储的 key 会比较少；当数据比较多时，同样会有：”要经历多层节点才能查询在叶子节点的数据”的问题。这时，B+ 树站了出来。</p>
 <h4 id="1-5-B-树"><a href="#1-5-B-树" class="headerlink" title="1.5 B+ 树"></a>1.5 B+ 树</h4><p>B+ 树是 B 树的变体，定义基本与 B 树一致，与 B 树的不同点：</p>
 <ul>
 <li>所有叶子节点中包含了全部关键字的信息</li>
 <li>各叶子节点用指针进行连接</li>
 <li>非叶子节点上只存储 key 的信息，这样相对 B 树，可以增加每一页中存储 key 的数量。</li>
-<li>B 树是纵向扩展，最终变成一个“瘦高个”，而 B+ 树是横向扩展的，最终会变成一个“矮胖子”（这里参考了《MySQL 运维内参》第 8 节 B+ 树及 B 树的区别中的比喻）。</li>
+<li>B 树是纵向扩展，最终变成一个”瘦高个”，而 B+ 树是横向扩展的，最终会变成一个”矮胖子”（这里参考了《MySQL 运维内参》第 8 节 B+ 树及 B 树的区别中的比喻）。</li>
 </ul>
 <p>在 B+ 树中，所有记录节点都是按键值的大小顺序存放在同一层的叶子节点上。B+ 树中的 B 不是代表二叉(binary) 而是代表（balance），B+ 树并不是一个二叉树。</p>
 <p>还是根据前面提到的这组数字（1、2、3、5、6、7、9）举例，它的结构如下：</p>
@@ -2363,7 +2363,7 @@ mysql&gt; explain select * from t9_1 where a = 90000;
 <p>而从上面说到 Cardinality 的更新原理可以看出，它的值不一定准确的，因此有时可能就是因为它的值不精准导致选错了索引。这种情况可以使用下面的命令重新统计信息：</p>
 <pre class="line-numbers language-sql" data-language="sql"><code class="language-sql"><span class="token keyword">analyze</span> <span class="token keyword">table</span> t13<span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
 <!----fix markdown render issues---->
-<h3 id="4、单次选取的数据量过大导致选错索引"><a href="#4、单次选取的数据量过大导致选错索引" class="headerlink" title="4、单次选取的数据量过大导致选错索引"></a>4、单次选取的数据量过大导致选错索引</h3><p>有时，我们也会遇到这种情况，如果单次选取的数据量过大，可能也会导致“选错”索引。</p>
+<h3 id="4、单次选取的数据量过大导致选错索引"><a href="#4、单次选取的数据量过大导致选错索引" class="headerlink" title="4、单次选取的数据量过大导致选错索引"></a>4、单次选取的数据量过大导致选错索引</h3><p>有时，我们也会遇到这种情况，如果单次选取的数据量过大，可能也会导致”选错”索引。</p>
 <hr>
 <p>第3章 MySQL锁</p>
 <h2 id="15-全局锁和表锁什么场景会用到"><a href="#15-全局锁和表锁什么场景会用到" class="headerlink" title="15 全局锁和表锁什么场景会用到"></a><strong>15 全局锁和表锁什么场景会用到</strong></h2><p>根据加锁的范围，MySQL 中的锁可分为三类：</p>

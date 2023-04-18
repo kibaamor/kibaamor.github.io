@@ -521,7 +521,7 @@ Swap:       <span class="token number">8224764</span>      <span class="token nu
 <span class="token function">cat</span> dd.out <span class="token operator">&amp;&gt;</span> /dev/null  <span class="token number">0</span>.00s user <span class="token number">0</span>.14s system <span class="token number">99</span>% cpu <span class="token number">0.140</span> total<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre>
 <p>可以看到，第二次读取文件的耗时远小于第一次的耗时，这是因为第一次是从磁盘来读取的内容，磁盘 I/O 是比较耗时的，而第二次读取的时候由于文件内容已经在第一次读取时被读到内存了，所以是直接从内存读取的数据，内存相比磁盘速度是快很多的。<strong>这就是 Page Cache 存在的意义：减少 I/O，提升应用的 I/O 速度。</strong></p>
 <p>Page Cache 不足之处主要体现在，它对应用程序太过于透明，以至于应用程序很难有好方法来控制它。</p>
-<h3 id="02-基础篇（二）-Page-Cache是怎样产生和释放的？"><a href="#02-基础篇（二）-Page-Cache是怎样产生和释放的？" class="headerlink" title="02 基础篇（二）| Page Cache是怎样产生和释放的？"></a>02 基础篇（二）| Page Cache是怎样产生和释放的？</h3><h4 id="2-1-Page-Cache-是如何“诞生”的？"><a href="#2-1-Page-Cache-是如何“诞生”的？" class="headerlink" title="2.1 Page Cache 是如何“诞生”的？"></a>2.1 Page Cache 是如何“诞生”的？</h4><p>Page Cache 的产生有两种不同的方式：</p>
+<h3 id="02-基础篇（二）-Page-Cache是怎样产生和释放的？"><a href="#02-基础篇（二）-Page-Cache是怎样产生和释放的？" class="headerlink" title="02 基础篇（二）| Page Cache是怎样产生和释放的？"></a>02 基础篇（二）| Page Cache是怎样产生和释放的？</h3><h4 id="2-1-Page-Cache-是如何”诞生”的？"><a href="#2-1-Page-Cache-是如何”诞生”的？" class="headerlink" title="2.1 Page Cache 是如何”诞生”的？"></a>2.1 Page Cache 是如何”诞生”的？</h4><p>Page Cache 的产生有两种不同的方式：</p>
 <ul>
 <li>Buffered I/O（标准 I/O）；</li>
 <li>Memory-Mapped I/O（存储映射 I/O）。</li>
@@ -529,8 +529,8 @@ Swap:       <span class="token number">8224764</span>      <span class="token nu
 <p><img src="https://fastly.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《Linux内核技术实战课》学习笔记/PageCache产生方式示意图.jpg" alt="PageCache产生方式示意图"></p>
 <p>标准 I/O 是写的 (write(2)) 用户缓冲区 (Userpace Page 对应的内存)，然后再将用户缓冲区里的数据拷贝到内核缓冲区 (Pagecache Page 对应的内存)；如果是读的 (read(2)) 话则是先从内核缓冲区拷贝到用户缓冲区，再从用户缓冲区读数据，也就是 buffer 和文件内容不存在任何映射关系。</p>
 <p>对于存储映射 I/O 而言，则是直接将 Pagecache Page 给映射到用户地址空间，用户直接读写 Pagecache Page 中内容。</p>
-<p>显然，存储映射 I/O 要比标准 I/O 效率高一些，毕竟少了“用户空间到内核空间互相拷贝”的过程。这也是很多应用开发者发现，为什么使用内存映射 I/O 比标准 I/O 方式性能要好一些的主要原因。</p>
-<p>我们来用具体的例子演示一下 Page Cache 是如何“诞生”的，就以其中的标准 I/O 为例，因为这是我们最常使用的一种方式，如下是一个简单的示例脚本 <code>mem.sh</code> ：</p>
+<p>显然，存储映射 I/O 要比标准 I/O 效率高一些，毕竟少了”用户空间到内核空间互相拷贝”的过程。这也是很多应用开发者发现，为什么使用内存映射 I/O 比标准 I/O 方式性能要好一些的主要原因。</p>
+<p>我们来用具体的例子演示一下 Page Cache 是如何”诞生”的，就以其中的标准 I/O 为例，因为这是我们最常使用的一种方式，如下是一个简单的示例脚本 <code>mem.sh</code> ：</p>
 <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token shebang important">#!/bin/bash</span>
 
 <span class="token comment">#这是我们用来解析的文件</span>
@@ -592,7 +592,7 @@ File size 1048576KB<span class="token punctuation">(</span>1G<span class="token 
 <p>用一张图简单描述下这个过程：</p>
 <p><img src="https://fastly.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《Linux内核技术实战课》学习笔记/PageCache的产生过程.jpg" alt="PageCache的产生过程"></p>
 <p>首先往用户缓冲区 buffer(这是 Userspace Page) 写入数据，然后 buffer 中的数据拷贝到内核缓冲区（这是 Pagecache Page），如果内核缓冲区中还没有这个 Page，就会发生 Page Fault 会去分配一个 Page，拷贝结束后该 Pagecache Page 是一个 Dirty Page（脏页），然后该 Dirty Page 中的内容会同步到磁盘，同步到磁盘后，该 Pagecache Page 变为 Clean Page 并且继续存在系统中。</p>
-<p>可以将 Alloc Page 理解为 Page Cache 的“诞生”，将 Dirty Page 理解为 Page Cache 的婴幼儿时期（最容易生病的时期），将 Clean Page 理解为 Page Cache 的成年时期（在这个时期就很少会生病了）。</p>
+<p>可以将 Alloc Page 理解为 Page Cache 的”诞生”，将 Dirty Page 理解为 Page Cache 的婴幼儿时期（最容易生病的时期），将 Clean Page 理解为 Page Cache 的成年时期（在这个时期就很少会生病了）。</p>
 <p><strong>但是请注意，并不是所有人都有童年的</strong>，比如孙悟空，一出生就是成人了，Page Cache 也一样，如果是读文件产生的 Page Cache，它的内容跟磁盘内容是一致的，所以它一开始是 Clean Page，除非改写了里面的内容才会变成 Dirty Page（返老还童）。</p>
 <p>就像我们为了让婴幼儿健康成长，要悉心照料他 / 她一样，为了提前发现或者预防婴幼儿时期的 Page Cache 发病，我们也需要一些手段来观测它：</p>
 <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ <span class="token function">cat</span> /proc/vmstat <span class="token operator">|</span> <span class="token function">egrep</span> <span class="token string">"dirty|writeback"</span>
@@ -600,13 +600,13 @@ nr_dirty <span class="token number">40</span>
 nr_writeback <span class="token number">2</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span></span></code></pre>
 <p>如上所示，nr_dirty 表示当前系统中积压了多少脏页，nr_writeback 则表示有多少脏页正在回写到磁盘中，他们两个的单位都是 Page(4KB)。</p>
 <p>通常情况下，小朋友们（Dirty Pages）聚集在一起（脏页积压）不会有什么问题，但在非常时期比如流感期间，就很容易导致聚集的小朋友越多病症就会越严重。与此类似，Dirty Pages 如果积压得过多，在某些情况下也会容易引发问题，至于是哪些情况，又会出现哪些问题，我们会在案例篇中具体讲解。</p>
-<h4 id="2-2-Page-Cache-是如何“死亡”的？"><a href="#2-2-Page-Cache-是如何“死亡”的？" class="headerlink" title="2.2 Page Cache 是如何“死亡”的？"></a>2.2 Page Cache 是如何“死亡”的？</h4><p>可以把 Page Cache 的回收行为 (Page Reclaim) 理解为 Page Cache 的“自然死亡”。</p>
+<h4 id="2-2-Page-Cache-是如何”死亡”的？"><a href="#2-2-Page-Cache-是如何”死亡”的？" class="headerlink" title="2.2 Page Cache 是如何”死亡”的？"></a>2.2 Page Cache 是如何”死亡”的？</h4><p>可以把 Page Cache 的回收行为 (Page Reclaim) 理解为 Page Cache 的”自然死亡”。</p>
 <p>我们知道，服务器运行久了后，系统中 free 的内存会越来越少，用 free 命令来查看，大部分都会是 used 内存或者 buff/cache 内存，比如说下面这台生产环境中服务器的内存使用情况：</p>
 <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ <span class="token function">free</span> -g
        total  used  <span class="token function">free</span>  shared  buff/cache available
 Mem:     <span class="token number">125</span>    <span class="token number">41</span>     <span class="token number">6</span>       <span class="token number">0</span>          <span class="token number">79</span>        <span class="token number">82</span>
 Swap:      <span class="token number">0</span>     <span class="token number">0</span>     <span class="token number">0</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span></span></code></pre>
-<p>free 命令中的 buff/cache 中的这些就是“活着”的 Page Cache，那它们什么时候会“死亡”（被回收）呢？我们来看一张图：</p>
+<p>free 命令中的 buff/cache 中的这些就是”活着”的 Page Cache，那它们什么时候会”死亡”（被回收）呢？我们来看一张图：</p>
 <p><img src="https://fastly.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《Linux内核技术实战课》学习笔记/PageCache的回收时机.jpg" alt="PageCache的回收时机"></p>
 <p>应用在申请内存的时候，即使没有 free 内存，只要还有足够可回收的 Page Cache，就可以通过回收 Page Cache 的方式来申请到内存，<strong>回收的方式主要是两种：直接回收和后台回收。</strong></p>
 <p>观察 Page Cache 直接回收和后台回收最简单方便的方式是使用 sar：</p>
@@ -725,7 +725,7 @@ drop_slab <span class="token number">2</span><span aria-hidden="true" class="lin
 <h4 id="4-2-内核机制引起-Page-Cache-被回收而产生的业务性能下降"><a href="#4-2-内核机制引起-Page-Cache-被回收而产生的业务性能下降" class="headerlink" title="4.2 内核机制引起 Page Cache 被回收而产生的业务性能下降"></a>4.2 内核机制引起 Page Cache 被回收而产生的业务性能下降</h4><p>我们在前面已经提到过，在内存紧张的时候会触发内存回收，内存回收会尝试去回收 reclaimable（可以被回收的）内存，这部分内存既包含 Page Cache 又包含 reclaimable kernel memory(比如 slab)。我们可以用下图来简单描述这个过程：</p>
 <p><img src="https://fastly.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《Linux内核技术实战课》学习笔记/内存紧张的时候会触发内存回收.jpg" alt="内存紧张的时候会触发内存回收"></p>
 <p>我简单来解释一下这个图。Reclaimer 是指回收者，它可以是内核线程（包括 kswapd）也可以是用户线程。回收的时候，它会依次来扫描 pagecache page 和 slab page 中有哪些可以被回收的，如果有的话就会尝试去回收，如果没有的话就跳过。在扫描可回收 page 的过程中回收者一开始扫描的较少，然后逐渐增加扫描比例直至全部都被扫描完。这就是内存回收的大致过程。</p>
-<p>接下来我所要讲述的案例就发生在“relcaim slab”中，我们从前一个案例已然知道，如果 inode 被回收的话，那么它对应的 Page Cache 也都会被回收掉，所以如果业务进程读取的文件对应的 inode 被回收了，那么该文件所有的 Page Cache 都会被释放掉，这也是容易引起性能问题的地方。</p>
+<p>接下来我所要讲述的案例就发生在”reclaim slab”中，我们从前一个案例已然知道，如果 inode 被回收的话，那么它对应的 Page Cache 也都会被回收掉，所以如果业务进程读取的文件对应的 inode 被回收了，那么该文件所有的 Page Cache 都会被释放掉，这也是容易引起性能问题的地方。</p>
 <p>可以通过 /proc/vmstat 来观察：</p>
 <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ <span class="token function">grep</span> inodesteal /proc/vmstat
 pginodesteal <span class="token number">114341</span>
@@ -923,7 +923,7 @@ Address           Kbytes     RSS   Dirty Mode  Mapping
 <ul>
 <li><p><strong>Mapping</strong>，用来表示文件映射中占用内存的文件，比如 sshd 这个可执行文件，或者堆[heap]，或者栈[stack]，或者其他，等等。</p>
 </li>
-<li><p><strong>Mode</strong>，它是该内存的权限，比如，“r-x”是可读可执行，它往往是代码段 (Text Segment)；“rw-”是可读可写，这部分往往是数据段 (Data Segment)；“r–”是只读，这往往是数据段中的只读部分。</p>
+<li><p><strong>Mode</strong>，它是该内存的权限，比如，”r-x”是可读可执行，它往往是代码段 (Text Segment)；”rw-“是可读可写，这部分往往是数据段 (Data Segment)；”r–”是只读，这往往是数据段中的只读部分。</p>
 </li>
 <li><p><strong>Address、Kbytes、RSS、Dirty</strong>，Address 和 Kbytes 分别表示起始地址和虚拟内存的大小，RSS（Resident Set Size）则表示虚拟内存中已经分配的物理内存的大小，Dirty 则表示内存中数据未同步到磁盘的字节数。</p>
 </li>
@@ -991,7 +991,7 @@ Shmem:              <span class="token number">8724</span> kB
 <p>OOM 日志可以理解为是一个单生产者多消费者的模型，如下图所示：</p>
 <p><img src="https://fastly.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《Linux内核技术实战课》学习笔记/OOM_Info.jpg" alt="OOM_Info"></p>
 <p>这个单生产者多消费者模型，其实是由 OOM killer 打印日志（OOM info）时所使用的 printk（类似于 userspace 的 printf）机制来决定的。printk 会检查这些日志需要输出给哪些消费者，比如写入到内核缓冲区（kernel buffer），然后通过 dmesg 命令来查看；我们通常也都会配置 rsyslog，然后 rsyslogd 会将内核缓冲区的内容给转储到日志文件（/var/log/messages）中；服务器也可能会连着一些控制台（console ），比如串口，这些日志也会输出到这些 console。</p>
-<p>问题就出在 console 这里，如果 console 的速率很慢，输出太多日志会非常消耗时间，而当时我们配置了“console=ttyS1,19200”，即波特率为 19200 的串口，这是个很低速率的串口。一个完整的 OOM info 需要约 10s 才能打印完，这在系统内存紧张时就会成为一个瓶颈点，为什么会是瓶颈点呢？答案如下图所示：</p>
+<p>问题就出在 console 这里，如果 console 的速率很慢，输出太多日志会非常消耗时间，而当时我们配置了”console=ttyS1,19200”，即波特率为 19200 的串口，这是个很低速率的串口。一个完整的 OOM info 需要约 10s 才能打印完，这在系统内存紧张时就会成为一个瓶颈点，为什么会是瓶颈点呢？答案如下图所示：</p>
 <p><img src="https://fastly.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《Linux内核技术实战课》学习笔记/OOM为什么会成为瓶颈点.jpg" alt="OOM为什么会成为瓶颈点"></p>
 <p>进程 A 在申请内存失败后会触发 OOM，在发生 OOM 的时候会打印很多很多日志（这些日志是为了方便分析为什么 OOM 会发生），然后会选择一个合适的进程来杀掉，从而释放出来空闲的内存，这些空闲的内存就可以满足后续内存申请了。</p>
 <p>如果这个 OOM 的过程耗时很长（即打印到 slow console 所需的时间太长，如上图红色部分所示），其他进程（进程 B）也在此时申请内存，也会申请失败，于是进程 B 同样也会触发 OOM 来尝试释放内存，而 OOM 这里又有一个全局锁（oom_lock）来进行保护，进程 B 尝试获取（trylock）这个锁的时候会失败，就只能再次重试。</p>
@@ -1164,7 +1164,7 @@ VmallocUsed:     <span class="token number">1065948</span> kB
     [&lt;00000000bc613a5a&gt;] __x64_sys_finit_module+0x1a/0x20
     [&lt;000000004b0870a2&gt;] do_syscall_64+0x52/0x90
     [&lt;000000002f458917&gt;] entry_SYSCALL_64_after_hwframe+0x44/0xa9<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
-<p>由于该程序通过 vmalloc 申请的内存以后再也没有使用，所以被 kmemleak 标记为了“unreferenced object”，我们需要在使用完该内存空间后就释放它以节省内存。</p>
+<p>由于该程序通过 vmalloc 申请的内存以后再也没有使用，所以被 kmemleak 标记为了”unreferenced object”，我们需要在使用完该内存空间后就释放它以节省内存。</p>
 <p>如果我们想在生产环境上来观察内核内存泄漏，就无法使用 kmemleak 了，那还有没有其他的方法呢？</p>
 <p>我们可以使用内核提供的内核内存申请释放的 tracepoint，来动态观察内核内存使用情况：</p>
 <p><img src="https://fastly.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《Linux内核技术实战课》学习笔记/使用tracepoint来观察内核内存使用情况.jpg" alt="使用tracepoint来观察内核内存使用情况"></p>
@@ -1595,7 +1595,7 @@ ESTAB <span class="token number">0</span>      <span class="token number">0</spa
 <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token function">netstat</span> -natp<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
 <p>不过，我不建议你使用 netstat，最好还是用 ss。因为 netstat 不仅比 ss 慢，而且开销也大。netstat 是通过直接读取 /proc/net/ 下面的文件来解析网络连接信息的；而 ss 使用的是 netlink 方式，这种方式的效率会高很多。</p>
 <p>netlink 在解析时会依赖内核的一些诊断模块，比如解析 TCP 信息就需要 tcp_diag 这个诊断模块。如果诊断模块不存在，那么 ss 就无法使用 netlink 这种方式了，这个时候它就会退化到和 netstat 一样，也就是使用解析 /proc/net/ 这种方式，当然了，它的效率也会相应变差。</p>
-<p>另外，如果你去看 netstat 手册，通过 man netstat，你会发现这样一句话“This program is obsolete. Replacement for netstat is ss”。所以，以后在分析网络连接问题时，我们尽量还是使用 ss，而不是 netstat。</p>
+<p>另外，如果你去看 netstat 手册，通过 man netstat，你会发现这样一句话”This program is obsolete. Replacement for netstat is ss”。所以，以后在分析网络连接问题时，我们尽量还是使用 ss，而不是 netstat。</p>
 <p>netstat 属于 net-tools 这个比较古老的工具集，而 ss 属于 iproute2 这个工具集。net-tools 中的常用命令，几乎都可以用 iproute2 中的新命令来代替，比如：</p>
 <p><img src="https://fastly.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《Linux内核技术实战课》学习笔记/net-tools工具集的替代.jpg" alt="net-tools工具集的替代"></p>
 <p>除了查看系统中的网络连接信息外，我们有时候还需要去查看系统的网络状态，比如说系统中是否存在丢包，以及是什么原因引起了丢包，这时候我们就需要 netstat -s 或者它的替代工具 nstat 了：</p>
@@ -1625,7 +1625,7 @@ TcpExtTCPRcvQDrop               <span class="token number">0</span>             
 <p>对于现代处理器而言，一个实体 CPU 通常会有两个逻辑线程，也就是上图中的 Core 0 和 Core  1。每个 Core 都有自己的 L1 Cache，L1 Cache 又分为 dCache 和 iCache，对应到上图就是 L1d 和 L1i。L1 Cache 只有 Core 本身可以看到，其他的 Core 是看不到的。同一个实体 CPU 中的这两个 Core 会共享 L2 Cache，其他的实体 CPU 是看不到这个 L2 Cache 的。所有的实体 CPU 会共享 L3 Cache。这就是典型的 CPU 架构。</p>
 <p>相信你也看到，在 CPU 外还会有内存（DRAM）、磁盘等，这些存储介质共同构成了体系结构里的金字塔存储层次。如下所示：</p>
 <p><img src="https://fastly.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《Linux内核技术实战课》学习笔记/金字塔存储层次.jpg" alt="金字塔存储层次"></p>
-<p>在这个“金字塔”中，越往下，存储容量就越大，它的速度也会变得越慢。</p>
+<p>在这个”金字塔”中，越往下，存储容量就越大，它的速度也会变得越慢。</p>
 <p>Cache 伪共享问题：</p>
 <p><img src="https://fastly.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《Linux内核技术实战课》学习笔记/CacheLineFalseSharing.jpg" alt="CacheLineFalseSharing"></p>
 <p>如上图所示，两个 CPU 上并行运行着两个不同线程，它们同时从内存中读取两个不同的数据，这两个数据的地址在物理内存上是连续的，它们位于同一个 Cache Line 中。CPU 从内存中读数据到 Cache 是以 Cache Line 为单位的，所以该 Cache Line 里的数据被同时读入到了这两个 CPU 的各自 Cache 中。紧接着这两个线程分别改写不同的数据，每次改写 Cache 中的数据都会将整个 Cache Line 置为无效。因此，虽然这两个线程改写的数据不同，但是由于它们位于同一个 Cache Line 中，所以一个 CPU 中的线程在写数据时会导致另外一个 CPU 中的 Cache Line 失效，而另外一个 CPU 中的线程在读写数据时就会发生 cache miss，然后去内存读数据，这就大大降低了性能。</p>
@@ -1836,7 +1836,7 @@ Average:       <span class="token number">3</span>   <span class="token number">
 <p>我们知道 %usr 是衡量用户进程执行时间的一个指标，%usr 越高意味着业务代码的运行时间越多。如果 %usr 下降，那就意味着业务代码的运行时间变少了，在业务没有进行代码优化的前提下，这显然是一个危险的信号。</p>
 <p>由此我们可以发现，RPS 的本质就是把网卡特性（网卡多队列）给 upload 到 CPU，通过牺牲 CPU 时间来提升网络吞吐。如果你的系统已经很繁忙了，那么再使用该特性无疑是雪上加霜。所以，你需要注意，<strong>使用 RPS 的前提条件是：系统的整体 CPU 利用率不能太高</strong>。</p>
 <p>找到问题后，我们就把该系统的 RPS 特性关闭了。如果你的网卡比较新，它可能会支持硬件多队列。硬件多队列是在网卡里做负载均衡，在这种场景下硬件多队列会很有帮助。我们知道，与 upload 相反的方向是 offload，就是把 CPU 的工作给 offload 到网卡上去处理，这样可以把 CPU 解放出来，让它有更多的时间执行用户代码。关于网卡的 offload 特性，我们就不在此讨论了。</p>
-<h3 id="20-分析篇-如何分析CPU利用率飙高问题-？"><a href="#20-分析篇-如何分析CPU利用率飙高问题-？" class="headerlink" title="20 分析篇 | 如何分析CPU利用率飙高问题 ？"></a>20 分析篇 | 如何分析CPU利用率飙高问题 ？</h3><h4 id="20-1-如何拓展你分析问题的边界？"><a href="#20-1-如何拓展你分析问题的边界？" class="headerlink" title="20.1 如何拓展你分析问题的边界？"></a>20.1 如何拓展你分析问题的边界？</h4><p>我常用来追踪应用逻辑的工具之一就是 strace。strace 可以用来分析应用和内核的“边界”——系统调用。借助 strace，我们不仅能够了解应用执行的逻辑，还可以了解内核逻辑。那么，作为应用开发者的你，就可以借助这个工具来拓展你分析应用问题的边界。</p>
+<h3 id="20-分析篇-如何分析CPU利用率飙高问题-？"><a href="#20-分析篇-如何分析CPU利用率飙高问题-？" class="headerlink" title="20 分析篇 | 如何分析CPU利用率飙高问题 ？"></a>20 分析篇 | 如何分析CPU利用率飙高问题 ？</h3><h4 id="20-1-如何拓展你分析问题的边界？"><a href="#20-1-如何拓展你分析问题的边界？" class="headerlink" title="20.1 如何拓展你分析问题的边界？"></a>20.1 如何拓展你分析问题的边界？</h4><p>我常用来追踪应用逻辑的工具之一就是 strace。strace 可以用来分析应用和内核的”边界”——系统调用。借助 strace，我们不仅能够了解应用执行的逻辑，还可以了解内核逻辑。那么，作为应用开发者的你，就可以借助这个工具来拓展你分析应用问题的边界。</p>
 <p>strace 可以跟踪进程的系统调用、特定的系统调用以及系统调用的执行时间。很多时候，我们通过系统调用的执行时间，就能判断出业务延迟发生在哪里。比如我们想要跟踪一个多线程程序的系统调用情况，那就可以这样使用 strace：</p>
 <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token function">strace</span> -T -tt -ff -p pid -o strace.out<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
 <!----fix markdown render issues---->

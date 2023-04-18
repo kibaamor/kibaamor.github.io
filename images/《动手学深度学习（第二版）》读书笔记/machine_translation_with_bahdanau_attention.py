@@ -56,14 +56,14 @@ def download_extract(name, folder=None):
 
 
 def read_data_nmt():
-    """载入“英语－法语”数据集。"""
+    """载入"英语－法语"数据集。"""
     data_dir = download_extract("fra-eng")
     with open(os.path.join(data_dir, "fra.txt"), "r", encoding="utf-8") as f:
         return f.read()
 
 
 def preprocess_nmt(text):
-    """预处理“英语－法语”数据集。"""
+    """预处理"英语－法语"数据集。"""
 
     def no_space(char, prev_char):
         return char in set(",.!?") and prev_char != " "
@@ -77,7 +77,7 @@ def preprocess_nmt(text):
 
 
 def tokenize_nmt(text, num_examples=None):
-    """词元化“英语－法语”数据数据集。"""
+    """词元化"英语－法语"数据数据集。"""
     source, target = [], []
     for i, line in enumerate(text.split("\n")):
         if num_examples and i > num_examples:
@@ -340,15 +340,15 @@ class AdditiveAttention(nn.Module):
         queries, keys = self.W_q(queries), self.W_k(keys)
         # 在维度扩展后，
         # `queries` 的形状：(`batch_size`, 查询的个数, 1, `num_hidden`)
-        # `key` 的形状：(`batch_size`, 1, “键－值”对的个数, `num_hiddens`)
+        # `key` 的形状：(`batch_size`, 1, "键－值"对的个数, `num_hiddens`)
         # 使用广播方式进行求和
         features = queries.unsqueeze(2) + keys.unsqueeze(1)
         features = torch.tanh(features)
         # `self.w_v` 仅有一个输出，因此从形状中移除最后那个维度。
-        # `scores` 的形状：(`batch_size`, 查询的个数, “键-值”对的个数)
+        # `scores` 的形状：(`batch_size`, 查询的个数, "键-值"对的个数)
         scores = self.w_v(features).squeeze(-1)
         self.attention_weights = masked_softmax(scores, valid_lens)
-        # `values` 的形状：(`batch_size`, “键－值”对的个数, 值的维度)
+        # `values` 的形状：(`batch_size`, "键－值"对的个数, 值的维度)
         return torch.bmm(self.dropout(self.attention_weights), values)
 
 
@@ -402,7 +402,7 @@ def train_seq2seq(net, data_iter, lr, num_epochs, tgt_vocab, device):
             dec_input = torch.cat([bos, Y[:, :-1]], 1)  # 教师强制
             Y_hat, _ = net(X, dec_input, X_valid_len)
             l = loss(Y_hat, Y, Y_valid_len)
-            l.sum().backward()  # 损失函数的标量进行“反传”
+            l.sum().backward()  # 损失函数的标量进行"反传"
             grad_clipping(net, 1)
             num_tokens = Y_valid_len.sum()
             optimizer.step()
