@@ -409,21 +409,21 @@
                 
                 <div class="post-date info-break-policy">
                     <i class="far fa-calendar-check fa-fw"></i>更新日期:&nbsp;&nbsp;
-                    2023-04-18
+                    2023-04-20
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-file-word fa-fw"></i>文章字数:&nbsp;&nbsp;
-                    204.8k
+                    215.2k
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-clock fa-fw"></i>阅读时长:&nbsp;&nbsp;
-                    712 分
+                    748 分
                 </div>
                 
 
@@ -4553,6 +4553,275 @@ random<span class="token punctuation">.</span><span class="token function">nextB
 <p>这种基于额度的限流方案，对限流的精确度会有一定的影响，比如可能存在业务操作已经进行了一部分服务调用，却无法从令牌桶中再获取到新额度，因”资金链断裂”而导致业务操作失败的情况。这种失败的代价是比较高昂的，它白白浪费了部分已经完成了的服务资源，但总体来说，它仍然是一种在并发性能和限流效果上，都相对折衷可行的分布式限流方案。</p>
 <h4 id="小结-32"><a href="#小结-32" class="headerlink" title="小结"></a>小结</h4><p>这节课，我带你学习了限流的目标与指标这两项概念性的内容，现在你可以根据系统的服务和流量特征，来事先做好系统开发设计中针对流量的规划问题了。</p>
 <p>另外，我还带你重点学习了单机限流的流量计数器、滑动时间窗、漏桶和令牌桶这四种实现模式，也了解了如何将单机限流升级为分布式限流的实现方案。你要注意的地方是，对于分布式系统容错的设计，是必须要有且无法妥协的措施。但限流与容错不一样，做分布式限流从不追求”越彻底越好”，我们往往需要权衡方案的代价与收益。</p>
+<h3 id="39-如何构建零信任网络安全？"><a href="#39-如何构建零信任网络安全？" class="headerlink" title="39 | 如何构建零信任网络安全？"></a>39 | 如何构建零信任网络安全？</h3><p>在学完 <a target="_blank" rel="noopener" href="https://time.geekbang.org/column/article/312390">第 4 讲</a> 的课程之后，现在我们知道了微服务的核心技术特征之一是 <strong>分散治理</strong> （Decentralized Governance），这表明了微服务并不追求统一的技术平台，而是提倡让团队有自由选择的权利，不受制于语言和技术框架。</p>
+<p>在开发阶段构建服务时，分散治理打破了由技术栈带来的约束，它带来的好处是不言自明的。但在运维阶段部署服务时，尤其是在考量起安全问题时，由 Java、Golang、Python、Node.js 等多种语言和框架共同组成的微服务系统，出现安全漏洞的概率肯定要比只采用其中某种语言、某种框架所构建的单体系统更高。</p>
+<p>于是，为了避免由于单个服务节点出现漏洞被攻击者突破，进而导致整个系统和内网都遭到入侵，我们就必须打破一些传统的安全观念，以此来构筑更加可靠的服务间通讯机制。</p>
+<h4 id="基于边界的安全模型"><a href="#基于边界的安全模型" class="headerlink" title="基于边界的安全模型"></a>基于边界的安全模型</h4><p>长期以来，主流的网络安全观念都比较提倡根据某类与宿主机相关的特征，比如机器所处的位置，或者机器的 IP 地址、子网等等，把网络划分为不同的区域，不同的区域对应不同的风险级别和允许访问的网络资源权限，把安全防护措施集中部署在各个区域的边界之上，重点关注跨区域的网络流量。</p>
+<p>现在我们所熟知的 VPN、DMZ、防火墙、内网、外网等概念，可以说都是因此而生的，这种安全模型今天也被叫做是 <strong>基于边界的安全模型</strong> （Perimeter-Based Security Model，简称”边界安全”）。</p>
+<p>边界安全是完全合情合理的做法，在”安全架构”这个小章节中，我就强调过 <strong>安全不可能是绝对的</strong> ，我们必须在可用性和安全性之间做好权衡和取舍。不然我们想想，把一台”服务器”的网线拔掉、电源关掉，不让它对外提供服务，那它肯定是最安全的。</p>
+<p>另外，边界安全着重检查的是经过网络区域边界的流量，而对可信任区域（内网）内部机器之间的流量，会给予直接信任、或者至少是较为宽松的处理策略，这样就减小了安全设施对整个应用系统复杂度的影响，以及网络传输性能的额外损耗，所以它当然是很合理的。</p>
+<p>可是，今天单纯的边界安全，已经不能满足大规模微服务系统技术异构和节点膨胀的发展需要了。</p>
+<p>这是因为 <strong>边界安全的核心问题在于</strong> ，边界上的防御措施即使自身能做到永远滴水不漏、牢不可破，也很难保证内网中它所尽力保护的某一台服务器不会成为”猪队友”，一旦”可信的”网络区域中的某台服务器被攻陷，那边界安全措施就成了马其诺防线，攻击者很快就能以一台机器为跳板，侵入到整个内网。</p>
+<p>实际上，这是边界安全的基因所决定的固有缺陷，从边界安全被提出的第一天起，这就已经是可以预料到的问题了。不过在微服务时代，我们已经转变了开发观念，承认服务了总是会出错的，那么现在我们也必须转变安全观念，承认一定会有被攻陷的服务。</p>
+<p>为此，我们就需要寻找到与之匹配的新的网络安全模型。</p>
+<h4 id="零信任安全模型"><a href="#零信任安全模型" class="headerlink" title="零信任安全模型"></a>零信任安全模型</h4><p>2010 年， <a target="_blank" rel="noopener" href="https://en.wikipedia.org/wiki/Forrester_Research">Forrester Research</a> 的首席分析师约翰 · 金德维格（John Kindervag）提出了零信任安全模型的概念（Zero-Trust Security Model，后面简称”零信任安全”），最初提出时它是叫”零信任架构”（Zero-Trust Architecture），这个概念在当时并没有引发太大的关注，但随着微服务架构的日渐兴盛，越来越多的开发和运维人员注意到零信任安全模型与微服务所追求的安全目标是高度吻合的。</p>
+<p>零信任安全的中心思想是 <strong>不应当以某种固有特征来自动信任任何流量</strong> ，除非明确得到了能代表请求来源（不一定是人，更可能是另一台服务）的身份凭证，否则一律不会有默认的信任关系。</p>
+<p>在 2019 年，Google 发表了一篇在安全与研发领域里都备受关注的论文《 <a target="_blank" rel="noopener" href="https://cloud.google.com/security/beyondprod">BeyondProd: A New Approach to Cloud-Native Security</a> 》（BeyondCorp 和 BeyondProd 是谷歌最新一代安全框架的名字），其中详细列举了传统的基于边界的网络安全模型，与云原生时代下基于零信任网络的安全模型之间的差异，并描述了要完成边界安全模型到零信任安全模型的迁移所要实现的具体需求点，这里我把它翻译、整理了出来，你可以参考下：</p>
+<p><img src="https://fastly.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《周志明的软件架构课》学习笔记/基于边界的网络安全模型与基于零信任网络的安全模型之间的差异.webp" alt="基于边界的网络安全模型与基于零信任网络的安全模型之间的差异"></p>
+<p>这个表格已经系统地阐述了零信任安全在微服务、云原生环境中的具体落地过程了，后续的整篇论文（除了介绍 Google 自己的实现框架外）就是以此为主线来展开论述的，但是这个表格还是过于简单，论文原文也写得比较分散晦涩，所以这里我就根据自己的理解，给你展开介绍一下其中的主要观点，以此让你进一步理解零信任安全的含义。</p>
+<ol>
+<li><p><strong>零信任网络不等同于放弃在边界上的保护设施</strong></p>
+<p> 虽然像防火墙这样的位于网络边界的设施，是属于边界安全而不是零信任安全的概念，但它仍然是一种提升安全性的有效且必要的做法。在微服务集群的前端部署防火墙，把内部服务节点间的流量与来自互联网的流量隔离开，这种做法无论何时都是值得提倡的，因为这样至少能够让内部服务避开来自互联网未经授权流量的饱和攻击，比如最典型的 <a target="_blank" rel="noopener" href="https://en.wikipedia.org/wiki/Denial-of-service_attack">DDoS 拒绝服务攻击</a> 。</p>
+</li>
+<li><p><strong>身份只来源于服务</strong></p>
+<p> 我们知道，传统应用一般是部署在特定的服务器上的，这些机器的 IP、MAC 地址很少会发生变化，此时系统的拓扑状态是相对静态的。基于这个前提，安全策略才会使用 IP 地址、主机名等作为身份标识符（Identifiers），无条件信任具有特性身份表示的服务。</p>
+<p> 而如今的微服务系统，尤其是云原生环境中的微服务系统，其虚拟化基础设施已经得到了大范围的应用，这就会导致服务所部署的 IP 地址、服务实例的数量随时都可能发生变化。因此，身份只能来源于服务本身所能够出示的身份凭证（通常是数字证书），而不再是服务所在的 IP 地址、主机名或者其他特征。</p>
+</li>
+<li><p><strong>服务之间也没有固有的信任关系</strong></p>
+<p> 这点决定了只有已知的、明确授权的调用者才能访问服务，从而阻止攻击者通过某个服务节点中的代码漏洞来越权调用到其他服务。</p>
+<p> 另外，如果某个服务节点被成功入侵，这个原则也能阻止攻击者扩大其入侵范围。这个其实比较类似于微服务设计模式中，使用断路器、舱壁隔离实现容错来避免雪崩效应，在安全方面，我们也应当采用这种”互不信任”的模式来隔离入侵危害的影响范围。</p>
+</li>
+<li><p><strong>集中、共享的安全策略实施点</strong></p>
+<p> 这点与微服务的”分散治理”刚好相反，微服务提倡每个服务独立地负责自身所有的功能性与非功能性需求。而 Google 这个观点相当于为分散治理原则做了一个补充：分散治理，但涉及安全的非功能性需求（如身份管理、安全传输层、数据安全层）最好除外。</p>
+<p> 一方面，要写出高度安全的代码非常不容易，为此付出的精力甚至可能远高于业务逻辑本身。如果你有兴趣阅读 <a target="_blank" rel="noopener" href="https://icyfenix.cn/exploration/projects/microservice_arch_springcloud.html">基于 Spring Cloud 的 Fenix’s Bookstore 的源码</a> ，很容易就会发现在 Security 工程中的代码量是该项目中，所有微服务中最多的。</p>
+<p> 更重要的是另一方面，也就是如果让服务各自处理安全问题，很容易会出现实现不一致、或者出现漏洞时要反复修改多处地方的情况，而且还有一些安全问题，如果不立足于全局是很难彻底解决的（在下节课面向具体操作实践的”服务安全”中我还会详细讲述）。</p>
+<p> 所以，Google 明确提出应该有集中式的”安全策略实施点”（原文中称为 Choke Points），安全需求应该从微服务的应用代码下沉至云原生的基础设施里，这也就契合了论文的标题”Cloud-Native Security”。</p>
+</li>
+<li><p><strong>受信的机器运行来源已知的代码</strong></p>
+<p> 这条原则就限制了服务只能使用认证过的代码和配置，并且只能运行在认证过的环境中。</p>
+<p> 分布式软件系统除了促使软件架构发生了重大变化之外，对软件的发布流程也有很大的改变，使其严重依赖 <a target="_blank" rel="noopener" href="https://en.wikipedia.org/wiki/CI/CD">持续集成与持续部署</a> （Continuous Integration / Continuous Delivery，CI/CD）。从开发人员编写代码，到自动化测试，到自动集成，再到漏洞扫描，最后发布上线，这整套 CI/CD 流程被称作”软件供应链”（Software Supply Chain）。</p>
+<p> 可是安全问题并不仅仅局限于软件运行阶段。我举个例子，之前造成过很大影响的 <a target="_blank" rel="noopener" href="https://en.wikipedia.org/wiki/XcodeGhost">XCodeGhost 风波</a> ，就是针对软件供应链的攻击事件，它是在编译阶段把恶意代码嵌入到软件当中，只要安装了此软件的用户就可能触发恶意代码。</p>
+<p> 因此也是为了避免这样的事件再发生，零信任安全针对软件供应链的每一步，都加入了安全控制策略。</p>
+</li>
+<li><p><strong>自动化、标准化的变更管理</strong></p>
+<p> 这点也是提倡要通过基础设施，而不是应用代码去实现安全功能的另一个重要理由。如果将安全放在应用上，由于应用本身的分散治理，这决定了安全也必然是难以统一和标准化的，而做不到标准化就意味着做不到自动化。</p>
+<p> 相反，一套独立于应用的安全基础设施，就可以让运维人员轻松地了解基础设施变更对安全性的影响，并且可以在几乎不影响生产环境的情况下，发布安全补丁程序。</p>
+</li>
+<li><p><strong>强隔离性的工作负载</strong></p>
+<p> “工作负载”的概念贯穿了 Google 内部的 Borg 系统与后来的 Kubernetes 系统，它是指在虚拟化技术支持下，运行的一组能够协同提供服务的镜像。下个模块我介绍云原生基础设施的时候，会详细介绍容器化，这里我先给你说明一个要点，就是容器化仅仅是虚拟化的一个子集。</p>
+<p> 实际上，容器比起传统虚拟机的隔离能力是有所降低的，这种设计对性能非常有利，却对安全相对不利，因此在强调安全性的应用里，会有专门关注强隔离性的容器运行工具出现。</p>
+</li>
+</ol>
+<h4 id="Google-的零信任安全实践"><a href="#Google-的零信任安全实践" class="headerlink" title="Google 的零信任安全实践"></a>Google 的零信任安全实践</h4><p>Google 认为，零信任安全模型的最终目标是实现整个基础设施之上的自动化安全控制，服务所需的安全能力可以与服务自身一起，以相同方式自动进行伸缩扩展。</p>
+<p>对于程序来说，做到安全是日常，风险是例外（Secure by Default and Insecure by Exception）；对于人类来说，做到袖手旁观是日常，主动干预是例外（Human Actions Should Be by Exception, Not Routine）。</p>
+<p>这的确是很美好的愿景，只是这种”喊口号”式的目标，在软件发展史上也提出过很多次，却一直难以真正达成，其中的原因我在开篇其实就提到过， <strong>安全不可能是绝对的，而是有成本的。</strong></p>
+<p>那么你其实也能很明显地发现，之所以在今天这节课，我们才真正严肃地讨论零信任网络模型，并不是因为它本身有多么巧妙、有什么此前没有想到的好办法，而是因为它受制于前面我提到的边界安全模型的”合理之处”，即”安全设施对整个应用系统复杂度的影响，以及网络传输性能的额外损耗”。</p>
+<p><strong>那到底零信任安全要实现这个目标的代价是什么呢？会有多大？</strong> 这里我根据 Google 论文的观点来回答下这个问题：为了保护服务集群内的代码与基础设施，Google 设计了一系列的内部工具，才最终得以实现前面所说的那些安全原则：</p>
+<ul>
+<li><strong>为了在网络边界上保护内部服务免受 DDoS 攻击</strong> ，设计了名为 Google Front End（名字意为”最终用户访问请求的终点”）的边缘代理，负责保证此后所有流量都在 TLS 之上传输，并自动将流量路由到适合的可用区域之中。</li>
+<li><strong>为了强制身份只来源于服务</strong> ，设计了名为 Application Layer Transport Security（应用层传输安全）的服务认证机制，这是一个用于双向认证和传输加密的系统，它可以自动把服务与它的身份标识符绑定，使得所有服务间流量都不必再使用服务名称、主机 IP 来判断对方的身份。</li>
+<li><strong>为了确保服务间不再有默认的信任关系</strong> ，设计了 Service Access Policy（服务访问策略），来管理一个服务向另一个服务发起请求时需要提供的认证、鉴权和审计策略，并支持全局视角的访问控制与分析，以达成”集中、共享的安全策略实施点”这条原则。</li>
+<li><strong>为了实现仅以受信的机器运行来源已知的代码</strong> ，设计了名为 Binary Authorization（二进制授权）的部署时检查机制，确保在软件供应链的每一个阶段，都符合内部安全检查策略，并对此进行授权与鉴权。同时谷歌设计了名为 Host Integrity（宿主机完整性）的机器安全启动程序，在创建宿主机时，自动验证包括 BIOS、BMC、Bootloader 和操作系统内核的数字签名。</li>
+<li><strong>为了工作负载能够具有强隔离性</strong> ，设计了名为 <a target="_blank" rel="noopener" href="https://en.wikipedia.org/wiki/GVisor">gVisor</a> 的轻量级虚拟化方案。这个方案与此前由 Intel 发起的 <a target="_blank" rel="noopener" href="https://katacontainers.io/">Kata Containers</a> 的思路异曲同工，目的都是解决容器共享操作系统内核而导致隔离性不足的安全缺陷，它们的做法也都是为每个容器提供了一个独立的虚拟 Linux 内核。比如，gVisor 是用 Golang 实现了一个名为 <a target="_blank" rel="noopener" href="https://github.com/google/gvisor/tree/master/pkg/sentry">Sentry</a> 的、能够提供传统操作系统内核能力的进程。严格来说，无论是 gVisor 还是 Kata Containers，尽管都披着容器运行时的外衣，但它们在本质上都是轻量级虚拟机。</li>
+</ul>
+<p>到这里，作为一名普通的软件开发者，你在看完 Google 关于零信任安全的论文，或者学习完我这些简要的转述，了解到即使是 Google 也必须要花费如此庞大的精力，才能做到零信任安全，那你最有可能的感受，大概不是对零信任安全心生向往，而是准备对它挥手告别了。</p>
+<p>其实哪怕不需要开发、不需要购买，免费把前面 Google 开发的安全组件赠送给我们，大多数的开发团队恐怕也没有足够的运维能力。</p>
+<p>小结</p>
+<p>在微服务时代以前，传统的软件系统与研发模式的确是很难承受零信任安全模型的代价的，只有到了云原生时代，虚拟化的基础设施长足发展，能将复杂性隐藏于基础设施之内，开发者不需要为了达成每一条安全原则，而专门开发或引入可感知的安全设施；只有容器与虚拟化网络的性能足够高，在可以弥补安全隔离与安全通讯的额外损耗的前提下，零信任网络的安全模型才有它生根发芽的土壤。</p>
+<p>另外，零信任安全引入了比边界安全更细致、更复杂的安全措施的同时，也强调自动与透明的重要性。这既要保证系统各个微服务之间能安全通讯，同时也不削弱微服务架构本身的设计原则，比如集中式的安全并不抵触于分散治理原则，安全机制并不影响服务的自动伸缩和有效的封装，等等。</p>
+<p>总而言之，只有零信任安全的成本在开发与运维上都是可接受的，它才不会变成仅仅具备理论可行性的”大饼”，不会给软件带来额外的负担。</p>
+<p>当然，如何构建零信任网络安全是一个非常大而且比较前沿的话题，在下一节课，我会从实践的角度出发，更具体、更量化地给你展示零信任安全模型的价值与权衡。</p>
+<h3 id="40-如何实现零信任网络下安全的服务访问？"><a href="#40-如何实现零信任网络下安全的服务访问？" class="headerlink" title="40 | 如何实现零信任网络下安全的服务访问？"></a>40 | 如何实现零信任网络下安全的服务访问？</h3><p>在上节课”零信任网络安全”当中，我们探讨了与微服务运作特点相适应的零信任安全模型。今天这节课，我们会从实践和编码的角度出发，一起来了解在前微服务时代（ <a target="_blank" rel="noopener" href="https://github.com/fenixsoft/microservice_arch_springcloud">以 Spring Cloud 为例</a> ）和云原生时代（ <a target="_blank" rel="noopener" href="https://github.com/fenixsoft/servicemesh_arch_istio">以 Kubernetes with Istio 为例</a> ），零信任网络分别是如何实现安全传输、认证和授权的。</p>
+<p>这里我要说明的是，由于这节课是面向实践的，必然会涉及到具体代码，为了便于讲解，在课程中我只贴出了少量的核心代码片段，所以我建议你在开始学习这节课之前，先去浏览一下这两个样例工程的代码，以便获得更好的学习效果。</p>
+<h4 id="建立信任"><a href="#建立信任" class="headerlink" title="建立信任"></a>建立信任</h4><p>首先我们要知道，零信任网络里不存在默认的信任关系，一切服务调用、资源访问成功与否，都需要以调用者与提供者间已建立的信任关系为前提。</p>
+<p>之前我们在 <a target="_blank" rel="noopener" href="https://time.geekbang.org/column/article/329954">第 23 讲</a> 也讨论过，真实世界里，能够达成信任的基本途径不外乎基于共同私密信息的信任和基于权威公证人的信任两种；而在网络世界里，因为客户端和服务端之间一般没有什么共同私密信息，所以真正能采用的就只能是基于权威公证人的信任，它有个标准的名字： <a target="_blank" rel="noopener" href="https://en.wikipedia.org/wiki/Public_key_infrastructure">公开密钥基础设施</a> （Public Key Infrastructure，PKI）。</p>
+<p>这里你可以先记住一个要点，PKI 是构建 <a target="_blank" rel="noopener" href="https://en.wikipedia.org/wiki/Transport_Layer_Security">传输安全层</a> （Transport Layer Security，TLS）的必要基础。</p>
+<p>在任何网络设施都不可信任的假设前提下，无论是 DNS 服务器、代理服务器、负载均衡器还是路由器，传输路径上的每一个节点都有可能监听或者篡改通讯双方传输的信息。那么要保证通讯过程不受到中间人攻击的威胁， <strong>唯一具备可行性的方案是启用 TLS 对传输通道本身进行加密，让发送者发出的内容只有接受者可以解密。</strong></p>
+<p>建立 TLS 传输，说起来好像并不复杂，只要在部署服务器时预置好 <a target="_blank" rel="noopener" href="https://icyfenix.cn/architect-perspective/general-architecture/system-security/transport-security.html#%E6%95%B0%E5%AD%97%E8%AF%81%E4%B9%A6">CA 根证书</a> ，以后用该 CA 为部署的服务签发 TLS 证书就行了。</p>
+<p>但落到实际操作上，这个事情就属于典型的”必须集中在基础设施中自动进行的安全策略实施点”，毕竟面对数量庞大且能够自动扩缩的服务节点，依赖运维人员手工去部署和轮换根证书，肯定是很难持续做好的。</p>
+<p>而除了随服务节点动态扩缩而来的运维压力外，微服务中 <strong>TLS 认证的频次</strong> 也很明显地高于传统的应用。比起公众互联网中主流单向的 TLS 认证，在零信任网络中，往往要启用 <a target="_blank" rel="noopener" href="https://en.wikipedia.org/wiki/Mutual_authentication">双向 TLS 认证</a> （Mutual TLS Authentication，常简写为 mTLS），也就是不仅要确认服务端的身份，还需要确认调用者的身份。</p>
+<ul>
+<li><strong>单向 TLS 认证</strong> ：只需要服务端提供证书，客户端通过服务端证书验证服务器的身份，但服务器并不验证客户端的身份。 <strong>单向 TLS 用于公开的服务</strong> ，即任何客户端都被允许连接到服务进行访问，它保护的重点是客户端免遭冒牌服务器的欺骗。</li>
+<li><strong>双向 TLS 认证</strong> ：客户端、服务端双方都要提供证书，双方各自通过对方提供的证书来验证对方的身份。 <strong>双向 TLS 用于私密的服务</strong> ，即服务只允许特定身份的客户端访问，它除了保护客户端不连接到冒牌服务器外，也保护服务端不遭到非法用户的越权访问。</li>
+</ul>
+<p>另外，对于前面提到的围绕 TLS 而展开的密钥生成、证书分发、 <a target="_blank" rel="noopener" href="https://en.wikipedia.org/wiki/Certificate_signing_request">签名请求</a> （Certificate Signing Request，CSR）、更新轮换，等等，这其实是一套操作起来非常繁琐的流程，稍有疏忽就会产生安全漏洞。所以尽管它在理论上可行，但实践中如果没有自动化的基础设施的支持，仅靠应用程序和运维人员的努力，是很难成功实施零信任安全模型的。</p>
+<p>那么接下来，我们就结合 Fenix’s Bookstore 的代码，聚焦于”认证”和”授权”这两个最基本的安全需求，来看看它们在微服务架构下，有或者没有基础设施支持的时候，各自都是如何实现的。</p>
+<p>我们先来看看认证。</p>
+<h4 id="认证"><a href="#认证" class="headerlink" title="认证"></a>认证</h4><p>根据认证的目标对象，我们可以把认证分为两种类型，</p>
+<ol>
+<li><strong>一种是以机器作为认证对象</strong> ，即访问服务的流量来源是另外一个服务，这被叫做服务认证（Peer Authentication，直译过来是”节点认证”）；</li>
+<li><strong>另一种是以人类作为认证对象</strong> ，即访问服务的流量来自于最终用户，这被叫做请求认证（Request Authentication）。</li>
+</ol>
+<p>当然，无论是哪一种认证，无论有没有基础设施的支持，它们都要有可行的方案来确定服务调用者的身份，只有建立起信任关系才能调用服务。</p>
+<p>好，下面我们来了解下服务认证的相关实现机制。</p>
+<h5 id="服务认证"><a href="#服务认证" class="headerlink" title="服务认证"></a>服务认证</h5><p>Istio 版本的 Fenix’s Bookstore 采用了双向 TLS 认证，作为服务调用双方的身份认证手段。得益于 Istio 提供的基础设施的支持，我们不需要 Google Front End、Application Layer Transport Security 这些安全组件，也不需要部署 PKI 和 CA，甚至无需改动任何代码，就可以启用 mTLS 认证。</p>
+<p>不过，Istio 毕竟是新生事物，如果你要在自己的生产系统中准备启用 mTLS，还是要先想一下，是否整个服务集群的全部节点都受 Istio 管理？如果每一个服务提供者、调用者都会受到 Istio 的管理，那 mTLS 就是最理想的认证方案。你只需要参考以下简单的 PeerAuthentication <a target="_blank" rel="noopener" href="https://kubernetes.io/docs/concepts/extend-kubernetes/api-extension/custom-resources/">CRD</a> 配置，就可以对某个 <a target="_blank" rel="noopener" href="https://kubernetes.io/docs/concepts/overview/working-with-objects/namespaces/">Kubernetes 名称空间</a> 范围内的所有流量启用 mTLS：</p>
+<pre class="line-numbers language-yaml" data-language="yaml"><code class="language-yaml"><span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> security.istio.io/v1beta1
+<span class="token key atrule">kind</span><span class="token punctuation">:</span> PeerAuthentication
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> authentication<span class="token punctuation">-</span>mtls
+  <span class="token key atrule">namespace</span><span class="token punctuation">:</span> bookstore<span class="token punctuation">-</span>servicemesh
+<span class="token key atrule">spec</span><span class="token punctuation">:</span>
+  <span class="token key atrule">mtls</span><span class="token punctuation">:</span>
+    <span class="token key atrule">mode</span><span class="token punctuation">:</span> STRICT<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>不过，如果你的分布式系统还没有达到完全云原生的程度，其中还存在部分不受 Istio 管理（即未注入 Sidecar）的服务端或者客户端（这是很常见的），你也可以将 mTLS 传输声明为” <strong>宽容模式</strong> “（Permissive Mode）。</p>
+<p>宽容模式的含义是 <strong>受 Istio 管理的服务，会允许同时接受纯文本和 mTLS 两种流量</strong> 。纯文本流量只用来和那些不受 Istio 管理的节点进行交互，你需要自行想办法解决纯文本流量的认证问题；而对于服务网格内部的流量，就可以使用 mTLS 认证。</p>
+<p>这里你要知道的是，宽容模式为普通微服务向服务网格迁移提供了良好的灵活性，让运维人员能够逐个给服务进行 mTLS 升级。甚至在原本没有启用 mTLS 的服务中启用 mTLS 时，可以不中断现存已经建立的纯文本传输连接，完全不会被最终用户感知到。</p>
+<p>这样，一旦所有服务都完成迁移，就可以把整个系统设置为严格 TLS 模式，即前面代码中的 mode: STRICT。</p>
+<p>在 Spring Cloud 版本的 Fenix’s Bookstore 里，因为没有基础设施的支持，一切认证工作就不得不在应用层面去实现。我选择的方案是借用 <a target="_blank" rel="noopener" href="https://time.geekbang.org/column/article/331411">OAtuh 2.0 协议</a> 的客户端模式来进行认证的，其大体思路有如下两步。</p>
+<ol>
+<li><p><strong>第一步</strong>，每一个要调用服务的客户端，都与认证服务器约定好一组只有自己知道的密钥（Client Secret），这个约定过程应该是由运维人员在线下自行完成，通过参数传给服务，而不是由开发人员在源码或配置文件中直接设定。我在演示工程的代码注释中，也专门强调了这点，以免你被示例代码中包含密钥的做法所误导。</p>
+<p> 这个密钥其实就是客户端的身份证明，客户端在调用服务时，会先使用该密钥向认证服务器申请到 JWT 令牌，然后通过令牌证明自己的身份，最后访问服务。</p>
+<p> 你可以看看下面给出的代码示例，它定义了五个客户端，其中四个是集群内部的微服务，均使用客户端模式，并且注明了授权范围是 SERVICE（授权范围在下面介绍授权中会用到），示例中的第一个是前端代码的微服务，它使用密码模式，授权范围是 BROWSER。</p>
+ <pre class="line-numbers language-java" data-language="java"><code class="language-java"><span class="token comment">/**
+ * 客户端列表
+ */</span>
+<span class="token keyword">private</span> <span class="token keyword">static</span> <span class="token keyword">final</span> <span class="token class-name">List</span><span class="token generics"><span class="token punctuation">&lt;</span><span class="token class-name">Client</span><span class="token punctuation">&gt;</span></span> clients <span class="token operator">=</span> <span class="token class-name">Arrays</span><span class="token punctuation">.</span><span class="token function">asList</span><span class="token punctuation">(</span>
+    <span class="token keyword">new</span> <span class="token class-name">Client</span><span class="token punctuation">(</span><span class="token string">"bookstore_frontend"</span><span class="token punctuation">,</span> <span class="token string">"bookstore_secret"</span><span class="token punctuation">,</span> <span class="token keyword">new</span> <span class="token class-name">String</span><span class="token punctuation">[</span><span class="token punctuation">]</span><span class="token punctuation">{</span><span class="token class-name">GrantType</span><span class="token punctuation">.</span>PASSWORD<span class="token punctuation">,</span> <span class="token class-name">GrantType</span><span class="token punctuation">.</span>REFRESH_TOKEN<span class="token punctuation">}</span><span class="token punctuation">,</span> <span class="token keyword">new</span> <span class="token class-name">String</span><span class="token punctuation">[</span><span class="token punctuation">]</span><span class="token punctuation">{</span><span class="token class-name">Scope</span><span class="token punctuation">.</span>BROWSER<span class="token punctuation">}</span><span class="token punctuation">)</span><span class="token punctuation">,</span>
+    <span class="token comment">// 微服务一共有Security微服务、Account微服务、Warehouse微服务、Payment微服务四个客户端</span>
+    <span class="token comment">// 如果正式使用，这部分信息应该做成可以配置的，以便快速增加微服务的类型。clientSecret也不应该出现在源码中，应由外部配置传入</span>
+    <span class="token keyword">new</span> <span class="token class-name">Client</span><span class="token punctuation">(</span><span class="token string">"account"</span><span class="token punctuation">,</span> <span class="token string">"account_secret"</span><span class="token punctuation">,</span> <span class="token keyword">new</span> <span class="token class-name">String</span><span class="token punctuation">[</span><span class="token punctuation">]</span><span class="token punctuation">{</span><span class="token class-name">GrantType</span><span class="token punctuation">.</span>CLIENT_CREDENTIALS<span class="token punctuation">}</span><span class="token punctuation">,</span> <span class="token keyword">new</span> <span class="token class-name">String</span><span class="token punctuation">[</span><span class="token punctuation">]</span><span class="token punctuation">{</span><span class="token class-name">Scope</span><span class="token punctuation">.</span>SERVICE<span class="token punctuation">}</span><span class="token punctuation">)</span><span class="token punctuation">,</span>
+    <span class="token keyword">new</span> <span class="token class-name">Client</span><span class="token punctuation">(</span><span class="token string">"warehouse"</span><span class="token punctuation">,</span> <span class="token string">"warehouse_secret"</span><span class="token punctuation">,</span> <span class="token keyword">new</span> <span class="token class-name">String</span><span class="token punctuation">[</span><span class="token punctuation">]</span><span class="token punctuation">{</span><span class="token class-name">GrantType</span><span class="token punctuation">.</span>CLIENT_CREDENTIALS<span class="token punctuation">}</span><span class="token punctuation">,</span> <span class="token keyword">new</span> <span class="token class-name">String</span><span class="token punctuation">[</span><span class="token punctuation">]</span><span class="token punctuation">{</span><span class="token class-name">Scope</span><span class="token punctuation">.</span>SERVICE<span class="token punctuation">}</span><span class="token punctuation">)</span><span class="token punctuation">,</span>
+    <span class="token keyword">new</span> <span class="token class-name">Client</span><span class="token punctuation">(</span><span class="token string">"payment"</span><span class="token punctuation">,</span> <span class="token string">"payment_secret"</span><span class="token punctuation">,</span> <span class="token keyword">new</span> <span class="token class-name">String</span><span class="token punctuation">[</span><span class="token punctuation">]</span><span class="token punctuation">{</span><span class="token class-name">GrantType</span><span class="token punctuation">.</span>CLIENT_CREDENTIALS<span class="token punctuation">}</span><span class="token punctuation">,</span> <span class="token keyword">new</span> <span class="token class-name">String</span><span class="token punctuation">[</span><span class="token punctuation">]</span><span class="token punctuation">{</span><span class="token class-name">Scope</span><span class="token punctuation">.</span>SERVICE<span class="token punctuation">}</span><span class="token punctuation">)</span><span class="token punctuation">,</span>
+    <span class="token keyword">new</span> <span class="token class-name">Client</span><span class="token punctuation">(</span><span class="token string">"security"</span><span class="token punctuation">,</span> <span class="token string">"security_secret"</span><span class="token punctuation">,</span> <span class="token keyword">new</span> <span class="token class-name">String</span><span class="token punctuation">[</span><span class="token punctuation">]</span><span class="token punctuation">{</span><span class="token class-name">GrantType</span><span class="token punctuation">.</span>CLIENT_CREDENTIALS<span class="token punctuation">}</span><span class="token punctuation">,</span> <span class="token keyword">new</span> <span class="token class-name">String</span><span class="token punctuation">[</span><span class="token punctuation">]</span><span class="token punctuation">{</span><span class="token class-name">Scope</span><span class="token punctuation">.</span>SERVICE<span class="token punctuation">}</span><span class="token punctuation">)</span>
+<span class="token punctuation">)</span><span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre></li>
+<li><p><strong>第二步</strong> ，每一个对外提供服务的服务端，都扮演着 OAuth 2.0 中的资源服务器的角色，它们都声明为要求提供客户端模式的凭证，如以下代码所示。客户端要调用受保护的服务，就必须先出示能证明调用者身份的 JWT 令牌，否则就会遭到拒绝。这个操作本质上是授权的过程，但它在授权过程中其实已经实现了服务的身份认证。</p>
+ <pre class="line-numbers language-java" data-language="java"><code class="language-java"><span class="token keyword">public</span> <span class="token class-name">ClientCredentialsResourceDetails</span> <span class="token function">clientCredentialsResourceDetails</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+    <span class="token keyword">return</span> <span class="token keyword">new</span> <span class="token class-name">ClientCredentialsResourceDetails</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span></span></code></pre>
+<p>而且，由于每一个微服务都同时具有服务端和客户端两种身份，它们既消费其他服务，也提供服务供别人消费，所以在每个微服务中，都应该要包含以上这些代码（放在公共 infrastructure 工程里）。</p>
+</li>
+</ol>
+<p>另外，Spring Security 提供的过滤器会自动拦截请求，驱动认证、授权检查的执行，以及申请和验证 JWT 令牌等操作，无论是在开发期对程序员，还是在运行期对用户，都能做到相对透明。</p>
+<p>不过尽管如此，这样的做法仍然是一种应用层面的、不加密传输的解决方案。为什么呢？</p>
+<p>前面我提到，在零信任网络中面对可能的中间人攻击，TLS 是唯一可行的办法。其实我的言下之意是，即使应用层的认证能在一定程度上，保护服务不被身份不明的客户端越权调用，但是如果内容在传输途中被监听、篡改，或者被攻击者拿到了 JWT 令牌之后，冒认调用者的身份去调用其他服务，应用层的认证就无法防御了。</p>
+<p>所以简而言之，这种方案并不适用于零信任安全模型，只有在默认内网节点间具备信任关系的边界安全模型上，才能良好工作。</p>
+<p>好，我们再来说说请求认证。</p>
+<h5 id="请求认证"><a href="#请求认证" class="headerlink" title="请求认证"></a>请求认证</h5><p>对于来自最终用户的请求认证，Istio 版本的 Fenix’s Bookstore 仍然能做到单纯依靠基础设施解决问题，整个认证过程不需要应用程序参与（JWT 令牌还是在应用中生成的，因为 Fenix’s Bookstore 并没有使用独立的用户认证服务器，只有应用本身才拥有用户信息）。</p>
+<p>当来自最终用户的请求进入服务网格时，Istio 会自动根据配置中的 <a target="_blank" rel="noopener" href="https://tools.ietf.org/html/rfc7517">JWKS</a> （JSON Web Key Set）来验证令牌的合法性，如果令牌没有被篡改过且在有效期内，就信任 Payload 中的用户身份，并从令牌的 Iss 字段中获得 Principal。关于 Iss、Principals 等概念，我在安全架构这个小章节中都介绍过了，你可以去回顾复习一下第 23 到 30 讲。而 JWKS 倒是之前从没有提到过，它代表了一个 <strong>密钥仓库</strong> 。</p>
+<p>我们知道在分布式系统中，JWT 要采用非对称的签名算法（RSA SHA256、ECDSA SHA256 等，默认的 HMAC SHA256 属于对称加密），认证服务器使用私钥对 Payload 进行签名，资源服务器使用公钥对签名进行验证。</p>
+<p>而常与 JWT 配合使用的 JWK（JSON Web Key）就是一种存储密钥的纯文本格式，在功能上，它和 <a target="_blank" rel="noopener" href="https://en.wikipedia.org/wiki/Java_KeyStore">JKS</a> （Java Key Storage）、 <a target="_blank" rel="noopener" href="https://en.wikipedia.org/wiki/PKCS_12">P12</a> （Predecessor of PKCS#12）、 <a target="_blank" rel="noopener" href="https://en.wikipedia.org/wiki/Privacy-Enhanced_Mail">PEM</a> （Privacy Enhanced Mail）这些常见的密钥格式并没有什么本质上的差别。</p>
+<p>所以顾名思义，JWKS 就是一组 JWK 的集合。支持 JWKS 的系统，能通过 JWT 令牌 Header 中的 KID（Key ID）自动匹配出应该使用哪个 JWK 来验证签名。</p>
+<p>以下是 Istio 版本的 Fenix’s Bookstore 中的用户认证配置。其中，jwks 字段配的就是 JWKS 全文（实际生产中并不推荐这样做，应该使用 jwkUri 来配置一个 JWKS 地址，以方便密钥轮换），根据这里配置的密钥信息，Istio 就能够验证请求中附带的 JWT 是否合法。</p>
+<pre class="line-numbers language-yaml" data-language="yaml"><code class="language-yaml"><span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> security.istio.io/v1beta1
+<span class="token key atrule">kind</span><span class="token punctuation">:</span> RequestAuthentication
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> authentication<span class="token punctuation">-</span>jwt<span class="token punctuation">-</span>token
+  <span class="token key atrule">namespace</span><span class="token punctuation">:</span> bookstore<span class="token punctuation">-</span>servicemesh
+<span class="token key atrule">spec</span><span class="token punctuation">:</span>
+  <span class="token key atrule">jwtRules</span><span class="token punctuation">:</span>
+    <span class="token punctuation">-</span> <span class="token key atrule">issuer</span><span class="token punctuation">:</span> <span class="token string">"icyfenix@gmail.com"</span>
+      <span class="token comment"># Envoy默认只认"Bearer"作为JWT前缀，之前其他地方用的都是小写，这里专门兼容一下</span>
+      <span class="token key atrule">fromHeaders</span><span class="token punctuation">:</span>
+        <span class="token punctuation">-</span> <span class="token key atrule">name</span><span class="token punctuation">:</span> Authorization
+          <span class="token key atrule">prefix</span><span class="token punctuation">:</span> <span class="token string">"bearer "</span>
+      <span class="token comment"># 在rsa-key目录下放了用来生成这个JWKS的证书，最初是用java keytool生成的jks格式，一般转jwks都是用pkcs12或者pem格式，为方便使用也一起附带了</span>
+      <span class="token key atrule">jwks</span><span class="token punctuation">:</span> <span class="token punctuation">|</span><span class="token scalar string">
+        {
+            "keys": [
+                {
+                    "e": "AQAB",
+                    "kid": "bookstore-jwt-kid",
+                    "kty": "RSA",
+                    "n": "i-htQPOTvNMccJjOkCAzd3YlqBElURzkaeRLDoJYskyU59JdGO-p_q4JEH0DZOM2BbonGI4lIHFkiZLO4IBBZ5j2P7U6QYURt6-AyjS6RGw9v_wFdIRlyBI9D3EO7u8rCA4RktBLPavfEc5BwYX2Vb9wX6N63tV48cP1CoGU0GtIq9HTqbEQs5KVmme5n4XOuzxQ6B2AGaPBJgdq_K0ZWDkXiqPz6921X3oiNYPCQ22bvFxb4yFX8ZfbxeYc-1rN7PaUsK009qOx-qRenHpWgPVfagMbNYkm0TOHNOWXqukxE-soCDI_Nc--1khWCmQ9E2B82ap7IXsVBAnBIaV9WQ"
+                }
+            ]
+        }</span>
+      <span class="token key atrule">forwardOriginalToken</span><span class="token punctuation">:</span> <span class="token boolean important">true</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>而 Spring Cloud 版本的 Fenix’s Bookstore 就要稍微麻烦一些，它依然是采用 JWT 令牌作为用户身份凭证的载体，认证过程依然在 Spring Security 的过滤器里中自动完成。不过因为这节课我们讨论的重点不在 Spring Security 的过滤器工作原理，所以它的详细过程就不展开了，只简单说说其主要路径：过滤器→令牌服务→令牌实现。</p>
+<p>既然如此，Spring Security 已经做好了认证所需的绝大部分工作，那么真正要开发者去编写的代码就是令牌的具体实现，即代码中名为”RSA256PublicJWTAccessToken”的实现类。</p>
+<p>它的作用是加载 Resource 目录下的公钥证书 public.cert（实在是怕”抄作业不改名字”的行为，我再一次强调不要将密码、密钥、证书这类敏感信息打包到程序中，示例代码只是为了演示，实际生产应该由运维人员管理密钥），验证请求中的 JWT 令牌是否合法。</p>
+<pre class="line-numbers language-java" data-language="java"><code class="language-java"><span class="token annotation punctuation">@Named</span>
+<span class="token keyword">public</span> <span class="token keyword">class</span> <span class="token class-name">RSA256PublicJWTAccessToken</span> <span class="token keyword">extends</span> <span class="token class-name">JWTAccessToken</span> <span class="token punctuation">{</span>
+    <span class="token class-name">RSA256PublicJWTAccessToken</span><span class="token punctuation">(</span><span class="token class-name">UserDetailsService</span> userDetailsService<span class="token punctuation">)</span> <span class="token keyword">throws</span> <span class="token class-name">IOException</span> <span class="token punctuation">{</span>
+        <span class="token keyword">super</span><span class="token punctuation">(</span>userDetailsService<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token class-name">Resource</span> resource <span class="token operator">=</span> <span class="token keyword">new</span> <span class="token class-name">ClassPathResource</span><span class="token punctuation">(</span><span class="token string">"public.cert"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token class-name">String</span> publicKey <span class="token operator">=</span> <span class="token keyword">new</span> <span class="token class-name">String</span><span class="token punctuation">(</span><span class="token class-name">FileCopyUtils</span><span class="token punctuation">.</span><span class="token function">copyToByteArray</span><span class="token punctuation">(</span>resource<span class="token punctuation">.</span><span class="token function">getInputStream</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token function">setVerifierKey</span><span class="token punctuation">(</span>publicKey<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>如果 JWT 令牌合法，Spring Security 的过滤器就会放行调用请求，并从令牌中提取出 Principals，放到自己的安全上下文中（即”SecurityContextHolder.getContext()”）。</p>
+<p>在开发实际项目的时候，你可以根据需要自行决定 Principals 的具体形式，比如既可以像 Istio 中那样，直接从令牌中取出来，以字符串的形式原样存放，节省一些数据库或者缓存的查询开销；也可以统一做些额外的转换处理，以方便后续业务使用，比如将 Principals 转换为系统中的用户对象。</p>
+<p>Fenix’s Bookstore 的转换操作是在 JWT 令牌的父类 JWTAccessToken 中完成的。所以可见，尽管由应用自己来做请求验证，会有一定的代码量和侵入性，但同时自由度确实也会更高一些。</p>
+<p>这里为了方便不同版本实现之间的对比，在 Istio 版本中，我保留了 Spring Security 自动从令牌转换 Principals 为用户对象的逻辑，因此就必须在 YAML 中包含 forwardOriginalToken: true 的配置，告诉 Istio 验证完 JWT 令牌后，不要丢弃掉请求中的 Authorization Header，而是要原样转发给后面的服务处理。</p>
+<h4 id="授权"><a href="#授权" class="headerlink" title="授权"></a>授权</h4><p>那么，经过认证之后，合法的调用者就有了可信任的身份，此时就不再需要区分调用者到底是机器（服务）还是人类（最终用户）了，只需要根据其身份角色来进行权限访问控制就行，即我们常说的 RBAC。</p>
+<p>不过为了更便于理解，Fenix’s Bookstore 提供的示例代码仍然沿用此前的思路，分别针对来自”服务”和”用户”的流量来控制权限和访问范围。</p>
+<p>举个具体例子。如果我们准备把一部分微服务看作是私有服务，限制它只接受来自集群内部其他服务的请求，把另外一部分微服务看作是公共服务，允许它可以接受来自集群外部的最终用户发出的请求；又或者，我们想要控制一部分服务只允许移动应用调用，另外一部分服务只允许浏览器调用。</p>
+<p>那么，一种可行的方案就是 <strong>为不同的调用场景设立角色，进行授权控制</strong> （另一种常用的方案是做 BFF 网关）。</p>
+<p>我们还是以 Istio 和 Spring Cloud 版本的 Fenix’s Bookstore 为例。</p>
+<ol>
+<li><p><strong>在 Istio 版本的 Fenix’s Bookstore 中</strong> ，通过以下文稿这里给出的配置，就限制了来自 bookstore-servicemesh 名空间的内部流量，只允许访问 accounts、products、pay 和 settlements 四个端点的 GET、POST、PUT、PATCH 方法，而对于来自 istio-system 名空间（Istio Ingress Gateway 所在的名空间）的外部流量就不作限制，直接放行。</p>
+ <pre class="line-numbers language-yaml" data-language="yaml"><code class="language-yaml"><span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> security.istio.io/v1beta1
+<span class="token key atrule">kind</span><span class="token punctuation">:</span> AuthorizationPolicy
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+<span class="token key atrule">name</span><span class="token punctuation">:</span> authorization<span class="token punctuation">-</span>peer
+<span class="token key atrule">namespace</span><span class="token punctuation">:</span> bookstore<span class="token punctuation">-</span>servicemesh
+<span class="token key atrule">spec</span><span class="token punctuation">:</span>
+<span class="token key atrule">action</span><span class="token punctuation">:</span> ALLOW
+<span class="token key atrule">rules</span><span class="token punctuation">:</span>
+    <span class="token punctuation">-</span> <span class="token key atrule">from</span><span class="token punctuation">:</span>
+        <span class="token punctuation">-</span> <span class="token key atrule">source</span><span class="token punctuation">:</span>
+            <span class="token key atrule">namespaces</span><span class="token punctuation">:</span> <span class="token punctuation">[</span><span class="token string">"bookstore-servicemesh"</span><span class="token punctuation">]</span>
+    <span class="token key atrule">to</span><span class="token punctuation">:</span>
+        <span class="token punctuation">-</span> <span class="token key atrule">operation</span><span class="token punctuation">:</span>
+            <span class="token key atrule">paths</span><span class="token punctuation">:</span>
+            <span class="token punctuation">-</span> /restful/accounts/*
+            <span class="token punctuation">-</span> /restful/products*
+            <span class="token punctuation">-</span> /restful/pay/*
+            <span class="token punctuation">-</span> /restful/settlements*
+            <span class="token key atrule">methods</span><span class="token punctuation">:</span> <span class="token punctuation">[</span><span class="token string">"GET"</span><span class="token punctuation">,</span><span class="token string">"POST"</span><span class="token punctuation">,</span><span class="token string">"PUT"</span><span class="token punctuation">,</span><span class="token string">"PATCH"</span><span class="token punctuation">]</span>
+    <span class="token punctuation">-</span> <span class="token key atrule">from</span><span class="token punctuation">:</span>
+        <span class="token punctuation">-</span> <span class="token key atrule">source</span><span class="token punctuation">:</span>
+            <span class="token key atrule">namespaces</span><span class="token punctuation">:</span> <span class="token punctuation">[</span><span class="token string">"istio-system"</span><span class="token punctuation">]</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p> 但针对外部的请求（不来自 bookstore-servicemesh 名空间的流量），又进行了另外一层控制，如果请求中没有包含有效的登录信息，就限制不允许访问 accounts、pay 和 settlements 三个端点，如以下配置所示：</p>
+ <pre class="line-numbers language-yaml" data-language="yaml"><code class="language-yaml"><span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> security.istio.io/v1beta1
+<span class="token key atrule">kind</span><span class="token punctuation">:</span> AuthorizationPolicy
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+<span class="token key atrule">name</span><span class="token punctuation">:</span> authorization<span class="token punctuation">-</span>request
+<span class="token key atrule">namespace</span><span class="token punctuation">:</span> bookstore<span class="token punctuation">-</span>servicemesh
+<span class="token key atrule">spec</span><span class="token punctuation">:</span>
+<span class="token key atrule">action</span><span class="token punctuation">:</span> DENY
+<span class="token key atrule">rules</span><span class="token punctuation">:</span>
+    <span class="token punctuation">-</span> <span class="token key atrule">from</span><span class="token punctuation">:</span>
+        <span class="token punctuation">-</span> <span class="token key atrule">source</span><span class="token punctuation">:</span>
+            <span class="token key atrule">notRequestPrincipals</span><span class="token punctuation">:</span> <span class="token punctuation">[</span><span class="token string">"*"</span><span class="token punctuation">]</span>
+            <span class="token key atrule">notNamespaces</span><span class="token punctuation">:</span> <span class="token punctuation">[</span><span class="token string">"bookstore-servicemesh"</span><span class="token punctuation">]</span>
+    <span class="token key atrule">to</span><span class="token punctuation">:</span>
+        <span class="token punctuation">-</span> <span class="token key atrule">operation</span><span class="token punctuation">:</span>
+            <span class="token key atrule">paths</span><span class="token punctuation">:</span>
+            <span class="token punctuation">-</span> /restful/accounts/*
+            <span class="token punctuation">-</span> /restful/pay/*
+            <span class="token punctuation">-</span> /restful/settlements*<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p> 由此可见，Istio 已经提供了比较完善的目标匹配工具，比如前面配置中用到的源 from、目标 to，以及没有用到的条件匹配 when，还有其他像是通配符、IP、端口、名空间、JWT 字段，等等。</p>
+<p> 当然了，要说灵活和功能强大，它肯定还是不可能跟在应用中由代码实现的授权相媲美，但对绝大多数场景来说已经够用了。在便捷性、安全性、无侵入、统一管理等方面，Istio 这种在基础设施上实现授权的方案，显然要更具优势。</p>
+</li>
+<li><p><strong>而在 Spring Cloud 版本的 Fenix’s Bookstore 中</strong> ，授权控制自然还是使用 Spring Security、通过应用程序代码来实现的。</p>
+<p> 常见的 Spring Security 授权方法有两种。</p>
+<ol>
+<li><p>第一种是使用它的 ExpressionUrlAuthorizationConfigurer，也就是类似下面编码所示的写法来进行集中配置。这个写法跟前面在 Istio 的 AuthorizationPolicy CRD 中的写法，在体验上是比较相似的，也是几乎所有 Spring Security 资料中都会介绍的最主流的方式，比较适合对批量端点进行控制，不过在 Fenix’s Bookstore 的示例代码中并没有采用（没有什么特别理由，就是我的个人习惯而已）。</p>
+ <pre class="line-numbers language-java" data-language="java"><code class="language-java">http<span class="token punctuation">.</span><span class="token function">authorizeRequests</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+    <span class="token punctuation">.</span><span class="token function">antMatchers</span><span class="token punctuation">(</span><span class="token string">"/restful/accounts/**"</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">hasScope</span><span class="token punctuation">(</span><span class="token class-name">Scope</span><span class="token punctuation">.</span>BROWSER<span class="token punctuation">)</span>
+    <span class="token punctuation">.</span><span class="token function">antMatchers</span><span class="token punctuation">(</span><span class="token string">"/restful/pay/**"</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">hasScope</span><span class="token punctuation">(</span><span class="token class-name">Scope</span><span class="token punctuation">.</span>SERVICE<span class="token punctuation">)</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span></span></code></pre></li>
+<li><p>第二种写法就是下面的示例代码中采用的方法了。它是通过 Spring 的 <a target="_blank" rel="noopener" href="https://docs.spring.io/spring-security/site/docs/3.0.x/reference/el-access.html">全局方法级安全</a> （Global Method Security）以及 <a target="_blank" rel="noopener" href="https://jcp.org/en/jsr/detail?id=250">JSR 250</a> 的 @RolesAllowed 注解来做授权控制。</p>
+<p> 这种写法对代码的侵入性更强，需要以注解的形式分散写到每个服务甚至是每个方法中，但好处是能以更方便的形式做出更加精细的控制效果。比如，要控制服务中某个方法，只允许来自服务或者来自浏览器的调用，那直接在该方法上标注 @PreAuthorize 注解即可，而且它还支持 <a target="_blank" rel="noopener" href="https://docs.spring.io/spring-framework/docs/4.2.x/spring-framework-reference/html/expressions.html">SpEL 表达式</a> 来做条件。</p>
+<p> 表达式中用到的 SERVICE、BROWSER 代表的是授权范围，就是在声明客户端列表时传入的，具体你可以参考这节课开头声明客户端列表的代码清单。</p>
+ <pre class="line-numbers language-java" data-language="java"><code class="language-java"><span class="token comment">/**
+ * 根据用户名称获取用户详情
+*/</span>
+<span class="token annotation punctuation">@GET</span>
+<span class="token annotation punctuation">@Path</span><span class="token punctuation">(</span><span class="token string">"/{username}"</span><span class="token punctuation">)</span>
+<span class="token annotation punctuation">@Cacheable</span><span class="token punctuation">(</span>key <span class="token operator">=</span> <span class="token string">"#username"</span><span class="token punctuation">)</span>
+<span class="token annotation punctuation">@PreAuthorize</span><span class="token punctuation">(</span><span class="token string">"#oauth2.hasAnyScope('SERVICE','BROWSER')"</span><span class="token punctuation">)</span>
+<span class="token keyword">public</span> <span class="token class-name">Account</span> <span class="token function">getUser</span><span class="token punctuation">(</span><span class="token annotation punctuation">@PathParam</span><span class="token punctuation">(</span><span class="token string">"username"</span><span class="token punctuation">)</span> <span class="token class-name">String</span> username<span class="token punctuation">)</span> <span class="token punctuation">{</span>
+    <span class="token keyword">return</span> service<span class="token punctuation">.</span><span class="token function">findAccountByUsername</span><span class="token punctuation">(</span>username<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+
+<span class="token comment">/**
+ * 创建新的用户
+*/</span>
+<span class="token annotation punctuation">@POST</span>
+<span class="token annotation punctuation">@CacheEvict</span><span class="token punctuation">(</span>key <span class="token operator">=</span> <span class="token string">"#user.username"</span><span class="token punctuation">)</span>
+<span class="token annotation punctuation">@PreAuthorize</span><span class="token punctuation">(</span><span class="token string">"#oauth2.hasAnyScope('BROWSER')"</span><span class="token punctuation">)</span>
+<span class="token keyword">public</span> <span class="token class-name">Response</span> <span class="token function">createUser</span><span class="token punctuation">(</span><span class="token annotation punctuation">@Valid</span> <span class="token annotation punctuation">@UniqueAccount</span> <span class="token class-name">Account</span> user<span class="token punctuation">)</span> <span class="token punctuation">{</span>
+    <span class="token keyword">return</span> <span class="token class-name">CommonResponse</span><span class="token punctuation">.</span><span class="token function">op</span><span class="token punctuation">(</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token operator">-&gt;</span> service<span class="token punctuation">.</span><span class="token function">createAccount</span><span class="token punctuation">(</span>user<span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<h4 id="小结-33"><a href="#小结-33" class="headerlink" title="小结"></a>小结</h4></li>
+</ol>
+</li>
+</ol>
+<p>这节课里，我们尝试以 <strong>程序代码和基础设施</strong> 两种方式，去实现功能类似的认证与授权，通过这两者的对比，探讨了在微服务架构下，应该如何把业界的安全技术标准引入并实际落地，实现零信任网络下安全的服务访问。</p>
+<p>由此我们也得出了一个基本的结论：在以应用代码为主，去实现安全需求的微服务系统中，是很难真正落地零信任安全的，这不仅仅是由于安全需求所带来的庞大开发、管理（如密钥轮换）和建设（如 PKI、CA）的工作量，更是因为这种方式很难符合上节课所提到的零信任安全中”集中、共享的安全策略实施点””自动化、标准化的变更管理”等基本特征。</p>
+<p>但另一方面，我们也必须看到，现在以代码去解决微服务非功能性需求的方案是很主流的，像 Spring Cloud 这些方案，在未来的很长一段时间里，都会是信息系统重点考虑的微服务框架。因此，去学习、了解如何通过代码，尽最大可能地去保证服务之间的安全通讯，仍然非常有必要。</p>
 
                 
             </div>
@@ -4950,7 +5219,7 @@ random<span class="token punctuation">.</span><span class="token function">nextB
             <br>
             
             &nbsp;<i class="fas fa-chart-area"></i>&nbsp;站点总字数:&nbsp;<span
-                class="white-color">1539.3k</span>&nbsp;字
+                class="white-color">1549.7k</span>&nbsp;字
             
             
             
