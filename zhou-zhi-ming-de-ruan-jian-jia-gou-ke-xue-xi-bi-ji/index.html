@@ -409,7 +409,7 @@
                 
                 <div class="post-date info-break-policy">
                     <i class="far fa-calendar-check fa-fw"></i>更新日期:&nbsp;&nbsp;
-                    2023-04-23
+                    2023-04-25
                 </div>
                 
 
@@ -550,7 +550,7 @@
 <p>而亲身经历过那个年代的计算机科学家、IBM 院士凯尔 · 布朗（Kyle Brown），在事后曾经评价道，”这次尝试最大的收获就是对 RPC、DFS 等概念的开创，以及得到了一个价值千金的教训：某个功能能够进行分布式，并不意味着它就应该进行分布式，强行追求透明的分布式操作，只会自寻苦果”。</p>
 <blockquote>
 <p><strong>原始分布式时代的教训</strong></p>
-<p>Just because something can be distributed doesn”t mean it should be distributed. Trying to make a distributed call act like a local call always ends in tears.</p>
+<p>Just because something can be distributed doesn’t mean it should be distributed. Trying to make a distributed call act like a local call always ends in tears.</p>
 <p>某个功能能够进行分布式，并不意味着它就应该进行分布式，强行追求透明的分布式操作，只会自寻苦果。</p>
 <p>—— Kyle Brown，IBM Fellow，Beyond buzzwords: A brief history of microservices patterns，2016</p>
 </blockquote>
@@ -1264,7 +1264,7 @@ doctor not available<span aria-hidden="true" class="line-numbers-rows"><span></s
 <p> 或许你第一眼看到这个问题会说，这当然是程序写的啊，我为什么会问这么奇怪的问题。但问题是，REST 并不认同这种已烙在程序员脑海中许久的想法。</p>
 <p> RMM 中的第 3 级成熟度 Hypermedia Controls、Fielding 论文中的 HATEOAS 和现在提得比较多的超文本驱动，其实都是希望能达到这样一种效果： <strong>除了第一个请求是由你在浏览器地址栏输入的信息所驱动的之外，其他的请求都应该能够自己描述清楚后续可能发生的状态转移，由超文本自身来驱动。</strong></p>
 <p> 所以，当你输入了查询命令后：</p>
- <pre class="line-numbers language-http" data-language="http"><code class="language-http">GET /doctors/mjones/schedule?date=2020-03-04&amp;statu s=open HTTP/1.1<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+ <pre class="line-numbers language-http" data-language="http"><code class="language-http"><span class="token request-line"><span class="token property">GET</span> /doctors/mjones/schedule?date=2020-03-04&amp;status=open HTTP/1.1</span><span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
 <p> 服务器传回的响应信息应该包括如何预约档期、如何了解医生信息等可能的后续操作：</p>
  <pre class="line-numbers language-http" data-language="http"><code class="language-http"><span class="token response-status">HTTP/1.1 <span class="token property">200 OK</span></span>
 
@@ -1798,7 +1798,7 @@ doctor not available<span aria-hidden="true" class="line-numbers-rows"><span></s
 <p>它大致的做法是在业务数据提交时，自动拦截所有 SQL，分别保存 SQL 对数据修改前后结果的快照，生成行锁，通过本地事务一起提交到操作的数据源中，这就相当于自动记录了重做和回滚日志。</p>
 <p>如果分布式事务成功提交了，那么我们后续只需清理每个数据源中对应的日志数据即可；而如果分布式事务需要回滚，就要根据日志数据自动产生用于补偿的”逆向 SQL”。</p>
 <p>所以，基于这种补偿方式，分布式事务中所涉及的每一个数据源都可以单独提交，然后立刻释放锁和资源。AT 事务这种异步提交的模式，相比 2PC 极大地提升了系统的吞吐量水平。 <strong>而使用的代价就是大幅度地牺牲了隔离性，甚至直接影响到了原子性。</strong> 因为在缺乏隔离性的前提下，以补偿代替回滚不一定总能成功。</p>
-<p>比如，当在本地事务提交之后、分布式事务完成之前，该数据被补偿之前又被其他操作修改过，即出现了 <strong>脏写（Dirty Wirte）</strong> ，而这个时候一旦出现分布式事务需要回滚，就不可能再通过自动的逆向 SQL 来实现补偿，只能由人工介入处理了。</p>
+<p>比如，当在本地事务提交之后、分布式事务完成之前，该数据被补偿之前又被其他操作修改过，即出现了 <strong>脏写（Dirty Write）</strong> ，而这个时候一旦出现分布式事务需要回滚，就不可能再通过自动的逆向 SQL 来实现补偿，只能由人工介入处理了。</p>
 <p>一般来说，对于脏写我们是一定要避免的，所有传统关系数据库在最低的隔离级别上，都仍然要加锁以避免脏写。因为脏写情况一旦发生，人工其实也很难进行有效处理。</p>
 <p>所以，GTS 增加了一个” <strong>全局锁</strong> “（Global Lock）的机制来实现 <strong>写隔离</strong> ，要求本地事务提交之前，一定要先拿到针对修改记录的全局锁后才允许提交，而在没有获得全局锁之前就必须一直等待。</p>
 <p>这种设计以牺牲一定性能为代价，避免了在两个分布式事务中，数据被同一个本地事务改写的情况，从而避免了脏写。</p>
@@ -3252,7 +3252,7 @@ random<span class="token punctuation">.</span><span class="token function">nextB
     Not Before: Nov 21 08:00:00 2020 GMT
     Not After : Nov 22 07:59:59 2021 GMT<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span></span></code></pre></li>
 <li><p>第七是 <strong>主题信息（Subject）</strong> ：证书持有人唯一的标识符（Distinguished Name），这个名字在整个互联网上应该是唯一的，通常使用的是网站的域名。</p>
- <pre class="line-numbers language-txt" data-language="txt"><code class="language-txt">Subject: C=CN, ST=GuangDong, L=Zhuhai, O=Awosome-Fenix, CN=*.icyfenix.cn<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+ <pre class="line-numbers language-txt" data-language="txt"><code class="language-txt">Subject: C=CN, ST=GuangDong, L=Zhuhai, O=Awesome-Fenix, CN=*.icyfenix.cn<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
 <p>第八是公钥信息（Public-Key）： 它包括了证书持有人的公钥、算法 (指明密钥属于哪种密码系统) 的标识符和其他相关的密钥参数。</p>
 </li>
 </ol>
@@ -3357,12 +3357,12 @@ random<span class="token punctuation">.</span><span class="token function">nextB
 <li><p>避免对输入数据的防御污染到业务代码。如果你的代码里面有很多像是下面这样的条件判断，就应该考虑重构了：</p>
   <pre class="line-numbers language-java" data-language="java"><code class="language-java"><span class="token comment">// 一些已执行的逻辑</span>
 <span class="token keyword">if</span> <span class="token punctuation">(</span>someParam <span class="token operator">==</span> <span class="token keyword">null</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
-    <span class="token keyword">throw</span> <span class="token keyword">new</span> <span class="token class-name">RuntimeExcetpion</span><span class="token punctuation">(</span><span class="token string">"客官不可以！"</span><span class="token punctuation">)</span>
+    <span class="token keyword">throw</span> <span class="token keyword">new</span> <span class="token class-name">RuntimeException</span><span class="token punctuation">(</span><span class="token string">"客官不可以！"</span><span class="token punctuation">)</span>
 <span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span></span></code></pre></li>
 <li>利于多个校验器统一执行，统一返回校验结果，避免用户踩地雷、挤牙膏式的试错体验。</li>
 </ul>
 <p>据我所知，国内的项目使用 Bean Validation 的并不少见，但大多数程序员都只使用到它的 Built-In Constraint，来做一些与业务逻辑无关的通用校验，也就是下面展示的这堆注解，看类名我们基本上就能明白它们的含义了：</p>
-<pre class="line-numbers language-java" data-language="java"><code class="language-java"><span class="token annotation punctuation">@Null</span>、<span class="token annotation punctuation">@NotNull</span>、<span class="token annotation punctuation">@AssertTrue</span>、<span class="token annotation punctuation">@AssertFalse</span>、<span class="token annotation punctuation">@Min</span>、<span class="token annotation punctuation">@Max</span>、<span class="token annotation punctuation">@DecimalMin</span>、<span class="token annotation punctuation">@DecimalMax</span>、<span class="token annotation punctuation">@Negative</span>、<span class="token annotation punctuation">@NegativeOrZero</span>、<span class="token annotation punctuation">@Positive</span>、<span class="token annotation punctuation">@PositiveOrZeor</span>、<span class="token annotation punctuation">@Szie</span>、<span class="token annotation punctuation">@Digits</span>、<span class="token annotation punctuation">@Pass</span>、<span class="token annotation punctuation">@PassOrPresent</span>、<span class="token annotation punctuation">@Future</span>、<span class="token annotation punctuation">@FutureOrPresent</span>、<span class="token annotation punctuation">@Pattern</span>、<span class="token annotation punctuation">@NotEmpty</span>、<span class="token annotation punctuation">@NotBlank</span>、<span class="token annotation punctuation">@Email</span><span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<pre class="line-numbers language-java" data-language="java"><code class="language-java"><span class="token annotation punctuation">@Null</span>、<span class="token annotation punctuation">@NotNull</span>、<span class="token annotation punctuation">@AssertTrue</span>、<span class="token annotation punctuation">@AssertFalse</span>、<span class="token annotation punctuation">@Min</span>、<span class="token annotation punctuation">@Max</span>、<span class="token annotation punctuation">@DecimalMin</span>、<span class="token annotation punctuation">@DecimalMax</span>、<span class="token annotation punctuation">@Negative</span>、<span class="token annotation punctuation">@NegativeOrZero</span>、<span class="token annotation punctuation">@Positive</span>、<span class="token annotation punctuation">@PositiveOrZero</span>、<span class="token annotation punctuation">@Size</span>、<span class="token annotation punctuation">@Digits</span>、<span class="token annotation punctuation">@Pass</span>、<span class="token annotation punctuation">@PassOrPresent</span>、<span class="token annotation punctuation">@Future</span>、<span class="token annotation punctuation">@FutureOrPresent</span>、<span class="token annotation punctuation">@Pattern</span>、<span class="token annotation punctuation">@NotEmpty</span>、<span class="token annotation punctuation">@NotBlank</span>、<span class="token annotation punctuation">@Email</span><span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
 <p>不过我们要知道，与业务相关的校验往往才是最复杂的校验。而把简单的校验交给 Bean  Validation，把复杂的校验留给自己，这简直是买椟还珠故事的程序员版本。其实，以 Bean Validation 的标准方式来做业务校验是非常优雅的。</p>
 <p>接下来，我就用 Fenix’s Bookstore 项目在用户资源上的两个方法：”创建新用户”和”更新用户信息”，来给你举个例子：</p>
 <pre class="line-numbers language-java" data-language="java"><code class="language-java"><span class="token comment">/**
@@ -4061,7 +4061,7 @@ random<span class="token punctuation">.</span><span class="token function">nextB
 <p> 现在的服务发现框架，一般都可以支持多种协议（HTTP、TCP 等）、多种方式（长连接、心跳、探针、进程状态等）来监控服务是否健康存活，然后把不健康的服务自动下线。</p>
 </li>
 <li><p><strong>服务的发现（Service Discovery）</strong></p>
-<p> 这里所说的发现是狭义的，它特指消费者从服务发现框架中，把一个符号（比如 Eureka 中的 ServiceID、Nacos 中的服务名、或者通用的 <a target="_blank" rel="noopener" href="https://en.wikipedia.org/wiki/Fully_qualified_domain_name">FDQN</a> ）转换为服务实际坐标的过程，这个过程现在一般是通过 HTTP API 请求，或者是通过 DNS Lookup 操作来完成的（还有一些相对少用的方式，如 Kubernetes 也支持注入环境变量）。</p>
+<p> 这里所说的发现是狭义的，它特指消费者从服务发现框架中，把一个符号（比如 Eureka 中的 ServiceID、Nacos 中的服务名、或者通用的 <a target="_blank" rel="noopener" href="https://en.wikipedia.org/wiki/Fully_qualified_domain_name">FQDN</a> ）转换为服务实际坐标的过程，这个过程现在一般是通过 HTTP API 请求，或者是通过 DNS Lookup 操作来完成的（还有一些相对少用的方式，如 Kubernetes 也支持注入环境变量）。</p>
 </li>
 </ol>
 <p>当然，我提到的这三点只是列举了服务发现中必须要进行的过程，除此之外它还是会有一些可选的功能的，比如在服务发现时，进行的负载均衡、流量管控、K/V 存储、元数据管理、业务分组，等等，这些功能都属于具体服务发现框架的功能细节，这里就不再展开了。</p>
@@ -4658,7 +4658,7 @@ random<span class="token punctuation">.</span><span class="token function">nextB
 <p>宽容模式的含义是 <strong>受 Istio 管理的服务，会允许同时接受纯文本和 mTLS 两种流量</strong> 。纯文本流量只用来和那些不受 Istio 管理的节点进行交互，你需要自行想办法解决纯文本流量的认证问题；而对于服务网格内部的流量，就可以使用 mTLS 认证。</p>
 <p>这里你要知道的是，宽容模式为普通微服务向服务网格迁移提供了良好的灵活性，让运维人员能够逐个给服务进行 mTLS 升级。甚至在原本没有启用 mTLS 的服务中启用 mTLS 时，可以不中断现存已经建立的纯文本传输连接，完全不会被最终用户感知到。</p>
 <p>这样，一旦所有服务都完成迁移，就可以把整个系统设置为严格 TLS 模式，即前面代码中的 mode: STRICT。</p>
-<p>在 Spring Cloud 版本的 Fenix’s Bookstore 里，因为没有基础设施的支持，一切认证工作就不得不在应用层面去实现。我选择的方案是借用 <a target="_blank" rel="noopener" href="https://time.geekbang.org/column/article/331411">OAtuh 2.0 协议</a> 的客户端模式来进行认证的，其大体思路有如下两步。</p>
+<p>在 Spring Cloud 版本的 Fenix’s Bookstore 里，因为没有基础设施的支持，一切认证工作就不得不在应用层面去实现。我选择的方案是借用 <a target="_blank" rel="noopener" href="https://time.geekbang.org/column/article/331411">OAuth 2.0 协议</a> 的客户端模式来进行认证的，其大体思路有如下两步。</p>
 <ol>
 <li><p><strong>第一步</strong>，每一个要调用服务的客户端，都与认证服务器约定好一组只有自己知道的密钥（Client Secret），这个约定过程应该是由运维人员在线下自行完成，通过参数传给服务，而不是由开发人员在源码或配置文件中直接设定。我在演示工程的代码注释中，也专门强调了这点，以免你被示例代码中包含密钥的做法所误导。</p>
 <p> 这个密钥其实就是客户端的身份证明，客户端在调用服务时，会先使用该密钥向认证服务器申请到 JWT 令牌，然后通过令牌证明自己的身份，最后访问服务。</p>
