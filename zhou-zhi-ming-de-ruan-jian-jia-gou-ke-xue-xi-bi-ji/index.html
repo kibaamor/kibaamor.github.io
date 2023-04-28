@@ -416,14 +416,14 @@
                 
                 <div class="info-break-policy">
                     <i class="far fa-file-word fa-fw"></i>文章字数:&nbsp;&nbsp;
-                    287.2k
+                    304k
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-clock fa-fw"></i>阅读时长:&nbsp;&nbsp;
-                    1003 分
+                    1063 分
                 </div>
                 
 
@@ -6279,6 +6279,297 @@ aeb4f8df39b1        none                                    null                
 <p>为此，容器中的数据修改操作，大多是基于 <a target="_blank" rel="noopener" href="https://en.wikipedia.org/wiki/Copy-on-write">写入时复制</a> （Copy-on-Write）策略来实现的，容器会利用 <a target="_blank" rel="noopener" href="https://en.wikipedia.org/wiki/OverlayFS">叠加式文件系统</a> （OverlayFS）的特性，在用户意图对镜像进行修改时，自动将变更的内容写入到独立区域，再与原有数据叠加到一起，使其外观上看起来像是”覆盖”了原有内容。这种改动通常都是临时的，一旦容器终止运行，这些存储于独立区域中的变动信息也将被一并移除，不复存在。所以可见，如果不去进行额外的处理，容器默认是不具备持久化存储能力的。</p>
 <p>而另一方面，容器作为信息系统的运行载体，必定会产生出有价值的、应该被持久保存的信息，比如扮演数据库角色的容器，大概没有什么系统能够接受数据库像缓存服务一样，重启之后会丢失全部数据；多个容器之间也经常需要通过共享存储来实现某些交互操作，比如我在 <a target="_blank" rel="noopener" href="https://time.geekbang.org/column/article/351933">第 48 讲</a> 中曾经举过的例子，Nginx 容器产生日志、Filebeat 容器收集日志，两者就需要共享同一块日志存储区域才能协同工作。</p>
 <p>而正因为镜像的稳定性与生产数据持久性存在矛盾，所以我们才需要去重点了解这个问题：如何实现容器的持久化存储。</p>
+<h3 id="56-Kubernetes存储扩展架构：一个真实的存储系统如何接入或移除新存储设备？"><a href="#56-Kubernetes存储扩展架构：一个真实的存储系统如何接入或移除新存储设备？" class="headerlink" title="56 | Kubernetes存储扩展架构：一个真实的存储系统如何接入或移除新存储设备？"></a>56 | Kubernetes存储扩展架构：一个真实的存储系统如何接入或移除新存储设备？</h3><p>我们知道，容器存储具有很强的多样性，如何对接后端实际的存储系统，并且完全发挥出它所有的性能与功能，并不是 Kubernetes 团队所擅长的工作，这件事情只有存储提供商才能做到最好。所以，我们其实可以理解容器编排系统为什么会有很强烈的意愿，想把存储功能独立到外部去实现。</p>
+<p>在 <a target="_blank" rel="noopener" href="https://time.geekbang.org/column/article/357689">上节课</a> 我已经反复提到过多次 In-Tree、Out-of-Tree 插件，那么今天这节课，我就会以存储插件的接口与实现为中心，带你去解析 Kubernetes 的容器存储生态。</p>
+<h4 id="Kubernetes-存储架构"><a href="#Kubernetes-存储架构" class="headerlink" title="Kubernetes 存储架构"></a>Kubernetes 存储架构</h4><p>在正式开始讲解 Kubernetes 的 In-Tree、Out-of-Tree 存储插件前，我们有必要先去了解一点 Kubernetes 存储架构的知识。了解一个真实的存储系统是如何接入到新创建的 Pod 中，成为可以读写访问的 Volume，以及当 Pod 被销毁时，Volume 如何被回收，回归到存储系统之中的。</p>
+<p>那么，对于刚刚所说的这几点，Kubernetes 其实是参考了传统操作系统接入或移除新存储设备的做法，把接入或移除外部存储这件事情，分解为了以下三个操作：</p>
+<ul>
+<li><strong>决定应准备（Provision）何种存储</strong> ：Provision 可类比为给操作系统扩容而购买了新的存储设备。这步确定了接入存储的来源、容量、性能以及其他技术参数，它的逆操作是移除（Delete）存储。</li>
+<li><strong>将准备好的存储附加（Attach）到系统中</strong> ：Attach 可类比为将存储设备接入操作系统，此时尽管设备还不能使用，但你已经可以用操作系统的fdisk -l命令查看到设备。这步确定了存储的设备名称、驱动方式等面向系统侧的信息，它的逆操作是分离（Detach）存储设备。</li>
+<li><strong>将附加好的存储挂载（Mount）到系统中</strong> ：Mount 可类比为将设备挂载到系统的指定位置，也就是操作系统中mount命令的作用。这步确定了存储的访问目录、文件系统格式等面向应用侧的信息，它的逆操作是卸载（Unmount）存储设备。</li>
+</ul>
+<p>实际上，前面步骤中提到的 Provision、Delete、Attach、Detach、Mount、Unmount 六种操作，并不是直接由 Kubernetes 来实现，而是在存储插件中完成的。它们会分别被 Kubernetes 通过两个控制器及一个管理器来进行调用，这些控制器、管理器的作用如下：</p>
+<ol>
+<li><p><strong>PV 控制器（PersistentVolume Controller）</strong></p>
+<p> “以容器构建系统”这个小章节中我介绍过，Kubernetes 里所有的控制器都遵循着相同的工作模式，即让实际状态尽可能接近期望状态。PV 控制器的期望状态有两个，分别是”所有未绑定的 PersistentVolume 都能处于可用状态”以及”所有处于等待状态的 PersistentVolumeClaim 都能配对到与之绑定的 PersistentVolume”。</p>
+<p> 它内部也有两个相对独立的核心逻辑（ClaimWorker 和 VolumeWorker）来分别跟踪这两种期望状态。可以简单地理解为 PV 控制器实现了 PersistentVolume 和 PersistentVolumeClaim 的生命周期管理职能。在这个过程中，它会根据需要调用存储驱动插件的 Provision/Delete 操作。</p>
+</li>
+<li><p><strong>AD 控制器（Attach/Detach Controller）</strong></p>
+<p> AD 控制器的期望状态是”所有被调度到准备新创建 Pod 的节点，都附加好了要使用的存储；当 Pod 被销毁后，原本运行 Pod 的节点都分离了不再被使用的存储”。如果实际状态不符合该期望，会根据需要调用存储驱动插件的 Attach/Detach 操作。</p>
+</li>
+<li><p><strong>Volume 管理器（Volume Manager）</strong></p>
+<p> Volume 管理器实际上是 kubelet 众多管理器的其中一个，它主要作用是支持本节点中 Volume 执行 Attach/Detach/Mount/Unmount 操作。你可能注意到这里不仅有 Mount/Unmount 操作，也出现了 Attach/Detach 操作。</p>
+<p> 这是历史原因导致的，因为最初版本的 Kubernetes 中并没有 AD 控制器，Attach/Detach 的职责也在 kubelet 中完成。而现在 kubelet 默认情况下已经不再会执行 Attach/Detach 了，但有少量旧程序已经依赖了由 kubelet 来实现 Attach/Detach 的内部逻辑，所以 kubelet 不得不设计一个—enable-controller-attach-detach参数，如果将其设置为false的话，就会重新回到旧的兼容模式上，由 kubelet 代替 AD 控制器来完成 Attach/Detach。</p>
+</li>
+</ol>
+<p><img src="https://fastly.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《周志明的软件架构课》学习笔记/Kubernetes存储架构.webp" alt="Kubernetes存储架构.webp"></p>
+<p>这样一来，后端的真实存储经过 Provision、Attach、Mount 操作之后，就形成了可以在容器中挂载的 Volume。当存储的生命周期完结，经过 Unmount、Detach、Delete 操作之后，Volume 便能够被存储系统回收。而对于某些存储来说，其中有一些操作可能是无效的，比如 NFS，实际使用并不需要 Attach，此时存储插件只需将 Attach 实现为空操作即可。</p>
+<h4 id="FlexVolume-与-CSI"><a href="#FlexVolume-与-CSI" class="headerlink" title="FlexVolume 与 CSI"></a>FlexVolume 与 CSI</h4><p>Kubernetes 目前同时支持 <a target="_blank" rel="noopener" href="https://github.com/kubernetes/community/blob/master/contributors/devel/sig-storage/flexvolume.md">FlexVolume</a> 与 <a target="_blank" rel="noopener" href="https://github.com/container-storage-interface/spec/blob/master/spec.md">CSI</a> （Container Storage Interface）两套独立的存储扩展机制。FlexVolume 是 Kubernetes 早期版本（1.2 版开始提供，1.8 版达到 GA 状态）就开始支持的扩展机制，它是只针对 Kubernetes 的私有的存储扩展，目前已经处于冻结状态，可以正常使用但不再发展新功能了。</p>
+<p>CSI 则是从 Kubernetes 1.9 开始加入（1.13 版本达到 GA 状态）的扩展机制，如同之前我介绍过的 CRI 和 CNI 那样，CSI 是公开的技术规范。任何容器运行时、容器编排引擎只要愿意支持，都可以使用 CSI 规范去扩展自己的存储能力，这是目前 Kubernetes 重点发展的扩展机制。</p>
+<p>由于是专门为 Kubernetes 量身订造的，所以 FlexVolume 的实现逻辑与上节课我介绍的 Kubernetes 存储架构高度一致。FlexVolume 驱动其实就是一个实现了 Attach、Detach、Mount、Unmount 操作的可执行文件（甚至可以仅仅是个 Shell 脚本）而已。该可执行文件应该存放在集群每个节点的/usr/libexec/kubernetes/kubelet-plugins/volume/exec目录里，其工作过程也就是，当 AD 控制器和 Volume 管理器需要进行 Attach、Detach、Mount、Unmount 操作时，自动调用它的对应方法接口，如下图所示。</p>
+<p><img src="https://fastly.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《周志明的软件架构课》学习笔记/FlexVolumeDriver工作过程.webp" alt="FlexVolumeDriver工作过程"></p>
+<p><a target="_blank" rel="noopener" href="https://laptrinhx.com/kubernetes-volume-plugins-evolution-from-flexvolume-to-csi-2724482856/">FlexVolume Driver 工作过程</a></p>
+<p>如果仅仅考虑支持最基本的 Static Provisioning，那实现一个 FlexVolume Driver 确实是非常简单的。然而也是由于 FlexVolume 过于简单了，导致它应用起来会有诸多不便之处，比如说：</p>
+<ul>
+<li><strong>FlexVolume 并不是全功能的驱动</strong> ：FlexVolume 不包含 Provision 和 Delete 操作，也就无法直接用于 Dynamic Provisioning，想要实现这个功能，除非你愿意再单独编写一个 External Provisioner。</li>
+<li><strong>FlexVolume 部署维护都相对繁琐</strong> ：FlexVolume 是独立于 Kubernetes 的可执行文件，当集群节点增加时，需要由管理员在新节点上部署 FlexVolume Driver。为了避免耗费过多人力，有经验的系统管理员通常会专门编写一个 DaemonSet 来代替人工来完成这项任务。</li>
+<li><strong>FlexVolume 实现复杂交互也相对繁琐</strong> ：FlexVolume 的每一次操作，都是对插件可执行文件的一次独立调用，这种插件实现方式在各种操作需要相互通讯时会很别扭。比如你希望在执行 Mount 操作的时候，生成一些额外的状态信息，并在后面执行 Unmount 操作时去使用这些信息时，却只能把信息记录在某个约定好的临时文件中，这样的做法对于一个面向生产的容器编排系统来说，实在是过于简陋了。</li>
+</ul>
+<p>相比起 FlexVolume 的种种不足，CSI 可算是一个十分完善的存储扩展规范。这里”十分完善”可不是客套话，根据 GitHub 的自动代码行统计，FlexVolume 的规范文档仅有 155 行，而 CSI 则长达 2704 行。</p>
+<p>那么从总体上看，CSI 规范可以分为需要容器系统去实现的组件，以及需要存储提供商去实现的组件两大部分。前者包括了存储整体架构、Volume 的生命周期模型、驱动注册、Volume 创建、挂载、扩容、快照、度量等内容，这些 Kubernetes 都已经完整地实现了，大体上包括以下几个组件：</p>
+<ul>
+<li><a target="_blank" rel="noopener" href="https://github.com/kubernetes-csi/driver-registrar">Driver Register</a> ：负责注册第三方插件，CSI 0.3 版本之后已经处于 Deprecated 状态，将会被 <a target="_blank" rel="noopener" href="https://kubernetes-csi.github.io/docs/node-driver-registrar.html">Node Driver Register</a> 所取代。</li>
+<li><a target="_blank" rel="noopener" href="https://github.com/kubernetes-csi/external-provisioner">External Provisioner</a> ：调用第三方插件的接口来完成数据卷的创建与删除功能。</li>
+<li><a target="_blank" rel="noopener" href="https://github.com/kubernetes-csi/external-attacher">External Attacher</a> ：调用第三方插件的接口来完成数据卷的挂载和操作。</li>
+<li><a target="_blank" rel="noopener" href="https://github.com/kubernetes-csi/external-resizer">External Resizer</a> ：调用第三方插件的接口来完成数据卷的扩容操作。</li>
+<li><a target="_blank" rel="noopener" href="https://github.com/kubernetes-csi/external-snapshotter">External Snapshotter</a> ：调用第三方插件的接口来完成快照的创建和删除。</li>
+<li><a target="_blank" rel="noopener" href="https://github.com/kubernetes-csi/external-health-monitor">External Health Monitor</a> ：调用第三方插件的接口来提供度量监控数据。</li>
+</ul>
+<p>但是，需要存储提供商去实现的组件才是 CSI 的主体部分，也就是我在前面多次提到的”第三方插件”。这部分着重定义了外部存储挂载到容器过程中所涉及操作的抽象接口和具体的通讯方式，主要包括以下三个 gRPC 接口：</p>
+<ul>
+<li><strong>CSI Identity 接口</strong> ：用于描述插件的基本信息，比如插件版本号、插件所支持的 CSI 规范版本、插件是否支持存储卷创建、删除功能、是否支持存储卷挂载功能等等。此外 Identity 接口还用于检查插件的健康状态，开发者可以通过 Probe 接口对外提供存储的健康度量信息。</li>
+<li><strong>CSI Controller 接口</strong> ：用于从存储系统的角度对存储资源进行管理，比如准备和移除存储（Provision、Delete 操作）、附加与分离存储（Attach、Detach 操作）、对存储进行快照等等。存储插件并不一定要实现这个接口的所有方法，对于存储本身就不支持的功能，可以在 CSI Identity 接口中声明为不提供。</li>
+<li><strong>CSI Node 接口</strong> ：用于从集群节点的角度对存储资源进行操作，比如存储卷的分区和格式化、将存储卷挂载到指定目录上，或者将存储卷从指定目录上卸载，等等。</li>
+</ul>
+<p><img src="https://fastly.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《周志明的软件架构课》学习笔记/CSI组件架构.webp" alt="CSI组件架构"></p>
+<p><a target="_blank" rel="noopener" href="https://medium.com/google-cloud/understanding-the-container-storage-interface-csi-ddbeb966a3b">CSI组件架构</a></p>
+<p>与 FlexVolume 以单独的可执行程序的存在形式不同，CSI 插件本身是由一组标准的 Kubernetes 资源所构成，CSI Controller 接口是一个以 StatefulSet 方式部署的 gRPC 服务，CSI Node 接口则是基于 DaemonSet 方式部署的 gRPC 服务。</p>
+<p>这意味着虽然 CSI 实现起来要比 FlexVolume 复杂得多，但是却很容易安装——如同安装 CNI 插件及其它应用那样，直接载入 Manifest 文件即可，也不会遇到 FlexVolume 那样需要人工运维，或者自己编写 DaemonSet 来维护集群节点变更的问题。</p>
+<p>此外，通过 gRPC 协议传递参数比通过命令行参数传递参数更加严谨，灵活和可靠，最起码不会出现多个接口之间协作只能写临时文件这样的尴尬状况。</p>
+<h4 id="从-In-Tree-到-Out-of-Tree"><a href="#从-In-Tree-到-Out-of-Tree" class="headerlink" title="从 In-Tree 到 Out-of-Tree"></a>从 In-Tree 到 Out-of-Tree</h4><p>Kubernetes 原本曾内置了相当多的 In-Tree 的存储驱动，甚至还早于 Docker 宣布支持卷驱动功能，这种策略使得 Kubernetes 能够在云存储提供商发布官方驱动之前就将其纳入到支持范围中，同时也减轻了管理员维护的工作量，为它在诞生初期快速占领市场做出了一定的贡献。</p>
+<p>但是，这种策略也让 Kubernetes 丧失了随时添加或修改存储驱动的灵活性，只能在更新大版本时才能加入或者修改驱动，导致云存储提供商被迫要与 Kubernetes 的发版节奏保持一致。此外，这个策略还涉及到第三方存储代码混杂在 Kubernetes 二进制文件中可能引起的可靠性及安全性问题。</p>
+<p>因此，当 Kubernetes 成为市场主流以后——准确的时间点是从 1.14 版本开始，Kubernetes 启动了 In-Tree 存储驱动的 CSI 外置迁移工作，按照计划，在 1.21 到 1.22 版本（大约在 2021 年中期）时，Kubernetes 中主要的存储驱动，如 AWS EBS、GCE PD、vSphere 等都会迁移至符合 CSI 规范的 Out-of-Tree 实现，不再提供 In-Tree 的支持。</p>
+<p>这种做法在设计上无疑是正确的，但是，这又会导致 Kubernetes 面临此前提过的该如何兼容旧功能的策略问题，我举个例子，下面 YAML 定义了一个 Pod：</p>
+<pre class="line-numbers language-yaml" data-language="yaml"><code class="language-yaml"><span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> v1
+<span class="token key atrule">kind</span><span class="token punctuation">:</span> Pod
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> nginx<span class="token punctuation">-</span>pod<span class="token punctuation">-</span>example
+<span class="token key atrule">spec</span><span class="token punctuation">:</span>
+  <span class="token key atrule">containers</span><span class="token punctuation">:</span>
+  <span class="token punctuation">-</span> <span class="token key atrule">name</span><span class="token punctuation">:</span> nginx
+    <span class="token key atrule">image</span><span class="token punctuation">:</span> nginx<span class="token punctuation">:</span>latest
+    <span class="token key atrule">volumeMounts</span><span class="token punctuation">:</span>
+    <span class="token punctuation">-</span> <span class="token key atrule">name</span><span class="token punctuation">:</span> html<span class="token punctuation">-</span>pages<span class="token punctuation">-</span>volume
+      <span class="token key atrule">mountPath</span><span class="token punctuation">:</span> /usr/share/nginx/html
+    <span class="token punctuation">-</span> <span class="token key atrule">name</span><span class="token punctuation">:</span> config<span class="token punctuation">-</span>volume
+      <span class="token key atrule">mountPath</span><span class="token punctuation">:</span> /etc/nginx
+    <span class="token key atrule">volumes</span><span class="token punctuation">:</span>
+    <span class="token punctuation">-</span> <span class="token key atrule">name</span><span class="token punctuation">:</span> html<span class="token punctuation">-</span>pages<span class="token punctuation">-</span>volume
+      <span class="token key atrule">hostPath</span><span class="token punctuation">:</span>                 <span class="token comment"># 来自本地的存储</span>
+        <span class="token key atrule">path</span><span class="token punctuation">:</span> /srv/nginx/html
+        <span class="token key atrule">type</span><span class="token punctuation">:</span> Directory
+    <span class="token punctuation">-</span> <span class="token key atrule">name</span><span class="token punctuation">:</span> config<span class="token punctuation">-</span>volume
+      <span class="token key atrule">awsElasticBlockStore</span><span class="token punctuation">:</span>     <span class="token comment"># 来自AWS ESB的存储</span>
+        <span class="token key atrule">volumeID</span><span class="token punctuation">:</span> vol<span class="token punctuation">-</span>0b39e0b08745caef4
+        <span class="token key atrule">fsType</span><span class="token punctuation">:</span> ext4<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>可以发现，其中用到了类型为 hostPath 的 Volume，这相当于 Docker 中驱动类型为 local 的 Volume，不需要专门的驱动；而类型为 awsElasticBlockStore 的 Volume，从名字上就能看出是指存储驱动为 AWS EBS 的 Volume，当 CSI 迁移完成，awsElasticBlockStore 从 In-Tree 卷驱动中移除掉之后，它就应该按照 CSI 的写法改写成如下形式：</p>
+<pre class="line-numbers language-yaml" data-language="yaml"><code class="language-yaml"><span class="token punctuation">-</span> <span class="token key atrule">name</span><span class="token punctuation">:</span> config<span class="token punctuation">-</span>volume
+    <span class="token key atrule">csi</span><span class="token punctuation">:</span>
+    <span class="token key atrule">driver</span><span class="token punctuation">:</span> ebs.csi.aws.com
+    <span class="token key atrule">volumeAttributes</span><span class="token punctuation">:</span>
+        <span class="token punctuation">-</span> <span class="token key atrule">volumeID</span><span class="token punctuation">:</span> vol<span class="token punctuation">-</span>0b39e0b08745caef4
+        <span class="token punctuation">-</span> <span class="token key atrule">fsType</span><span class="token punctuation">:</span> ext4<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>这样的要求有悖于”升级版本不应影响还在大范围使用的已有功能”这条原则，所以 Kubernetes 1.17 中又提出了称为 <a target="_blank" rel="noopener" href="https://kubernetes.io/blog/2019/12/09/kubernetes-1-17-feature-csi-migration-beta/">CSIMigration</a> 的解决方案，让 Out-of-Tree 的驱动能够自动伪装成 In-Tree 的接口来提供服务。</p>
+<p>这里我想说明的是，我之所以专门来给你介绍 Volume 的 CSI 迁移，倒不是由于它算是多么重要的特性，而是这种兼容性设计本身就是 Kubernetes 设计理念的一个缩影，在 Kubernetes 的代码与功能中随处可见。好的设计需要权衡多个方面的利益，很多时候都得顾及现实的影响，要求设计向现实妥协，而不能仅仅考虑理论最优的方案。</p>
+<h4 id="小结-49"><a href="#小结-49" class="headerlink" title="小结"></a>小结</h4><p>这节课，我们学习了 Kubernetes 的存储扩展架构，知道了一个真实的存储系统是如何接入到新创建的 Pod 中，成为可以读写访问的 Volume，以及当 Pod 被销毁时，Volume 如何被回收，回归到存储系统之中的。</p>
+<p>此外我们还要明确的是，目前的 Kubernetes 系统中存在两种存储扩展接口，分别是 FlexVolume 与 CSI，我们要知道这两种插件的相似与差异之处，以及这两种接口的大致的结构。</p>
+<h3 id="57-Kubernetes存储生态系统：几种有代表性的CSI存储插件的实现"><a href="#57-Kubernetes存储生态系统：几种有代表性的CSI存储插件的实现" class="headerlink" title="57 | Kubernetes存储生态系统：几种有代表性的CSI存储插件的实现"></a>57 | Kubernetes存储生态系统：几种有代表性的CSI存储插件的实现</h3><p>随着 Kubernetes 的 CSI 规范成为容器业界统一的存储接入标准，现在几乎所有的云计算厂商都支持自家的容器通过 CSI 规范去接入外部存储，能够应用于 CSI 与 FlexVolume 的存储插件更是多达数十上百款，下图就展示了部分容器存储提供商，可以说，容器存储已经算是形成了初步的生态环境。</p>
+<p>不过在咱们的课程里，我并不会去展开讨论各种 CSI 存储插件的细节，我会采取跟 CNI 网络插件类似的讲述方式，以不同的存储类型为线索，介绍其中有代表性的实现。</p>
+<p><img src="https://fastly.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《周志明的软件架构课》学习笔记/部分容器存储提供商.webp" alt="部分容器存储提供商"></p>
+<p><a target="_blank" rel="noopener" href="https://blog.dellemc.com/en-us/kubernetes-data-protection-hits-mainstream-with-container-storage-interface-csi-117/">部分容器存储提供商</a></p>
+<p>实际上，目前出现过的存储系统和设备，我们都可以划分到块存储、文件存储和对象存储这三种存储类型之中，其划分的根本依据并不是各种存储是如何储存数据的，因为那完全是存储系统私有的事情。</p>
+<p>我认为更合理的划分依据是，各种存储会提供什么形式的接口来供外部访问数据，而不同的外部访问接口会如何反过来影响存储的内部结构、性能与功能表现。虽然块存储、文件存储和对象存储可以彼此协同工作，但它们各自都有自己明确的擅长领域与优缺点。所以，只有理解它们的工作原理，因地制宜地选择最适合的存储，才能让系统达到最佳的工作状态。</p>
+<p>那么接下来，我就按照它们出现的时间顺序来给你一一介绍下。</p>
+<h4 id="块存储"><a href="#块存储" class="headerlink" title="块存储"></a>块存储</h4><p><strong>块存储是数据存储最古老的形式</strong> ，它把数据都储存在一个或多个固定长度的 <a target="_blank" rel="noopener" href="https://en.wikipedia.org/wiki/Block_(data_storage">块</a>) （Block）中，想要读写访问数据，就必须使用与存储相匹配的协议（SCSI、SATA、SAS、FCP、FCoE、iSCSI……）。</p>
+<p>这里你可以类比一下前面 <a target="_blank" rel="noopener" href="https://time.geekbang.org/column/article/355325">第 52 讲</a> 提到的，网络通讯中网络栈的数据流动过程，你可以把存储设备中由块构成的信息流，与网络设备中由数据包构成的信息流进行对比。事实上，像 iSCSI 这种协议真的就是建设在 TCP/IP 网络之上，让上层以 SCSI 作为应用层协议对外提供服务的。</p>
+<p>我们熟悉的硬盘就是最经典的块存储设备，以机械硬盘为例，一个块就是一个扇区，大小通常在 512 Bytes 至 4096 Bytes 之间。老式机械硬盘用 <a target="_blank" rel="noopener" href="https://en.wikipedia.org/wiki/Cylinder-head-sector">柱面 - 磁头 - 扇区号</a> （Cylinder-Head-Sector，CHS）组成的编号进行寻址，现代机械硬盘只用一个 <a target="_blank" rel="noopener" href="https://en.wikipedia.org/wiki/Logical_block_addressing">逻辑块编号</a> （Logical Block Addressing，LBA）进行寻址。</p>
+<p>为了便于管理，硬盘通常会以多个块（这些块甚至可以来自不同的物理设备，比如磁盘阵列的情况）来组成一个逻辑分区（Partition），将分区进行 <a target="_blank" rel="noopener" href="https://en.wikipedia.org/wiki/Disk_formatting#High-level_formatting">高级格式化</a> 之后就形成了卷（Volume），这就与 <a target="_blank" rel="noopener" href="https://time.geekbang.org/column/article/357689">第 55 讲</a> 中提到”Volume 是源于操作系统的概念”衔接了起来。</p>
+<p><strong>块存储由于贴近底层硬件，没有文件、目录、访问权限等的牵绊，所以性能通常都是最优秀的（吞吐量高，延迟低）。</strong></p>
+<p>另外，尽管人类作为信息系统的最终用户，并不会直接面对块来操作数据，多数应用程序也是基于文件而不是块来读写数据的，但是操作系统内核中，许多地方就是直接通过 <a target="_blank" rel="noopener" href="https://en.wikipedia.org/wiki/Device_file#BLOCKDEV">块设备</a> （Block Device）接口来访问硬盘，一些追求 I/O 性能的软件，比如高性能的数据库也会支持直接读写块设备以提升磁盘 I/O。</p>
+<p>而且因为块存储的特点是 <strong>具有排它性</strong> ，一旦块设备被某个客户端挂载后，其他客户端就无法再访问上面的数据了。因此，Kubernetes 中挂载的块存储，大多的访问模式都要求必须是 RWO（ReadWriteOnce）的。</p>
+<h4 id="文件存储"><a href="#文件存储" class="headerlink" title="文件存储"></a>文件存储</h4><p>好，下面我们接着来说说文件存储。</p>
+<p><strong>文件存储是最贴近人类用户的数据存储形式</strong> ，数据存储在长度不固定的文件之中，用户可以针对文件进行新增、写入、追加、移动、复制、删除、重命名等各种操作，通常文件存储还会提供有文件查找、目录管理、权限控制等额外的高级功能。</p>
+<p>文件存储的访问不像块存储那样有五花八门的协议，其 <a target="_blank" rel="noopener" href="https://en.wikipedia.org/wiki/POSIX">POSIX</a> 接口（Portable Operating System Interface，POSIX）已经成为了事实标准，被各种商用的存储系统和操作系统共同支持。具体 POSIX 的文件操作接口我就不去举例罗列了，你可以类比 Linux 下的各种文件管理命令来自行想象一下。</p>
+<p>绝大多数传统的文件存储都是基于块存储之上去实现的，”文件”这个概念的出现是因为”块”对人类用户来说实在是过于难以使用、难以管理了。我们可以近似地认为文件是由块所组成的更高级存储单位，对于固定不会发生变动的文件，直接让每个文件连续占用若干个块，在文件头尾加入标志区分即可，就比如像磁带、CD-ROM、DVD-ROM，就采用了由连续块来构成文件的存储方案。</p>
+<p>不过，对于可能发生变动的场景，我们就必须考虑如何跨多个不连续的块来构成为文件。这种需求从数据结构的角度看，只需要在每个块中记录好下一个块的地址，形成链表结构就能满足。但是链表的缺点是只能依次顺序访问，这样访问文件中的任何内容都要从头读取多个块，这显然过于低效了。</p>
+<p>事实上，真正被广泛运用的解决方案是把形成链表的指针整合起来统一存放，这就是 <a target="_blank" rel="noopener" href="https://en.wikipedia.org/wiki/File_Allocation_Table">文件分配表</a> （File Allocation Table，FAT）。既然已经有了专门组织块结构来构成文件的分配表，那在表中再加入其他控制信息，就能很方便地扩展出更多的高级功能。</p>
+<p>比如除了文件占用的块地址信息外，在表中再加上文件的逻辑位置就形成了目录，加上文件的访问标志就形成了权限，我们还可以再加上文件的名称、创建时间、所有者、修改者等一系列的元数据信息，来构成其他应用形式。</p>
+<p>人们把定义文件分配表应该如何实现、储存哪些信息、提供什么功能的标准称为 <a target="_blank" rel="noopener" href="https://en.wikipedia.org/wiki/File_system">文件系统</a> （File System），FAT32、NTFS、exFAT、ext2/3/4、XFS、BTRFS 等都是很常用的文件系统。而前面介绍存储插件接口时，我提到的对分区进行高级格式化操作，实际上就是在初始化一套空白的文件系统，供后续用户与应用程序访问。</p>
+<p>文件存储相对于块存储来说是更高层次的存储类型，加入目录、权限等元素后形成的树状结构以及路径访问的方式，方便了人们对它的理解、记忆和访问；文件系统能够提供进程正在打开或正在读写某个文件的信息，这也有利于文件的共享处理。</p>
+<p>但在另一方面，计算机需要把路径进行分解，然后逐级向下查找，最后才能查找到需要的文件。而要从文件分配表中确定具体数据存储的位置，就要判断文件的访问权限，并要记录每次修改文件的用户与时间，这些额外操作对于性能产生的负面影响也是无可避免的。因此，如果一个系统选择不采用文件存储的话，那磁盘 I/O 性能一般就是最主要的原因。</p>
+<h4 id="对象存储"><a href="#对象存储" class="headerlink" title="对象存储"></a>对象存储</h4><p><strong><a target="_blank" rel="noopener" href="https://en.wikipedia.org/wiki/Object_storage">对象存储</a> 是相对较新的数据存储形式，它是一种随着云数据中心的兴起而发展起来的存储，是以非结构化数据为目标的存储方案。</strong></p>
+<p>这里的”对象”可以理解为一个元数据及与其配对的一个逻辑数据块的组合，元数据提供了对象所包含的上下文信息，比如数据的类型、大小、权限、创建人、创建时间，等等，数据块则存储了对象的具体内容。你也可以简单地理解为数据和元数据这两样东西共同构成了一个对象。</p>
+<p>每个对象都有属于自己的全局唯一标识，这个标识会直接开放给最终用户使用，作为访问该对象的主要凭据，通常会是以 UUID 的形式呈现。对象存储的访问接口就是根据该唯一标识，对逻辑数据块进行的读写删除操作的，通常接口都会十分简单，甚至连修改操作权限都不会提供。</p>
+<p>对象存储基本上只会在分布式存储系统之上去实现，由于对象存储天生就有明确的”元数据”概念，不必依靠文件系统来提供数据的描述信息，因此，完全可以将一大批对象的元数据集中存放在某一台（组）服务器上，再辅以多台 OSD（Object Storage Device）服务器来存储对象的数据块部分。</p>
+<p>当外部要访问对象时，多台 OSD 能够同时对外发送数据，因此 <strong>对象存储不仅易于共享、拥有庞大的容量，还能提供非常高的吞吐量。</strong> 不过，由于需要先经过元数据查询确定 OSD 存放对象的确切位置，这个过程可能涉及多次网络传输，所以在延迟方面就会表现得相对较差。</p>
+<p>由于对象的元数据仅描述对象本身的信息，与其他对象都没有关联，换而言之每个对象都是相互独立的，自然也就不存在目录的概念，可见对象存储天然就是扁平化的，与软件系统中很常见的 K/V 访问相类似。</p>
+<p>不过许多对象存储会提供 Bucket 的概念，用户可以在逻辑上把它看作是”单层的目录”来使用。由于对象存储天生的分布式特性，以及极其低廉的扩展成本，使它很适合于 <a target="_blank" rel="noopener" href="https://icyfenix.cn/architect-perspective/general-architecture/diversion-system/cdn.html">CDN</a> 一类的应用，拿来存放图片、音视频等媒体内容，以及网页、脚本等静态资源。</p>
+<h4 id="选择合适的存储"><a href="#选择合适的存储" class="headerlink" title="选择合适的存储"></a>选择合适的存储</h4><p>那么，在理解了三种存储类型的基本原理后，接下来又到了治疗选择困难症的环节。主流的云计算厂商，比如国内的阿里云、腾讯云、华为云，都有自己专门的块存储、文件存储和对象存储服务，关于选择服务提供商的问题，我就不作建议了，你可以根据价格、合作关系、技术和品牌知名度等因素自行去处理。</p>
+<p>而关于应该选择三种存储类型中哪一种的问题，这里我就以世界云计算市场占有率第一的亚马逊为例，给你简要对比介绍下它的不同存储类型产品的差异。</p>
+<p>亚马逊的块存储服务是 <a target="_blank" rel="noopener" href="https://amazonaws-china.com/cn/ebs">Amazon Elastic Block Store</a> （AWS EBS），你购买 EBS 之后，在 EC2（亚马逊的云计算主机）里看见的是一块原始的、未格式化的块设备。这点就决定了 EBS 并不能做为一个独立存储而存在，它总是和 EC2 同时被创建的，EC2 的操作系统也只能安装在 EBS 之上。</p>
+<p>EBS 的大小理论上取决于建立的分区方案，也就是块大小乘以块数量。MBR 分区的块数量是 232，块大小通常是 512 Bytes，总容量为 2 TB；GPT 分区的块数量是 264，块大小通常是 4096 Bytes，总容量 64 ZB。当然这是理论值，64 ZB 已经超过了世界上所有信息的总和，不会有操作系统支持这种离谱的容量，AWS 也设置了上限是 16 TB，在此范围内的实际值就只取决于你的预算额度；EBS 的性能取决于你选择的存储介质类型（SSD、HDD），还有优化类型（通用性、预置型、吞吐量优化、冷存储优化等），这也会直接影响存储的费用成本。</p>
+<p>EBS 适合作为系统引导卷，适合追求磁盘 I/O 的大型工作负载以及追求低时延的应用，比如 Oracle 等可以直接访问块设备的大型数据库。但 EBS 只允许被单个节点挂载，难以共享，这点在单机时代虽然是天经地义的，但在云计算和分布式时代就成为了很要命的缺陷。除了少数特殊的工作负载外（如前面说的 Oracle 数据库），我并不建议将它作为容器编排系统的主要外置存储来使用。</p>
+<p>亚马逊的文件存储服务是 <a target="_blank" rel="noopener" href="https://amazonaws-china.com/cn/efs/">Amazon Elastic File System</a> （AWS EFS），你购买 EFS 之后，只要在 EFS 控制台上创建好文件系统，并且管理好网络信息（如 IP 地址、子网）就可以直接使用，无需依附于任何 EC2 云主机。</p>
+<p>EFS 的本质是完全托管在云端的 <a target="_blank" rel="noopener" href="https://en.wikipedia.org/wiki/Network_File_System">网络文件系统</a> （Network File System，NFS），你可以在任何兼容 POSIX 的操作系统中直接挂载它，而不会在/dev中看到新设备的存在。按照前面开头我提到的 Kubernetes 存储架构中的操作来说，就是你只需要考虑 Mount，无需考虑 Attach 了。</p>
+<p>这样，得益于 NFS 的天然特性，EFS 的扩缩可以是完全自动、实时的，创建新文件时无需预置存储，删除已有文件时也不必手动缩容以节省费用。在高性能网络的支持下，EFS 的性能已经能够达到相当高的水平，尽管由于网络访问的限制，性能最高的 EFS 依然比不过最高水平的 EBS，但仍然能充分满足绝大多数应用运行的需要。</p>
+<p>还有最重要的一点优势是由于脱离了块设备的束缚，EFS 能够轻易地被成百上千个 EC2 实例共享。 <strong>考虑到 EFS 的性能、动态弹性、可共享这些因素，我给出的明确建议是它可以作为大部分容器工作负载的首选存储。</strong></p>
+<p>亚马逊的对象存储服务是 <a target="_blank" rel="noopener" href="https://amazonaws-china.com/cn/s3/">Amazon Simple Storage Service</a> （AWS S3），S3 通常是以 REST Endpoint 的形式对外部提供文件访问服务的，这种方式下你应该直接使用程序代码来访问 S3，而不是靠操作系统或者容器编排系统去挂载它。</p>
+<p>如果你真的希望这样做，也可以通过存储网关（如 <a target="_blank" rel="noopener" href="https://amazonaws-china.com/cn/storagegateway">AWS Storage Gateway</a> ）将 S3 的存储能力转换为 NFS、SMB、iSCSI 等访问协议。经过转换后，操作系统或者容器就能够将其作为 Volume 来挂载了。</p>
+<p>S3 也许是 AWS 最出名、使用面最广的存储服务，这个结果并不是由于它的性能优异，事实上 S3 的性能比起 EBS 和 EFS 来说是相对最差的，但它的优势在于它名字中”Simple”所标榜的 <strong>简单</strong> 。</p>
+<p>我们挂载外部存储的目的，十有八九就是为了给程序提供存储服务，而使用 S3 就不必写一行代码，就能直接通过 HTTP Endpoint 进行读写访问，而且完全不需要考虑容量、维护和数据丢失的风险，这就是简单的价值。</p>
+<p>除此之外，S3 的另一大优势就是它的价格相对于 EBS 和 EFS 来说，往往要低一至两个数量级，因此程序的备份还原、数据归档、灾难恢复、静态页面的托管、多媒体分发等功能，就非常适合使用 S3 来完成。</p>
+<h4 id="小结-50"><a href="#小结-50" class="headerlink" title="小结"></a>小结</h4><p>这节课我们了解学习了块存储、文件存储和对象存储这三种存储类型的基本原理，而关于应该选择这三种存储类型中哪一种的问题，我以亚马逊为例，给你简要对比了下它的不同存储类型产品的差异。</p>
+<p>最后我还想补充一点，你可以来看看下面的图例，这是截取自亚马逊销售材料中三种存储的对比。说实话，从目前的存储技术发展来看，其实不会有哪一种存储方案能够包打天下。你要知道，不同业务系统的场景需求不同，对存储的诉求就会不同，那么选择自然也会不同。</p>
+<p><img src="https://fastly.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《周志明的软件架构课》学习笔记/AWS的S3、EFS、EBS对比.webp" alt="AWS的S3、EFS、EBS对比"></p>
+<p>（图片来自 AWS 的 <a target="_blank" rel="noopener" href="https://blog.dellemc.com/en-us/kubernetes-data-protection-hits-mainstream-with-container-storage-interface-csi-117/">销售材料</a> ）</p>
+<h3 id="58-Kubernetes的资源模型与调度器设计"><a href="#58-Kubernetes的资源模型与调度器设计" class="headerlink" title="58 | Kubernetes的资源模型与调度器设计"></a>58 | Kubernetes的资源模型与调度器设计</h3><p><strong>调度是容器编排系统最核心的功能之一</strong> ，”编排”这个词本来也包含了”调度”的含义。调度是指为新创建出来的 Pod，寻找到一个最恰当的宿主机节点来运行它，而这个过程成功与否、结果恰当与否，关键就取决于容器编排系统是怎么管理和分配集群节点的资源的。</p>
+<p>那么这样一来，我们就可以认为，调度必须要以容器编排系统的资源管控为前提。</p>
+<p>因此这节课，我们就从 Kubernetes 的资源模型谈起，来学习下 Kubernetes 是如何为一个新创建出来的 Pod，寻找到一个最恰当的宿主机节点来运行的。</p>
+<h4 id="资源模型"><a href="#资源模型" class="headerlink" title="资源模型"></a>资源模型</h4><p>在开始之前，我们先来理清一个概念： <strong>资源是什么。</strong></p>
+<p>在 Kubernetes 中，资源是非常常用的术语， <strong>从广义上来讲，Kubernetes 系统中所有你能接触的方方面面，都被抽象成了资源</strong> ，比如表示工作负荷的资源（Pod、ReplicaSet、Service、……），表示存储的资源（Volume、PersistentVolume、Secret、……），表示策略的资源（SecurityContext、ResourceQuota、LimitRange、……），表示身份的资源（ServiceAccount、Role、ClusterRole、……），等等。</p>
+<p>事实上，”一切皆为资源”的设计也是 Kubernetes 能够顺利施行声明式 API 的必要前提。Kubernetes 以资源为载体，建立了一套同时囊括了抽象元素（如策略、依赖、权限）和物理元素（如软件、硬件、网络）的 <a target="_blank" rel="noopener" href="https://en.wikipedia.org/wiki/Domain-specific_language">领域特定语言</a> 。它通过不同层级间资源的使用关系，来描述上至整个集群甚至是集群联邦，下至某一块内存区域或者一小部分的处理器核心的状态，这些对资源状态的描述的集合，就共同构成了一幅信息系统工作运行的全景图。</p>
+<p>在 <a target="_blank" rel="noopener" href="https://time.geekbang.org/column/article/351933">第 48 讲</a> “以容器构建系统”里，我第一次提到了 Kubernetes 的资源模型，把它跟控制器模式一并列为了 Kubernetes 中最重要的两个设计思想。当然在这节课中，我们还会再次讨论资源模型，但是这里所说的主要是 <strong>狭义上的物理资源，即特指排除了广义的那些逻辑上的抽象资源，只包括能够与真实物理底层硬件对应起来的资源</strong> ，比如处理器资源、内存资源、磁盘存储资源，等等。</p>
+<p>另外需要说明的是，因为咱们今天讨论的话题是调度，而作为调度最基本单位的 Pod，只会与这些和物理硬件直接相关的资源产生供需关系，所以后面我提到的资源，如果没有额外说明的话，就都是特指狭义上的物理资源。</p>
+<p>OK，现在我们说回到 Kubernetes 的资源模型上来。</p>
+<p>首先，从编排系统的角度来看，Node 是资源的提供者，Pod 是资源的使用者，而调度是将两者进行恰当的撮合。</p>
+<p>那么 Kubernetes 具体是如何撮合它们俩的呢？别着急，我们先从 Node 开始来了解。</p>
+<p>Node 通常能够提供三方面的资源：计算资源（如处理器、图形处理器、内存）、存储资源（如磁盘容量、不同类型的介质）和网络资源（如带宽、网络地址）。其中与调度关系最密切的是处理器和内存，虽然它们都属于计算资源，但两者在调度时又有一些微妙的差别：</p>
+<ul>
+<li><strong>处理器这样的资源，被叫做是可压缩资源</strong> （Compressible Resources），特点是当可压缩资源不足时，Pod 只会处于”饥饿状态”，运行变慢，但不会被系统杀死，也就是容器会被直接终止，或者是被要求限时退出。</li>
+<li><strong>而像内存这样的资源，则被叫做是不可压缩资源</strong> （Incompressible Resources），特点是当不可压缩资源不足，或者超过了容器自己声明的最大限度时，Pod 就会因为内存溢出（Out-Of-Memory，OOM）而被系统直接杀掉。</li>
+</ul>
+<p><strong>Kubernetes 给处理器资源设定的默认计量单位是”逻辑处理器的个数”</strong> 。至于具体”一个逻辑处理器”应该如何理解，就要取决于节点的宿主机是如何解释的，它通常会是我们在/proc/cpuinfo中看到的处理器数量。比如，它有可能会是多路处理器系统上的一个处理器、多核处理器中的一个核心、云计算主机上的一个 <a target="_blank" rel="noopener" href="https://en.wikipedia.org/wiki/Central_processing_unit#Virtual_CPUs">虚拟化处理器</a> （Virtual CPU，vCPU），或者是处理器核心里的一条 <a target="_blank" rel="noopener" href="https://en.wikipedia.org/wiki/Hyper-threading">超线程</a> （Hyper-Threading）。</p>
+<p>总之，Kubernetes 只负责保证 Pod 能够使用到”一个处理器”的计算能力，而对不同硬件环境构成的 Kubernetes 集群，乃至同一个集群中不同硬件的宿主机节点来说，”一个处理器”所代表的真实算力完全有可能是不一样的。</p>
+<p>另外在具体设置方面，Kubernetes 沿用了云计算中处理器限额设置的一贯做法。如果不明确标注单位，比如直接写 0.5，默认单位就是Core，即 0.5 个处理器；当然也可以明确使用Millcores为单位，比如写成 500 m，同样也代表 0.5 个处理器，因为 Kubernetes 规定了1 Core = 1000 Millcores。</p>
+<p><strong>而对于内存来说，它早已经有了广泛使用的计量单位，即 Bytes，如果设置中不明确标注单位，就会默认以 Bytes 计数。</strong></p>
+<p>为了实际设置的方便，Kubernetes 还支持以Ei、Pi、Ti、Gi、Mi、Ki，以及E、P、T、G、M、K为单位，这两者略微有一点儿差别。这里我就以Mi和M为例，它们分别是Mebibytes与Megabytes的缩写，前者表示 1024×1024 Bytes，后者表示 1000×1000 Bytes。</p>
+<h4 id="服务质量与优先级"><a href="#服务质量与优先级" class="headerlink" title="服务质量与优先级"></a>服务质量与优先级</h4><p>那么到这里，我们要知道设定资源计量单位的目的，是为了管理员能够限制某个 Pod 对资源的过度占用，避免影响到其他 Pod 的正常运行。</p>
+<p>Pod 是由一个到多个容器组成的，资源最终是交由 Pod 的各个容器去使用，所以资源的需求是设定在容器上的，具体的配置是 Pod 的spec.containers[].resource.limits/requests.cpu/memory字段。但是，对资源需求的配额则不是针对容器，而是针对 Pod 整体，Pod 的资源配额不需要手动设置，因为 Pod 的资源配额就是 Pod 包含的每个容器资源需求的累加值。</p>
+<p>实际上，为容器设定最大的资源配额的做法，从 cgroups 诞生后就已经屡见不鲜了，但不知你有没有注意到，Kubernetes 给出的配置中有limits和requests两个设置项？</p>
+<p>这两者的区别其实很简单：request是给调度器用的，Kubernetes 选择哪个节点运行 Pod，只会根据requests的值来进行决策；而limits才是给 cgroups 用的，Kubernetes 在向 cgroups 的传递资源配额时，会按照limits的值来进行设置。</p>
+<p>Kubernetes 会采用这样的设计，完全是基于”心理学”的原因，因为 Google 根据 Borg 和 Omega 系统长期运行的实践经验，总结出了一条经验法则：用户提交工作负载时设置的资源配额，并不是容器调度一定必须严格遵守的值，因为根据实际经验，大多数的工作负载运行过程中，真正使用到的资源，其实都远小于它所请求的资源配额。</p>
+<blockquote>
+<p><strong>额外知识：Purchase Quota</strong></p>
+<p>Even though we encourage users to purchase no more quota than they need, many users overbuy because it insulates them against future shortages when their application’s user base grows.</p>
+<p>即使我们已经努力建议用户不要过度申请资源配额，但仍难免有大量用户过度消费，他们总希望避免因用户增长而产生资源不足的现象。</p>
+<p>—— <a target="_blank" rel="noopener" href="https://pdos.csail.mit.edu/6.824/papers/borg.pdf">Large-Scale Cluster Management at Google with Borg</a> ，Google</p>
+</blockquote>
+<p>当然，”多多益善”的想法完全符合人类的心理，大家提交的资源需求通常都是按照可能面临的最大压力去估计的，甚至考虑到了未来用户增长所导致的新需求。为了避免服务因资源不足而中断，都会往大了去申请，这点我们可以理解。</p>
+<p>但是，如果直接按照申请的资源去分配限额，必然会导致服务器出现两方面的影响：一方面，在大多数时间里服务器都会有大量的硬件资源闲置；而另一方面，这些闲置资源又已经分配出去，有了明确的所有者，不能再被其他人利用，难以真正发挥价值。</p>
+<p>不过我们也能想到，Kubernetes 不太可能因为把一个资源配额的设置，拆分成了limits和requests两个设置项 ，就能完全解决这个矛盾。所以为此，Kubernetes 还进行了许多额外的处理。</p>
+<p>比如现在我们知道，一旦选择不按照最保守、最安全的方式去分配资源，就意味着容器编排系统必须要为有可能出现的极端情况买单。而如果允许节点给 Pod 分配的资源总和，超过了 Kubernetes 自己最大的可提供资源的话，假如某个时刻，这些 Pod 的总消耗真的超标了，就会不可避免地导致节点无法继续遵守调度时对 Pod 许下的资源承诺。</p>
+<p>那么此时，Kubernetes 就迫不得已要杀掉一部分 Pod，以腾出资源来保证其余 Pod 能正常运行，这个操作就是我后面要给你介绍的 <strong>驱逐机制</strong> （Eviction）。</p>
+<p>而要想进行驱逐，首先 Kubernetes 就必须拿出当资源不足时，该先牺牲哪些 Pod、该保留哪些 Pod 的明确准则，所以由此就形成了 Kubernetes 的 <strong>服务质量等级（Quality of Service Level，QoS Level）和优先级（Priority）的概念。</strong></p>
+<p>我们先来了解下 Kubernetes 的服务质量等级的概念。</p>
+<h4 id="服务质量等级"><a href="#服务质量等级" class="headerlink" title="服务质量等级"></a>服务质量等级</h4><p>质量等级是 Pod 的一个隐含属性，也是 Kubernetes 优先保障重要的服务，放弃一些没那么重要的服务的衡量准绳。</p>
+<p>那到这里，不知道你有没有想到这样一个细节： <strong>如果不去设置limits和requests会怎样？</strong></p>
+<p>答案是不设置处理器和内存的资源，就意味着没有上限，该 Pod 可以使用节点上所有可用的计算资源。不过你先别高兴得太早，这类 Pod 能以最灵活的方式去使用资源，但也正是这类 Pod 在扮演着最不稳定的风险来源的角色。</p>
+<p>在论文《 <a target="_blank" rel="noopener" href="https://pdos.csail.mit.edu/6.824/papers/borg.pdf">Large-Scale Cluster Management at Google with Borg</a> 》中，Google 明确地提出了针对这类 Pod 的一种近乎带着惩罚性质的处理建议：当节点硬件资源不足时，优先杀掉这类 Pod。说得文雅一点的话，就是给予这类 Pod 最低的服务质量等级。</p>
+<p>Kubernetes 目前提供的服务质量等级一共分为三级，由高到低分别为 Guaranteed、Burstable 和 BestEffort：</p>
+<ol>
+<li>如果 Pod 中所有的容器都设置了limits和requests，且两者的值相等，那此 Pod 的服务质量等级就是最高的 Guaranteed；</li>
+<li>如果 Pod 中有部分容器的 requests 值小于limits值，或者只设置了requests而未设置limits，那此 Pod 的服务质量等级就是第二级 Burstable；</li>
+<li>如果是前面说的那种情况，limits和requests两个都没设置，那就是最低的 BestEffort 了。</li>
+</ol>
+<p>一般来说，我们会建议把数据库应用等有状态的应用，或者是一些重要的、要保证不能中断的业务的服务质量等级定为 Guaranteed。这样，除非是 Pod 使用超过了它们的limits所描述的不可压缩资源，或者节点的内存压力大到 Kubernetes 已经杀光所有等级更低的 Pod 了，否则它们都不会被系统自动杀死。</p>
+<p>而相对地，我们也应该把一些临时的、不那么重要的任务设置为 BestEffort，这样有利于它们调度时能在更大的节点范围中寻找宿主机，也利于它们在宿主机中利用更多的资源，快速地完成任务，然后退出，尽量缩减影响范围；当然，遇到系统资源紧张时，它们也更容易被系统杀掉。</p>
+<blockquote>
+<p><strong>小说《动物庄园》：</strong></p>
+<p>All animals are equal, but some animals are more equal than others.</p>
+<p>所有动物生来平等，但有些动物比其他动物更加平等。</p>
+<p>—— <a target="_blank" rel="noopener" href="https://en.wikipedia.org/wiki/Animal_Farm">Animal Farm: A Fairy Story</a> ， <a target="_blank" rel="noopener" href="https://en.wikipedia.org/wiki/George_Orwell">George Orwell</a> , 1945</p>
+</blockquote>
+<h4 id="优先级"><a href="#优先级" class="headerlink" title="优先级"></a>优先级</h4><p>除了服务质量等级以外，Kubernetes 还允许系统管理员自行决定 Pod 的优先级，这是通过类型为 PriorityClass 的资源来实现的。优先级决定了 Pod 之间并不是平等的关系，而且这种不平等还不是谁会多占用一点儿的资源的问题，而是会直接影响 Pod 调度与生存的关键。</p>
+<p>优先级会影响调度，这很容易理解，这就是说当多个 Pod 同时被调度的话，高优先级的 Pod 会优先被调度。而 Pod 越晚被调度，就越大概率地会因节点资源已被占用而不能成功。</p>
+<p>但优先级影响更大的一方面，是指 Kubernetes 的 <strong>抢占机制</strong> （Preemption），正常在没有设置优先级的情况下，如果 Pod 调度失败，就会暂时处于 Pending 状态被搁置起来，直到集群中有新节点加入或者旧 Pod 退出。</p>
+<p>但是，如果有一个被设置了明确优先级的 Pod 调度失败，无法创建的话，Kubernetes 就会在系统中寻找出一批牺牲者（Victims），把它们杀掉以便给更高优先级的 Pod 让出资源。</p>
+<p>而这个寻找的原则，就是在优先级低于待调度 Pod 的所有已调度的 Pod 里，按照优先级从低到高排序，从最低的杀起，直至腾出的资源可以满足待调度 Pod 的成功调度为止，或者已经找不到更低优先级的 Pod 为止。</p>
+<h4 id="驱逐机制"><a href="#驱逐机制" class="headerlink" title="驱逐机制"></a>驱逐机制</h4><p>说实话，前面我动不动就提要杀掉某个 Pod，听起来实在是不够优雅，其实在 Kubernetes 中更专业的称呼是”驱逐”（Eviction，即资源回收），这也是我在前面提过要给你介绍的概念。</p>
+<p><strong>Pod 的驱逐机制是通过 kubelet 来执行的</strong> ，kubelet 是部署在每个节点的集群管理程序，因为它本身就运行在节点中，所以最容易感知到节点的资源实时耗用情况。kubelet 一旦发现某种不可压缩资源将要耗尽，就会主动终止节点上服务质量等级比较低的 Pod，以保证其他更重要的 Pod 的安全。而被驱逐的 Pod 中，所有的容器都会被终止，Pod 的状态会被更改为 Failed。</p>
+<p>现在，我们已经了解了内存这种最重要的不可压缩资源，那么在默认配置下，前面我所说的”资源即将耗尽”的”即将”，其具体阈值是可用内存小于 100 Mi。</p>
+<p>而除了可用内存（memory.available）外，其他不可压缩资源还包括有：宿主机的可用磁盘空间（nodefs.available）、文件系统可用 <a target="_blank" rel="noopener" href="https://en.wikipedia.org/wiki/Inode">inode</a> 数量（nodefs.inodesFree），以及可用的容器运行时镜像存储空间（imagefs.available）。后面三个的阈值，都是按照实际容量的百分比来计算的，具体的默认值如下：</p>
+<pre class="line-numbers language-text" data-language="text"><code class="language-text">memory.available &lt; 100Mi
+nodefs.available &lt; 10%
+nodefs.inodesFree &lt; 5%
+imagefs.available &lt; 15%<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span></span></code></pre>
+<p>管理员可以在 kubelet 启动时，通过命令行参数来修改这些默认值，比如说，如果是在可用内存只剩余 100 Mi 时才启动驱逐，那对大多数生产系统来说都过于危险了，所以我建议在生产环境中，可以考虑当内存剩余 10% 时就开始驱逐，具体的调整命令如下所示：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ kubelet --eviction-hard<span class="token operator">=</span>memory.available<span class="token operator">&lt;</span><span class="token number">10</span>%<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>如果你是一名 Java、C#、Golang 等习惯了自动内存管理机制的程序员，我还要提醒你一下， <strong>Kubernetes 的驱逐不能完全等同于编程语言中的垃圾收集器。</strong></p>
+<p>这里主要体现在两个方面。</p>
+<p>一方面，我们要知道垃圾收集是安全的内存回收行为，而驱逐 Pod 是一种毁坏性的清理行为，它有可能会导致服务产生中断，因而必须更加谨慎。比如说，要同时兼顾到硬件资源可能只是短时间内，间歇性地超过了阈值的场景，以及资源正在被快速消耗，很快就会危及高服务质量的 Pod、甚至是整个节点稳定的场景。</p>
+<p>如此一来，驱逐机制中就有了软驱逐（Soft Eviction）、硬驱逐（Hard Eviction）以及优雅退出期（Grace Period）的概念：</p>
+<ul>
+<li><strong>软驱逐</strong> ：通常会配置一个比较低的警戒线（比如可用内存仅剩 20%），当触及此线时，系统就会进入一段观察期。如果只是暂时的资源抖动，在观察期内能够恢复到正常水平的话，那就不会真正启动驱逐操作。否则，资源持续超过警戒线一段时间，就会触发 Pod 的优雅退出（Grace Shutdown），系统会通知 Pod 进行必要的清理工作（比如将缓存的数据落盘），然后自行结束。在优雅退出期结束后，系统会强制杀掉还没有自行了断的 Pod。</li>
+<li><strong>硬驱逐</strong> ：通常会配置一个比较高的终止线（比如可用内存仅剩 10%），一旦触及此线，系统就会立即强制杀掉 Pod，不理会优雅退出。</li>
+</ul>
+<p><strong>软驱逐是为了减少资源抖动对服务的影响，硬驱逐是为了保障核心系统的稳定，它们并不矛盾，一般会同时使用</strong> ，如以下例子中所示：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ kubelet --eviction-hard<span class="token operator">=</span>memory.available<span class="token operator">&lt;</span><span class="token number">10</span>% <span class="token punctuation">\</span>
+      --eviction-soft<span class="token operator">=</span>memory.available<span class="token operator">&lt;</span><span class="token number">20</span>% <span class="token punctuation">\</span>
+      --eviction-soft-grace-period<span class="token operator">=</span>memory.available<span class="token operator">=</span>1m30s <span class="token punctuation">\</span>
+      --eviction-max-pod-grace-period<span class="token operator">=</span><span class="token number">600</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span></span></code></pre>
+<p>另一方面，Kubernetes 的驱逐跟垃圾收集器的不同之处，还在于垃圾收集可以”应收尽收”，而驱逐显然不行，系统不能无缘无故地把整个节点中所有可驱逐的 Pod 都清空掉。但是，系统通常也不能只清理到刚刚低于警戒线就停止，必须要考虑到驱逐之后的新 Pod 调度与旧 Pod 运行的新增消耗。</p>
+<p>比如，kubelet 驱逐了若干个 Pod，让资源使用率勉强低于阈值，那么很可能在极短的时间内，资源使用率又会因为某个 Pod 稍微占用了些许资源，而重新超过阈值，再产生新一次驱逐，如此往复。</p>
+<p><strong>为此，Kubernetes 提供了—eviction-minimum-reclaim参数，用于设置一旦驱逐发生之后，至少要清理出来多少资源才会终止。</strong></p>
+<p>不过，问题到这里还是没有全部解决。要知道，Kubernetes 中很少会单独创建 Pod，通常都是由 ReplicaSet、Deployment 等更高层资源来管理的。而这就意味着，当 Pod 被驱逐之后，它不会从此彻底消失，Kubernetes 会自动生成一个新的 Pod 来取代，并经过调度，选择一个节点继续运行。</p>
+<p>这样也就是说，如果没有进行额外的处理，那很大概率这个新生成的 Pod，就会被调度到当前这个节点上重新创建，因为上一次调度就选择了这个节点，而且这个节点刚刚驱逐完一批 Pod，得到了空闲资源，那它显然应该符合此 Pod 的调度需求。</p>
+<p>所以，为了避免被驱逐的 Pod 出现”阴魂不散”的问题，Kubernetes 还提供了另一个参数—eviction-pressure-transition-period来约束调度器，在驱逐发生之后多长时间内，不能往该节点调度 Pod。</p>
+<p>另外，关于驱逐机制，你还应该意识到，既然这些措施被设计为以参数的形式开启，那就说明了它们一定不是放之四海皆准的通用准则。</p>
+<p>举个例子，假设当前 Pod 是由 DaemonSet 控制的，一旦该 Pod 被驱逐，你又强行不允许节点在一段时间内接受调度，那显然就有违 DaemonSet 的语义了。</p>
+<p>不过到目前，Kubernetes 其实并没有办法区分 Pod 是由 DaemonSet，还是别的高层次资源创建的，所以刚刚的这种假设情况确实有可能发生，而比较合理的解决方案，是让 DaemonSet 创建 Guaranteed 而不是 BestEffort 的 Pod。</p>
+<p>总而言之，在 Kubernetes 还没有成熟到变为”傻瓜式”容器编排系统之前， <strong>因地制宜地合理配置和运维</strong> 是都非常必要的。</p>
+<p>最后我还想说明的是，关于服务质量、优先级、驱逐机制这些概念，都是 <strong>在 Pod 层面上限制资源，是仅针对单个 Pod 的低层次约束。</strong> 而在现实中，我们还经常会遇到面向更高层次去控制资源的需求，比如，想限制由多个 Pod 构成的微服务系统耗用的总资源，或者是由多名成员组成的团队耗用的总资源。</p>
+<p>我举个具体例子，现在你想要在拥有 32 GiB 内存和 16 个处理器的集群里，允许 A 团队使用 20 GiB 内存和 10 个处理器的资源，再允许 B 团队使用 10 GiB 内存和 4 个处理器的资源，再预留 2 GiB 内存和 2 个处理器供将来分配。那么要满足这种资源限制的需求，Kubernetes 的解决方案是应该先为它们建立一个专用的名称空间，然后再在名称空间里建立 ResourceQuota 对象，来描述如何进行整体的资源约束。</p>
+<p>但是这样，ResourceQuota 与调度就没有直接关系了，它针对的对象也不是 Pod，所以这里我所说的资源，可以是广义上的资源，系统不仅能够设置处理器、内存等物理资源的限额，还可以设置诸如 Pod 最大数量、ReplicaSet 最大数量、Service 最大数量、全部 PersistentVolumeClaim 的总存储容量等各种抽象资源的限额。</p>
+<p>甚至，当 Kubernetes 预置的资源模型不能满足约束需要的时候，还能够根据实际情况去拓展，比如要控制 GPU 的使用数量，完全可以通过 Kubernetes 的设备插件（Device Plugin）机制，拓展出诸如nvidia.com/gpu: 4这样的配置来。</p>
+<h4 id="默认调度器"><a href="#默认调度器" class="headerlink" title="默认调度器"></a>默认调度器</h4><p>好，了解了 Kubernetes 的资源模型和服务质量、优先级、驱逐机制这些概念以后，我们再回过头来，探讨下前面开头我提出的问题： <strong>Kubernetes 是如何撮合 Pod 与 Node 的？</strong> 这其实也是最困难的一个问题。</p>
+<p>现在我们知道，调度是为新创建出来的 Pod，寻找到一个最恰当的宿主机节点去运行它。而在这句话里，就包含有”运行”和”恰当”两个调度中的关键过程，它们具体是指：</p>
+<ol>
+<li><p><strong>运行</strong> ：从集群的所有节点中，找出一批剩余资源可以满足该 Pod 运行的节点。为此，Kubernetes 调度器设计了一组名为 <strong>Predicate 的筛选算法。</strong></p>
+</li>
+<li><p><strong>恰当</strong> ：从符合运行要求的节点中，找出一个最适合的节点完成调度。为此，Kubernetes 调度器设计了一组名为 <strong>Priority 的评价算法。</strong></p>
+</li>
+</ol>
+<p>这两个算法的具体内容稍后我会详细给你解释，这里我要先说明白一点：在几个、十几个节点的集群里进行调度，调度器怎么实现都不会太困难，但是对于数千个、乃至更多节点的大规模集群，要实现高效的调度就绝不简单。</p>
+<p>请你想象一下，现在有一个由数千节点组成的集群，每次 Pod 的创建，都必须依据各节点的实时资源状态来确定调度的目标节点，然而我们知道，各节点的资源是随着程序运行无时无刻都在变动的，资源状况只有它本身才清楚。</p>
+<p>这样，如果每次调度都要发生数千次的远程访问来获取这些信息的话，那压力与耗时都很难降下来。所以结果不仅会让调度器成为集群管理的性能瓶颈，还会出现因耗时过长，某些节点上资源状况已发生变化，调度器的资源信息过时，而导致调度结果不准确等问题。</p>
+<blockquote>
+<p><strong>额外知识：Scheduler</strong></p>
+<p>Clusters and their workloads keep growing, and since the scheduler’s workload is roughly proportional to the cluster size, the scheduler is at risk of becoming a scalability bottleneck.</p>
+<p>由于调度器的工作负载与集群规模大致成正比，随着集群和它们的工作负载不断增长，调度器很有可能会成为扩展性瓶颈所在。</p>
+<p>——  <a target="_blank" rel="noopener" href="https://static.googleusercontent.com/media/research.google.com/zh-CN//pubs/archive/41684.pdf">Omega: Flexible, Scalable Schedulers for Large Compute Clusters</a> ，Google</p>
+</blockquote>
+<p>因此，针对前面所说的问题，Google 在论文《 <a target="_blank" rel="noopener" href="https://static.googleusercontent.com/media/research.google.com/zh-CN//pubs/archive/41684.pdf">Omega: Flexible, Scalable Schedulers for Large Compute Clusters</a> 》里总结了自身的经验，并参考了当时 <a target="_blank" rel="noopener" href="https://en.wikipedia.org/wiki/Apache_Mesos">Apache Mesos</a> 和 <a target="_blank" rel="noopener" href="https://hadoop.apache.org/docs/r1.0.4/cn/hod.html">Hadoop on Demand</a> （HOD）的实现，提出了一种共享状态（Shared State）的双循环调度机制。</p>
+<p>这种调度机制后来不仅应用在 Google 的 Omega 系统（Borg 的下一代集群管理系统）中，也同样被 Kubernetes 继承了下来，它整体的工作流程如下图所示：</p>
+<p><img src="https://fastly.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《周志明的软件架构课》学习笔记/状态共享的双循环.webp" alt="状态共享的双循环.webp"></p>
+<p>“状态共享的双循环”中，第一个控制循环可被称为”Informer Loop”，它是一系列 <a target="_blank" rel="noopener" href="https://godoc.org/k8s.io/client-go/informers">Informer</a> 的集合，这些 Informer 会持续监视 etcd 中与调度相关资源（主要是 Pod 和 Node）的变化情况，一旦 Pod、Node 等资源出现变动，就会触发对应 Informer 的 Handler。</p>
+<p>Informer Loop 的职责是根据 etcd 中的资源变化，去更新调度队列（Priority Queue）和调度缓存（Scheduler Cache）中的信息。</p>
+<p>比如当有新 Pod 生成，就将其入队（Enqueue）到调度队列中，如有必要，还会根据优先级触发上节课我提到的插队和抢占操作。再比如，当有新的节点加入集群，或者已有的节点资源信息发生变动，Informer 也会把这些信息更新同步到调度缓存之中。</p>
+<p>另一个控制循环可被称为”Scheduler Loop”，它的核心逻辑是不停地把调度队列中的 Pod 出队（Pop），然后使用 Predicate 算法进行节点选择。</p>
+<p>Predicate 本质上是一组节点过滤器（Filter），它会根据预设的过滤策略来筛选节点。Kubernetes 中默认有三种过滤策略，分别是：</p>
+<ul>
+<li><strong>通用过滤策略</strong> ：最基础的调度过滤策略，用来检查节点是否能满足 Pod 声明中需要的资源。比如处理器、内存资源是否满足，主机端口与声明的 NodePort 是否存在冲突，Pod 的选择器或者 <a target="_blank" rel="noopener" href="https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#node-affinity">nodeAffinity</a> 指定的节点是否与目标相匹配，等等。</li>
+<li><strong>卷过滤策略</strong> ：与存储相关的过滤策略，用来检查节点挂载的 Volume 是否存在冲突（比如将一个块设备挂载到两个节点上），或者 Volume 的 <a target="_blank" rel="noopener" href="https://icyfenix.cn/distribution/connect/load-balancing.html#%E5%9C%B0%E5%9F%9F%E4%B8%8E%E5%8C%BA%E5%9F%9F">可用区域</a> 是否与目标节点冲突，等等。在” <a target="_blank" rel="noopener" href="https://time.geekbang.org/column/article/357689">Kubernetes 存储设计</a> “中提到的 Local PersistentVolume 的调度检查，就是在这里处理的。</li>
+<li><strong>节点过滤策略</strong> ：与宿主机相关的过滤策略，最典型的是 Kubernetes 的 <a target="_blank" rel="noopener" href="https://kubernetes.io/docs/concepts/scheduling-eviction/taint-and-toleration/">污点与容忍度机制</a> （Taints and Tolerations），比如默认情况下，Kubernetes 会设置 Master 节点不允许被调度，这就是通过在 Master 中施加污点来避免的。前面我提到的控制节点处于驱逐状态，或者在驱逐后一段时间不允许调度，也是在这个策略里实现的。</li>
+</ul>
+<p>此外，Predicate 算法所使用的一切数据，都来自于 <strong>调度缓存</strong> ，它绝对不会去远程访问节点本身。这里你要知道，只有 Informer Loop 与 etcd 的监视操作才会涉及到远程调用，而 Scheduler Loop 中，除了最后的异步绑定要发起一次远程的 etcd 写入外，其余全部都是进程内访问，这一点正是调度器执行效率的重要保证。</p>
+<p><strong>所谓的调度缓存，就是两个控制循环的共享状态（Shared State）</strong> ，这样的设计避免了调度器每次调度时主动去轮询所有集群节点，保证了调度器的执行效率。</p>
+<p>但是它也存在一定的局限，也就是调度缓存并不能完全避免因节点信息同步不及时，而导致调度过程中实际资源发生变化的情况，比如节点的某个端口在获取调度信息后、发生实际调度前被意外占用了。</p>
+<p>为此，当调度结果出来以后，在 kubelet 真正创建 Pod 以前，还必须执行一次 Admit 操作，在该节点上重新做一遍 Predicate，来进行二次确认。 <strong>经过 Predicate 算法筛选出来符合要求的节点集，会交给 Priorities 算法来打分（0~10 分）排序，以便挑选出”最恰当”的一个。</strong></p>
+<p>这里的”恰当”其实是带有主观色彩的词语，Kubernetes 也提供了不同的打分规则来满足不同的主观需求，比如最常用的 LeastRequestedPriority 规则，它的计算公式是：</p>
+<pre class="line-numbers language-text" data-language="text"><code class="language-text">score = (cpu((capacity-sum(requested))×10/capacity) + memory((capacity-sum(requested))×10/capacity))/2<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>从公式上，我们能很容易地看出，这就是在选择处理器和内存空闲资源最多的节点，因为这些资源剩余越多，得分就越高。经常与它一起工作的是 BalancedResourceAllocation 规则，它的公式是：</p>
+<pre class="line-numbers language-text" data-language="text"><code class="language-text">score = 10 - variance(cpuFraction,memoryFraction,volumeFraction)×10<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>在这个公式中，三种 Fraction 的含义是 Pod 请求的资源除以节点上的可用资源，variance 函数的作用是计算各种资源之间的差距，差距越大，函数值越大。由此可知，BalancedResourceAllocation 规则的意图是希望调度完成后，所有节点里各种资源分配尽量均衡，避免节点上出现诸如处理器资源被大量分配、而内存大量剩余的尴尬状况。</p>
+<p>Kubernetes 内置的其他的评分规则，还有 ImageLocalityPriority、NodeAffinityPriority、TaintTolerationPriority，等等，有兴趣的话你可以去阅读 Kubernetes 的源码，这里我就不再逐一解释了。</p>
+<p>这样，经过 Predicate 的筛选、Priorities 的评分之后，调度器已经选出了调度的最终目标节点，最后一步就是通知目标节点的 kubelet 可以去创建 Pod 了。我们要知道，调度器并不会直接与 kubelet 通讯来创建 Pod，它只需要把待调度的 Pod 的nodeName字段更新为目标节点的名字即可，kubelet 本身会监视该值的变化来接手后续工作。</p>
+<p>不过，从调度器在 etcd 中更新nodeName，到 kubelet 从 etcd 中检测到变化，再执行 Admit 操作二次确认调度可行性，最后到 Pod 开始实际创建，这个过程可能会持续一段不短的时间，如果一直等待这些工作都完成了，才宣告调度最终完成，那势必也会显著影响调度器的效率。</p>
+<p>所以实际上，Kubernetes 调度器采用了 <strong>乐观绑定（Optimistic Binding）</strong> 的策略来解决这个问题，它会同步地更新调度缓存中 Pod 的nodeName字段，并异步地更新 etcd 中 Pod 的nodeName字段，这个操作被称为绑定（Binding）。如果最终调度成功了，那 etcd 与调度缓存中的信息最终必定会保持一致，否则如果调度失败了，那就会由 Informer 来根据 Pod 的变动，将调度成功却没有创建成功的 Pod 清空nodeName字段，重新同步回调度缓存中，以便促使另外一次调度的开始。</p>
+<p>最后，你可能会注意到这个部分的小标题，我用的是”默认调度器”，这其实是在强调以上行为仅是 Kubernetes 默认的行为。对调度过程的大部分行为，你都可以通过 Scheduler Framework 暴露的接口来进行扩展和自定义，如下图所示：</p>
+<p><img src="https://fastly.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《周志明的软件架构课》学习笔记/SchedulerFramework的可扩展性.webp" alt="SchedulerFramework的可扩展性"></p>
+<p><a target="_blank" rel="noopener" href="https://medium.com/dev-genius/kubernetes-scheduling-system-f8705e7ee226">SchedulerFramework的可扩展性</a></p>
+<p>可以看到，图中绿色的部分，就是 Scheduler Framework 暴露的扩展点。由于 Scheduler Framework 属于 Kubernetes 内部的扩展机制（通过 Golang 的 Plugin 机制来实现的，需静态编译），它的通用性跟我在前面课程中提到的其他扩展机制（比如 CRI、CNI、CSI 那些）无法相提并论，属于比较高级的 Kubernetes 管理技能了，这里我就简单地提一下，你稍作了解就行。</p>
+<h4 id="小结-51"><a href="#小结-51" class="headerlink" title="小结"></a>小结</h4><p>调度可以分解为几个相对独立的子问题来研究，比如说，如何衡量工作任务的算力需求；如何区分工作任务的优先级，保障较重要的任务有较高的服务质量；如何在资源紧张时自动驱逐相对不重要的任务，等等。解决这一系列子问题的组件，就称为容器编排系统的调度器。</p>
+<p>这节课，我带你学习了 Kubernetes 是如何为一个新创建出来的 Pod，寻找到一个最恰当的宿主机节点来运行的。由于 Kubernetes 基于”超卖”所设计的资源调度机制，在更合理充分利用物理服务器资源的同时，也让资源调度成为了一项具有风险和挑战性的工作，所以你只有正确理解了这节课介绍的服务质量、优先级、驱逐机制等概念，在生产实践中，才能在资源利用率最大化与服务稳定性之间取得良好平衡。</p>
 
                 
             </div>
@@ -6676,7 +6967,7 @@ aeb4f8df39b1        none                                    null                
             <br>
             
             &nbsp;<i class="fas fa-chart-area"></i>&nbsp;站点总字数:&nbsp;<span
-                class="white-color">1621.7k</span>&nbsp;字
+                class="white-color">1638.5k</span>&nbsp;字
             
             
             
