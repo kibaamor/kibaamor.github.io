@@ -8069,7 +8069,7 @@ $ <span class="token function">curl</span> --header <span class="token string">"
 <p> <strong>第一种实现方式</strong> ，是使用 Ptrace 机制来拦截用户应用的系统调用（System Call），然后把这些系统调用交给 Sentry 来进行处理。</p>
 <p> 这个过程，对于应用进程来说，是完全透明的。而 Sentry 接下来，则会扮演操作系统的角色，在用户态执行用户程序，然后仅在需要的时候，才向宿主机发起 Sentry 自己所需要执行的系统调用。这，就是 gVisor 对用户应用进程进行强隔离的主要手段。不过， Ptrace 进行系统调用拦截的性能实在是太差，仅能供 Demo 时使用。</p>
 <p> 而第二种实现方式，则更加具有普适性。它的工作原理如下图所示。</p>
-<p> <img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《深入剖析Kubernetes》学习笔记/gVisor的kvm实现.webp" alt="gVisor的kvm实现.png"></p>
+<p> <img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《深入剖析Kubernetes》学习笔记/gVisor的kvm实现.webp" alt="gVisor的kvm实现"></p>
 <p> 在这种实现里，Sentry 会使用 KVM 来进行系统调用的拦截，这个性能比 Ptrace 就要好很多了。</p>
 <p> 当然，为了能够做到这一点，Sentry 进程就必须扮演一个 Guest Kernel 的角色，负责执行用户程序，发起系统调用。而这些系统调用被 KVM 拦截下来，还是继续交给 Sentry 进行处理。只不过在这时候，Sentry 就切换成了一个普通的宿主机进程的角色，来向宿主机发起它所需要的系统调用。</p>
 <p> 可以看到， <strong>在这种实现里，Sentry 并不会真的像虚拟机那样去虚拟出硬件设备、安装 Guest 操作系统。它只是借助 KVM 进行系统调用的拦截，以及处理地址空间切换等细节。</strong></p>
@@ -8090,7 +8090,7 @@ $ <span class="token function">curl</span> --header <span class="token string">"
 <p>实际上，Prometheus 项目是当年 CNCF 基金会起家时的”第二把交椅”。而这个项目发展到今天，已经全面接管了 Kubernetes 项目的整套监控体系。</p>
 <p>比较有意思的是，Prometheus 项目与 Kubernetes 项目一样，也来自于 Google 的 Borg 体系，它的原型系统，叫作 BorgMon，是一个几乎与 Borg 同时诞生的内部监控系统。而 Prometheus 项目的发起原因也跟 Kubernetes 很类似，都是希望通过对用户更友好的方式，将 Google 内部系统的设计理念，传递给用户和开发者。</p>
 <p>作为一个监控系统，Prometheus 项目的作用和工作方式，其实可以用如下所示的一张官方示意图来解释。</p>
-<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《深入剖析Kubernetes》学习笔记/Prometheus项目.webp" alt="Prometheus项目.png"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《深入剖析Kubernetes》学习笔记/Prometheus项目.webp" alt="Prometheus项目"></p>
 <p>可以看到，Prometheus 项目工作的核心，是使用 Pull （抓取）的方式去搜集被监控对象的 Metrics 数据（监控指标数据），然后，再把这些数据保存在一个 TSDB （时间序列数据库，比如 OpenTSDB、InfluxDB 等）当中，以便后续可以按照时间进行检索。</p>
 <p>有了这套核心监控机制， Prometheus 剩下的组件就是用来配合这套机制的运行。比如 Pushgateway，可以允许被监控对象以 Push 的方式向 Prometheus 推送 Metrics 数据。而 Alertmanager，则可以根据 Metrics 信息灵活地设置报警。当然， Prometheus 最受用户欢迎的功能，还是通过 Grafana 对外暴露出的、可以灵活配置的监控数据可视化界面。</p>
 <p>有了 Prometheus 之后，我们就可以按照 Metrics 数据的来源，来对 Kubernetes 的监控体系做一个汇总了。</p>
