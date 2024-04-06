@@ -399,14 +399,14 @@
                 
                 <div class="post-date info-break-policy">
                     <i class="far fa-calendar-check fa-fw"></i>更新日期:&nbsp;&nbsp;
-                    2024-04-04
+                    2024-04-06
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-file-word fa-fw"></i>文章字数:&nbsp;&nbsp;
-                    1.4k
+                    1.5k
                 </div>
                 
 
@@ -468,9 +468,9 @@
 <h3 id="G-所处的位置"><a href="#G-所处的位置" class="headerlink" title="G 所处的位置"></a>G 所处的位置</h3><ul>
 <li>进程都有一个全局的 G 队列</li>
 <li>每个 P 拥有自己的本地执行队列</li>
-<li>有不在运行队列中的G<ul>
-<li>处于 channel 阻塞态的G 被放在 sudog</li>
-<li>脱离P 绑定在 M 上的 G，如系统调用</li>
+<li>有不在运行队列中的 G<ul>
+<li>处于 channel 阻塞态的 G 被放在 sudog</li>
+<li>脱离 P 绑定在 M 上的 G，如系统调用</li>
 <li>为了复用，执行结束进入 P 的 gFree 列表中的 G</li>
 </ul>
 </li>
@@ -485,17 +485,21 @@
 <li>更新 Goroutine 调度相关的属性，更新状态为 _Grunnable</li>
 <li>返回的 Goroutine 会存储到全局变量 allgs 中</li>
 </ul>
-<h3 id="将-Goroutine-放到运行队列上"><a href="#将-Goroutine-放到运行队列上" class="headerlink" title="将 Goroutine 放到运行队列上"></a>将 Goroutine 放到运行队列上</h3><ul>
-<li>Goroutine 设置到处理器的 runnext 作为下一个处理器执行的任务</li>
-<li>当处理器的本地运行队列已经没有剩余空间时，就会把本地队列中的一部分 Goroutine 和待加入的 Goroutine 通过 runtime.runqputslow 添加到调度器持有的全局运行队列上</li>
-</ul>
-<h3 id="调度器行为"><a href="#调度器行为" class="headerlink" title="调度器行为"></a>调度器行为</h3><blockquote>
-<p>关键函数 <code>func findRunnable()</code></p>
+<h3 id="将-Goroutine-放到运行队列上"><a href="#将-Goroutine-放到运行队列上" class="headerlink" title="将 Goroutine 放到运行队列上"></a>将 Goroutine 放到运行队列上</h3><blockquote>
+<p>关键函数 <code>func runqput(pp *p, gp *g, next bool)</code></p>
 </blockquote>
 <ul>
-<li>为了保证公平，当全局运行队列中有待执行的 Goroutine 时，通过 schedtick 保证有一定几率会从全局的运行队列中查找对应的 Goroutine</li>
+<li>Goroutine 设置到处理器的 runnext 作为下一个处理器执行的任务</li>
+<li>当处理器的本地运行队列已经没有剩余空间时，就会把本地队列中的前一半 Goroutine 和待加入的 Goroutine 一起打乱顺序后通过 <code>runtime.runqputslow</code> 添加到调度器持有的全局运行队列上</li>
+</ul>
+<h3 id="调度器行为"><a href="#调度器行为" class="headerlink" title="调度器行为"></a>调度器行为</h3><blockquote>
+<p>关键函数 <code>func schedule()</code></p>
+<p>可以参考资料<a target="_blank" rel="noopener" href="https://zhuanlan.zhihu.com/p/586236582">《深入分析Go1.18 GMP调度器底层原理》</a></p>
+</blockquote>
+<ul>
+<li>为了保证公平，当全局运行队列中有待执行的 Goroutine 时，通过 schedtick 保证有一定几率(1/61) 通过 <code>runtime.globrunqget</code> 从全局的运行队列中查找一个的 Goroutine 来运行</li>
 <li>从处理器本地的运行队列中查找待执行的 Goroutine</li>
-<li>如果前两种方法都没有找到 Goroutine，会通过 runtime.findrunnable 进行阻塞地查找 Goroutine</li>
+<li>如果前两种方法都没有找到 Goroutine，会通过 <code>runtime.findrunnable</code> 进行阻塞地查找 Goroutine</li>
 <li>从本地运行队列、全局运行队列中查找</li>
 <li>从网络轮询器中查找是否有 Goroutine 等待运行</li>
 <li>通过 runtime.runqsteal 尝试从其他随机的处理器中窃取待运行的 Goroutine</li>
@@ -523,7 +527,7 @@
 </ul>
 </li>
 <li>大对象分配流程<ul>
-<li>从large span set 选择合适数量的页面组成span，用来存储数据</li>
+<li>从 large span set 选择合适数量的页面组成span，用来存储数据</li>
 </ul>
 </li>
 </ul>
