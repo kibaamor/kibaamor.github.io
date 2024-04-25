@@ -399,21 +399,21 @@
                 
                 <div class="post-date info-break-policy">
                     <i class="far fa-calendar-check fa-fw"></i>更新日期:&nbsp;&nbsp;
-                    2024-04-23
+                    2024-04-26
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-file-word fa-fw"></i>文章字数:&nbsp;&nbsp;
-                    1.6k
+                    2.1k
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-clock fa-fw"></i>阅读时长:&nbsp;&nbsp;
-                    5 分
+                    7 分
                 </div>
                 
 
@@ -435,7 +435,7 @@
 <li>并发（concurrency）：两个或多个事件在同一时间间隔发生。</li>
 <li>并行（parallellism）：两个或者多个事件在同一时刻发生。</li>
 </ul>
-<h2 id="Go语言进阶"><a href="#Go语言进阶" class="headerlink" title="Go语言进阶"></a>Go语言进阶</h2><h3 id="线程调度"><a href="#线程调度" class="headerlink" title="线程调度"></a>线程调度</h3><ul>
+<h2 id="Go-语言进阶"><a href="#Go-语言进阶" class="headerlink" title="Go 语言进阶"></a>Go 语言进阶</h2><h3 id="线程调度"><a href="#线程调度" class="headerlink" title="线程调度"></a>线程调度</h3><ul>
 <li>进程：资源分配的基本单位</li>
 <li>线程：调度的基本单位</li>
 <li>无论是线程还是进程，在 linux 中都以 task_struct 描述，从内核角度看，与进程无本质区别</li>
@@ -494,7 +494,7 @@
 </ul>
 <h3 id="调度器行为"><a href="#调度器行为" class="headerlink" title="调度器行为"></a>调度器行为</h3><blockquote>
 <p>关键函数 <code>func schedule()</code></p>
-<p>可以参考资料<a target="_blank" rel="noopener" href="https://zhuanlan.zhihu.com/p/586236582">《深入分析Go1.18 GMP调度器底层原理》</a></p>
+<p>可以参考的资料<a target="_blank" rel="noopener" href="https://zhuanlan.zhihu.com/p/586236582">《深入分析Go1.18 GMP调度器底层原理》</a></p>
 </blockquote>
 <ul>
 <li>为了保证公平，当全局运行队列中有待执行的 Goroutine 时，通过 schedtick 保证有一定几率(1/61) 通过 <code>runtime.globrunqget</code> 从全局的运行队列中查找一个的 Goroutine 来运行</li>
@@ -583,7 +583,54 @@
 </ul>
 </li>
 </ul>
+<h3 id="Go-语言-GC"><a href="#Go-语言-GC" class="headerlink" title="Go 语言 GC"></a>Go 语言 GC</h3><blockquote>
+<p>可以参考的资料<a target="_blank" rel="noopener" href="https://liqingqiya.github.io/golang/gc/%E5%9E%83%E5%9C%BE%E5%9B%9E%E6%94%B6/2020/06/02/gc1.html">《Golang 垃圾回收（一）概述》</a>、<a target="_blank" rel="noopener" href="https://liqingqiya.github.io/golang/gc/%E5%9E%83%E5%9C%BE%E5%9B%9E%E6%94%B6/2020/06/02/gc2.html">《golang 垃圾回收（二）屏障技术》</a>、<a target="_blank" rel="noopener" href="https://liqingqiya.github.io/golang/gc/%E5%9E%83%E5%9C%BE%E5%9B%9E%E6%94%B6/2020/06/03/gc3.html">《golang 垃圾回收（三）插入写屏障》</a>、<a target="_blank" rel="noopener" href="https://liqingqiya.github.io/golang/gc/%E5%9E%83%E5%9C%BE%E5%9B%9E%E6%94%B6/2020/06/13/gc4.html">《golang 垃圾回收（四）删除写屏障》</a>、<a target="_blank" rel="noopener" href="https://liqingqiya.github.io/golang/gc/%E5%9E%83%E5%9C%BE%E5%9B%9E%E6%94%B6/%E5%86%99%E5%B1%8F%E9%9A%9C/2020/07/24/gc5.html">《golang 垃圾回收（五）混合写屏障》</a></p>
+</blockquote>
+<p>混合写屏障伪代码</p>
+<pre class="line-numbers language-go" data-language="go"><code class="language-go"><span class="token comment">// src/runtime/mbarrier.go</span>
 
+<span class="token comment">// Go uses a hybrid barrier that combines a Yuasa-style deletion</span>
+<span class="token comment">// barrier—which shades the object whose reference is being</span>
+<span class="token comment">// overwritten—with Dijkstra insertion barrier—which shades the object</span>
+<span class="token comment">// whose reference is being written. The insertion part of the barrier</span>
+<span class="token comment">// is necessary while the calling goroutine's stack is grey. In</span>
+<span class="token comment">// pseudocode, the barrier is:</span>
+<span class="token function">writePointer</span><span class="token punctuation">(</span>slot<span class="token punctuation">,</span> ptr<span class="token punctuation">)</span><span class="token punctuation">:</span>
+    <span class="token function">shade</span><span class="token punctuation">(</span><span class="token operator">*</span>slot<span class="token punctuation">)</span>    <span class="token comment">// 删除写屏障（Yuasa-style 屏障）</span>
+    <span class="token keyword">if</span> current stack is grey<span class="token punctuation">:</span>
+        <span class="token function">shade</span><span class="token punctuation">(</span>ptr<span class="token punctuation">)</span>  <span class="token comment">// 插入写屏障（Dijkstra屏障）</span>
+    <span class="token operator">*</span>slot <span class="token operator">=</span> ptr<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>Go 实际实现为</p>
+<pre class="line-numbers language-go" data-language="go"><code class="language-go"><span class="token function">writePointer</span><span class="token punctuation">(</span>slot<span class="token punctuation">,</span> ptr<span class="token punctuation">)</span><span class="token punctuation">:</span>
+    <span class="token function">shade</span><span class="token punctuation">(</span><span class="token operator">*</span>slot<span class="token punctuation">)</span>
+    <span class="token function">shade</span><span class="token punctuation">(</span>ptr<span class="token punctuation">)</span>
+    <span class="token operator">*</span>slot <span class="token operator">=</span> ptr<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span></span></code></pre>
+<p>垃圾回收触发机制</p>
+<ul>
+<li>内存分配量达到阀值触发 GC<ul>
+<li>每次内存分配时都会检查当前内存分配量是否已达到阀值，如果达到阀值则立即启动 GC。<ul>
+<li>阀值 = 上次 GC 内存分配量 * 内存增长率</li>
+<li>内存增长率由环境变量 GOGC 控制，默认为 100，即每当内存扩大一倍时启动 GC。</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>定期触发 GC<ul>
+<li>默认情况下，最长 2 分钟触发一次 GC，这个间隔在 <code>src/runtime/proc.go:forcegcperiod</code> 变量中被声明</li>
+</ul>
+</li>
+<li>手动触发<ul>
+<li>程序代码中也可以使用 <code>runtime.GC()</code> 来手动触发 GC。这主要用于 GC 性能测试和统计。</li>
+</ul>
+</li>
+</ul>
+<h3 id="Linux-epoll"><a href="#Linux-epoll" class="headerlink" title="Linux epoll"></a>Linux epoll</h3><p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/LinuxEpoll.png" alt="LinuxEpoll"></p>
+<h3 id="HttpServer-的实现细节"><a href="#HttpServer-的实现细节" class="headerlink" title="HttpServer 的实现细节"></a>HttpServer 的实现细节</h3><p>Go 语言将协程与 fd 资源绑定</p>
+<pre><code>- 一个 socket fd 与一个协程绑定
+- 当 socket fd 未就绪时，将对应协程设置为 Gwaiting 状态，将 CPU 时间片让给其他协程
+- Go 语言 runtime 调度器进行调度唤醒协程时，检查 fd 是否就绪，如果就绪则将协程置为 Grunnable 并加入执行队列
+- 协程被调度后处理 fd 数据
+</code></pre>
                 
             </div>
             <hr/>
