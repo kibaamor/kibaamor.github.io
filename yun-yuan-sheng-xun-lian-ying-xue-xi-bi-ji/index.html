@@ -399,21 +399,21 @@
                 
                 <div class="post-date info-break-policy">
                     <i class="far fa-calendar-check fa-fw"></i>更新日期:&nbsp;&nbsp;
-                    2024-04-26
+                    2024-04-29
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-file-word fa-fw"></i>文章字数:&nbsp;&nbsp;
-                    2.1k
+                    2.7k
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-clock fa-fw"></i>阅读时长:&nbsp;&nbsp;
-                    7 分
+                    11 分
                 </div>
                 
 
@@ -632,6 +632,110 @@
 <li>当 socket fd 未就绪时，将对应协程设置为 Gwaiting 状态，将 CPU 时间片让给其他协程</li>
 <li>Go 语言 runtime 调度器进行调度唤醒协程时，检查 fd 是否就绪，如果就绪则将协程置为 Grunnable 并加入执行队列</li>
 <li>协程被调度后处理 fd 数据</li>
+</ul>
+<h2 id="Docker-核心技术"><a href="#Docker-核心技术" class="headerlink" title="Docker 核心技术"></a>Docker 核心技术</h2><h3 id="Linux-内核代码中-Namespace-的实现"><a href="#Linux-内核代码中-Namespace-的实现" class="headerlink" title="Linux 内核代码中 Namespace 的实现"></a>Linux 内核代码中 Namespace 的实现</h3><p>进程数据结构</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token comment">// include/linux/sched.h</span>
+<span class="token keyword">struct</span> <span class="token class-name">task_struct</span> <span class="token punctuation">{</span>
+    <span class="token comment">//...</span>
+
+    <span class="token comment">/* Namespaces: */</span>
+    <span class="token keyword">struct</span> <span class="token class-name">nsproxy</span> <span class="token operator">*</span>nsproxy<span class="token punctuation">;</span>
+
+    <span class="token comment">//...</span>
+<span class="token punctuation">}</span><span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>Namespace 数据结构</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token comment">// include/linux/nsproxy.h</span>
+
+<span class="token comment">/*
+ * A structure to contain pointers to all per-process
+ * namespaces - fs (mount), uts, network, sysvipc, etc.
+ *
+ * The pid namespace is an exception -- it's accessed using
+ * task_active_pid_ns.  The pid namespace here is the
+ * namespace that children will use.
+ *
+ * 'count' is the number of tasks holding a reference.
+ * The count for each namespace, then, will be the number
+ * of nsproxies pointing to it, not the number of tasks.
+ *
+ * The nsproxy is shared by tasks which share all namespaces.
+ * As soon as a single namespace is cloned or unshared, the
+ * nsproxy is copied.
+ */</span>
+<span class="token keyword">struct</span> <span class="token class-name">nsproxy</span> <span class="token punctuation">{</span>
+    refcount_t count<span class="token punctuation">;</span>
+    <span class="token keyword">struct</span> <span class="token class-name">uts_namespace</span> <span class="token operator">*</span>uts_ns<span class="token punctuation">;</span>
+    <span class="token keyword">struct</span> <span class="token class-name">ipc_namespace</span> <span class="token operator">*</span>ipc_ns<span class="token punctuation">;</span>
+    <span class="token keyword">struct</span> <span class="token class-name">mnt_namespace</span> <span class="token operator">*</span>mnt_ns<span class="token punctuation">;</span>
+    <span class="token keyword">struct</span> <span class="token class-name">pid_namespace</span> <span class="token operator">*</span>pid_ns_for_children<span class="token punctuation">;</span>
+    <span class="token keyword">struct</span> <span class="token class-name">net</span> <span class="token operator">*</span>net_ns<span class="token punctuation">;</span>
+    <span class="token keyword">struct</span> <span class="token class-name">time_namespace</span> <span class="token operator">*</span>time_ns<span class="token punctuation">;</span>
+    <span class="token keyword">struct</span> <span class="token class-name">time_namespace</span> <span class="token operator">*</span>time_ns_for_children<span class="token punctuation">;</span>
+    <span class="token keyword">struct</span> <span class="token class-name">cgroup_namespace</span> <span class="token operator">*</span>cgroup_ns<span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<h3 id="Linux-对-Namespace-操作方法"><a href="#Linux-对-Namespace-操作方法" class="headerlink" title="Linux 对 Namespace 操作方法"></a>Linux 对 Namespace 操作方法</h3><h4 id="clone"><a href="#clone" class="headerlink" title="clone"></a>clone</h4><p>在创建新进程的系统调用时，可以通过 flags 参数指定需要新建的 Namespace 类型：</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token comment">// CLONE_NEWCGROUP / CLONE_NEWIPC / CLONE_NEWNET / CLONE_NEWNS / CLONE_NEWPID / CLONE_NEWUSER / CLONE_NEWUTS</span>
+<span class="token keyword">int</span> <span class="token function">clone</span><span class="token punctuation">(</span><span class="token keyword">int</span> <span class="token punctuation">(</span><span class="token operator">*</span>fn<span class="token punctuation">)</span><span class="token punctuation">(</span><span class="token keyword">void</span> <span class="token operator">*</span><span class="token punctuation">)</span><span class="token punctuation">,</span> <span class="token keyword">void</span> <span class="token operator">*</span>child_stack<span class="token punctuation">,</span> <span class="token keyword">int</span> flags<span class="token punctuation">,</span> <span class="token keyword">void</span> <span class="token operator">*</span>arg<span class="token punctuation">)</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre>
+<h4 id="setns"><a href="#setns" class="headerlink" title="setns"></a>setns</h4><p>该系统调用可以让调用进程加入某个已经存在的 Namespace 中：</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c">Int <span class="token function">setns</span><span class="token punctuation">(</span><span class="token keyword">int</span> fd<span class="token punctuation">,</span> <span class="token keyword">int</span> nstype<span class="token punctuation">)</span><span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<h4 id="unshare"><a href="#unshare" class="headerlink" title="unshare"></a>unshare</h4><p>该系统调用可以将调用进程移动到新的 Namespace 下：</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">int</span> <span class="token function">unshare</span><span class="token punctuation">(</span><span class="token keyword">int</span> flags<span class="token punctuation">)</span><span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<h3 id="关于-namespace-的常用操作"><a href="#关于-namespace-的常用操作" class="headerlink" title="关于 namespace 的常用操作"></a>关于 namespace 的常用操作</h3><ul>
+<li>查看当前系统的 namespace：<code>lsns -t &lt;type&gt;</code></li>
+<li>查看某进程的 namespace：<code>ls -la /proc/&lt;pid&gt;/ns/</code></li>
+<li>查看某命令的 namespace: <code>sudo lsns | grep &lt;command name&gt;</code></li>
+<li>进入某 namespace 运行命令：<code>nsenter -t &lt;pid&gt; -n ip addr</code></li>
+<li>在新 network namespace 运行命令：<code>unshare -fn sleep 60</code></li>
+</ul>
+<h3 id="Linux-内核代码中-Cgroups-的实现"><a href="#Linux-内核代码中-Cgroups-的实现" class="headerlink" title="Linux 内核代码中 Cgroups 的实现"></a>Linux 内核代码中 Cgroups 的实现</h3><p>进程数据结构</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token comment">// include/linux/sched.h</span>
+<span class="token keyword">struct</span> <span class="token class-name">task_struct</span> <span class="token punctuation">{</span>
+    <span class="token comment">//...</span>
+
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">ifdef</span> <span class="token expression">CONFIG_CGROUPS</span></span>
+    <span class="token comment">/* Control Group info protected by css_set_lock: */</span>
+    <span class="token keyword">struct</span> <span class="token class-name">css_set</span> __rcu <span class="token operator">*</span>cgroups<span class="token punctuation">;</span>
+    <span class="token comment">/* cg_list protected by css_set_lock and tsk-&gt;alloc_lock: */</span>
+    <span class="token keyword">struct</span> <span class="token class-name">list_head</span> cg_list<span class="token punctuation">;</span>
+<span class="token macro property"><span class="token directive-hash">#</span><span class="token directive keyword">endif</span></span>
+
+    <span class="token comment">//...</span>
+<span class="token punctuation">}</span><span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p><code>css_set</code> 是 <code>cgroup_subsys_state</code> 对象的集合数据结构</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token comment">// include/linux/cgroup-defs.h</span>
+
+<span class="token comment">/*
+ * A css_set is a structure holding pointers to a set of
+ * cgroup_subsys_state objects. This saves space in the task struct
+ * object and speeds up fork()/exit(), since a single inc/dec and a
+ * list_add()/del() can bump the reference count on the entire cgroup
+ * set for a task.
+ */</span>
+<span class="token keyword">struct</span> <span class="token class-name">css_set</span> <span class="token punctuation">{</span>
+    <span class="token comment">/*
+    * Set of subsystem states, one for each subsystem. This array is
+    * immutable after creation apart from the init_css_set during
+    * subsystem registration (at boot time).
+    */</span>
+    <span class="token keyword">struct</span> <span class="token class-name">cgroup_subsys_state</span> <span class="token operator">*</span>subsys<span class="token punctuation">[</span>CGROUP_SUBSYS_COUNT<span class="token punctuation">]</span><span class="token punctuation">;</span>
+
+    <span class="token comment">//...</span>
+<span class="token punctuation">}</span><span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<h3 id="cgroups"><a href="#cgroups" class="headerlink" title="cgroups"></a>cgroups</h3><blockquote>
+<p><a target="_blank" rel="noopener" href="https://access.redhat.com/documentation/en-us/red_hat_enterprise_linux/6/html/resource_management_guide/ch-subsystems_and_tunable_parameters">Chapter 3. Subsystems and Tunable Parameters</a></p>
+</blockquote>
+<p>cgroups 实现了对资源的配额和度量</p>
+<ul>
+<li>blkio： 这个子系统设置限制每个块设备的输入输出控制。例如:磁盘，光盘以及 USB 等等。</li>
+<li>CPU： 这个子系统使用调度程序为 cgroup 任务提供 CPU 的访问。</li>
+<li>cpuacct： 产生 cgroup 任务的CPU 资源报告。</li>
+<li>cpuset： 如果是多核心的 CPU，这个子系统会为 cgroup 任务分配单独的 CPU 和内存。</li>
+<li>devices： 允许或拒绝 cgroup 任务对设备的访问。</li>
+<li>freezer： 暂停和恢复 cgroup 任务。</li>
+<li>memory： 设置每个 cgroup 的内存限制以及产生内存资源报告。</li>
+<li>net_cls： 标记每个网络包以供 cgroup 方便使用。</li>
+<li>ns： 名称空间子系统。</li>
+<li>pid: 进程标识子系统。</li>
 </ul>
 
                 
