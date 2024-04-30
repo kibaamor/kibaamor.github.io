@@ -399,21 +399,21 @@
                 
                 <div class="post-date info-break-policy">
                     <i class="far fa-calendar-check fa-fw"></i>更新日期:&nbsp;&nbsp;
-                    2024-04-29
+                    2024-04-30
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-file-word fa-fw"></i>文章字数:&nbsp;&nbsp;
-                    2.7k
+                    4k
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-clock fa-fw"></i>阅读时长:&nbsp;&nbsp;
-                    11 分
+                    16 分
                 </div>
                 
 
@@ -737,7 +737,109 @@
 <li>ns： 名称空间子系统。</li>
 <li>pid: 进程标识子系统。</li>
 </ul>
+<h3 id="CPU-子系统"><a href="#CPU-子系统" class="headerlink" title="CPU 子系统"></a>CPU 子系统</h3><ul>
+<li>cpu.shares： 可出让的能获得 CPU 使用时间的相对值。<br>  <img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/cpu-shares.png" alt="cpu-shares"></li>
+<li>cpu.cfs_period_us：cfs_period_us 用来配置时间周期长度，单位为 us（微秒）。<br>  <img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/cpu-period-quota.png" alt="cpu-period-quota"></li>
+<li>cpu.cfs_quota_us：cfs_quota_us 用来配置当前 Cgroup 在 cfs_period_us 时间内最多能使用的 CPU 时间数，单位为 us（微秒）。</li>
+<li>cpu.stat ： Cgroup 内的进程使用的 CPU 时间统计。</li>
+<li>nr_periods ： 经过 cpu.cfs_period_us 的时间周期数量。</li>
+<li>nr_throttled ： 在经过的周期内，有多少次因为进程在指定的时间周期内用光了配额时间而受到限制。</li>
+<li>throttled_time ： Cgroup 中的进程被限制使用CPU 的总用时，单位是 ns（纳秒）</li>
+</ul>
+<h3 id="Linux-调度器"><a href="#Linux-调度器" class="headerlink" title="Linux 调度器"></a>Linux 调度器</h3><p>内核默认提供了 5 个调度器，Linux 内核使用 <code>struct sched_class</code> 来对调度器进行抽象：</p>
+<ul>
+<li>Stop 调度器，<code>stop_sched_class</code>：优先级最高的调度类，可以抢占其他所有进程，不能被其他进程抢占；</li>
+<li>Deadline 调度器，<code>dl_sched_class</code>：使用红黑树，把进程按照绝对截止期限进行排序，选择最小进程进行调度运行；</li>
+<li>RT 调度器， <code>rt_sched_class</code>：实时调度器，为每个优先级维护一个队列；</li>
+<li>CFS 调度器， <code>cfs_sched_class</code>：完全公平调度器，采用完全公平调度算法，引入虚拟运行时间概念；</li>
+<li>IDLE-Task 调度器， <code>idle_sched_class</code>：空闲调度器，每个 CPU 都会有一个 idle 线程，当没有其他进程可以调度时，调度运行 idle 线程。</li>
+</ul>
+<h3 id="CFS-调度器"><a href="#CFS-调度器" class="headerlink" title="CFS 调度器"></a>CFS 调度器</h3><p>CFS 是 Completely Fair Scheduler 简称，即完全公平调度器。</p>
+<ul>
+<li>CFS 实现的主要思想是维护为任务提供处理器时间方面的平衡，这意味着应给进程分配相当数量的处理器。</li>
+<li>分给某个任务的时间失去平衡时，应给失去平衡的任务分配时间，让其执行。</li>
+<li><p>CFS 通过虚拟运行时间（vruntime）来实现平衡，维护提供给某个任务的时间量。</p>
+<p>  <code>vruntime = 实际运行时间 * 1024 / 进程权重</code></p>
+</li>
+<li><p>进程按照各自不同的速率在物理时钟节拍内前进，优先级高则权重大，其虚拟时钟比真实时钟跑得慢，但获得比较多的运行时间。</p>
+</li>
+</ul>
+<h3 id="vruntime-红黑树"><a href="#vruntime-红黑树" class="headerlink" title="vruntime 红黑树"></a>vruntime 红黑树</h3><p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/vruntime红黑树.png" alt="vruntime红黑树"></p>
+<h3 id="CFS进程调度"><a href="#CFS进程调度" class="headerlink" title="CFS进程调度"></a>CFS进程调度</h3><p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/CFS进程调度.png" alt="CFS进程调度"></p>
+<h3 id="cpuacct-子系统"><a href="#cpuacct-子系统" class="headerlink" title="cpuacct 子系统"></a>cpuacct 子系统</h3><p>用于统计 Cgroup 及其子 Cgroup 下进程的 CPU 的使用情况。</p>
+<ul>
+<li>cpuacct.usage</li>
+</ul>
+<p>包含该 Cgroup 及其子 Cgroup 下进程使用 CPU 的时间，单位是 ns（纳秒）。</p>
+<ul>
+<li>cpuacct.stat</li>
+</ul>
+<p>包含该 Cgroup 及其子 Cgroup 下进程使用的 CPU 时间，以及用户态和内核态的时间。</p>
+<h3 id="Memory-子系统"><a href="#Memory-子系统" class="headerlink" title="Memory 子系统"></a>Memory 子系统</h3><ul>
+<li><p>memory.usage_in_bytes</p>
+<p>  cgroup 下进程使用的内存，包含 cgroup 及其子 cgroup 下的进程使用的内存</p>
+</li>
+<li><p>memory.max_usage_in_bytes</p>
+<p>  cgroup 下进程使用内存的最大值，包含子 cgroup 的内存使用量。</p>
+</li>
+<li><p>memory.limit_in_bytes</p>
+<p>  设置 Cgroup 下进程最多能使用的内存。如果设置为 -1，表示对该 cgroup 的内存使用不做限制。</p>
+</li>
+<li><p>memory.soft_limit_in_bytes</p>
+<p>  这个限制并不会阻止进程使用超过限额的内存，只是在系统内存足够时，会优先回收超过限额的内存，使之向限定值靠拢。</p>
+</li>
+<li><p>memory.oom_control</p>
+<p>  设置是否在 Cgroup 中使用 OOM（Out of Memory）Killer，默认为使用。当属于该 cgroup 的进程使用的内存超过最大的限定值时，会立刻被 OOM Killer 处理。</p>
+</li>
+</ul>
+<h3 id="Cgroup-driver"><a href="#Cgroup-driver" class="headerlink" title="Cgroup driver"></a>Cgroup driver</h3><p>systemd:</p>
+<ul>
+<li>当操作系统使用 systemd 作为 init system 时，初始化进程生成一个根 cgroup 目录结构并作为 cgroup 管理器。</li>
+<li>systemd 与 cgroup 紧密结合，并且为每个 systemd unit 分配 cgroup。</li>
+</ul>
+<p>cgroupfs:</p>
+<ul>
+<li>docker 默认用 cgroupfs 作为 cgroup 驱动。</li>
+</ul>
+<p>存在问题：</p>
+<ul>
+<li>在 systemd 作为 init system 的系统中，默认并存着两套 groupdriver。</li>
+<li>这会使得系统中 Docker 和 kubelet 管理的进程被 cgroupfs 驱动管，而 systemd 拉起的服务由 systemd 驱动管，让 cgroup 管理混乱且容易在资源紧张时引发问题。</li>
+</ul>
+<p>因此 kubelet 会默认 —cgroup-driver=systemd，若运行时 cgroup 不一致时，kubelet 会报错。</p>
+<h3 id="Cgroup-的使用"><a href="#Cgroup-的使用" class="headerlink" title="Cgroup 的使用"></a>Cgroup 的使用</h3><p>可以使用 <code>cgroup-tools</code> 来管理 Cgroup</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token comment"># 创建一个名为 k 的 CPU 子系统</span>
+<span class="token operator">&gt;</span> cgcreate -g cpu:k
 
+<span class="token comment"># 创建后的路径为</span>
+<span class="token operator">&gt;</span> <span class="token function">ls</span> /sys/fs/cgroup/cpu/k
+cgroup.clone_children  cgroup.procs  cpu.cfs_burst_us  cpu.cfs_period_us  cpu.cfs_quota_us  cpu.idle  cpu.rt_period_us  cpu.rt_runtime_us  cpu.shares  cpu.stat  notify_on_release  tasks
+
+<span class="token comment"># 获取 CPU 配额</span>
+<span class="token operator">&gt;</span> cgget -r cpu.cfs_period_us -r cpu.cfs_quota_us k
+k:
+cpu.cfs_period_us: <span class="token number">100000</span>
+cpu.cfs_quota_us: -1
+
+<span class="token comment"># 限制 CPU 使用率为 50%</span>
+<span class="token operator">&gt;</span> cgset -r cpu.cfs_quota_us<span class="token operator">=</span><span class="token number">50000</span> k
+
+<span class="token comment"># 确认设置生效</span>
+<span class="token operator">&gt;</span> cgget -r cpu.cfs_period_us -r cpu.cfs_quota_us k
+k:
+cpu.cfs_period_us: <span class="token number">100000</span>
+cpu.cfs_quota_us: <span class="token number">50000</span>
+
+<span class="token comment"># 测试</span>
+<span class="token operator">&gt;</span> <span class="token function">top</span> -p <span class="token variable"><span class="token variable">$(</span><span class="token function">ps</span> -ef <span class="token operator">|</span> <span class="token function">grep</span> <span class="token string">'bash -c while : ; do : ; done'</span> <span class="token operator">|</span> <span class="token function">grep</span> -v <span class="token function">grep</span> <span class="token operator">|</span> <span class="token function">awk</span> <span class="token string">'{print <span class="token variable">$2</span>}'</span><span class="token variable">)</span></span> -b -n <span class="token number">1</span>
+<span class="token function">top</span> - <span class="token number">22</span>:48:54 up  <span class="token number">1</span>:25,  <span class="token number">2</span> users,  load average: <span class="token number">1.54</span>, <span class="token number">1.41</span>, <span class="token number">1.21</span>
+Tasks:   <span class="token number">1</span> total,   <span class="token number">1</span> running,   <span class="token number">0</span> sleeping,   <span class="token number">0</span> stopped,   <span class="token number">0</span> zombie
+%Cpu<span class="token punctuation">(</span>s<span class="token punctuation">)</span>:  <span class="token number">8.4</span> us,  <span class="token number">0.8</span> sy,  <span class="token number">0.0</span> ni, <span class="token number">86.8</span> id,  <span class="token number">0.0</span> wa,  <span class="token number">0.0</span> hi,  <span class="token number">4.0</span> si,  <span class="token number">0.0</span> st
+MiB Mem <span class="token builtin class-name">:</span>   <span class="token number">7898.4</span> total,    <span class="token number">141.7</span> free,   <span class="token number">2822.3</span> used,   <span class="token number">4934.4</span> buff/cache
+MiB Swap:   <span class="token number">2048.0</span> total,   <span class="token number">2042.7</span> free,      <span class="token number">5.3</span> used.   <span class="token number">4779.8</span> avail Mem
+
+    PID <span class="token environment constant">USER</span>      PR  NI    VIRT    RES    SHR S  %CPU  %MEM     TIME+ COMMAND
+  <span class="token number">33693</span> root      <span class="token number">20</span>   <span class="token number">0</span>    <span class="token number">4784</span>   <span class="token number">3224</span>   <span class="token number">2976</span> R  <span class="token number">53.3</span>   <span class="token number">0.0</span>   <span class="token number">4</span>:32.59 <span class="token function">bash</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
                 
             </div>
             <hr/>
