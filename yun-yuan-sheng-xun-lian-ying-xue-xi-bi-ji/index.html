@@ -406,14 +406,14 @@
                 
                 <div class="info-break-policy">
                     <i class="far fa-file-word fa-fw"></i>文章字数:&nbsp;&nbsp;
-                    13.1k
+                    15.6k
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-clock fa-fw"></i>阅读时长:&nbsp;&nbsp;
-                    51 分
+                    61 分
                 </div>
                 
 
@@ -1623,6 +1623,215 @@ etcdctl <span class="token punctuation">\</span>
 <li>与 TypeMeta 和 Metadata 等通用属性不同，Spec 和 Status 是每个对象独有的。</li>
 </ul>
 <h4 id="常用Kubernetes-对象及其分组"><a href="#常用Kubernetes-对象及其分组" class="headerlink" title="常用Kubernetes 对象及其分组"></a>常用Kubernetes 对象及其分组</h4><p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/常用Kubernetes对象及其分组.png" alt="常用Kubernetes对象及其分组.png"></p>
+<h3 id="核心对象概览"><a href="#核心对象概览" class="headerlink" title="核心对象概览"></a>核心对象概览</h3><h4 id="Node"><a href="#Node" class="headerlink" title="Node"></a>Node</h4><ul>
+<li>Node 是 Pod 真正运行的主机，可以物理机，也可以是虚拟机。</li>
+<li>为了管理 Pod，每个 Node 节点上至少要运行 container runtime（比如Docker 或者Rkt）、Kubelet 和 Kube-proxy 服务。</li>
+</ul>
+<h4 id="Namespace"><a href="#Namespace" class="headerlink" title="Namespace"></a>Namespace</h4><p>Namespace 是对一组资源和对象的抽象集合，比如可以用来将系统内部的对象划分为不同的项目组或用户组。</p>
+<p>常见的 pods, services, replication controllers 和 deployments 等都是属于某一个 Namespace 的（默认是 default），而 Node, persistentVolumes 等则不属于任何 Namespace。</p>
+<h4 id="什么是-Pod"><a href="#什么是-Pod" class="headerlink" title="什么是 Pod"></a>什么是 Pod</h4><ul>
+<li>Pod 是一组紧密关联的容器集合，它们共享 PID、IPC、Network 和 UTS namespace，是 Kubernetes 调度的基本单位。</li>
+<li>Pod 的设计理念是支持多个容器在一个 Pod 中共享网络和文件系统，可以通过进程间通信和文件共享这种简单高效的方式组合完成服务。</li>
+<li>同一个 Pod 中的不同容器可共享资源：<ul>
+<li>共享网络 Namespace；</li>
+<li>可通过挂载存储卷共享存储；</li>
+<li>共享 Security Context。</li>
+</ul>
+</li>
+</ul>
+<pre class="line-numbers language-yaml" data-language="yaml"><code class="language-yaml"><span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> v1
+<span class="token key atrule">kind</span><span class="token punctuation">:</span> Pod
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> hello
+<span class="token key atrule">spec</span><span class="token punctuation">:</span>
+  <span class="token key atrule">containers</span><span class="token punctuation">:</span>
+  <span class="token punctuation">-</span> <span class="token key atrule">image</span><span class="token punctuation">:</span> nginx<span class="token punctuation">:</span><span class="token number">1.15</span>
+    <span class="token key atrule">name</span><span class="token punctuation">:</span> nginx<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<h4 id="如何通过Pod-对象定义支撑应用运行"><a href="#如何通过Pod-对象定义支撑应用运行" class="headerlink" title="如何通过Pod 对象定义支撑应用运行"></a>如何通过Pod 对象定义支撑应用运行</h4><p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/如何通过Pod对象定义支撑应用运行.png" alt="如何通过Pod对象定义支撑应用运行"></p>
+<h4 id="存储卷"><a href="#存储卷" class="headerlink" title="存储卷"></a>存储卷</h4><ul>
+<li>通过存储卷可以将外挂存储挂载到 Pod 内部使用。</li>
+<li>存储卷定义包括两个部分: Volume 和 VolumeMounts。<ul>
+<li>Volume：定义 Pod 可以使用的存储卷来源；</li>
+<li>VolumeMounts：定义存储卷如何 Mount 到容器内部。</li>
+</ul>
+</li>
+</ul>
+<pre class="line-numbers language-yaml" data-language="yaml"><code class="language-yaml"><span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> v1
+<span class="token key atrule">kind</span><span class="token punctuation">:</span> Pod
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> hello<span class="token punctuation">-</span>volume
+<span class="token key atrule">spec</span><span class="token punctuation">:</span>
+  <span class="token key atrule">containers</span><span class="token punctuation">:</span>
+  <span class="token punctuation">-</span> <span class="token key atrule">image</span><span class="token punctuation">:</span> nginx<span class="token punctuation">:</span><span class="token number">1.15</span>
+    <span class="token key atrule">name</span><span class="token punctuation">:</span> nginx
+  <span class="token key atrule">volumeMounts</span><span class="token punctuation">:</span>
+  <span class="token punctuation">-</span> <span class="token key atrule">name</span><span class="token punctuation">:</span> data
+    <span class="token key atrule">mountPath</span><span class="token punctuation">:</span> /data
+  <span class="token key atrule">volumes</span><span class="token punctuation">:</span>
+  <span class="token punctuation">-</span> <span class="token key atrule">name</span><span class="token punctuation">:</span> data
+    <span class="token key atrule">emptyDir</span><span class="token punctuation">:</span> <span class="token punctuation">{</span><span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<h4 id="Pod-网络"><a href="#Pod-网络" class="headerlink" title="Pod 网络"></a>Pod 网络</h4><p>Pod 的多个容器是共享网络 Namespace 的，这意味着：</p>
+<ul>
+<li>同一个 Pod 中的不同容器可以彼此通过 Loopback 地址访问：<ul>
+<li>在第一个容器中起了一个服务 <a target="_blank" rel="noopener" href="http://127.0.0.1">http://127.0.0.1</a> 。</li>
+<li>在第二个容器内，是可以通过 httpGet <a target="_blank" rel="noopener" href="http://172.0.0.1">http://172.0.0.1</a> 访问到该地址的。</li>
+</ul>
+</li>
+<li>这种方法常用于不同容器的互相协作。</li>
+</ul>
+<h4 id="资源限制"><a href="#资源限制" class="headerlink" title="资源限制"></a>资源限制</h4><p>Kubernetes 通过 Cgroups 提供容器资源管理的功能，可以限制每个容器的 CPU 和内存使用，比如对于刚才创建的 deployment，可以通过下面的命令限制 nginx 容器最多只用 50% 的CPU 和 128MB 的内存：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token operator">&gt;</span> kubectl <span class="token builtin class-name">set</span> resources deployment nginx-app -c<span class="token operator">=</span>nginx --limits<span class="token operator">=</span>cpu<span class="token operator">=</span>500m,memory<span class="token operator">=</span>128Mi
+deployment <span class="token string">"nginx"</span> resource requirements updated<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre>
+<p>等同于在每个 Pod 中设置 resources limits</p>
+<pre class="line-numbers language-yaml" data-language="yaml"><code class="language-yaml"><span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> v1
+<span class="token key atrule">kind</span><span class="token punctuation">:</span> Pod
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+  <span class="token key atrule">labels</span><span class="token punctuation">:</span>
+    <span class="token key atrule">app</span><span class="token punctuation">:</span> nginx
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> nginx
+<span class="token key atrule">spec</span><span class="token punctuation">:</span>
+  <span class="token key atrule">containers</span><span class="token punctuation">:</span>
+  <span class="token punctuation">-</span> <span class="token key atrule">image</span><span class="token punctuation">:</span> nginx
+    <span class="token key atrule">name</span><span class="token punctuation">:</span> nginx
+    <span class="token key atrule">resources</span><span class="token punctuation">:</span>
+      <span class="token key atrule">limits</span><span class="token punctuation">:</span>
+        <span class="token key atrule">cpu</span><span class="token punctuation">:</span> <span class="token string">"500m"</span>
+        <span class="token key atrule">memory</span><span class="token punctuation">:</span> <span class="token string">"128Mi"</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<h4 id="健康检查"><a href="#健康检查" class="headerlink" title="健康检查"></a>健康检查</h4><p>Kubernetes 作为一个面向应用的集群管理工具，需要确保容器在部署后确实处在正常的运行状态。</p>
+<ol>
+<li>探针类型：</li>
+</ol>
+<ul>
+<li>LivenessProbe<ul>
+<li>探测应用是否处于健康状态，如果不健康则删除并重新创建容器。</li>
+</ul>
+</li>
+<li>ReadinessProbe<ul>
+<li>探测应用是否就绪并且处于正常服务状态，如果不正常则不会接收来自 Kubernetes Service 的流量。</li>
+</ul>
+</li>
+<li>StartupProbe<ul>
+<li>探测应用是否启动完成，如果在 <code>failureThreshold * periodSeconds</code> 周期内未就绪，则会应用进程会被重启。</li>
+</ul>
+</li>
+</ul>
+<ol>
+<li>探活方式：</li>
+</ol>
+<ul>
+<li>Exec</li>
+<li>TCP socket</li>
+<li>HTTP</li>
+</ul>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/健康检查spec.png" alt="健康检查spec"></p>
+<h4 id="ConfigMap"><a href="#ConfigMap" class="headerlink" title="ConfigMap"></a>ConfigMap</h4><ul>
+<li>ConfigMap 用来将非机密性的数据保存到键值对中。</li>
+<li>使用时， Pods 可以将其用作环境变量、命令行参数或者存储卷中的配置文件。</li>
+<li>ConfigMap 将环境配置信息和容器镜像解耦，便于应用配置的修改。</li>
+</ul>
+<h4 id="密钥对象（Secret）"><a href="#密钥对象（Secret）" class="headerlink" title="密钥对象（Secret）"></a>密钥对象（Secret）</h4><ul>
+<li>Secret 是用来保存和传递密码、密钥、认证凭证这些敏感信息的对象。</li>
+<li>使用 Secret 的好处是可以避免把敏感信息明文写在配置文件里。</li>
+<li>Kubernetes 集群中配置和使用服务不可避免的要用到各种敏感信息实现登录、认证等功能，例\如访问 AWS 存储的用户名密码。</li>
+<li>为了避免将类似的敏感信息明文写在所有需要使用的配置文件中，可以将这些信息存入一个 Secret 对象，而在配置文件中通过 Secret 对象引用这些敏感信息。</li>
+<li>这种方式的好处包括：意图明确，避免重复，减少暴漏机会。</li>
+</ul>
+<h4 id="用户（User-Account）-amp-服务帐户（Service-Account）"><a href="#用户（User-Account）-amp-服务帐户（Service-Account）" class="headerlink" title="用户（User Account）&amp; 服务帐户（Service Account）"></a>用户（User Account）&amp; 服务帐户（Service Account）</h4><ul>
+<li>顾名思义，用户帐户为人提供账户标识，而服务账户为计算机进程和 Kubernetes 集群中运行的 Pod 提供账户标识。</li>
+<li>用户帐户和服务帐户的一个区别是作用范围：<ul>
+<li>用户帐户对应的是人的身份，人的身份与服务的 Namespace 无关，所以用户账户是跨 Namespace 的；</li>
+<li>而服务帐户对应的是一个运行中程序的身份，与特定 Namespace 是相关的。</li>
+</ul>
+</li>
+</ul>
+<h4 id="Service"><a href="#Service" class="headerlink" title="Service"></a>Service</h4><p>Service 是应用服务的抽象，通过 labels 为应用提供负载均衡和服务发现。匹配 labels 的 Pod IP 和端口列表组成 <code>endpoints</code>，由 Kube-proxy 负责将服务 IP 负载均衡到这些 endpoints 上。</p>
+<p>每个 Service 都会自动分配一个 cluster IP（仅在集群内部可访问的虚拟地址）和 DNS 名，其他容器可以通过该地址或 DNS 来访问服务，而不需要了解后端容器的运行。</p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/Service.png" alt="Service"></p>
+<pre class="line-numbers language-yaml" data-language="yaml"><code class="language-yaml"><span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> v1
+<span class="token key atrule">kind</span><span class="token punctuation">:</span> Service
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> nginx
+<span class="token key atrule">spec</span><span class="token punctuation">:</span>
+  <span class="token key atrule">ports</span><span class="token punctuation">:</span>
+  <span class="token punctuation">-</span> <span class="token key atrule">port</span><span class="token punctuation">:</span> <span class="token number">8078</span> <span class="token comment"># the port that this service should serve on</span>
+    <span class="token key atrule">name</span><span class="token punctuation">:</span> http
+    <span class="token comment"># the container on each pod to connect to, can be a name</span>
+    <span class="token comment"># (e.g. 'www') or a number (e.g. 80)</span>
+    <span class="token key atrule">targetPort</span><span class="token punctuation">:</span> <span class="token number">80</span>
+    <span class="token key atrule">protocol</span><span class="token punctuation">:</span> TCP
+  <span class="token key atrule">selector</span><span class="token punctuation">:</span>
+    <span class="token key atrule">app</span><span class="token punctuation">:</span> nginx<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<h4 id="副本集（Replica-Set）"><a href="#副本集（Replica-Set）" class="headerlink" title="副本集（Replica Set）"></a>副本集（Replica Set）</h4><ul>
+<li>Pod 只是单个应用实例的抽象，要构建高可用应用，通常需要构建多个同样的副本，提供同一个服务。</li>
+<li>Kubernetes 为此抽象出副本集 ReplicaSet，其允许用户定义 Pod 的副本数，每一个 Pod 都会被当作一个无状态的成员进行管理，Kubernetes 保证总是有用户期望的数量的 Pod 正常运行。</li>
+<li>当某个副本宕机以后，控制器将会创建一个新的副本。</li>
+<li>当因业务负载发生变更而需要调整扩缩容时，可以方便地调整副本数量。</li>
+</ul>
+<p>RS 创建出来的名字分为三个部分，如：<code>nginx-deploy-59dc7f9d89-k9rj9</code></p>
+<ol>
+<li>第一个部分 <code>nginx-deploy</code> 是 deployment 的名字。</li>
+<li>第二个部分 <code>59dc7f9d89</code> 是配置字符串的 hash 值。</li>
+<li>第三个部分 <code>k9rj9</code> 是随机值，因为是无状态的，所以给任何值都是可以的。</li>
+</ol>
+<h4 id="部署（Deployment）"><a href="#部署（Deployment）" class="headerlink" title="部署（Deployment）"></a>部署（Deployment）</h4><ul>
+<li>部署表示用户对 Kubernetes 集群的一次更新操作。</li>
+<li>部署是一个比 RS 应用模式更广的 API 对象，可以是创建一个新的服务，更新一个新的服务，也可以是滚动升级一个服务。</li>
+<li>滚动升级一个服务，实际是创建一个新的 RS，然后逐渐将新 RS 中副本数增加到理想状态，将旧 RS 中的副本数减小到 0 的复合操作。</li>
+<li>这样一个复合操作用一个 RS 是不太好描述的，所以用一个更通用的 Deployment 来描述。</li>
+<li>以 Kubernetes 的发展方向，未来对所有长期伺服型的的业务的管理，都会通过 Deployment 来管理。</li>
+</ul>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/Deployment.png" alt="Deployment"></p>
+<h4 id="有状态服务集（StatefulSet）"><a href="#有状态服务集（StatefulSet）" class="headerlink" title="有状态服务集（StatefulSet）"></a>有状态服务集（StatefulSet）</h4><ul>
+<li>对于 StatefulSet 中的 Pod，每个 Pod 挂载自己独立的存储，如果一个 Pod 出现故障，从其他节点启动一个同样名字的 Pod，要挂载上原来 Pod 的存储继续以它的状态提供服务。</li>
+<li>适合于 StatefulSet 的业务包括数据库服务 MySQL 和 PostgreSQL，集群化管理服务 ZooKeeper、etcd 等有状态服务。</li>
+<li>使用 StatefulSet，Pod 仍然可以通过漂移到不同节点提供高可用，而存储也可以通过外挂的存储来提供高可靠性，StatefulSet 做的只是将确定的 Pod 与确定的存储关联起来保证状态的连续性。</li>
+</ul>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/StatefulSet.png" alt="StatefulSet"></p>
+<h4 id="Statefulset-与Deployment-的差异"><a href="#Statefulset-与Deployment-的差异" class="headerlink" title="Statefulset 与Deployment 的差异"></a>Statefulset 与Deployment 的差异</h4><ul>
+<li>身份标识<ul>
+<li>StatefulSet Controller 为每个 Pod 编号，序号从 0 开始。</li>
+</ul>
+</li>
+<li>数据存储<ul>
+<li>StatefulSet 允许用户定义volumeClaimTemplates，Pod 被创建的同时，Kubernetes 会以 volumeClaimTemplates 中定义的模板创建存储卷，并挂载给Pod。</li>
+</ul>
+</li>
+<li>StatefulSet 的升级策略不同<ul>
+<li>onDelete</li>
+<li>滚动升级</li>
+<li>分片升级</li>
+</ul>
+</li>
+</ul>
+<h4 id="任务（Job）"><a href="#任务（Job）" class="headerlink" title="任务（Job）"></a>任务（Job）</h4><ul>
+<li>Job 是 Kubernetes 用来控制批处理型任务的 API 对象。</li>
+<li>Job 管理的 Pod 根据用户的设置把任务成功完成后就自动退出。</li>
+<li>成功完成的标志根据不同的 spec.completions 策略而不同：<ul>
+<li>单 Pod 型任务有一个 Pod 成功就标志完成；</li>
+<li>定数成功型任务保证有 N 个任务全部成功；</li>
+<li>工作队列型任务根据应用确认的全局成功而标志成功。</li>
+</ul>
+</li>
+</ul>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/Job.png" alt="Job"></p>
+<h4 id="后台支撑服务集（DaemonSet）"><a href="#后台支撑服务集（DaemonSet）" class="headerlink" title="后台支撑服务集（DaemonSet）"></a>后台支撑服务集（DaemonSet）</h4><ul>
+<li>长期伺服型和批处理型服务的核心在业务应用，可能有些节点运行多个同类业务的 Pod，有些节点上又没有这类 Pod 运行；</li>
+<li>而后台支撑型服务的核心关注点在 Kubernetes 集群中的节点（物理机或虚拟机），要保证每个节点上都有一个此类 Pod 运行。</li>
+<li>节点可能是所有集群节点也可能是通过 nodeSelector 选定的一些特定节点。</li>
+<li>典型的后台支撑型服务包括存储、日志和监控等在每个节点上支撑 Kubernetes 集群运行的服务。</li>
+</ul>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/DaemonSet.png" alt="DaemonSet"></p>
+<h4 id="存储-PV-和-PVC"><a href="#存储-PV-和-PVC" class="headerlink" title="存储 PV 和 PVC"></a>存储 PV 和 PVC</h4><ul>
+<li>PersistentVolume（PV）是集群中的一块存储卷，可以由管理员手动设置，或当用户创建 PersistentVolumeClaim（PVC）时根据 StorageClass 动态设置。</li>
+<li>PV 和 PVC 与 Pod 生命周期无关。也就是说，当 Pod 中的容器重新启动、Pod 重新调度或者删除时，PV 和 PVC 不会受到影响，Pod 存储于 PV 里的数据得以保留。</li>
+<li>对于不同的使用场景，用户通常需要不同属性（例如性能、访问模式等）的 PV。</li>
+</ul>
+<h4 id="CustomResourceDefinition"><a href="#CustomResourceDefinition" class="headerlink" title="CustomResourceDefinition"></a>CustomResourceDefinition</h4><ul>
+<li>CRD 就像数据库的开放式表结构，允许用户自定义 Schema。</li>
+<li>有了这种开放式设计，用户可以基于 CRD 定义一切需要的模型，满足不同业务的需求。</li>
+<li>社区鼓励基于 CRD 的业务抽象，众多主流的扩展应用都是基于 CRD 构建的，比如 Istio、Knative。</li>
+<li>甚至基于 CRD 推出了 Operator Mode 和 Operator SDK，可以以极低的开发成本定义新对象，并构建新对象的控制器。</li>
+</ul>
 
                 
             </div>
