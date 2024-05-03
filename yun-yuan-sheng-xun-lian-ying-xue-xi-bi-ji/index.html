@@ -406,14 +406,14 @@
                 
                 <div class="info-break-policy">
                     <i class="far fa-file-word fa-fw"></i>文章字数:&nbsp;&nbsp;
-                    15.6k
+                    19.6k
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-clock fa-fw"></i>阅读时长:&nbsp;&nbsp;
-                    61 分
+                    77 分
                 </div>
                 
 
@@ -1400,21 +1400,13 @@ storage-provisioner                <span class="token number">1</span>/1     Run
 <span class="token comment"># 进入集群 etcd 所在的容器</span>
 <span class="token operator">&gt;</span> kubectl -n kube-system <span class="token builtin class-name">exec</span> -it etcd-minikube /bin/sh
 
+<span class="token operator">&gt;</span> <span class="token builtin class-name">alias</span> <span class="token assign-left variable">etcdctl</span><span class="token operator">=</span><span class="token string">"etcdctl --endpoints https://localhost:2379 --cacert=/var/lib/minikube/certs/etcd/ca.crt --cert=/var/lib/minikube/certs/etcd/server.crt --key=/var/lib/minikube/certs/etcd/server.key"</span>
+
 <span class="token comment"># 查看 etcd 中的数据</span>
-<span class="token operator">&gt;</span> etcdctl <span class="token punctuation">\</span>
-    --endpoints https://localhost:2379 <span class="token punctuation">\</span>
-    --cacert<span class="token operator">=</span>/var/lib/minikube/certs/etcd/ca.crt <span class="token punctuation">\</span>
-    --cert /var/lib/minikube/certs/etcd/server.crt <span class="token punctuation">\</span>
-    --key /var/lib/minikube/certs/etcd/server.key <span class="token punctuation">\</span>
-    get --prefix / --keys-only
+<span class="token operator">&gt;</span> etcdctl get --prefix / --keys-only
 
 <span class="token comment"># 监听 default 命名空间中名为 nginx-svc 的 service 的变化</span>
-etcdctl <span class="token punctuation">\</span>
-    --endpoints https://localhost:2379 <span class="token punctuation">\</span>
-    --cacert<span class="token operator">=</span>/var/lib/minikube/certs/etcd/ca.crt <span class="token punctuation">\</span>
-    --cert /var/lib/minikube/certs/etcd/server.crt <span class="token punctuation">\</span>
-    --key /var/lib/minikube/certs/etcd/server.key <span class="token punctuation">\</span>
-    <span class="token function">watch</span> --prefix /registry/services/specs/default/nginx-svc<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<span class="token operator">&gt;</span> etcdctl <span class="token function">watch</span> --prefix /registry/services/specs/default/nginx-svc<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
 <h4 id="APIServer"><a href="#APIServer" class="headerlink" title="APIServer"></a>APIServer</h4><p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/APIServer.png" alt="APIServer"></p>
 <h4 id="APIServer-展开"><a href="#APIServer-展开" class="headerlink" title="APIServer 展开"></a>APIServer 展开</h4><p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/APIServer展开.png" alt="APIServer展开"></p>
 <h4 id="Controller-Manager"><a href="#Controller-Manager" class="headerlink" title="Controller Manager"></a>Controller Manager</h4><ul>
@@ -1832,6 +1824,237 @@ deployment <span class="token string">"nginx"</span> resource requirements updat
 <li>社区鼓励基于 CRD 的业务抽象，众多主流的扩展应用都是基于 CRD 构建的，比如 Istio、Knative。</li>
 <li>甚至基于 CRD 推出了 Operator Mode 和 Operator SDK，可以以极低的开发成本定义新对象，并构建新对象的控制器。</li>
 </ul>
+<h2 id="Kubernetes-控制平面组件"><a href="#Kubernetes-控制平面组件" class="headerlink" title="Kubernetes 控制平面组件"></a>Kubernetes 控制平面组件</h2><h3 id="etcd-1"><a href="#etcd-1" class="headerlink" title="etcd"></a>etcd</h3><p>Etcd是 CoreOS 基于 Raft 开发的分布式 key value 存储，可用于服务发现、共享配置以及一致性保障（如数据库选主、分布式锁等）。</p>
+<p>在分布式系统中，如何管理节点间的状态一直是一个难题，etcd 像是专门为集群环境的服务发现和注册而设计，它提供了数据 TTL 失效、数据改变监视、多值、目录监听、分布式锁原子操作等功能，可以方便的跟踪并管理集群节点的状态。</p>
+<ul>
+<li>键值对存储：将数据存储在分层组织的目录中，如同在标准文件系统中</li>
+<li>监测变更：监测特定的键或目录以进行更改，并对值的更改做出反应</li>
+<li>简单 curl 可访问的用户的 API HTTP+JSON</li>
+<li>安全 : 可选的 SSL 客户端证书认证</li>
+<li>快速 : 单实例每秒 1000 次写操作， 2000+ 次读操作</li>
+<li>可靠 : 使用 Raft 算法保证一致性</li>
+</ul>
+<h4 id="主要功能"><a href="#主要功能" class="headerlink" title="主要功能"></a>主要功能</h4><ul>
+<li>基本的 key value 存储</li>
+<li>监听机制</li>
+<li>key 的过期及续约机制，用于监控和服务发现</li>
+<li>原子 Compare And Swap 和 Compare And Delete ，用于分布式锁和 leader 选举</li>
+</ul>
+<h4 id="使用场景"><a href="#使用场景" class="headerlink" title="使用场景"></a>使用场景</h4><ul>
+<li>也可以用于键值对存储，应用程序可以读取和写入 etcd 中的数据</li>
+<li>etcd 比较多的应用场景是用于服务注册与发现</li>
+<li>基于监听机制的分布式异步系统</li>
+</ul>
+<h4 id="键值对存储"><a href="#键值对存储" class="headerlink" title="键值对存储"></a>键值对存储</h4><p>etcd 是一个 <strong>键值存储</strong> 的组件，其他的应用都是基于其键值存储的功能展开。</p>
+<ul>
+<li>采用 kv 型数据存储，一般情况下比关系型数据库快。</li>
+<li>支持动态存储（内存）以及静态存储（磁盘）。</li>
+<li>分布式存储，可集成为多节点集群。</li>
+<li>存储方式，采用类似目录结构。（B+tree）</li>
+<li>只有叶子节点才能真正存储数据，相当于文件。</li>
+<li>叶子节点的父节点一定是目录，目录不能存储数据。</li>
+</ul>
+<h4 id="服务注册与发现"><a href="#服务注册与发现" class="headerlink" title="服务注册与发现"></a>服务注册与发现</h4><ul>
+<li>强一致性、高可用的服务存储目录。<ul>
+<li>基于 Raft 算法的 etcd 天生就是这样一个强一致性、高可用的服务存储目录。</li>
+</ul>
+</li>
+<li>一种注册服务和服务健康状况的机制。<ul>
+<li>用户可以在 etcd 中注册服务，并且对注册的服务配置 key TTL 定时保持服务的心跳以达到监控健康状态的效果。</li>
+</ul>
+</li>
+</ul>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/etcd服务注册与发现.png" alt="etcd服务注册与发现"></p>
+<h4 id="消息发布与订阅"><a href="#消息发布与订阅" class="headerlink" title="消息发布与订阅"></a>消息发布与订阅</h4><ul>
+<li>在分布式系统中，最适用的一种组件间通信方式就是消息发布与订阅。</li>
+<li>即构建一个配置共享中心，数据提供者在这个配置中心发布消息，而消息使用者则订阅他们关心的主题，一旦主题有消息发布，就会实时通知订阅者。</li>
+<li>通过这种方式可以做到分布式系统配置的集中式管理与动态更新。</li>
+<li>应用中用到的一些配置信息放到 etcd 上进行集中管理。</li>
+<li>应用在启动的时候主动从 etcd 获取一次配置信息，同时，在 etcd 节点上注册一个 Watcher 并等待，以后每次配置有更新的时候， etcd 都会实时通知订阅者，以此达到获取最新配置信息的目的。</li>
+</ul>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/etcd消息发布与订阅.png" alt="etcd消息发布与订阅"></p>
+<h4 id="etcd-练习"><a href="#etcd-练习" class="headerlink" title="etcd 练习"></a>etcd 练习</h4><blockquote>
+<p><a target="_blank" rel="noopener" href="https://github.com/cncamp/101/blob/master/module5/1.etcd-member-list.MD">etcd 的安装</a></p>
+</blockquote>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">查看集群成员状态
+<span class="token operator">&gt;</span> etcdctl member list <span class="token function">write</span> <span class="token assign-left variable">out</span><span class="token operator">=</span>table
++------------------+---------+----------+---------------------------+---------------------------+------------+
+<span class="token operator">|</span>        ID        <span class="token operator">|</span> STATUS  <span class="token operator">|</span>   NAME   <span class="token operator">|</span>        PEER ADDRS         <span class="token operator">|</span>       CLIENT ADDRS        <span class="token operator">|</span> IS LEARNER <span class="token operator">|</span>
++------------------+---------+----------+---------------------------+---------------------------+------------+
+<span class="token operator">|</span> aec36adc501070cc <span class="token operator">|</span> started <span class="token operator">|</span> minikube <span class="token operator">|</span> https://192.168.49.2:2380 <span class="token operator">|</span> https://192.168.49.2:2379 <span class="token operator">|</span>      <span class="token boolean">false</span> <span class="token operator">|</span>
++------------------+---------+----------+---------------------------+---------------------------+------------+
+
+<span class="token comment"># 写</span>
+<span class="token operator">&gt;</span> etcdctl put /a b
+OK
+
+<span class="token comment"># 读</span>
+<span class="token operator">&gt;</span> etcdctl get /a
+/a
+b
+
+<span class="token operator">&gt;</span> etcdctl get /a -wjson
+<span class="token punctuation">{</span><span class="token string">"header"</span>:<span class="token punctuation">{</span><span class="token string">"cluster_id"</span>:18038207397139142846,<span class="token string">"member_id"</span>:12593026477526642892,<span class="token string">"revision"</span>:23279,<span class="token string">"raft_term"</span>:4<span class="token punctuation">}</span>,<span class="token string">"kvs"</span>:<span class="token punctuation">[</span><span class="token punctuation">{</span><span class="token string">"key"</span><span class="token builtin class-name">:</span><span class="token string">"L2E="</span>,<span class="token string">"create_revision"</span>:11164,<span class="token string">"mod_revision"</span>:11164,<span class="token string">"version"</span>:1,<span class="token string">"value"</span><span class="token builtin class-name">:</span><span class="token string">"Yg=="</span><span class="token punctuation">}</span><span class="token punctuation">]</span>,<span class="token string">"count"</span>:1<span class="token punctuation">}</span>
+
+<span class="token comment"># 按 key 的前缀查询数据</span>
+<span class="token operator">&gt;</span> etcdctl get --prefix /
+<span class="token operator">&gt;</span> etcdctl get --prefix / --keys-only --debug<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<h4 id="核心：TTL-amp-CAS"><a href="#核心：TTL-amp-CAS" class="headerlink" title="核心：TTL &amp; CAS"></a>核心：TTL &amp; CAS</h4><p>TTL（time to live）指的是给一个 key 设置一个有效期，到期后这个 key 就会被自动删掉，这在很多分布式锁的实现上都会用到，可以保证锁的实时有效性。<br>Atomic Compare and Swap（CAS）指的是在对 key 进行赋值的时候，客户端需要提供一些条件，当这些条件满足后，才能赋值成功。这些条件包括：</p>
+<ul>
+<li>prevExist key 当前赋值前是否存在</li>
+<li>prevValue key 当前赋值前的值</li>
+<li>prevIndex key 当前赋值前的 Index</li>
+</ul>
+<p>这样的话，key 的设置是有前提的，需要知道这个 key 当前的具体情况才可以对其设置。</p>
+<h3 id="Raft-协议"><a href="#Raft-协议" class="headerlink" title="Raft 协议"></a>Raft 协议</h3><h4 id="Raft-协议概览"><a href="#Raft-协议概览" class="headerlink" title="Raft 协议概览"></a>Raft 协议概览</h4><p>Raft 协议基于 quorum 机制，即大多数同意原则，任何的变更都需超过半数的成员确认</p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/Raft协议概览.png" alt="Raft协议概览"></p>
+<h4 id="理解-Raft-协议"><a href="#理解-Raft-协议" class="headerlink" title="理解 Raft 协议"></a>理解 Raft 协议</h4><p><a target="_blank" rel="noopener" href="http://thesecretlivesofdata.com/raft/">http://thesecretlivesofdata.com/raft/</a></p>
+<h4 id="learner"><a href="#learner" class="headerlink" title="learner"></a>learner</h4><p>Raft 4.2.1 引入的新角色</p>
+<p>当出现一个 etcd 集群 需要增加节点 时 ，新节点与 Leader 的数据差异较大，需要较多数据同步才能跟上 leader 的最新的数据。</p>
+<p>此时 Leader 的网络带宽很可能被用尽，进而使得 leader 无法正常保持心跳。</p>
+<p>进而导致 follower 重新发起投票 。</p>
+<p>进而可能引发 etcd 集群不可用 。</p>
+<p>Learner 角色只接收数据而不参与投票 ，因此增加 learner 节点时，集群的 quorum 不变 。</p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/EtcdLearner.png" alt="EtcdLearner"></p>
+<h4 id="etcd-基于-Raft-的一致性"><a href="#etcd-基于-Raft-的一致性" class="headerlink" title="etcd 基于 Raft 的一致性"></a>etcd 基于 Raft 的一致性</h4><p>选举方法</p>
+<ul>
+<li>初始启动时，节点处于 follower 状态并被设定一个 election timeout ，如果在这一时间周期内没有收到来自 leader 的 heartbeat ，节点将发起选举：将自己切换为 candidate 之后，向集群中其它 follower 节点发送请求，询问其是否选举自己成为 leader 。</li>
+<li>当收到来自集群中过半数节点的接受投票后，节点即成为 leader ，开始接收保存 client 的数据并向其它的 follower 节点同步日志。如果没有达成一致，则 candidate 随机选择一个等待间隔（ 150ms ~ 300ms ）再次发起投票，得到集群中半数以上 follower 接受的 candidate 将成为 leader</li>
+<li>leader 节点依靠定时向 follower 发送 heartbeat 来保持其地位。</li>
+<li>任何时候如果其它 follower 在 election timeout 期间都没有收到来自 leader 的 heartbeat ，同样会将自己的状态切换为 candidate 并发起选举。每成功选举一次，新 leader 的任期（ Term ）都会比之前 leader 的任期大 1 。</li>
+</ul>
+<h4 id="日志复制"><a href="#日志复制" class="headerlink" title="日志复制"></a>日志复制</h4><p>当接 Leader 收到客户端的日志（事务请求）后先把该日志追加到本地的 Log 中，然后通过 heartbeat 把该 Entry 同步给其他 Follower Follower 接收到日志后记录日志然后向 Leader 发送 ACK ，当 Leader 收到大多数（ n/2+1 Follower 的 ACK 信息后将该日志设置为已提交并追加到本地磁盘中，通知客户端并在下个 heartbeat 中 Leader 将通知所有的 Follower 将该日志存储在自己的本地磁盘中。</p>
+<h4 id="安全性"><a href="#安全性" class="headerlink" title="安全性"></a>安全性</h4><p>安全性是用于保证每个节点都执行相同序列的安全机制，如当某个 Follower 在当前 Leader commit Log 时变得不可用了，稍后可能该 Follower 又会被选举为 Leader ，这时新 Leader 可能会用新的 Log 覆盖先前已 committed 的 Log ，这就是导致节点执行不同序列 Safety 就是用于保证选举出来的 Leader 一定包含先前 committed Log 的机制；</p>
+<p>选举安全性（Election Safety ）：每个任期（Term）只能选举出一个 Leader</p>
+<p>Leader完整性（ Leader Completeness ）：指 Leader 日志的完整性，当 Log 在任期 Term1 被 Commit 后，那么以后任期 Term2 、 Term3… 等的 Leader 必须包含该 Log Raft 在选举阶段就使用 Term 的判断用于保证完整性：当请求投票的该 Candidate 的 Term 较大或 Term 相同 Index 更大则投票，否则拒绝该请求。</p>
+<h4 id="失效处理"><a href="#失效处理" class="headerlink" title="失效处理"></a>失效处理</h4><ol>
+<li>Leader 失效：其他没有收到 heartbeat 的节点会发起新的选举，而当 Leader 恢复后由于步进数小会自动成为 follower （日志也会被新 leader 的日志覆盖）</li>
+<li>follower 节点不可用： follower 节点不可用的情况相对容易解决。因为集群中的日志内容始终是从 leader 节点同步的，只要这一节点再次加入集群时重新从 leader 节点处制日志即可。</li>
+<li>多个 candidate ：冲突后 candidate 将随机选择一个等待间隔（ 150ms ~ 300ms ）再次发起投票，得到集群中半数以上 follower 接受的 candidate 将成为 leader</li>
+</ol>
+<h4 id="wal-日志"><a href="#wal-日志" class="headerlink" title="wal 日志"></a>wal 日志</h4><p>wal 日志是二进制的，解析出来后是以上数据结构 LogEntry 。其中第一个字段 type ，只有两种。一种是 0 表示 Normal 1 表示 ConfChange ConfChange 表示 Etcd 本身的配置变更同步，比如有新的节点加入等）。第二个字段是 term ，每个 term 代表一个主节点的任期，每次主节点变更 term 就会变化。第三个字段是 index ，这个序号是严格有序递增的，代表变更序号。第四个字段是二进制的 data ，将 raft request 对象的 pb 结构整个保存下。 etcd 源码下有个 tools/etcd dump logs ，可以将 wal 日志 dump 成文本查看，可以协助分析 Raft 协议。</p>
+<p>Raft 协议本身不关心应用数据，也就是 data 中的部分，一致性都通过同步 wal 日志来实现，每个节点将从主节点收到的 data apply 到本地的存储， Raft 只关心日志的同步状态，如果本地存储实现的有 bug ，比如没有正确的将 data apply 到本地，也可能会导致数据不一致。</p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/EtcdLogEntry.png" alt="EtcdLogEntry"></p>
+<h4 id="etcd-v3-存储"><a href="#etcd-v3-存储" class="headerlink" title="etcd v3 存储"></a>etcd v3 存储</h4><p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/EtcdV3存储.png" alt="EtcdV3存储"></p>
+<h4 id="存储机制"><a href="#存储机制" class="headerlink" title="存储机制"></a>存储机制</h4><p>etcd v3 store 分为两部分，一部分是内存中的索引， kvindex ，是基于 Google 开源的一个 Golang 的 btree 实现的，另外一部分是后端存储。按照它的设计， backend 可以对接多种存储，当前使用的 boltdb 。 boltdb 是一个单机的支持事务的 kv 存储， etcd 的事务是基于 boltdb 的事务实现的。 etcd 在 boltdb 中存储的 key 是 reversion value 是 etcd 自己的 key value 组合，也就是说 etcd 会在 boltdb 中把每个版本都保存下，从而实现了多版本机制。</p>
+<p>reversion 主要由两部分组成，第一部分 main rev ，每次事务进行加一，第二部分 sub rev ，同一个事务中的每次操作加一。</p>
+<p>etcd 提供了命令和设置选项来控制 compact ，同时支持 put 操作的参数来精确控制某个 key 的历史版本数。</p>
+<p>内存 kvindex 保存的就是 key 和 reversion 之前的映射关系，用来加速查询。</p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/Etcd存储机制.png" alt="Etcd存储机制"></p>
+<h4 id="Watch-机制"><a href="#Watch-机制" class="headerlink" title="Watch 机制"></a>Watch 机制</h4><p>etcd v3 的 watch 机制支持 watch 某个固定的 key ，也支持 watch 一个范围（可以用于模拟目录的结构的 watch ），所以 watchGroup 包含两种 watcher ，一种是 key watchers ，数据结构是每个 key 对应一组 watcher ，另外一种是 range watchers, 数据结构是一个 IntervalTree ，方便通过区间查找到对应的 watcher 。</p>
+<p>同时，每个 WatchableStore 包含两种 watcherGroup ，一种是 synced ，一种是 unsynced 前者表示该 group 的 watcher 数据都已经同步完毕，在等待新的变更，后者表示该 group 的 watcher 数据同步落后于当前最新变更，还在追赶。</p>
+<p>当 etcd 收到客户端的 watch 请求，如果请求携带了 revision 参数，则比较请求的 revision 和 store 当前的 revision ，如果大于当前 revision ，则放入 synced 组中，否则放入 unsynced 组。同时 etcd 会启动一个后台的 goroutine 持续同步 unsynced 的 watcher ，然后将其迁移到 synced 组。也就是这种机制下， etcd v3 支持从任意版本开始 watch ，没有 v2 的 1000 条历史 event 表限制的问题（当然这是指没有 compact 的情况下）</p>
+<h4 id="etcd-重要参数"><a href="#etcd-重要参数" class="headerlink" title="etcd 重要参数"></a>etcd 重要参数</h4><pre class="line-numbers language-txt" data-language="txt"><code class="language-txt">成员相关参数
+  --name 'default'
+    Human-readable name for this member.
+  --data-dir '${name}.etcd'
+    Path to the data directory.
+  --listen-peer-urls 'http://localhost:2380'
+    List of URLs to listen on for peer traffic.
+  --listen-client-urls 'http://localhost:2379'
+    List of URLs to listen on for client grpc traffic and http as long as --listen-client-http-urls is not specified.
+
+集群相关参数
+  --initial-advertise-peer-urls 'http://localhost:2380'
+    List of this member's peer URLs to advertise to the rest of the cluster.
+  --initial-cluster 'default=http://localhost:2380'
+    Initial cluster configuration for bootstrapping.
+  --initial-cluster-state 'new'
+    Initial cluster state ('new' when bootstrapping a new cluster or 'existing' when adding new members to an existing cluster).
+    After successful initialization (bootstrapping or adding), flag is ignored on restarts.
+  --initial-cluster-token 'etcd-cluster'
+    Initial cluster token for the etcd cluster during bootstrap.
+    Specifying this can protect you from unintended cross-cluster interaction when running multiple clusters.
+  --advertise-client-urls 'http://localhost:2379'
+    List of this member's client URLs to advertise to the public.
+    The client URLs advertised should be accessible to machines that talk to etcd cluster. etcd client libraries parse these URLs to connect to the cluster.
+
+安全相关参数
+  --cert-file ''
+    Path to the client server TLS cert file.
+  --key-file ''
+    Path to the client server TLS key file.
+  --client-crl-file ''
+    Path to the client certificate revocation list file.
+  --trusted-ca-file ''
+    Path to the client server TLS trusted CA cert file.
+  --peer-cert-file ''
+    Path to the peer server TLS cert file.
+  --peer-key-file ''
+    Path to the peer server TLS key file.
+  --peer-trusted-ca-file ''
+    Path to the peer server TLS trusted CA file.<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<h4 id="灾备"><a href="#灾备" class="headerlink" title="灾备"></a>灾备</h4><p>创建 Snapshot：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">etcdctl snapshot save snapshot.db<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>恢复数据</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">etcdctl snapshot restore snapshot.db <span class="token punctuation">\</span>
+    --name infra2 <span class="token punctuation">\</span>
+    --data-dir<span class="token operator">=</span>/tmp/etcd/infra2 <span class="token punctuation">\</span>
+    --initial-cluster <span class="token assign-left variable">infra0</span><span class="token operator">=</span>http://127.0.0.1:3380,infra1<span class="token operator">=</span>http://127.0.0.1:4380,infra2<span class="token operator">=</span>http://127.0.0.1:5380 <span class="token punctuation">\</span>
+    --initial-cluster-token etcd-cluster-1 <span class="token punctuation">\</span>
+    --initial-advertise-peer-urls http://127.0.0.1:5380<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<h4 id="容量管理"><a href="#容量管理" class="headerlink" title="容量管理"></a>容量管理</h4><ul>
+<li>单个对象不建议超过 1.5M</li>
+<li>默认容量 2G</li>
+<li>不建议超过 8G</li>
+</ul>
+<h4 id="Alarm-amp-Disarm-Alarm"><a href="#Alarm-amp-Disarm-Alarm" class="headerlink" title="Alarm &amp; Disarm Alarm"></a>Alarm &amp; Disarm Alarm</h4><p>设置 etcd 存储大小</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">etcd --quota-backend-bytes<span class="token operator">=</span><span class="token variable"><span class="token variable">$((</span><span class="token number">16</span><span class="token operator">*</span><span class="token number">1024</span><span class="token operator">*</span><span class="token number">1024</span><span class="token variable">))</span></span><span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>写爆磁盘</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token keyword">while</span> <span class="token punctuation">[</span> <span class="token number">1</span> <span class="token punctuation">]</span><span class="token punctuation">;</span> <span class="token keyword">do</span> <span class="token function">dd</span> <span class="token assign-left variable">if</span><span class="token operator">=</span>/dev/urandom <span class="token assign-left variable">bs</span><span class="token operator">=</span><span class="token number">1024</span> <span class="token assign-left variable">count</span><span class="token operator">=</span><span class="token number">1024</span> <span class="token operator">|</span> <span class="token assign-left variable">ETCDCTL_API</span><span class="token operator">=</span><span class="token number">3</span> etcdctl put key <span class="token operator">||</span> <span class="token builtin class-name">break</span><span class="token punctuation">;</span> <span class="token keyword">done</span><span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>查看 endpoint 状态</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token assign-left variable">ETCDCTL_API</span><span class="token operator">=</span><span class="token number">3</span> etcdctl --write-out<span class="token operator">=</span>table endpoint status<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>查看 alarm</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token assign-left variable">ETCDCTL_API</span><span class="token operator">=</span><span class="token number">3</span> etcdctl alarm list<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>清理碎片</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token assign-left variable">ETCDCTL_API</span><span class="token operator">=</span><span class="token number">3</span> etcdctl defrag<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>清理 alarm</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token assign-left variable">ETCDCTL_API</span><span class="token operator">=</span><span class="token number">3</span> etcdctl alarm disarm<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<h4 id="碎片整理"><a href="#碎片整理" class="headerlink" title="碎片整理"></a>碎片整理</h4><p>Keep one hour of history</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">etcd --auto-compaction-retention<span class="token operator">=</span><span class="token number">1</span><span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>Compact up to revision 3</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token operator">&gt;</span> etcdctl compact <span class="token number">3</span>
+<span class="token operator">&gt;</span> etcdctl defrag
+Finished defragmenting etcd member<span class="token punctuation">[</span><span class="token number">127.0</span>.0.1:2379<span class="token punctuation">]</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span></span></code></pre>
+<h4 id="高可用-etcd-解决方案"><a href="#高可用-etcd-解决方案" class="headerlink" title="高可用 etcd 解决方案"></a>高可用 etcd 解决方案</h4><blockquote>
+<p><a target="_blank" rel="noopener" href="https://github.com/cncamp/101/tree/master/module5/etcd-ha-demo">https://github.com/cncamp/101/tree/master/module5/etcd-ha-demo</a></p>
+</blockquote>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/EtcdOperator.png" alt="EtcdOperator"></p>
+<p>etcd operator: coreos 开源的 ，基于 kubernetes CRD 完成 etcd 集群配置。 Archived</p>
+<p><a target="_blank" rel="noopener" href="https://github.com/coreos/etcd-operator">https://github.com/coreos/etcd-operator</a></p>
+<p>Etcd statefulset Helm chart: Bitnami (powered by vmware )</p>
+<p><a target="_blank" rel="noopener" href="https://bitnami.com/stack/etcd/helm">https://bitnami.com/stack/etcd/helm</a></p>
+<p><a target="_blank" rel="noopener" href="https://github.com/bitnami/charts/blob/master/bitnami/etcd">https://github.com/bitnami/charts/blob/master/bitnami/etcd</a></p>
+<h4 id="Kubernetes-如何使用-etcd"><a href="#Kubernetes-如何使用-etcd" class="headerlink" title="Kubernetes 如何使用 etcd"></a>Kubernetes 如何使用 etcd</h4><p>etcd 是 kubernetes 的后端存储</p>
+<p>对于每一个 kubernetes Object ，都有对应的 storage.go 负责对象的存储操作 <code>pkg/registry/core/pod/storage/storage.go</code></p>
+<p>API server 启动脚本中指定 etcd servers 集群</p>
+<pre class="line-numbers language-yaml" data-language="yaml"><code class="language-yaml"><span class="token key atrule">spec</span><span class="token punctuation">:</span>
+  <span class="token key atrule">containers</span><span class="token punctuation">:</span>
+    <span class="token punctuation">-</span> <span class="token key atrule">command</span><span class="token punctuation">:</span>
+        <span class="token punctuation">-</span> etcd
+        <span class="token punctuation">-</span> <span class="token punctuation">-</span><span class="token punctuation">-</span>advertise<span class="token punctuation">-</span>client<span class="token punctuation">-</span>urls=https<span class="token punctuation">:</span>//192.168.34.2<span class="token punctuation">:</span><span class="token number">2379</span>
+        <span class="token punctuation">-</span> <span class="token punctuation">-</span><span class="token punctuation">-</span>cert<span class="token punctuation">-</span>file=/etc/kubernetes/pki/etcd/server.crt
+        <span class="token punctuation">-</span> <span class="token punctuation">-</span><span class="token punctuation">-</span>client<span class="token punctuation">-</span>cert<span class="token punctuation">-</span>auth=true
+        <span class="token punctuation">-</span> <span class="token punctuation">-</span><span class="token punctuation">-</span>data<span class="token punctuation">-</span>dir=/var/lib/etcd
+        <span class="token punctuation">-</span> <span class="token punctuation">-</span><span class="token punctuation">-</span>initial<span class="token punctuation">-</span>advertise<span class="token punctuation">-</span>peer<span class="token punctuation">-</span>urls=https<span class="token punctuation">:</span>//192.168.34.2<span class="token punctuation">:</span><span class="token number">2380</span>
+        <span class="token punctuation">-</span> <span class="token punctuation">-</span><span class="token punctuation">-</span>initial<span class="token punctuation">-</span>cluster=cadmin=https<span class="token punctuation">:</span>//192.168.34.2<span class="token punctuation">:</span><span class="token number">2380</span>
+        <span class="token punctuation">-</span> <span class="token punctuation">-</span><span class="token punctuation">-</span>key<span class="token punctuation">-</span>file=/etc/kubernetes/pki/etcd/server.key
+        <span class="token punctuation">-</span> <span class="token punctuation">-</span><span class="token punctuation">-</span>listen<span class="token punctuation">-</span>client<span class="token punctuation">-</span>urls=https<span class="token punctuation">:</span>//127.0.0.1<span class="token punctuation">:</span><span class="token number">2379</span><span class="token punctuation">,</span>https<span class="token punctuation">:</span>//192.168.34.2<span class="token punctuation">:</span><span class="token number">2379</span>
+        <span class="token punctuation">-</span> <span class="token punctuation">-</span><span class="token punctuation">-</span>listen<span class="token punctuation">-</span>metrics<span class="token punctuation">-</span>urls=http<span class="token punctuation">:</span>//127.0.0.1<span class="token punctuation">:</span><span class="token number">2381</span>
+        <span class="token punctuation">-</span> <span class="token punctuation">-</span><span class="token punctuation">-</span>listen<span class="token punctuation">-</span>peer<span class="token punctuation">-</span>urls=https<span class="token punctuation">:</span>//192.168.34.2<span class="token punctuation">:</span><span class="token number">2380</span>
+        <span class="token punctuation">-</span> <span class="token punctuation">-</span><span class="token punctuation">-</span>name=cadmin
+        <span class="token punctuation">-</span> <span class="token punctuation">-</span><span class="token punctuation">-</span>peer<span class="token punctuation">-</span>cert<span class="token punctuation">-</span>file=/etc/kubernetes/pki/etcd/peer.crt
+        <span class="token punctuation">-</span> <span class="token punctuation">-</span><span class="token punctuation">-</span>peer<span class="token punctuation">-</span>client<span class="token punctuation">-</span>cert<span class="token punctuation">-</span>auth=true
+        <span class="token punctuation">-</span> <span class="token punctuation">-</span><span class="token punctuation">-</span>peer<span class="token punctuation">-</span>key<span class="token punctuation">-</span>file=/etc/kubernetes/pki/etcd/peer.key
+        <span class="token punctuation">-</span> <span class="token punctuation">-</span><span class="token punctuation">-</span>peer<span class="token punctuation">-</span>trusted<span class="token punctuation">-</span>ca<span class="token punctuation">-</span>file=/etc/kubernetes/pki/etcd/ca.crt
+        <span class="token punctuation">-</span> <span class="token punctuation">-</span><span class="token punctuation">-</span>snapshot<span class="token punctuation">-</span>count=10000
+        <span class="token punctuation">-</span> <span class="token punctuation">-</span><span class="token punctuation">-</span>trusted<span class="token punctuation">-</span>ca<span class="token punctuation">-</span>file=/etc/kubernetes/pki/etcd/ca.crt<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>早期 API server 对 etcd 做简单的 Ping check ，现在已经改为真实的 etcd api call</p>
+<h4 id="etcd-在集群中所处的位置"><a href="#etcd-在集群中所处的位置" class="headerlink" title="etcd 在集群中所处的位置"></a>etcd 在集群中所处的位置</h4><p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/etcd在集群中所处的位置.png" alt="etcd在集群中所处的位置"></p>
+<h4 id="集群的高可用拓扑"><a href="#集群的高可用拓扑" class="headerlink" title="集群的高可用拓扑"></a>集群的高可用拓扑</h4><h5 id="堆叠式-etcd-集群的高可用拓扑"><a href="#堆叠式-etcd-集群的高可用拓扑" class="headerlink" title="堆叠式 etcd 集群的高可用拓扑"></a>堆叠式 etcd 集群的高可用拓扑</h5><p>这种拓扑将相同节点上的控制平面和 etcd 成员耦合在一起。优点在于建立起来非常容易，并且对副本的管理也更容易。但是，堆叠式存在耦合失败的风险。如果一个节点发生故障，则 etcd 成员和控制平面实例都会丢失，并且集群冗余也会受到损害。可以通过添加更多控制平面节点来减轻这种风险。因此为实现集群高可用应该至少运行三个堆叠的 Master 节点。</p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/堆叠式etcd集群的高可用拓扑.png" alt="堆叠式etcd集群的高可用拓扑"></p>
+<h5 id="外部-etcd-集群的高可用拓扑"><a href="#外部-etcd-集群的高可用拓扑" class="headerlink" title="外部 etcd 集群的高可用拓扑"></a>外部 etcd 集群的高可用拓扑</h5><p>该拓扑将控制平面和 etcd 成员解耦。如果丢失一个 Master 节点，对 etcd 成员的影响较小，并且不会像堆叠式拓扑那样对集群冗余产生太大影响。但是，此拓扑所需的主机数量是堆叠式拓扑的两倍。具有此拓扑的群集至少需要三个主机用于控制平面节点，三个主机用于 etcd 集群。</p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/外部etcd集群的高可用拓扑.png" alt="外部etcd集群的高可用拓扑"></p>
 
                 
             </div>
