@@ -399,21 +399,21 @@
                 
                 <div class="post-date info-break-policy">
                     <i class="far fa-calendar-check fa-fw"></i>更新日期:&nbsp;&nbsp;
-                    2024-05-03
+                    2024-05-04
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-file-word fa-fw"></i>文章字数:&nbsp;&nbsp;
-                    19.6k
+                    22.5k
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-clock fa-fw"></i>阅读时长:&nbsp;&nbsp;
-                    77 分
+                    88 分
                 </div>
                 
 
@@ -2055,6 +2055,137 @@ Finished defragmenting etcd member<span class="token punctuation">[</span><span 
 <p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/堆叠式etcd集群的高可用拓扑.png" alt="堆叠式etcd集群的高可用拓扑"></p>
 <h5 id="外部-etcd-集群的高可用拓扑"><a href="#外部-etcd-集群的高可用拓扑" class="headerlink" title="外部 etcd 集群的高可用拓扑"></a>外部 etcd 集群的高可用拓扑</h5><p>该拓扑将控制平面和 etcd 成员解耦。如果丢失一个 Master 节点，对 etcd 成员的影响较小，并且不会像堆叠式拓扑那样对集群冗余产生太大影响。但是，此拓扑所需的主机数量是堆叠式拓扑的两倍。具有此拓扑的群集至少需要三个主机用于控制平面节点，三个主机用于 etcd 集群。</p>
 <p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/外部etcd集群的高可用拓扑.png" alt="外部etcd集群的高可用拓扑"></p>
+<h4 id="实践"><a href="#实践" class="headerlink" title="实践"></a>实践</h4><h5 id="etcd-集群高可用"><a href="#etcd-集群高可用" class="headerlink" title="etcd 集群高可用"></a>etcd 集群高可用</h5><p>多少个 peer 最适合？</p>
+<ul>
+<li>1 个？ 3 个？ 5 个？</li>
+<li>保证高可用是首要目标</li>
+<li>所有写操作都要经过 leader</li>
+<li>peer 多了是否能提升集群并读操作的并发能力？<ul>
+<li>apiserver 的配置只连本地的 etcd peer</li>
+<li>apiserver 的配置指定所有 etcd peers ，但只有当前连接的 etcd member 异常，apiserver 才会换目标</li>
+</ul>
+</li>
+<li>需要动态 flex up 吗？</li>
+</ul>
+<p>保证 apiserver 和 etcd 之间的高效性通讯</p>
+<ul>
+<li>apiserver 和 etcd 部署在同一节点</li>
+<li>apiserver 和 etcd 之间的通讯基于 gRPC<ul>
+<li>针对每一个 object apiserver 和 etcd 之间的 Connection —&gt; stream 共享</li>
+<li>http2 的特性<ul>
+<li>Stream quota</li>
+<li>带来的问题？对于大规模集群，会造成链路阻塞</li>
+<li>10000 个 pod ，一次 list 操作需要返回的数据可能超过 100M</li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+<h5 id="etcd-存储规划"><a href="#etcd-存储规划" class="headerlink" title="etcd 存储规划"></a>etcd 存储规划</h5><ul>
+<li>本地 vs 远程？<ul>
+<li>Remote Storage<ul>
+<li>优势是假设永远可用，现实真是如此吗？</li>
+<li>劣势是 IO 效率，可能带来的问题？</li>
+</ul>
+</li>
+<li>最佳实践：<ul>
+<li>Local SSD</li>
+<li>利用 local volume 分配空间</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>多少空间？<ul>
+<li>与集群规模相关</li>
+</ul>
+</li>
+</ul>
+<p>思考：为什么每个 member 的 DB size 不一致？</p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/Etcd各个DB大小不同.png" alt="Etcd各个DB大小不同"></p>
+<h5 id="etcd-2"><a href="#etcd-2" class="headerlink" title="etcd"></a>etcd</h5><p>安全性</p>
+<ul>
+<li>peer 和 peer 之间的通讯加密<ul>
+<li>是否有需求<ul>
+<li>TLS 的额外开销</li>
+<li>运营复杂度增加</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>数据加密<ul>
+<li>是否有需求</li>
+<li>Kubernetes 提供了针对 secret 的加密 <a target="_blank" rel="noopener" href="https://kubernetes.io/docs/tasks/administer-cluster/encrypt-data/">https://kubernetes.io/docs/tasks/administer-cluster/encrypt-data/</a></li>
+</ul>
+</li>
+</ul>
+<p>事件分离</p>
+<ul>
+<li>对于大规模集群，大量的事件会对 etcd 造成压力</li>
+<li>API server 启动脚本中指定 etcd servers 集群</li>
+</ul>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token operator">&gt;</span> ks <span class="token builtin class-name">exec</span> -it kube-apiserver-minikube -- kube-apiserver --help
+  --etcd-servers-overrides strings
+    Per-resource etcd servers overrides, comma separated. The individual override format: group/resource<span class="token comment">#servers, where servers are URLs, semicolon separated. Note that this applies only to resources compiled into this server binary.</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span></span></code></pre>
+<p>如何监控</p>
+<h5 id="减少网络延迟"><a href="#减少网络延迟" class="headerlink" title="减少网络延迟"></a>减少网络延迟</h5><ul>
+<li>数据中心内的 RTT 大概是数毫秒，国内的典型 RTT 约为 50ms ，两大洲之间的 RTT 可能慢至 400ms 。因此建议 etcd 集群尽量同地域部署。</li>
+<li>当客户端到 Leader 的并发连接数量过多，可能会导致其他 Follower 节点发往 Leader 的请求因为网络拥塞而被延迟处理。在 Follower 节点上，可能会看到这样的错误：<ul>
+<li>dropped MsgProp to 247ae21ff9436b2d since streamMsg’s sending buffer is full</li>
+</ul>
+</li>
+<li>可以在节点上通过流量控制工具（ Traffic Control ）提高 etcd 成员之间发送数据的优先级来避免。</li>
+</ul>
+<h5 id="减少磁盘-I-O-延迟"><a href="#减少磁盘-I-O-延迟" class="headerlink" title="减少磁盘 I/O 延迟"></a>减少磁盘 I/O 延迟</h5><p>对于磁盘延迟，典型的旋转磁盘写延迟约为 10 毫秒。对于 SSD Solid State Drives ，固态硬盘），延迟通常低于 1 毫秒。 HDD Hard Disk Drive ，硬盘驱动器）或者网盘在大量数据读写操作的情况下延时会不稳定。因此强烈建议使用 SSD 。</p>
+<p>同时为了降低其他应用程序的 I/O 操作对 etcd 的干扰，建议将 etcd 的数据存放在单独的磁盘内。也可以将不同类型的对象存储在不同的若干个 etcd 集群中，比如将频繁变更的 event 对象从主 etcd 集群中分离出来，以保证主集群的高性能。在 APIServer 处这是可以通过参数配置的。这些 etcd 集群最好也分别能有一块单独的存储磁盘。</p>
+<p>如果不可避免地， etcd 和其他的业务共享存储磁盘，那么就需要通过下面 ionice 命令对 etcd 服务设置更高的磁盘 I/O 优先级，尽可能避免其他进程的影响。</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">ionice -c2 -n0 -p <span class="token string">'pgrep etcd'</span><span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<h5 id="保持合理的日志文件大小"><a href="#保持合理的日志文件大小" class="headerlink" title="保持合理的日志文件大小"></a>保持合理的日志文件大小</h5><p>etcd 以日志的形式保存数据，无论是数据创建还是修改，它都将操作追加到日志文件，因此日志文件大小会随着数据修改次数而线性增长。</p>
+<p>当 Kubernetes 集群规模较大时，其对 etcd 集群中的数据更改也会很频繁，集群日记文件会迅速增长。</p>
+<p>为了有效降低日志文件大小，etcd 会以固定周期创建快照保存系统的当前状态，并移除旧日志文件。另外当修改次数累积到一定的数量（默认是 10000 ，通过参数 “—snapshot-count” 指定）， etcd 也会创建快照文件。</p>
+<p>如果 etcd 的内存使用和磁盘使用过高，可以先分析是否数据写入频度过大导致快照频度过高，确认后可通过调低快照触发的阈值来降低其对内存和磁盘的使用。</p>
+<h5 id="设置合理的存储配额"><a href="#设置合理的存储配额" class="headerlink" title="设置合理的存储配额"></a>设置合理的存储配额</h5><p>存储空间的配额用于控制 etcd 数据空间的大小。合理的存储配额可保证集群操作的可靠性。如果没有存储配额，也就是 etcd 可以利用整个磁盘空间， etcd 的性能会因为存储空间的持续增长而严重下降，甚至有耗完集群磁盘空间导致不可预测集群行为的风险。如果设置的存储配额太小，一旦其中一个节点的后台数据库的存储空间超出了存储配额， etcd 就会触发集群范围的告警，并将集群置于只接受读和删除请求的维护模式。只有在释放足够的空间、消除后端数据库的碎片和清除存储配额告警之后，集群才能恢复正常操作。</p>
+<h5 id="自动压缩历史版本"><a href="#自动压缩历史版本" class="headerlink" title="自动压缩历史版本"></a>自动压缩历史版本</h5><p>etcd 会为每个键都保存了历史版本。为了避免出现性能问题或存储空间消耗完导致写不进去的问题，这些历史版本需要进行周期性地压缩。压缩历史版本就是丢弃该键给定版本之前的所有信息，节省出来的空间可以用于后续的写操作。 etcd 支持自动压缩历史版本。在启动参数中指定参数 “—auto-compaction”，其值以小时为单位。也就是 etcd 会自动压缩该值设置的时间窗口之前的历史版本。</p>
+<h5 id="定期消除碎片化"><a href="#定期消除碎片化" class="headerlink" title="定期消除碎片化"></a>定期消除碎片化</h5><p>压缩历史版本，相当于离散地抹去 etcd 存储空间某些数据， etcd 存储空间中将会出现碎片。这些碎片无法被后台存储使用，却仍占据节点的存储空间。因此定期消除存储碎片，将释放碎片化的存储空间，重新调整整个存储空间。</p>
+<h5 id="备份"><a href="#备份" class="headerlink" title="备份"></a>备份</h5><ul>
+<li>备份方案<ul>
+<li>etcd 备份：备份完整的集群信息，灾难恢复<ul>
+<li>etcdctl snapshot save</li>
+</ul>
+</li>
+<li>备份 Kubernetes event</li>
+</ul>
+</li>
+<li>频度？<ul>
+<li>时间间隔太长：<ul>
+<li>能否接受 user data lost</li>
+<li>如果有外部资源配置，如负载均衡等，能否接受数据丢失导致的 leak</li>
+</ul>
+</li>
+<li>时间间隔太短：<ul>
+<li>对 etcd 的影响<ul>
+<li>做 snapshot 的时候， etcd 会锁住当前数据</li>
+<li>并发的写操作需要开辟新的空间进行增量写，导致磁盘空间增长</li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>如何保证备份的时效性，同时防止磁盘爆掉？<ul>
+<li>Auto defrag</li>
+</ul>
+</li>
+</ul>
+<h5 id="优化运行参数"><a href="#优化运行参数" class="headerlink" title="优化运行参数"></a>优化运行参数</h5><p>当网络延迟和磁盘延迟固定的情况下，可以优化 etcd 运行参数来提升集群的工作效率。 etcd 基于 Raft 协议进行 Leader 选举，当 Leader 选定以后才能开始数据读写操作，因此频繁的 Leader 选举会导致数据读写性能显著降低。可以通过调整心跳周期（ Heatbeat Interval ）和选举超时时间 Election Timeout ），来降低 Leader 选举的可能性。</p>
+<p>心跳周期是控制 Leader 以何种频度向 Follower 发起心跳通知。心跳通知除表明 Leader 活跃状态之外，还带有待写入数据信息， Follower 依据心跳信息进行数据写入，默认心跳周期是 100ms 。选举超时时间定义了当 Follower 多久没有收到 Leader 心跳，则重新发起选举，该参数的默认设置是 1000ms 。</p>
+<p>如果 etcd 集群的不同实例部署在延迟较低的相同数据中心，通常使用默认配置即可。如果不同实例部署在多数据中心或者网络延迟较高的集群环境，则需要对心跳周期和选举超时时间进行调整。建议心跳周期参数推荐设置为接近 etcd 多个成员之间平均数据往返周期的最大值，一般是平均 RTT 的 0.55 - 1.5 倍。如果心跳周期设置得过低， etcd 会发送很多不必要的心跳信息，从而增加 CPU 和网络的负担。如果设置得过高，则会导致选举频繁超时。选举超时时间也需要根据 etcd 成员之间的平均 RTT 时间来设置。选举超时时间最少设置为 etcd 成员之间 RTT 时间的 10 倍，以便对网络波动。</p>
+<p>心跳间隔和选举超时时间的值必须对同一个 etcd 集群的所有节点都生效，如果各个节点配置不同，就会导致集群成员之间协商结果不可预知而不稳定。</p>
+<h5 id="etcd-备份存储"><a href="#etcd-备份存储" class="headerlink" title="etcd 备份存储"></a>etcd 备份存储</h5><p>etcd 的默认工作目录下会生成两个子目录： wal 和 snap 。 wal 是用于存放预写式日志，其最大的作用是记录整个数据变化的全部历程。所有数据的修改在提交前，都要先写入 wal 中。</p>
+<p>snap 是用于存放快照数据。为防止 wal 文件过多， etcd 会定期（当 wal 中数据超过 10000 条记录时，由参数 “—snapshot-count” 设置）创建快照。当快照生成后 wal 中数据就可以被删除了。</p>
+<p>如果数据遭到破坏或错误修改需要回滚到之前某个状态时，方法就有两个：一是从快照中恢复数据主体，但是未被拍入快照的数据会丢失；而是执行所有 WAL 中记录的修改操作，从最原始的数据恢复到数据损坏之前的状态，但恢复的时间较长。</p>
+<h5 id="备份方案实践"><a href="#备份方案实践" class="headerlink" title="备份方案实践"></a>备份方案实践</h5><p>官方推荐 etcd 集群的备份方式是定期创建快照。和 etcd 内部定期创建快照的目的不同，该备份方式依赖外部程序定期创建快照，并将快照上传到网络存储设备以实现 etcd 数据的冗余备份。上传到网络设备的数据，都应进行了加密。即使当所有 etcd 实例都丢失了数据，也能允许 etcd 集群从一个已知的良好状态的时间点在任一地方进行恢复。根据集群对 etcd 备份粒度的要求，可适当调节备份的周期。在生产环境中实测，拍摄快照通常会影响集群当时的性能，因此不建议频繁创建快照。但是备份周期太长，就可能导致大量数据的丢失。</p>
+<p>这里可以使用增量备份的方式。如图所示，备份程序每 30 分钟触发一次快照的拍摄。紧接着它从快照结束的版本（ Revision ）开始，监听 etcd 集群的事件，并每 10 秒钟将事件保存到文件中，并将快照和事件文件上传到网络存储设备中。 30 分钟的快照周期对集群性能影响甚微。当大灾难来临时，也至多丢失 10 秒的数据。至于数据修复，首先把数据从网络存储设备中下载下来，然后从快照中恢复大块数据，并在此基础上依次应用存储的所有事件。这样就可以将集群数据恢复到灾难发生前。</p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/Etcd备份方案实践.png" alt="Etcd备份方案实践"></p>
 
                 
             </div>
