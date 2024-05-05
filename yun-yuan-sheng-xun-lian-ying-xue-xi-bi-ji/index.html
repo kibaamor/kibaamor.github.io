@@ -399,14 +399,14 @@
                 
                 <div class="post-date info-break-policy">
                     <i class="far fa-calendar-check fa-fw"></i>更新日期:&nbsp;&nbsp;
-                    2024-05-04
+                    2024-05-05
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-file-word fa-fw"></i>文章字数:&nbsp;&nbsp;
-                    22.5k
+                    22.7k
                 </div>
                 
 
@@ -2186,6 +2186,29 @@ Finished defragmenting etcd member<span class="token punctuation">[</span><span 
 <h5 id="备份方案实践"><a href="#备份方案实践" class="headerlink" title="备份方案实践"></a>备份方案实践</h5><p>官方推荐 etcd 集群的备份方式是定期创建快照。和 etcd 内部定期创建快照的目的不同，该备份方式依赖外部程序定期创建快照，并将快照上传到网络存储设备以实现 etcd 数据的冗余备份。上传到网络设备的数据，都应进行了加密。即使当所有 etcd 实例都丢失了数据，也能允许 etcd 集群从一个已知的良好状态的时间点在任一地方进行恢复。根据集群对 etcd 备份粒度的要求，可适当调节备份的周期。在生产环境中实测，拍摄快照通常会影响集群当时的性能，因此不建议频繁创建快照。但是备份周期太长，就可能导致大量数据的丢失。</p>
 <p>这里可以使用增量备份的方式。如图所示，备份程序每 30 分钟触发一次快照的拍摄。紧接着它从快照结束的版本（ Revision ）开始，监听 etcd 集群的事件，并每 10 秒钟将事件保存到文件中，并将快照和事件文件上传到网络存储设备中。 30 分钟的快照周期对集群性能影响甚微。当大灾难来临时，也至多丢失 10 秒的数据。至于数据修复，首先把数据从网络存储设备中下载下来，然后从快照中恢复大块数据，并在此基础上依次应用存储的所有事件。这样就可以将集群数据恢复到灾难发生前。</p>
 <p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/Etcd备份方案实践.png" alt="Etcd备份方案实践"></p>
+<h5 id="ResourceVersion"><a href="#ResourceVersion" class="headerlink" title="ResourceVersion"></a>ResourceVersion</h5><ul>
+<li>单个对象的 resourceVersion<ul>
+<li>对象的最后修改 resourceVersion</li>
+</ul>
+</li>
+<li>List 对象的 resourceVersion<ul>
+<li>生成 list response 时的 resourceVersion</li>
+</ul>
+</li>
+<li>List 行为<ul>
+<li>List 对象时，如果不加 resourceVersion ，意味着需要 Most Recent 数据，请求会击穿 APIServer 缓存，直接发送至 etcd</li>
+</ul>
+</li>
+<li>APIServer 通过 Label 过滤对象查询时，过滤动作是在 APIServer 端， APIServer 需要向 etcd 发起全量查询请求</li>
+</ul>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/ResourceVersion.png" alt="ResourceVersion"></p>
+<h5 id="遭遇到的陷阱"><a href="#遭遇到的陷阱" class="headerlink" title="遭遇到的陷阱"></a>遭遇到的陷阱</h5><ul>
+<li>频繁的 leader election</li>
+<li>etcd 分裂</li>
+<li>etcd 不响应</li>
+<li>与 apiserver 之间的链路阻塞</li>
+<li>磁盘暴涨</li>
+</ul>
 
                 
             </div>
