@@ -406,14 +406,14 @@
                 
                 <div class="info-break-policy">
                     <i class="far fa-file-word fa-fw"></i>文章字数:&nbsp;&nbsp;
-                    24.1k
+                    28.6k
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-clock fa-fw"></i>阅读时长:&nbsp;&nbsp;
-                    94 分
+                    111 分
                 </div>
                 
 
@@ -2429,7 +2429,345 @@ json<span class="token punctuation">.</span><span class="token function">NewEnco
 <li>Circuit break</li>
 <li>Rate limit</li>
 </ul>
-<h3 id="鉴权"><a href="#鉴权" class="headerlink" title="鉴权"></a>鉴权</h3>
+<h3 id="鉴权"><a href="#鉴权" class="headerlink" title="鉴权"></a>鉴权</h3><h4 id="授权"><a href="#授权" class="headerlink" title="授权"></a>授权</h4><p>授权主要是用于对集群资源的访问控制，通过检查请求包含的相关属性值，与相对应的访问策略相比较，API 请求必须满足某些策略才能被处理。跟认证类似，Kubernetes 也支持多种授权机制，并支持同时开启多个授权插件（只要有一个验证通过即可）。如果授权成功，则用户的请求会发送到准入控制模块做进一步的请求验证；对于授权失败的请求则返回 HTTP 403。</p>
+<p>Kubernetes 授权仅处理以下的请求属性：</p>
+<ul>
+<li>user, group, extra</li>
+<li>API、请求方法（如 get、post、update、patch 和 delete）和请求路径（如 /api）</li>
+<li>请求资源和子资源</li>
+<li>Namespace</li>
+<li>API Group</li>
+</ul>
+<p>目前，Kubernetes 支持以下授权插件：</p>
+<ul>
+<li>ABAC</li>
+<li>RBAC</li>
+<li>Webhook</li>
+<li>Node</li>
+</ul>
+<h4 id="RBAC-vs-ABAC"><a href="#RBAC-vs-ABAC" class="headerlink" title="RBAC vs ABAC"></a>RBAC vs ABAC</h4><p>ABAC（Attribute Based Access Control）本来是不错的概念，但是在 Kubernetes 中的实现比较难于管理和理解，而且需要对 Master 所在节点的 SSH 和文件系统权限，要使得对授权的变更成功生效，还需要重新启动 API Server。</p>
+<p>而 RBAC 的授权策略可以利用 kubectl 或者 Kubernetes API 直接进行配置。RBAC 可以授权给用户，让用户有权进行授权管理，这样就可以无需接触节点，直接进行授权管理。RBAC 在 Kubernetes 中被映射为 API 资源和操作。</p>
+<h4 id="RBAC-老图"><a href="#RBAC-老图" class="headerlink" title="RBAC 老图"></a>RBAC 老图</h4><p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/RBAC老图.png" alt="RBAC老图"></p>
+<h4 id="RBAC-新解"><a href="#RBAC-新解" class="headerlink" title="RBAC 新解"></a>RBAC 新解</h4><p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/RBAC新解.png" alt="RBAC新解"></p>
+<h4 id="Role-与-ClusterRole"><a href="#Role-与-ClusterRole" class="headerlink" title="Role 与 ClusterRole"></a>Role 与 ClusterRole</h4><p>Role（角色）是一系列权限的集合，例如一个角色可以包含读取 Pod 的权限和列出 Pod 的权限。</p>
+<p>Role 只能用来给某个特定 namespace 中的资源作鉴权，对多 namespace 和集群级的资源或者是非资源类的 API（如/healthz）使用 ClusterRole。</p>
+<pre class="line-numbers language-yaml" data-language="yaml"><code class="language-yaml"><span class="token comment"># Role示例</span>
+<span class="token key atrule">kind</span><span class="token punctuation">:</span> Role
+<span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> rbac.authorization.k8s.io/v1
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+  <span class="token key atrule">namespace</span><span class="token punctuation">:</span> default
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> pod<span class="token punctuation">-</span>reader
+<span class="token key atrule">rules</span><span class="token punctuation">:</span>
+<span class="token punctuation">-</span> <span class="token key atrule">apiGroups</span><span class="token punctuation">:</span> <span class="token punctuation">[</span><span class="token string">""</span><span class="token punctuation">]</span> <span class="token comment"># "" indicates the core API group</span>
+  <span class="token key atrule">resources</span><span class="token punctuation">:</span> <span class="token punctuation">[</span><span class="token string">"pods"</span><span class="token punctuation">]</span>
+  <span class="token key atrule">verbs</span><span class="token punctuation">:</span> <span class="token punctuation">[</span><span class="token string">"get"</span><span class="token punctuation">,</span> <span class="token string">"watch"</span><span class="token punctuation">,</span> <span class="token string">"list"</span><span class="token punctuation">]</span>
+
+<span class="token punctuation">---</span><span class="token punctuation">---</span>
+
+<span class="token comment"># ClusterRole示例</span>
+<span class="token key atrule">kind</span><span class="token punctuation">:</span> ClusterRole
+<span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> rbac.authorization.k8s.io/v1
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+ <span class="token comment"># "namespace" omitted since ClusterRoles are not namespaced</span>
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> secret<span class="token punctuation">-</span>reader
+<span class="token key atrule">rules</span><span class="token punctuation">:</span>
+<span class="token punctuation">-</span> <span class="token key atrule">apiGroups</span><span class="token punctuation">:</span> <span class="token punctuation">[</span><span class="token string">""</span><span class="token punctuation">]</span>
+  <span class="token key atrule">resources</span><span class="token punctuation">:</span> <span class="token punctuation">[</span><span class="token string">"secrets"</span><span class="token punctuation">]</span>
+  <span class="token key atrule">verbs</span><span class="token punctuation">:</span> <span class="token punctuation">[</span><span class="token string">"get"</span><span class="token punctuation">,</span> <span class="token string">"watch"</span><span class="token punctuation">,</span> <span class="token string">"list"</span><span class="token punctuation">]</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>binding</p>
+<pre class="line-numbers language-yaml" data-language="yaml"><code class="language-yaml"><span class="token comment"># RoleBinding示例（引用ClusterRole）</span>
+<span class="token comment"># This role binding allows "dave" to read secrets in the "development"</span>
+namespace.
+<span class="token key atrule">kind</span><span class="token punctuation">:</span> RoleBinding
+<span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> rbac.authorization.k8s.io/v1
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> read<span class="token punctuation">-</span>secrets
+  <span class="token key atrule">namespace</span><span class="token punctuation">:</span> development <span class="token comment"># This only grants permissions within the "development" namespace.</span>
+<span class="token key atrule">subjects</span><span class="token punctuation">:</span>
+<span class="token punctuation">-</span> <span class="token key atrule">kind</span><span class="token punctuation">:</span> User
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> dave
+  <span class="token key atrule">apiGroup</span><span class="token punctuation">:</span> rbac.authorization.k8s.io
+<span class="token key atrule">roleRef</span><span class="token punctuation">:</span>
+  <span class="token key atrule">kind</span><span class="token punctuation">:</span> ClusterRole
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> secret<span class="token punctuation">-</span>reader
+  <span class="token key atrule">apiGroup</span><span class="token punctuation">:</span> rbac.authorization.k8s.io<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/RoleBinding.png" alt="RoleBinding"></p>
+<h4 id="账户／组的管理"><a href="#账户／组的管理" class="headerlink" title="账户／组的管理"></a>账户／组的管理</h4><p>角色绑定（Role Binding）是将角色中定义的权限赋予一个或者一组用户。</p>
+<p>它包含若干主体（用户、组或服务账户）的列表和对这些主体所获得的角色的引用。</p>
+<p>组的概念：</p>
+<ul>
+<li>当与外部认证系统对接时，用户信息（UserInfo）可包含 Group 信息，授权可针对用户群组</li>
+<li>当对 ServiceAccount 授权时，Group 代表某个 Namespace 下的所有 ServiceAccount</li>
+</ul>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/账户组的管理.png" alt="账户组的管理"></p>
+<h4 id="针对群租授权"><a href="#针对群租授权" class="headerlink" title="针对群租授权"></a>针对群租授权</h4><pre class="line-numbers language-yaml" data-language="yaml"><code class="language-yaml"><span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> rbac.authorization.k8s.io/v1
+<span class="token key atrule">kind</span><span class="token punctuation">:</span> ClusterRoleBinding
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> read<span class="token punctuation">-</span>secrets<span class="token punctuation">-</span>global
+<span class="token key atrule">subjects</span><span class="token punctuation">:</span>
+<span class="token punctuation">-</span> <span class="token key atrule">kind</span><span class="token punctuation">:</span> Group
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> manager <span class="token comment"># 'name' 是区分大小写的</span>
+  <span class="token key atrule">apiGroup</span><span class="token punctuation">:</span> rbac.authorization.k8s.io
+<span class="token key atrule">roleRef</span><span class="token punctuation">:</span>
+  <span class="token key atrule">kind</span><span class="token punctuation">:</span> ClusterRole
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> secret<span class="token punctuation">-</span>reader
+  <span class="token key atrule">apiGroup</span><span class="token punctuation">:</span> rbac.authorization.k8s.io
+
+<span class="token punctuation">---</span><span class="token punctuation">---</span><span class="token punctuation">-</span>
+
+<span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> rbac.authorization.k8s.io/v1
+<span class="token key atrule">kind</span><span class="token punctuation">:</span> ClusterRoleBinding
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> read<span class="token punctuation">-</span>secrets<span class="token punctuation">-</span>global
+<span class="token key atrule">subjects</span><span class="token punctuation">:</span>
+<span class="token punctuation">-</span> <span class="token key atrule">kind</span><span class="token punctuation">:</span> Group
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> system<span class="token punctuation">:</span>serviceaccounts<span class="token punctuation">:</span>qa
+  <span class="token key atrule">apiGroup</span><span class="token punctuation">:</span> rbac.authorization.k8s.io
+<span class="token key atrule">roleRef</span><span class="token punctuation">:</span>
+  <span class="token key atrule">kind</span><span class="token punctuation">:</span> ClusterRole
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> secret<span class="token punctuation">-</span>reader
+  <span class="token key atrule">apiGroup</span><span class="token punctuation">:</span> rbac.authorization.k8s.io<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<h4 id="规划系统角色"><a href="#规划系统角色" class="headerlink" title="规划系统角色"></a>规划系统角色</h4><p>User</p>
+<ul>
+<li>管理员<ul>
+<li>所有资源的所有权限？？</li>
+</ul>
+</li>
+<li>普通用户<ul>
+<li>是否有该用户创建的 namespace 下的所有 object 的操作权限？</li>
+<li>对其他用户的 namespace 资源是否可读，是否可写？</li>
+</ul>
+</li>
+</ul>
+<p>SystemAccount</p>
+<ul>
+<li>SystemAccount 是开发者（kubernetes developer 或者 domain developer）创建应用后，应用于 apiserver 通讯需要的身份</li>
+<li>用户可以创建自定的 ServiceAccount，kubernetes 也为每个 namespace 创建 default ServiceAccount</li>
+<li>Default ServiceAccount 通常需要给定权限以后才能对 apiserver 做写操作</li>
+</ul>
+<h4 id="实现方案"><a href="#实现方案" class="headerlink" title="实现方案"></a>实现方案</h4><p>ClusterRole 是非 namespace 绑定的，针对整个集群生效</p>
+<p>通常需要创建一个管理员角色，并且绑定给开发运营团队成员</p>
+<p>ThirdPartyResource 和 CustomResourceDefinition 是全局资源，普通用户创建 ThirdPartyResource 以后，需要管理员授予相应权限后才能真正操作该对象</p>
+<p>针对所有的角色管理，建议创建 spec，用源代码驱动</p>
+<blockquote>
+<p>虽然可以通过edit操作来修改权限，但后期会导致权限管理混乱，可能会有很多临时创建出来的角色和角色绑定对象，重复绑定某一个资源权限</p>
+</blockquote>
+<p>权限是可以传递的，用户 A 可以将其对某对象的某操作，抽取成一个权限，并赋给用户 B</p>
+<p>防止海量的角色和角色绑定对象，因为大量的对象会导致鉴权效率低，同时给 apiserver 增加负担<br>ServiceAccount 也需要授权的，否则你的 component 可能无法操作某对象</p>
+<p>Tips：SSH 到 master 节点通过 insecure port 访问 apiserver 可绕过鉴权，当需要做管理操作又没有权限时可以使用（不推荐）</p>
+<h4 id="运营过程中出现的陷阱"><a href="#运营过程中出现的陷阱" class="headerlink" title="运营过程中出现的陷阱"></a>运营过程中出现的陷阱</h4><p>案例1:</p>
+<ul>
+<li>研发人员为提高系统效率，将 update 方法修改为 patch</li>
+<li>研发人员本地非安全测试环境测试通过</li>
+<li>上生产，发现不 work</li>
+<li>原因：忘记更新 rolebinding，对应的 serviceaccount 没有 patch 权限</li>
+</ul>
+<p>案例2:</p>
+<ul>
+<li>研发人员创建 CRD，并针对该 CRD 编程</li>
+<li>上生产后不工作</li>
+<li>原因，该 CRD 未授权，对应的组件 get 不到对应的 CRD 资源</li>
+</ul>
+<h3 id="准入"><a href="#准入" class="headerlink" title="准入"></a>准入</h3><h4 id="准入控制"><a href="#准入控制" class="headerlink" title="准入控制"></a>准入控制</h4><p>为资源增加自定义属性</p>
+<ul>
+<li>作为多租户集群方案中的一环，我们需要在 namespace 的准入控制中，获取用户信息，并将用户信息更新的 namespace 的 annotation</li>
+</ul>
+<p>只有当 namespace 中有有效用户信息时，我们才可以在 namespace 创建时，自动绑定用户权限，namespace 才可用。</p>
+<p>准入控制（Admission Control）在授权后对请求做进一步的验证或添加默认参数。不同于授权和认证只关心请求的用户和操作，准入控制还处理请求的内容，并且仅对创建、更新、删除或连接（如代理）等有效，而对读操作无效。</p>
+<p>准入控制支持同时开启多个插件，它们依次调用，只有全部插件都通过的请求才可以放过进入系统。</p>
+<h4 id="准入控制插件"><a href="#准入控制插件" class="headerlink" title="准入控制插件"></a>准入控制插件</h4><ul>
+<li>AlwaysAdmit: 接受所有请求。</li>
+<li>AlwaysPullImages: 总是拉取最新镜像。在多租户场景下非常有用。</li>
+<li>DenyEscalatingExec: 禁止特权容器的 exec 和 attach 操作。</li>
+<li>ImagePolicyWebhook: 通过 webhook 决定 image 策略，需要同时配置 <code>--admission-controlconfig-file</code></li>
+<li>ServiceAccount：自动创建默认 ServiceAccount，并确保 Pod 引用的 ServiceAccount 已经存在</li>
+<li>SecurityContextDeny：拒绝包含非法 SecurityContext 配置的容器</li>
+<li>ResourceQuota：限制 Pod 的请求不会超过配额，需要在 namespace 中创建一个 ResourceQuota 对象</li>
+<li>LimitRanger：为 Pod 设置默认资源请求和限制，需要在 namespac 中创建一个 LimitRange 对象</li>
+<li>InitialResources：根据镜像的历史使用记录，为容器设置默认资源请求和限制</li>
+<li>NamespaceLifecycle：确保处于 termination 状态的 namespace 不再接收新的对象创建请求，并拒绝请求不存在的 namespace</li>
+<li>DefaultStorageClass：为 PVC 设置默认 StorageClass</li>
+<li>DefaultTolerationSeconds：设置 Pod 的默认 forgiveness toleration 为 5 分钟</li>
+<li>PodSecurityPolicy：使用 Pod Security Policies 时必须开启</li>
+<li>NodeRestriction：限制 kubelet 仅可访问 node、endpoint、pod、service 以及 secret、configmap、PV 和PVC 等相关的资源</li>
+</ul>
+<h4 id="准入控制插件的开发"><a href="#准入控制插件的开发" class="headerlink" title="准入控制插件的开发"></a>准入控制插件的开发</h4><h5 id="准入控制插件-1"><a href="#准入控制插件-1" class="headerlink" title="准入控制插件"></a>准入控制插件</h5><p>除默认的准入控制插件以外，Kubernetes 预留了准入控制插件的扩展点，用户可自定义准入控制插件实现自定义准入功能</p>
+<ul>
+<li>MutatingWebhookConfiguration：变形插件，支持对准入对象的修改</li>
+<li>ValidatingWebhookConfiguration：校验插件，只能对准入对象合法性进行校验，不能修改</li>
+</ul>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/准入控制插件.png" alt="准入控制插件"></p>
+<pre class="line-numbers language-yaml" data-language="yaml"><code class="language-yaml"><span class="token comment"># {{if eq .k8snode_validating "enabled"}}</span>
+<span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> admissionregistration.k8s.io/v1beta1
+<span class="token key atrule">kind</span><span class="token punctuation">:</span> MutatingWebhookConfiguration
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> ns<span class="token punctuation">-</span>mutating.webhook.k8s.io
+<span class="token key atrule">webhooks</span><span class="token punctuation">:</span>
+<span class="token punctuation">-</span> <span class="token key atrule">clientConfig</span><span class="token punctuation">:</span>
+  <span class="token key atrule">caBundle</span><span class="token punctuation">:</span> <span class="token punctuation">{</span><span class="token punctuation">{</span>.serverca_base64<span class="token punctuation">}</span><span class="token punctuation">}</span>
+  <span class="token key atrule">url</span><span class="token punctuation">:</span> https<span class="token punctuation">:</span>//admission.local.tess.io/apis/admission.k8s.io/v1alpha1/ns<span class="token punctuation">-</span>mutating
+  <span class="token key atrule">failurePolicy</span><span class="token punctuation">:</span> Fail
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> ns<span class="token punctuation">-</span>mutating.webhook.k8s.io
+  <span class="token key atrule">namespaceSelector</span><span class="token punctuation">:</span> <span class="token punctuation">{</span><span class="token punctuation">}</span>
+  <span class="token key atrule">rules</span><span class="token punctuation">:</span>
+  <span class="token punctuation">-</span> <span class="token key atrule">apiGroups</span><span class="token punctuation">:</span>
+    <span class="token punctuation">-</span> <span class="token string">""</span>
+    <span class="token key atrule">apiVersions</span><span class="token punctuation">:</span>
+    <span class="token punctuation">-</span> <span class="token string">'*'</span>
+    <span class="token key atrule">operations</span><span class="token punctuation">:</span>
+    <span class="token punctuation">-</span> CREATE
+    <span class="token key atrule">resources</span><span class="token punctuation">:</span>
+    <span class="token punctuation">-</span> nodes
+  <span class="token key atrule">sideEffects</span><span class="token punctuation">:</span> Unknown
+<span class="token comment"># {{end}}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<h4 id="配额管理"><a href="#配额管理" class="headerlink" title="配额管理"></a>配额管理</h4><p>配额管理</p>
+<ul>
+<li>原因：资源有限，如何限定某个用户有多少资源？<br>方案：</li>
+<li>预定义每个 Namespace 的 ResourceQuota，并把 spec 保存为 configmap<ul>
+<li>用户可以创建多少个 Pod<ul>
+<li>BestEffortPod</li>
+<li>QoSPod</li>
+</ul>
+</li>
+<li>用户可以创建多少个 service</li>
+<li>用户可以创建多少个 ingress</li>
+<li>用户可以创建多少个 service VIP</li>
+</ul>
+</li>
+<li>创建 ResourceQuota Controller<ul>
+<li>监控 namespace 创建事件，当 namespace 创建时，在该 namespace 创建对应的 ResourceQuota 对象</li>
+</ul>
+</li>
+<li>apiserver 中开启 ResourceQuota 的 admission plugin</li>
+</ul>
+<h3 id="限流"><a href="#限流" class="headerlink" title="限流"></a>限流</h3><h4 id="计数器固定窗口算法"><a href="#计数器固定窗口算法" class="headerlink" title="计数器固定窗口算法"></a>计数器固定窗口算法</h4><p>原理就是对一段固定时间窗口内的请求进行计数，如果请求数超过了阈值，则舍弃该请求；</p>
+<p>如果没有达到设定的阈值，则接受该请求，且计数加 1 。</p>
+<p>当时间窗口结束时，重置计数器为 0 。</p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/计数器固定窗口算法.png" alt="计数器固定窗口算法"></p>
+<h4 id="计数器滑动窗口算法"><a href="#计数器滑动窗口算法" class="headerlink" title="计数器滑动窗口算法"></a>计数器滑动窗口算法</h4><p>在固定窗口的基础上，将一个计时窗口分成了若干个小窗口，然后每个小窗口维护一个独立的计数器。</p>
+<p>当请求的时间大于当前窗口的最大时间时，则将计时窗口向前平移一个小窗口。</p>
+<p>平移时，将第一个小窗口的数据丢弃，然后将第二个小窗口设置为第一个小窗口，同时在最后面新增一个小窗口，将新的请求放在新增的小窗口中。</p>
+<p>同时要保证整个窗口中所有小窗口的请求数目之后不能超过设定的阈值。</p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/计数器滑动窗口算法.png" alt="计数器滑动窗口算法"></p>
+<h4 id="漏斗算法"><a href="#漏斗算法" class="headerlink" title="漏斗算法"></a>漏斗算法</h4><p>漏斗算法的原理也很容易理解。请求来了之后会首先进到漏斗里，然后漏斗以恒定的速率将请求流出进行处理，从而起到平滑流量的作用。</p>
+<p>当请求的流量过大时，漏斗达到最大容量时会溢出，此时请求被丢弃。</p>
+<p>在系统看来，请求永远是以平滑的传输速率过来，从而起到了保护系统的作用。</p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/漏斗算法.png" alt="漏斗算法"></p>
+<h4 id="令牌桶算法"><a href="#令牌桶算法" class="headerlink" title="令牌桶算法"></a>令牌桶算法</h4><p>令牌桶算法是对漏斗算法的一种改进，除了能够起到限流的作用外，还允许一定程度的流量突发。</p>
+<p>在令牌桶算法中，存在一个令牌桶，算法中存在一种机制以恒定的速率向令牌桶中放入令牌。</p>
+<p>令牌桶也有一定的容量，如果满了令牌就无法放进去了。<br>当请求来时，会首先到令牌桶中去拿令牌，如果拿到了令牌，则该请求会被处理，并消耗掉拿到的令牌；</p>
+<p>如果令牌桶为空，则该请求会被丢弃。</p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/令牌桶算法.png" alt="令牌桶算法.png"></p>
+<h4 id="API-Server-中的限流"><a href="#API-Server-中的限流" class="headerlink" title="API Server 中的限流"></a>API Server 中的限流</h4><p>max-requests-inflight： 在给定时间内的最大 non-mutating 请求数<br>max-mutating-requests-inflight： 在给定时间内的最大 mutating 请求数，调整 apiserver 的流控 qos</p>
+<p>代码 <code>staging/src/k8s.io/apiserver/pkg/server/filters/maxinflight.go:WithMaxInFlightLimit()</code></p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/APIServer中的限流.png" alt="APIServer中的限流"></p>
+<h4 id="传统限流方法的局限性"><a href="#传统限流方法的局限性" class="headerlink" title="传统限流方法的局限性"></a>传统限流方法的局限性</h4><ul>
+<li>粒度粗<ul>
+<li>无法为不同用户，不同场景设置不通的限流</li>
+</ul>
+</li>
+<li>单队列<ul>
+<li>共享限流窗口/桶，一个坏用户可能会将整个系统堵塞，其他正常用户的请求无法被及时处理</li>
+</ul>
+</li>
+<li>不公平<ul>
+<li>正常用户的请求会被排到队尾，无法及时处理而饿死</li>
+</ul>
+</li>
+<li>无优先级<ul>
+<li>重要的系统指令一并被限流，系统故障难以恢复</li>
+</ul>
+</li>
+</ul>
+<h4 id="API-Priority-and-Fairness"><a href="#API-Priority-and-Fairness" class="headerlink" title="API Priority and Fairness"></a>API Priority and Fairness</h4><p>APF 以更细粒度的方式对请求进行分类和隔离。</p>
+<ul>
+<li>它还引入了空间有限的排队机制，因此在非常短暂的突发情况下，API 服务器不会拒绝任何请求。</li>
+<li>通过使用公平排队技术从队列中分发请求，这样， 一个行为不佳的控制器就不会饿死其他控制器（即使优先级相同）。</li>
+<li><p>APF的核心</p>
+<ul>
+<li>多等级</li>
+<li>多队列</li>
+</ul>
+</li>
+<li><p>APF 的实现依赖两个非常重要的资源 FlowSchema, PriorityLevelConfiguration</p>
+</li>
+<li>APF 对请求进行更细粒度的分类，每一个请求分类对应一个 FlowSchema (FS)</li>
+<li>FS 内的请求又会根据 distinguisher 进一步划分为不同的 Flow.</li>
+<li>FS 会设置一个优先级(Priority Level, PL)，不同优先级的并发资源是隔离的。所以不同优先级的资源不会相互排挤。特定优先级的请求可以被高优处理。</li>
+<li>一个 PL 可以对应多个 FS，PL 中维护了一个 QueueSet，用于缓存不能及时处理的请求，请求不会因为超出 PL 的并发限制而被丢弃。</li>
+<li>FS 中的每个 Flow 通过 shuffle sharding 算法从 QueueSet 选取特定的 queues 缓存请求。</li>
+<li>每次从 QueueSet 中取请求执行时，会先应用 fair queuing 算法从 QueueSet 中选中一个 queue，然后从这个 queue 中取出 oldest 请求执行。所以即使是同一个 PL 内的请求，也不会出现一个 Flow 内的请求一直占用资源的不公平现象。</li>
+</ul>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/APIPriorityAndFairness.png" alt="APIPriorityAndFairness"></p>
+<h5 id="概念"><a href="#概念" class="headerlink" title="概念"></a>概念</h5><ul>
+<li>传入的请求通过FlowSchema 按照其属性分类，并分配优先级。</li>
+<li>每个优先级维护自定义的并发限制，加强了隔离度，这样不同优先级的请求，就不会相互饿死。</li>
+<li>在同一个优先级内，公平排队算法可以防止来自不同flow 的请求相互饿死。</li>
+<li>该算法将请求排队，通过排队机制，防止在平均负载较低时，通信量突增而导致请求失败。</li>
+</ul>
+<h5 id="优先级"><a href="#优先级" class="headerlink" title="优先级"></a>优先级</h5><ul>
+<li>如果未启用 APF，API 服务器中的整体并发量将受到 kube-apiserver 的参数 <code>--maxrequests-inflight</code> 和 <code>--max-mutating-requests-inflight</code> 的限制。</li>
+<li>启用 APF 后，将对这些参数定义的并发限制进行求和，然后将总和分配到一组可配置的优先级中。每个传入的请求都会分配一个优先级；</li>
+<li>每个优先级都有各自的配置，设定允许分发的并发请求数。</li>
+<li>例如，默认配置包括针对领导者选举请求、内置控制器请求和 Pod 请求都单独设置优先级。这表示即使异常的 Pod 向 API 服务器发送大量请求，也无法阻止领导者选举或内置控制器的操作执行成功。</li>
+</ul>
+<h5 id="排队"><a href="#排队" class="headerlink" title="排队"></a>排队</h5><ul>
+<li>即使在同一优先级内，也可能存在大量不同的流量源。</li>
+<li>在过载情况下，防止一个请求流饿死其他流是非常有价值的（尤其是在一个较为常见的场景中，一个有故障的客户端会疯狂地向 kube-apiserver 发送请求， 理想情况下，这个有故障的客户端不应对其他客户端产生太大的影响）。</li>
+<li>公平排队算法在处理具有相同优先级的请求时，实现了上述场景。</li>
+<li>每个请求都被分配到某个流中，该流由对应的 FlowSchema 的名字加上一个流区分项（Flow Distinguisher）来标识。</li>
+<li>这里的流区分项可以是发出请求的用户、目标资源的名称空间或什么都不是。</li>
+<li>系统尝试为不同流中具有相同优先级的请求赋予近似相等的权重。</li>
+<li>将请求划分到流中之后，APF 功能将请求分配到队列中。</li>
+<li>分配时使用一种称为混洗分片（Shuffle-Sharding） 的技术。该技术可以相对有效地利用队列隔离低强度流与高强度流。</li>
+<li>排队算法的细节可针对每个优先等级进行调整，并允许管理员在内存占用、公平性（当总流量超标时，各个独立的流将都会取得进展）、突发流量的容忍度以及排队引发的额外延迟之间进行权衡。</li>
+</ul>
+<h5 id="豁免请求"><a href="#豁免请求" class="headerlink" title="豁免请求"></a>豁免请求</h5><p>某些特别重要的请求不受制于此特性施加的任何限制。这些豁免可防止不当的流控配置完全禁用 API 服务器。</p>
+<h5 id="默认配置"><a href="#默认配置" class="headerlink" title="默认配置"></a>默认配置</h5><ul>
+<li>system<ul>
+<li>用于 system:nodes 组（即 kubelets）的请求； kubelets 必须能连上API 服务器，以便工作负载能够调度到其上。</li>
+</ul>
+</li>
+<li>leader-election<ul>
+<li>用于内置控制器的领导选举的请求（特别是来自 kube-system 名称空间中 system:kubecontroller-manager 和 system:kube-scheduler 用户和服务账号，针对 endpoints、configmaps 或leases 的请求）。</li>
+<li>将这些请求与其他流量相隔离非常重要，因为领导者选举失败会导致控制器发生故障并重新启动，这反过来会导致新启动的控制器在同步信息时，流量开销更大。</li>
+</ul>
+</li>
+<li>workload-high<ul>
+<li>优先级用于内置控制器的请求。</li>
+</ul>
+</li>
+<li>workload-low<ul>
+<li>优先级适用于来自任何服务帐户的请求，通常包括来自Pods 中运行的控制器的所有请求。</li>
+</ul>
+</li>
+<li>global-default<ul>
+<li>优先级可处理所有其他流量，例如：非特权用户运行的交互式 kubectl 命令。</li>
+</ul>
+</li>
+<li>exempt<ul>
+<li>优先级的请求完全不受流控限制：它们总是立刻被分发。特殊的 exempt FlowSchema 把 system:masters 组的所有请求都归入该优先级组。</li>
+</ul>
+</li>
+<li>catch-all<ul>
+<li>优先级与特殊的 catch-all FlowSchema 结合使用，以确保每个请求都分类。</li>
+<li>一般不应该依赖于 catch-all 的配置，而应适当地创建自己的 catch-all FlowSchema 和 PriorityLevelConfigurations（或使用默认安装的 global-default 配置）。</li>
+<li>为了帮助捕获部分请求未分类的配置错误，强制要求 catch-all 优先级仅允许5个并发份额，并且不对请求进行排队，使得仅与 catch-all FlowSchema 匹配的流量被拒绝的可能性更高，并显示 HTTP 429 错误。</li>
+</ul>
+</li>
+</ul>
+<h5 id="PriorityLevelConfiguration"><a href="#PriorityLevelConfiguration" class="headerlink" title="PriorityLevelConfiguration"></a>PriorityLevelConfiguration</h5><p>一个 PriorityLevelConfiguration 表示单个隔离类型。</p>
+<p>每个 PriorityLevelConfigurations 对未完成的请求数有各自的限制，对排队中的请求数也有限制。</p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/PriorityLevelConfiguration.png" alt="PriorityLevelConfiguration"></p>
+<h5 id="FlowSchema"><a href="#FlowSchema" class="headerlink" title="FlowSchema"></a>FlowSchema</h5><p>FlowSchema 匹配一些入站请求，并将它们分配给优先级。</p>
+<p>每个入站请求都会对所有 FlowSchema 测试是否匹配， 首先从 matchingPrecedence 数值最低的匹配开始（我们认为这是逻辑上匹配度最高）， 然后依次进行，直到首个匹配出现</p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/FlowSchema.png" alt="FlowSchema"></p>
+<h5 id="调试"><a href="#调试" class="headerlink" title="调试"></a>调试</h5><ul>
+<li>/debug/api_priority_and_fairness/dump_priority_levels —— 所有优先级及其当前状态的列表。<code>kubectl get --raw /debug/api_priority_and_fairness/dump_priority_levels</code></li>
+<li>/debug/api_priority_and_fairness/dump_queues —— 所有队列及其当前状态的列表。<code>kubectl get --raw /debug/api_priority_and_fairness/dump_queues</code></li>
+<li>/debug/api_priority_and_fairness/dump_requests ——当前正在队列中等待的所有请求的列表。<code>kubectl get --raw /debug/api_priority_and_fairness/dump_requests</code></li>
+</ul>
+
                 
             </div>
             <hr/>
