@@ -399,21 +399,21 @@
                 
                 <div class="post-date info-break-policy">
                     <i class="far fa-calendar-check fa-fw"></i>更新日期:&nbsp;&nbsp;
-                    2024-05-05
+                    2024-05-06
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-file-word fa-fw"></i>文章字数:&nbsp;&nbsp;
-                    22.7k
+                    22.8k
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-clock fa-fw"></i>阅读时长:&nbsp;&nbsp;
-                    88 分
+                    89 分
                 </div>
                 
 
@@ -1894,11 +1894,28 @@ OK
 b
 
 <span class="token operator">&gt;</span> etcdctl get /a -wjson
-<span class="token punctuation">{</span><span class="token string">"header"</span>:<span class="token punctuation">{</span><span class="token string">"cluster_id"</span>:18038207397139142846,<span class="token string">"member_id"</span>:12593026477526642892,<span class="token string">"revision"</span>:23279,<span class="token string">"raft_term"</span>:4<span class="token punctuation">}</span>,<span class="token string">"kvs"</span>:<span class="token punctuation">[</span><span class="token punctuation">{</span><span class="token string">"key"</span><span class="token builtin class-name">:</span><span class="token string">"L2E="</span>,<span class="token string">"create_revision"</span>:11164,<span class="token string">"mod_revision"</span>:11164,<span class="token string">"version"</span>:1,<span class="token string">"value"</span><span class="token builtin class-name">:</span><span class="token string">"Yg=="</span><span class="token punctuation">}</span><span class="token punctuation">]</span>,<span class="token string">"count"</span>:1<span class="token punctuation">}</span>
+<span class="token punctuation">{</span>
+  <span class="token string">"header"</span><span class="token builtin class-name">:</span> <span class="token punctuation">{</span>
+    <span class="token string">"cluster_id"</span><span class="token builtin class-name">:</span> <span class="token number">18038207397139143000</span>,
+    <span class="token string">"member_id"</span><span class="token builtin class-name">:</span> <span class="token number">12593026477526643000</span>,
+    <span class="token string">"revision"</span><span class="token builtin class-name">:</span> <span class="token number">23279</span>,              // 全局唯一的 revision， 每当 etcd 中有数据修改时，这个记录就会 +1
+    <span class="token string">"raft_term"</span><span class="token builtin class-name">:</span> <span class="token number">4</span>
+  <span class="token punctuation">}</span>,
+  <span class="token string">"kvs"</span><span class="token builtin class-name">:</span> <span class="token punctuation">[</span>
+    <span class="token punctuation">{</span>
+      <span class="token string">"key"</span><span class="token builtin class-name">:</span> <span class="token string">"L2E="</span>,
+      <span class="token string">"create_revision"</span><span class="token builtin class-name">:</span> <span class="token number">11164</span>,     // key 创建时 revision 的值
+      <span class="token string">"mod_revision"</span><span class="token builtin class-name">:</span> <span class="token number">11164</span>,        // key 上次修改时 revision 的值
+      <span class="token string">"version"</span><span class="token builtin class-name">:</span> <span class="token number">1</span>,
+      <span class="token string">"value"</span><span class="token builtin class-name">:</span> <span class="token string">"Yg=="</span>
+    <span class="token punctuation">}</span>
+  <span class="token punctuation">]</span>,
+  <span class="token string">"count"</span><span class="token builtin class-name">:</span> <span class="token number">1</span>
+<span class="token punctuation">}</span>
 
 <span class="token comment"># 按 key 的前缀查询数据</span>
 <span class="token operator">&gt;</span> etcdctl get --prefix /
-<span class="token operator">&gt;</span> etcdctl get --prefix / --keys-only --debug<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<span class="token operator">&gt;</span> etcdctl get --prefix / --keys-only --debug<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
 <h4 id="核心：TTL-amp-CAS"><a href="#核心：TTL-amp-CAS" class="headerlink" title="核心：TTL &amp; CAS"></a>核心：TTL &amp; CAS</h4><p>TTL（time to live）指的是给一个 key 设置一个有效期，到期后这个 key 就会被自动删掉，这在很多分布式锁的实现上都会用到，可以保证锁的实时有效性。<br>Atomic Compare and Swap（CAS）指的是在对 key 进行赋值的时候，客户端需要提供一些条件，当这些条件满足后，才能赋值成功。这些条件包括：</p>
 <ul>
 <li>prevExist key 当前赋值前是否存在</li>
@@ -1941,6 +1958,18 @@ b
 <p>etcd 提供了命令和设置选项来控制 compact ，同时支持 put 操作的参数来精确控制某个 key 的历史版本数。</p>
 <p>内存 kvindex 保存的就是 key 和 reversion 之前的映射关系，用来加速查询。</p>
 <p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/Etcd存储机制.png" alt="Etcd存储机制"></p>
+<blockquote>
+<ol>
+<li><p>每个 Etcd node 都有这些模块。</p>
+</li>
+<li><p>只有 Leader 能写，即使是 Follower 收到写请求，在做完 “预检查” 后，也会把请求转给 Leader。</p>
+</li>
+<li><p>Leader 收到请求后，先把修改放到 <code>unstable</code>，等收到超过半数的 Node 确认后移动到 <code>committed</code>，最后把修改应用到内存中的 MVCC 模块后才会挪到 <code>applied</code>。</p>
+</li>
+<li><p>只有存在在 MVCC 模块中的数据才能被客户端查询到。</p>
+</li>
+</ol>
+</blockquote>
 <h4 id="Watch-机制"><a href="#Watch-机制" class="headerlink" title="Watch 机制"></a>Watch 机制</h4><p>etcd v3 的 watch 机制支持 watch 某个固定的 key ，也支持 watch 一个范围（可以用于模拟目录的结构的 watch ），所以 watchGroup 包含两种 watcher ，一种是 key watchers ，数据结构是每个 key 对应一组 watcher ，另外一种是 range watchers, 数据结构是一个 IntervalTree ，方便通过区间查找到对应的 watcher 。</p>
 <p>同时，每个 WatchableStore 包含两种 watcherGroup ，一种是 synced ，一种是 unsynced 前者表示该 group 的 watcher 数据都已经同步完毕，在等待新的变更，后者表示该 group 的 watcher 数据同步落后于当前最新变更，还在追赶。</p>
 <p>当 etcd 收到客户端的 watch 请求，如果请求携带了 revision 参数，则比较请求的 revision 和 store 当前的 revision ，如果大于当前 revision ，则放入 synced 组中，否则放入 unsynced 组。同时 etcd 会启动一个后台的 goroutine 持续同步 unsynced 的 watcher ，然后将其迁移到 synced 组。也就是这种机制下， etcd v3 支持从任意版本开始 watch ，没有 v2 的 1000 条历史 event 表限制的问题（当然这是指没有 compact 的情况下）</p>
