@@ -406,14 +406,14 @@
                 
                 <div class="info-break-policy">
                     <i class="far fa-file-word fa-fw"></i>文章字数:&nbsp;&nbsp;
-                    22.8k
+                    24.1k
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-clock fa-fw"></i>阅读时长:&nbsp;&nbsp;
-                    89 分
+                    94 分
                 </div>
                 
 
@@ -1824,7 +1824,7 @@ deployment <span class="token string">"nginx"</span> resource requirements updat
 <li>社区鼓励基于 CRD 的业务抽象，众多主流的扩展应用都是基于 CRD 构建的，比如 Istio、Knative。</li>
 <li>甚至基于 CRD 推出了 Operator Mode 和 Operator SDK，可以以极低的开发成本定义新对象，并构建新对象的控制器。</li>
 </ul>
-<h2 id="Kubernetes-控制平面组件"><a href="#Kubernetes-控制平面组件" class="headerlink" title="Kubernetes 控制平面组件"></a>Kubernetes 控制平面组件</h2><h3 id="etcd-1"><a href="#etcd-1" class="headerlink" title="etcd"></a>etcd</h3><p>Etcd是 CoreOS 基于 Raft 开发的分布式 key value 存储，可用于服务发现、共享配置以及一致性保障（如数据库选主、分布式锁等）。</p>
+<h2 id="Kubernetes-控制平面组件-etcd"><a href="#Kubernetes-控制平面组件-etcd" class="headerlink" title="Kubernetes 控制平面组件 etcd"></a>Kubernetes 控制平面组件 etcd</h2><h3 id="etcd-1"><a href="#etcd-1" class="headerlink" title="etcd"></a>etcd</h3><p>Etcd是 CoreOS 基于 Raft 开发的分布式 key value 存储，可用于服务发现、共享配置以及一致性保障（如数据库选主、分布式锁等）。</p>
 <p>在分布式系统中，如何管理节点间的状态一直是一个难题，etcd 像是专门为集群环境的服务发现和注册而设计，它提供了数据 TTL 失效、数据改变监视、多值、目录监听、分布式锁原子操作等功能，可以方便的跟踪并管理集群节点的状态。</p>
 <ul>
 <li>键值对存储：将数据存储在分层组织的目录中，如同在标准文件系统中</li>
@@ -2238,7 +2238,198 @@ Finished defragmenting etcd member<span class="token punctuation">[</span><span 
 <li>与 apiserver 之间的链路阻塞</li>
 <li>磁盘暴涨</li>
 </ul>
-
+<h2 id="Kubernetes-控制平面组件-API-Server"><a href="#Kubernetes-控制平面组件-API-Server" class="headerlink" title="Kubernetes 控制平面组件 API Server"></a>Kubernetes 控制平面组件 API Server</h2><h3 id="API-Server"><a href="#API-Server" class="headerlink" title="API Server"></a>API Server</h3><p>kube-apiserver 是 Kubernetes 最重要的核心组件之一，主要提供以下的功能：</p>
+<ul>
+<li>提供集群管理的 REST API 接口，包括认证授权、数据校验以及集群状态变更等</li>
+<li>提供其他模块之间的数据交互和通信的枢纽（其他模块通过 API Server 查询或修改数据，只有 API Server 才直接操作 etcd）</li>
+</ul>
+<h4 id="访问控制概览"><a href="#访问控制概览" class="headerlink" title="访问控制概览"></a>访问控制概览</h4><p>Kubernetes API的每个请求都会经过多阶段的访问控制之后才会被接受，这包括认证、授权以及准入控制（Admission Control）等。</p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/APIServer访问控制概览.png" alt="APIServer访问控制概览"></p>
+<h4 id="访问控制细节"><a href="#访问控制细节" class="headerlink" title="访问控制细节"></a>访问控制细节</h4><p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/APIServer访问控制细节.png" alt="APIServer访问控制细节"></p>
+<h3 id="认证"><a href="#认证" class="headerlink" title="认证"></a>认证</h3><p>开启 TLS 时，所有的请求都需要首先认证。Kubernetes 支持多种认证机制，并支持同时开启多个认证插件（只要有一个认证通过即可）。如果认证成功，则用户的 username 会传入授权模块做进一步授权验证；而对于认证失败的请求则返回 HTTP 401。</p>
+<h4 id="认证插件"><a href="#认证插件" class="headerlink" title="认证插件"></a>认证插件</h4><ul>
+<li>X509证书<ul>
+<li><a target="_blank" rel="noopener" href="https://github.com/kibaamor/101/blob/master/module6/basic-auth/x509.MD">https://github.com/kibaamor/101/blob/master/module6/basic-auth/x509.MD</a></li>
+<li>使用 X509 客户端证书只需要 API Server 启动时配置 <code>--client-ca-file=SOMEFILE</code>。在证书认证时，其 CN 域用作用户名，而组织机构域则用作 group 名。</li>
+</ul>
+</li>
+<li>静态Token文件<ul>
+<li><a target="_blank" rel="noopener" href="https://github.com/kibaamor/101/tree/master/module6/basic-auth">https://github.com/kibaamor/101/tree/master/module6/basic-auth</a></li>
+<li>使用静态 Token 文件认证只需要 API Server 启动时配置 <code>--token-auth-file=SOMEFILE</code>。</li>
+<li>该文件为csv格式，每行至少包括三列 token,username,user id，<ul>
+<li>token,user,uid,”group1,group2,group3”</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>引导Token<ul>
+<li>为了支持平滑地启动引导新的集群，Kubernetes 包含了一种动态管理的持有者令牌类型， 称作启动引导令牌（Bootstrap Token）。</li>
+<li>这些令牌以 Secret 的形式保存在 kube-system 名字空间中，可以被动态管理和创建。</li>
+<li>控制器管理器包含的 TokenCleaner 控制器能够在启动引导令牌过期时将其删除。</li>
+<li>在使用 kubeadm 部署 Kubernetes 时，可通过 kubeadm token list 命令查询。</li>
+</ul>
+</li>
+<li>静态密码文件<ul>
+<li>需要 API Server 启动时配置 <code>--basic-auth-file=SOMEFILE</code>，文件格式为 csv，每行至少三列 password, user, uid，后面是可选的 group 名<ul>
+<li>password,user,uid,”group1,group2,group3”</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>ServiceAccount<ul>
+<li>ServiceAccount 是 Kubernetes 自动生成的，并会自动挂载到容器的 <code>/run/secrets/kubernetes.io/serviceaccount</code> 目录中。</li>
+</ul>
+</li>
+<li>OpenID<ul>
+<li>OAuth 2.0的认证机制</li>
+</ul>
+</li>
+<li>Webhook 令牌身份认证<ul>
+<li>—authentication-token-webhook-config-file 指向一个配置文件，其中描述如何访问远程的Webhook 服务。</li>
+<li>—authentication-token-webhook-cache-ttl 用来设定身份认证决定的缓存时间。默认时长为2 分钟。</li>
+</ul>
+</li>
+<li>匿名请求<ul>
+<li>如果使用 AlwaysAllow 以外的认证模式，则匿名请求默认开启，但可用 <code>--anonymous-auth=false</code> 禁止匿名请求。</li>
+</ul>
+</li>
+</ul>
+<h3 id="基于webhook的认证服务集成"><a href="#基于webhook的认证服务集成" class="headerlink" title="基于webhook的认证服务集成"></a>基于webhook的认证服务集成</h3><h4 id="构建符合Kubernetes规范的认证服务"><a href="#构建符合Kubernetes规范的认证服务" class="headerlink" title="构建符合Kubernetes规范的认证服务"></a>构建符合Kubernetes规范的认证服务</h4><p>需要依照 Kubernetes 规范，构建认证服务，用来认证 tokenreview request</p>
+<p>构建认证服务需要满足如下Kubernetes的规范</p>
+<p>URL： <a target="_blank" rel="noopener" href="https://authn.example.com/authenticate">https://authn.example.com/authenticate</a></p>
+<p>Method： POST</p>
+<p>Input:</p>
+<pre class="line-numbers language-json" data-language="json"><code class="language-json"><span class="token punctuation">{</span>
+  <span class="token property">"apiVersion"</span><span class="token operator">:</span> <span class="token string">"authentication.k8s.io/v1beta1"</span><span class="token punctuation">,</span>
+  <span class="token property">"kind"</span><span class="token operator">:</span> <span class="token string">"TokenReview"</span><span class="token punctuation">,</span>
+  <span class="token property">"spec"</span><span class="token operator">:</span> <span class="token punctuation">{</span>
+    <span class="token property">"token"</span><span class="token operator">:</span> <span class="token string">"(BEARERTOKEN)"</span>
+  <span class="token punctuation">}</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>Output:</p>
+<pre class="line-numbers language-json" data-language="json"><code class="language-json"><span class="token punctuation">{</span>
+  <span class="token property">"apiVersion"</span><span class="token operator">:</span> <span class="token string">"authentication.k8s.io/v1beta1"</span><span class="token punctuation">,</span>
+  <span class="token property">"kind"</span><span class="token operator">:</span> <span class="token string">"TokenReview"</span><span class="token punctuation">,</span>
+  <span class="token property">"status"</span><span class="token operator">:</span> <span class="token punctuation">{</span>
+    <span class="token property">"authenticated"</span><span class="token operator">:</span> <span class="token boolean">true</span><span class="token punctuation">,</span>
+    <span class="token property">"user"</span><span class="token operator">:</span> <span class="token punctuation">{</span>
+      <span class="token property">"username"</span><span class="token operator">:</span> <span class="token string">"janedoe@example.com"</span><span class="token punctuation">,</span>
+      <span class="token property">"uid"</span><span class="token operator">:</span> <span class="token string">"42"</span><span class="token punctuation">,</span>
+      <span class="token property">"groups"</span><span class="token operator">:</span> <span class="token punctuation">[</span>
+        <span class="token string">"developers"</span><span class="token punctuation">,</span>
+        <span class="token string">"qa"</span>
+      <span class="token punctuation">]</span>
+    <span class="token punctuation">}</span>
+  <span class="token punctuation">}</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<h4 id="开发认证服务"><a href="#开发认证服务" class="headerlink" title="开发认证服务"></a>开发认证服务</h4><p><a target="_blank" rel="noopener" href="https://github.com/kibaamor/101/tree/master/module6/authn-webhook">https://github.com/kibaamor/101/tree/master/module6/authn-webhook</a></p>
+<p>解码认证请求</p>
+<pre class="line-numbers language-go" data-language="go"><code class="language-go">decoder <span class="token operator">:=</span> json<span class="token punctuation">.</span><span class="token function">NewDecoder</span><span class="token punctuation">(</span>r<span class="token punctuation">.</span>Body<span class="token punctuation">)</span>
+<span class="token keyword">var</span> tr authentication<span class="token punctuation">.</span>TokenReview
+err <span class="token operator">:=</span> decoder<span class="token punctuation">.</span><span class="token function">Decode</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>tr<span class="token punctuation">)</span>
+<span class="token keyword">if</span> err <span class="token operator">!=</span> <span class="token boolean">nil</span> <span class="token punctuation">{</span>
+    log<span class="token punctuation">.</span><span class="token function">Println</span><span class="token punctuation">(</span><span class="token string">"[Error]"</span><span class="token punctuation">,</span> err<span class="token punctuation">.</span><span class="token function">Error</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span>
+    w<span class="token punctuation">.</span><span class="token function">WriteHeader</span><span class="token punctuation">(</span>http<span class="token punctuation">.</span>StatusBadRequest<span class="token punctuation">)</span>
+    json<span class="token punctuation">.</span><span class="token function">NewEncoder</span><span class="token punctuation">(</span>w<span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">Encode</span><span class="token punctuation">(</span><span class="token keyword">map</span><span class="token punctuation">[</span><span class="token builtin">string</span><span class="token punctuation">]</span><span class="token keyword">interface</span><span class="token punctuation">{</span><span class="token punctuation">}</span><span class="token punctuation">{</span>
+        <span class="token string">"apiVersion"</span><span class="token punctuation">:</span> <span class="token string">"authentication.k8s.io/v1beta1"</span><span class="token punctuation">,</span>
+        <span class="token string">"kind"</span><span class="token punctuation">:</span>       <span class="token string">"TokenReview"</span><span class="token punctuation">,</span>
+        <span class="token string">"status"</span><span class="token punctuation">:</span> authentication<span class="token punctuation">.</span>TokenReviewStatus<span class="token punctuation">{</span>
+            Authenticated<span class="token punctuation">:</span> <span class="token boolean">false</span><span class="token punctuation">,</span>
+        <span class="token punctuation">}</span><span class="token punctuation">,</span>
+    <span class="token punctuation">}</span><span class="token punctuation">)</span>
+    <span class="token keyword">return</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>转发认证请求至认证服务器</p>
+<pre class="line-numbers language-go" data-language="go"><code class="language-go"><span class="token comment">// Check User</span>
+ts <span class="token operator">:=</span> oauth2<span class="token punctuation">.</span><span class="token function">StaticTokenSource</span><span class="token punctuation">(</span>
+    <span class="token operator">&amp;</span>oauth2<span class="token punctuation">.</span>Token<span class="token punctuation">{</span>AccessToken<span class="token punctuation">:</span> tr<span class="token punctuation">.</span>Spec<span class="token punctuation">.</span>Token<span class="token punctuation">}</span><span class="token punctuation">,</span>
+<span class="token punctuation">)</span>
+tc <span class="token operator">:=</span> oauth2<span class="token punctuation">.</span><span class="token function">NewClient</span><span class="token punctuation">(</span>context<span class="token punctuation">.</span><span class="token function">Background</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">,</span> ts<span class="token punctuation">)</span>
+client <span class="token operator">:=</span> github<span class="token punctuation">.</span><span class="token function">NewClient</span><span class="token punctuation">(</span>tc<span class="token punctuation">)</span>
+user<span class="token punctuation">,</span> <span class="token boolean">_</span><span class="token punctuation">,</span> err <span class="token operator">:=</span> client<span class="token punctuation">.</span>Users<span class="token punctuation">.</span><span class="token function">Get</span><span class="token punctuation">(</span>context<span class="token punctuation">.</span><span class="token function">Background</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">,</span> <span class="token string">""</span><span class="token punctuation">)</span>
+<span class="token keyword">if</span> err <span class="token operator">!=</span> <span class="token boolean">nil</span> <span class="token punctuation">{</span>
+    log<span class="token punctuation">.</span><span class="token function">Println</span><span class="token punctuation">(</span><span class="token string">"[Error]"</span><span class="token punctuation">,</span> err<span class="token punctuation">.</span><span class="token function">Error</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span>
+    w<span class="token punctuation">.</span><span class="token function">WriteHeader</span><span class="token punctuation">(</span>http<span class="token punctuation">.</span>StatusUnauthorized<span class="token punctuation">)</span>
+    json<span class="token punctuation">.</span><span class="token function">NewEncoder</span><span class="token punctuation">(</span>w<span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">Encode</span><span class="token punctuation">(</span><span class="token keyword">map</span><span class="token punctuation">[</span><span class="token builtin">string</span><span class="token punctuation">]</span><span class="token keyword">interface</span><span class="token punctuation">{</span><span class="token punctuation">}</span><span class="token punctuation">{</span>
+        <span class="token string">"apiVersion"</span><span class="token punctuation">:</span> <span class="token string">"authentication.k8s.io/v1beta1"</span><span class="token punctuation">,</span>
+        <span class="token string">"kind"</span><span class="token punctuation">:</span>       <span class="token string">"TokenReview"</span><span class="token punctuation">,</span>
+        <span class="token string">"status"</span><span class="token punctuation">:</span> authentication<span class="token punctuation">.</span>TokenReviewStatus<span class="token punctuation">{</span>
+            Authenticated<span class="token punctuation">:</span> <span class="token boolean">false</span><span class="token punctuation">,</span>
+        <span class="token punctuation">}</span><span class="token punctuation">,</span>
+    <span class="token punctuation">}</span><span class="token punctuation">)</span>
+    <span class="token keyword">return</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>认证结果返回给 API Server</p>
+<pre class="line-numbers language-go" data-language="go"><code class="language-go">w<span class="token punctuation">.</span><span class="token function">WriteHeader</span><span class="token punctuation">(</span>http<span class="token punctuation">.</span>StatusOK<span class="token punctuation">)</span>
+trs <span class="token operator">:=</span> authentication<span class="token punctuation">.</span>TokenReviewStatus<span class="token punctuation">{</span>
+    Authenticated<span class="token punctuation">:</span> <span class="token boolean">true</span><span class="token punctuation">,</span>
+    User<span class="token punctuation">:</span> authentication<span class="token punctuation">.</span>UserInfo<span class="token punctuation">{</span>
+        Username<span class="token punctuation">:</span> <span class="token operator">*</span>user<span class="token punctuation">.</span>Login<span class="token punctuation">,</span>
+        UID<span class="token punctuation">:</span>      <span class="token operator">*</span>user<span class="token punctuation">.</span>Login<span class="token punctuation">,</span>
+    <span class="token punctuation">}</span><span class="token punctuation">,</span>
+<span class="token punctuation">}</span>
+json<span class="token punctuation">.</span><span class="token function">NewEncoder</span><span class="token punctuation">(</span>w<span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">Encode</span><span class="token punctuation">(</span><span class="token keyword">map</span><span class="token punctuation">[</span><span class="token builtin">string</span><span class="token punctuation">]</span><span class="token keyword">interface</span><span class="token punctuation">{</span><span class="token punctuation">}</span><span class="token punctuation">{</span>
+    <span class="token string">"apiVersion"</span><span class="token punctuation">:</span> <span class="token string">"authentication.k8s.io/v1beta1"</span><span class="token punctuation">,</span>
+    <span class="token string">"kind"</span><span class="token punctuation">:</span>       <span class="token string">"TokenReview"</span><span class="token punctuation">,</span>
+    <span class="token string">"status"</span><span class="token punctuation">:</span>     trs<span class="token punctuation">,</span>
+<span class="token punctuation">}</span><span class="token punctuation">)</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<h4 id="配置认证服务"><a href="#配置认证服务" class="headerlink" title="配置认证服务"></a>配置认证服务</h4><pre class="line-numbers language-json" data-language="json"><code class="language-json"><span class="token punctuation">{</span>
+  <span class="token property">"kind"</span><span class="token operator">:</span> <span class="token string">"Config"</span><span class="token punctuation">,</span>
+  <span class="token property">"apiVersion"</span><span class="token operator">:</span> <span class="token string">"v1"</span><span class="token punctuation">,</span>
+  <span class="token property">"preferences"</span><span class="token operator">:</span> <span class="token punctuation">{</span><span class="token punctuation">}</span><span class="token punctuation">,</span>
+  <span class="token property">"clusters"</span><span class="token operator">:</span> <span class="token punctuation">[</span>
+    <span class="token punctuation">{</span>
+      <span class="token property">"name"</span><span class="token operator">:</span> <span class="token string">"github-authn"</span><span class="token punctuation">,</span>
+      <span class="token property">"cluster"</span><span class="token operator">:</span> <span class="token punctuation">{</span>
+        <span class="token property">"server"</span><span class="token operator">:</span> <span class="token string">"http://192.168.34.2:3000/authenticate"</span>
+      <span class="token punctuation">}</span>
+    <span class="token punctuation">}</span>
+  <span class="token punctuation">]</span><span class="token punctuation">,</span>
+  <span class="token property">"users"</span><span class="token operator">:</span> <span class="token punctuation">[</span>
+    <span class="token punctuation">{</span>
+      <span class="token property">"name"</span><span class="token operator">:</span> <span class="token string">"authn-apiserver"</span><span class="token punctuation">,</span>
+      <span class="token property">"user"</span><span class="token operator">:</span> <span class="token punctuation">{</span>
+        <span class="token property">"token"</span><span class="token operator">:</span> <span class="token string">"secret"</span>
+      <span class="token punctuation">}</span>
+    <span class="token punctuation">}</span>
+  <span class="token punctuation">]</span><span class="token punctuation">,</span>
+  <span class="token property">"contexts"</span><span class="token operator">:</span> <span class="token punctuation">[</span>
+    <span class="token punctuation">{</span>
+      <span class="token property">"name"</span><span class="token operator">:</span> <span class="token string">"webhook"</span><span class="token punctuation">,</span>
+      <span class="token property">"context"</span><span class="token operator">:</span> <span class="token punctuation">{</span>
+        <span class="token property">"cluster"</span><span class="token operator">:</span> <span class="token string">"github-authn"</span><span class="token punctuation">,</span>
+        <span class="token property">"user"</span><span class="token operator">:</span> <span class="token string">"authn-apiserver"</span>
+      <span class="token punctuation">}</span>
+    <span class="token punctuation">}</span>
+  <span class="token punctuation">]</span><span class="token punctuation">,</span>
+  <span class="token property">"current-context"</span><span class="token operator">:</span> <span class="token string">"webhook"</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<h4 id="配置-apiserver"><a href="#配置-apiserver" class="headerlink" title="配置 apiserver"></a>配置 apiserver</h4><p>可以是任何认证系统</p>
+<ul>
+<li>但在用户认证完成后，生成代表用户身份的 token</li>
+<li>该 token 通常是有失效时间的</li>
+<li>用户获取该 token 以后以后，将token配置进 kubeconfig</li>
+</ul>
+<p>修改 apiserver 设置，开启认证服务，apiserver 保证将所有收到的请求中的 token 信息，发给认证服务进行验证</p>
+<pre><code>- --authentication-token-webhook-config-file，该文件描述如何访问认证服务
+- --authentication-token-webhook-cache-ttl，默认 2 分钟
+</code></pre><p>配置文件需要mount进Pod</p>
+<p>配置文件中的服务器地址需要指向 authService</p>
+<h4 id="生产系统中遇到的陷阱"><a href="#生产系统中遇到的陷阱" class="headerlink" title="生产系统中遇到的陷阱"></a>生产系统中遇到的陷阱</h4><p>基于 Keystone 的认证插件导致 Keystone 故障且无法恢复</p>
+<p>Keystone 是企业关键服务</p>
+<p>Kubernetes 以 Keystone 作为认证插件</p>
+<p>Keystone 在出现故障后会抛出 401 错误</p>
+<p>Kubernetes 发现 401 错误后会尝试重新认证</p>
+<p>大多数 controller 都有指数级 back off，重试间隔越来越慢</p>
+<p>但 gophercloud 针对过期 token 会一直 retry</p>
+<p>大量的 request 积压在 Keystone 导致服务无法恢复</p>
+<p>Kubernetes 成为压死企业认证服务的最后一根稻草</p>
+<p>解决方案？</p>
+<ul>
+<li>Circuit break</li>
+<li>Rate limit</li>
+</ul>
+<h3 id="鉴权"><a href="#鉴权" class="headerlink" title="鉴权"></a>鉴权</h3>
                 
             </div>
             <hr/>
