@@ -399,21 +399,21 @@
                 
                 <div class="post-date info-break-policy">
                     <i class="far fa-calendar-check fa-fw"></i>更新日期:&nbsp;&nbsp;
-                    2024-05-07
+                    2024-05-08
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-file-word fa-fw"></i>文章字数:&nbsp;&nbsp;
-                    30.1k
+                    31.6k
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-clock fa-fw"></i>阅读时长:&nbsp;&nbsp;
-                    116 分
+                    124 分
                 </div>
                 
 
@@ -2833,7 +2833,290 @@ namespace.
 </ul>
 </li>
 </ul>
+<h5 id="认证-1"><a href="#认证-1" class="headerlink" title="认证"></a>认证</h5><p>与企业现有认证系统集成</p>
+<ul>
+<li>很多企业基于 Microsoft Active Directory 提供认证服务</li>
+</ul>
+<p>选择认证插件</p>
+<ul>
+<li>选择 webhook 作为认证插件（*以此为例展开）</li>
+<li>也可以选择 Keystone 作为认证插件，以 Microsoft Ad 作为 backend 搭建 keystone 服务</li>
+</ul>
+<p>一旦认证完成，Kubernetes 即可获取当前用户信息（主要是用户名），并针对该用户做授权。授权和准入控制完成后，该用户的请求完成。</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token operator">&gt;</span> kubectl get apiservices v1. -oyaml
+apiVersion: apiregistration.k8s.io/v1
+kind: APIService
+metadata:
+  creationTimestamp: <span class="token string">"2024-05-02T13:50:21Z"</span>
+  labels:
+    kube-aggregator.kubernetes.io/automanaged: onstart
+  name: v1.
+  resourceVersion: <span class="token string">"5"</span>
+  uid: 0510b743-30fc-4aab-96b9-cd9cc6d309d2
+spec:
+  groupPriorityMinimum: <span class="token number">18000</span>
+  version: v1
+  versionPriority: <span class="token number">1</span>
+status:
+  conditions:
+  - lastTransitionTime: <span class="token string">"2024-05-02T13:50:21Z"</span>
+    message: Local APIServices are always available
+    reason: Local
+    status: <span class="token string">"True"</span>
+    type: Available<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<h5 id="授权-1"><a href="#授权-1" class="headerlink" title="授权"></a>授权</h5><p>ABAC 有期局限性，针对每个 account 都需要做配置，并且需要重启 apiserver</p>
+<p>RBAC 更灵活，更符合我们通常熟知的权限管理</p>
+<h3 id="apimachinery"><a href="#apimachinery" class="headerlink" title="apimachinery"></a>apimachinery</h3><p><a target="_blank" rel="noopener" href="https://github.com/kubernetes/apimachinery">https://github.com/kubernetes/apimachinery</a></p>
+<p><a target="_blank" rel="noopener" href="https://github.com/kubernetes/kubernetes/tree/master/staging/src/k8s.io/apimachinery">https://github.com/kubernetes/kubernetes/tree/master/staging/src/k8s.io/apimachinery</a></p>
+<p>包含了 kubernetes 核心 API 对象的定义。</p>
+<h4 id="回顾-GKV"><a href="#回顾-GKV" class="headerlink" title="回顾 GKV"></a>回顾 GKV</h4><p>Group</p>
+<p>Kind</p>
+<p>Version</p>
+<ul>
+<li>Internel version 和 External version（还有一个 storage version）<ul>
+<li>External version：面向用户。版本演进时，照顾版本的兼容性。（kubernetes 只承诺向前兼容 3 个版本）<ul>
+<li><code>staging/src/k8s.io/api/core/v1/types.go</code> 中就是 core group 的 External version 的定义 </li>
+</ul>
+</li>
+<li>Internal version：API Service 在存数据时会把数据先转成 Internal version<ul>
+<li><code>pkg/apis/core/types.go</code> 中就是 core group 的 Internal version 的定义</li>
+</ul>
+</li>
+<li>对比 External version 和 Internal version 的定义<ul>
+<li>External version 的定义会有 json/patchStrategy/patchMergeKey/protobuf tag</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>版本转换</li>
+</ul>
+<h4 id="如何定义-Group"><a href="#如何定义-Group" class="headerlink" title="如何定义 Group"></a>如何定义 Group</h4><p><code>pkg/apis/core/register.go</code></p>
+<p>定义 group</p>
+<pre class="line-numbers language-go" data-language="go"><code class="language-go"><span class="token keyword">const</span> GroupName <span class="token operator">=</span> <span class="token string">""</span><span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>定义 groupversion</p>
+<pre class="line-numbers language-go" data-language="go"><code class="language-go"><span class="token keyword">var</span> SchemeGroupVersion <span class="token operator">=</span> schema<span class="token punctuation">.</span>GroupVersion<span class="token punctuation">{</span>Group<span class="token punctuation">:</span> GroupName<span class="token punctuation">,</span> Version<span class="token punctuation">:</span> runtime<span class="token punctuation">.</span>APIVersionInternal<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>定义 SchemeBuilder</p>
+<pre class="line-numbers language-go" data-language="go"><code class="language-go"><span class="token keyword">var</span> <span class="token punctuation">(</span>
+    SchemeBuilder <span class="token operator">=</span> runtime<span class="token punctuation">.</span><span class="token function">NewSchemeBuilder</span><span class="token punctuation">(</span>addKnownTypes<span class="token punctuation">)</span>
+    AddToScheme <span class="token operator">=</span> SchemeBuilder<span class="token punctuation">.</span>AddToScheme
+<span class="token punctuation">)</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span></span></code></pre>
+<p>将对象加入SchemeBuild</p>
+<pre class="line-numbers language-go" data-language="go"><code class="language-go"><span class="token keyword">func</span> <span class="token function">addKnownTypes</span><span class="token punctuation">(</span>scheme <span class="token operator">*</span>runtime<span class="token punctuation">.</span>Scheme<span class="token punctuation">)</span> <span class="token builtin">error</span> <span class="token punctuation">{</span>
+    <span class="token keyword">if</span> err <span class="token operator">:=</span> scheme<span class="token punctuation">.</span><span class="token function">AddIgnoredConversionType</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>metav1<span class="token punctuation">.</span>TypeMeta<span class="token punctuation">{</span><span class="token punctuation">}</span><span class="token punctuation">,</span> <span class="token operator">&amp;</span>metav1<span class="token punctuation">.</span>TypeMeta<span class="token punctuation">{</span><span class="token punctuation">}</span><span class="token punctuation">)</span><span class="token punctuation">;</span> err <span class="token operator">!=</span> <span class="token boolean">nil</span> <span class="token punctuation">{</span>
+        <span class="token keyword">return</span> err
+    <span class="token punctuation">}</span>
+    scheme<span class="token punctuation">.</span><span class="token function">AddKnownTypes</span><span class="token punctuation">(</span>SchemeGroupVersion<span class="token punctuation">,</span>
+        <span class="token operator">&amp;</span>Pod<span class="token punctuation">{</span><span class="token punctuation">}</span><span class="token punctuation">,</span>
+        <span class="token operator">&amp;</span>PodList<span class="token punctuation">{</span><span class="token punctuation">}</span><span class="token punctuation">,</span>
+        <span class="token comment">//...</span>
+    <span class="token punctuation">}</span><span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<h4 id="定义对象类型-types-go"><a href="#定义对象类型-types-go" class="headerlink" title="定义对象类型 types.go"></a>定义对象类型 types.go</h4><p>List</p>
+<p>单一对象数据结构</p>
+<ul>
+<li>TypeMeta</li>
+<li>ObjectMeta</li>
+<li>Spec</li>
+<li>Status</li>
+</ul>
+<h4 id="代码生成-Tags"><a href="#代码生成-Tags" class="headerlink" title="代码生成 Tags"></a>代码生成 Tags</h4><h5 id="Global-Tags"><a href="#Global-Tags" class="headerlink" title="Global Tags"></a>Global Tags</h5><p>定义在 doc.go 中</p>
+<pre class="line-numbers language-go" data-language="go"><code class="language-go"><span class="token comment">// +k8s:deepcopy-gen=package</span><span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<h5 id="Local-Tags"><a href="#Local-Tags" class="headerlink" title="Local Tags"></a>Local Tags</h5><p>定义在 types.go 中的每个对象里</p>
+<pre class="line-numbers language-go" data-language="go"><code class="language-go"><span class="token comment">// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object</span>
 
+<span class="token comment">// +genclient</span>
+<span class="token comment">// +genclient:nonNamespaced</span>
+<span class="token comment">// +genclient:noVerbs</span>
+<span class="token comment">// +genclient:onlyVerbs=create,delete</span>
+<span class="token comment">// +genclient:skipVerbs=get,list,create,update,patch,delete,deleteCollection,watch</span>
+<span class="token comment">// +genclient:method=Create,verb=create,result=k8s.io/apimachinery/pkg/apis/meta/v1.Status</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<h4 id="实现-etcd-storage"><a href="#实现-etcd-storage" class="headerlink" title="实现 etcd storage"></a>实现 etcd storage</h4><pre class="line-numbers language-go" data-language="go"><code class="language-go"><span class="token comment">// pkg/registry/core/configmap/storage/storage.go</span>
+
+<span class="token comment">// NewREST returns a RESTStorage object that will work with ConfigMap objects.</span>
+<span class="token keyword">func</span> <span class="token function">NewREST</span><span class="token punctuation">(</span>optsGetter generic<span class="token punctuation">.</span>RESTOptionsGetter<span class="token punctuation">)</span> <span class="token punctuation">(</span><span class="token operator">*</span>REST<span class="token punctuation">,</span> <span class="token builtin">error</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+    store <span class="token operator">:=</span> <span class="token operator">&amp;</span>genericregistry<span class="token punctuation">.</span>Store<span class="token punctuation">{</span>
+        NewFunc<span class="token punctuation">:</span>                   <span class="token keyword">func</span><span class="token punctuation">(</span><span class="token punctuation">)</span> runtime<span class="token punctuation">.</span>Object <span class="token punctuation">{</span> <span class="token keyword">return</span> <span class="token operator">&amp;</span>api<span class="token punctuation">.</span>ConfigMap<span class="token punctuation">{</span><span class="token punctuation">}</span> <span class="token punctuation">}</span><span class="token punctuation">,</span>
+        NewListFunc<span class="token punctuation">:</span>               <span class="token keyword">func</span><span class="token punctuation">(</span><span class="token punctuation">)</span> runtime<span class="token punctuation">.</span>Object <span class="token punctuation">{</span> <span class="token keyword">return</span> <span class="token operator">&amp;</span>api<span class="token punctuation">.</span>ConfigMapList<span class="token punctuation">{</span><span class="token punctuation">}</span> <span class="token punctuation">}</span><span class="token punctuation">,</span>
+        PredicateFunc<span class="token punctuation">:</span>             configmap<span class="token punctuation">.</span>Matcher<span class="token punctuation">,</span>
+        DefaultQualifiedResource<span class="token punctuation">:</span>  api<span class="token punctuation">.</span><span class="token function">Resource</span><span class="token punctuation">(</span><span class="token string">"configmaps"</span><span class="token punctuation">)</span><span class="token punctuation">,</span>
+        SingularQualifiedResource<span class="token punctuation">:</span> api<span class="token punctuation">.</span><span class="token function">Resource</span><span class="token punctuation">(</span><span class="token string">"configmap"</span><span class="token punctuation">)</span><span class="token punctuation">,</span>
+
+        CreateStrategy<span class="token punctuation">:</span> configmap<span class="token punctuation">.</span>Strategy<span class="token punctuation">,</span>
+        UpdateStrategy<span class="token punctuation">:</span> configmap<span class="token punctuation">.</span>Strategy<span class="token punctuation">,</span>
+        DeleteStrategy<span class="token punctuation">:</span> configmap<span class="token punctuation">.</span>Strategy<span class="token punctuation">,</span>
+
+        TableConvertor<span class="token punctuation">:</span> printerstorage<span class="token punctuation">.</span>TableConvertor<span class="token punctuation">{</span>TableGenerator<span class="token punctuation">:</span> printers<span class="token punctuation">.</span><span class="token function">NewTableGenerator</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">With</span><span class="token punctuation">(</span>printersinternal<span class="token punctuation">.</span>AddHandlers<span class="token punctuation">)</span><span class="token punctuation">}</span><span class="token punctuation">,</span>
+    <span class="token punctuation">}</span>
+    options <span class="token operator">:=</span> <span class="token operator">&amp;</span>generic<span class="token punctuation">.</span>StoreOptions<span class="token punctuation">{</span>
+        RESTOptions<span class="token punctuation">:</span> optsGetter<span class="token punctuation">,</span>
+        AttrFunc<span class="token punctuation">:</span>    configmap<span class="token punctuation">.</span>GetAttrs<span class="token punctuation">,</span>
+    <span class="token punctuation">}</span>
+    <span class="token keyword">if</span> err <span class="token operator">:=</span> store<span class="token punctuation">.</span><span class="token function">CompleteWithOptions</span><span class="token punctuation">(</span>options<span class="token punctuation">)</span><span class="token punctuation">;</span> err <span class="token operator">!=</span> <span class="token boolean">nil</span> <span class="token punctuation">{</span>
+        <span class="token keyword">return</span> <span class="token boolean">nil</span><span class="token punctuation">,</span> err
+    <span class="token punctuation">}</span>
+    <span class="token keyword">return</span> <span class="token operator">&amp;</span>REST<span class="token punctuation">{</span>store<span class="token punctuation">}</span><span class="token punctuation">,</span> <span class="token boolean">nil</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<h4 id="创建和更新对象时的业务逻辑-Strategy"><a href="#创建和更新对象时的业务逻辑-Strategy" class="headerlink" title="创建和更新对象时的业务逻辑 - Strategy"></a>创建和更新对象时的业务逻辑 - Strategy</h4><pre class="line-numbers language-go" data-language="go"><code class="language-go"><span class="token comment">// pkg/registry/core/configmap/strategy.go</span>
+
+<span class="token keyword">func</span> <span class="token punctuation">(</span>strategy<span class="token punctuation">)</span> <span class="token function">PrepareForCreate</span><span class="token punctuation">(</span>ctx context<span class="token punctuation">.</span>Context<span class="token punctuation">,</span> obj runtime<span class="token punctuation">.</span>Object<span class="token punctuation">)</span> <span class="token punctuation">{</span>
+    configMap <span class="token operator">:=</span> obj<span class="token punctuation">.</span><span class="token punctuation">(</span><span class="token operator">*</span>api<span class="token punctuation">.</span>ConfigMap<span class="token punctuation">)</span>
+    <span class="token function">dropDisabledFields</span><span class="token punctuation">(</span>configMap<span class="token punctuation">,</span> <span class="token boolean">nil</span><span class="token punctuation">)</span>
+<span class="token punctuation">}</span>
+
+<span class="token keyword">func</span> <span class="token punctuation">(</span>strategy<span class="token punctuation">)</span> <span class="token function">Validate</span><span class="token punctuation">(</span>ctx context<span class="token punctuation">.</span>Context<span class="token punctuation">,</span> obj runtime<span class="token punctuation">.</span>Object<span class="token punctuation">)</span> field<span class="token punctuation">.</span>ErrorList <span class="token punctuation">{</span>
+    cfg <span class="token operator">:=</span> obj<span class="token punctuation">.</span><span class="token punctuation">(</span><span class="token operator">*</span>api<span class="token punctuation">.</span>ConfigMap<span class="token punctuation">)</span>
+
+    <span class="token keyword">return</span> validation<span class="token punctuation">.</span><span class="token function">ValidateConfigMap</span><span class="token punctuation">(</span>cfg<span class="token punctuation">)</span>
+<span class="token punctuation">}</span>
+
+<span class="token keyword">func</span> <span class="token punctuation">(</span>strategy<span class="token punctuation">)</span> <span class="token function">PrepareForUpdate</span><span class="token punctuation">(</span>ctx context<span class="token punctuation">.</span>Context<span class="token punctuation">,</span> newObj<span class="token punctuation">,</span> oldObj runtime<span class="token punctuation">.</span>Object<span class="token punctuation">)</span> <span class="token punctuation">{</span>
+    oldConfigMap <span class="token operator">:=</span> oldObj<span class="token punctuation">.</span><span class="token punctuation">(</span><span class="token operator">*</span>api<span class="token punctuation">.</span>ConfigMap<span class="token punctuation">)</span>
+    newConfigMap <span class="token operator">:=</span> newObj<span class="token punctuation">.</span><span class="token punctuation">(</span><span class="token operator">*</span>api<span class="token punctuation">.</span>ConfigMap<span class="token punctuation">)</span>
+    <span class="token function">dropDisabledFields</span><span class="token punctuation">(</span>newConfigMap<span class="token punctuation">,</span> oldConfigMap<span class="token punctuation">)</span>
+<span class="token punctuation">}</span>
+
+<span class="token keyword">func</span> <span class="token punctuation">(</span>strategy<span class="token punctuation">)</span> <span class="token function">ValidateUpdate</span><span class="token punctuation">(</span>ctx context<span class="token punctuation">.</span>Context<span class="token punctuation">,</span> newObj<span class="token punctuation">,</span> oldObj runtime<span class="token punctuation">.</span>Object<span class="token punctuation">)</span> field<span class="token punctuation">.</span>ErrorList <span class="token punctuation">{</span>
+    oldCfg<span class="token punctuation">,</span> newCfg <span class="token operator">:=</span> oldObj<span class="token punctuation">.</span><span class="token punctuation">(</span><span class="token operator">*</span>api<span class="token punctuation">.</span>ConfigMap<span class="token punctuation">)</span><span class="token punctuation">,</span> newObj<span class="token punctuation">.</span><span class="token punctuation">(</span><span class="token operator">*</span>api<span class="token punctuation">.</span>ConfigMap<span class="token punctuation">)</span>
+
+    <span class="token keyword">return</span> validation<span class="token punctuation">.</span><span class="token function">ValidateConfigMapUpdate</span><span class="token punctuation">(</span>newCfg<span class="token punctuation">,</span> oldCfg<span class="token punctuation">)</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<h4 id="subresource"><a href="#subresource" class="headerlink" title="subresource"></a>subresource</h4><p>什么是 subresource，内嵌在 kubernetes 对象中，有独立的操作逻辑的属性集合，如 podstatus</p>
+<pre class="line-numbers language-go" data-language="go"><code class="language-go"><span class="token comment">// pkg/registry/core/pod/strategy.go</span>
+
+statusStore<span class="token punctuation">.</span>UpdateStrategy <span class="token operator">=</span> pod<span class="token punctuation">.</span>StatusStrategy
+
+<span class="token keyword">var</span> StatusStrategy <span class="token operator">=</span> podStatusStrategy<span class="token punctuation">{</span>Strategy<span class="token punctuation">}</span>
+
+<span class="token keyword">func</span> <span class="token punctuation">(</span>podStatusStrategy<span class="token punctuation">)</span> <span class="token function">PrepareForUpdate</span><span class="token punctuation">(</span>ctx context<span class="token punctuation">.</span>Context<span class="token punctuation">,</span> obj<span class="token punctuation">,</span> old runtime<span class="token punctuation">.</span>Object<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    newPod <span class="token operator">:=</span> obj<span class="token punctuation">.</span><span class="token punctuation">(</span><span class="token operator">*</span>api<span class="token punctuation">.</span>Pod<span class="token punctuation">)</span>
+    oldPod <span class="token operator">:=</span> old<span class="token punctuation">.</span><span class="token punctuation">(</span><span class="token operator">*</span>api<span class="token punctuation">.</span>Pod<span class="token punctuation">)</span>
+    newPod<span class="token punctuation">.</span>Spec <span class="token operator">=</span> oldPod<span class="token punctuation">.</span>Spec
+    newPod<span class="token punctuation">.</span>DeletionTimestamp <span class="token operator">=</span> <span class="token boolean">nil</span>
+
+    <span class="token comment">// don't allow the pods/status endpoint to touch owner references since old kubelets corrupt them in a way</span>
+    <span class="token comment">// that breaks garbage collection</span>
+    newPod<span class="token punctuation">.</span>OwnerReferences <span class="token operator">=</span> oldPod<span class="token punctuation">.</span>OwnerReferences
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<h4 id="注册-APIGroup"><a href="#注册-APIGroup" class="headerlink" title="注册 APIGroup"></a>注册 APIGroup</h4><p>定义 Storage</p>
+<pre class="line-numbers language-go" data-language="go"><code class="language-go">configMapStorage <span class="token operator">:=</span> configmapstore<span class="token punctuation">.</span><span class="token function">NewREST</span><span class="token punctuation">(</span>restOptionsGetter<span class="token punctuation">)</span>
+
+restStorageMap <span class="token operator">:=</span> <span class="token keyword">map</span><span class="token punctuation">[</span><span class="token builtin">string</span><span class="token punctuation">]</span>rest<span class="token punctuation">.</span>Storage<span class="token punctuation">{</span>
+    <span class="token string">"configMaps"</span><span class="token punctuation">:</span> configMapStorage<span class="token punctuation">,</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>定义对象的 StorageMap</p>
+<pre class="line-numbers language-go" data-language="go"><code class="language-go">apiGroupInfo<span class="token punctuation">.</span>VersionedResourcesStorageMap<span class="token punctuation">[</span><span class="token string">"v1"</span><span class="token punctuation">]</span> <span class="token operator">=</span> restStorageMap<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>将对象注册至 APIServer（挂载handler）</p>
+<pre class="line-numbers language-go" data-language="go"><code class="language-go"><span class="token keyword">if</span> err <span class="token operator">:=</span> m<span class="token punctuation">.</span>GenericAPIServer<span class="token punctuation">.</span><span class="token function">InstallLegacyAPIGroup</span><span class="token punctuation">(</span>genericapiserver<span class="token punctuation">.</span>DefaultLegacyAPIPrefix<span class="token punctuation">,</span> <span class="token operator">&amp;</span>apiGroupInfo<span class="token punctuation">)</span><span class="token punctuation">;</span> err <span class="token operator">!=</span> <span class="token boolean">nil</span> <span class="token punctuation">{</span>
+    klog<span class="token punctuation">.</span><span class="token function">Fatalf</span><span class="token punctuation">(</span><span class="token string">"Error in registering group versions: %v"</span><span class="token punctuation">,</span> err<span class="token punctuation">)</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span></span></code></pre>
+<h4 id="代码生成"><a href="#代码生成" class="headerlink" title="代码生成"></a>代码生成</h4><p><a target="_blank" rel="noopener" href="https://github.com/kubernetes/code-generator">https://github.com/kubernetes/code-generator</a></p>
+<p>deepcopy-gen</p>
+<ul>
+<li>为对象生成 DeepCopy 方法，用于创建对象副本</li>
+</ul>
+<p>client-gen</p>
+<ul>
+<li>创建 Clientset，用于操作对象的 CRUD</li>
+</ul>
+<p>informer-gen</p>
+<ul>
+<li>为对象创建 Informer 框架，用于监听对象变化</li>
+</ul>
+<p>lister-gen</p>
+<ul>
+<li>为对象构建 Lister 框架，用于为 Get 和 List 操作，构建客户端缓存</li>
+</ul>
+<p>coversion-gen</p>
+<ul>
+<li>为对象构建 Conversion 方法，用于内外版本转换以及不同版本号的转换</li>
+</ul>
+<h4 id="hack-update-codegen-sh"><a href="#hack-update-codegen-sh" class="headerlink" title="hack/update-codegen.sh"></a>hack/update-codegen.sh</h4><p>依赖</p>
+<pre class="line-numbers language-makefile" data-language="makefile"><code class="language-makefile">BUILD_TARGETS<span class="token operator">=</span><span class="token punctuation">(</span>
+  vendor/k8s.io/code-generator/cmd/client-gen
+  vendor/k8s.io/code-generator/cmd/lister-gen
+  vendor/k8s.io/code-generator/cmd/informer-gen
+<span class="token punctuation">)</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>生成命令</p>
+<pre class="line-numbers language-makefile" data-language="makefile"><code class="language-makefile"><span class="token variable">$</span><span class="token punctuation">{</span>GOPATH<span class="token punctuation">}</span>/bin/deepcopy-gen --input-dirs <span class="token punctuation">{</span>versioned-package-pach<span class="token punctuation">}</span>
+  -O zz_generated.deepcopy \
+  --bounding-dirs <span class="token punctuation">{</span>output-package-path<span class="token punctuation">}</span> \
+  --go-header-file <span class="token variable">$</span><span class="token punctuation">{</span>SCRIPT_ROOT<span class="token punctuation">}</span>/hack/boilerplate.go.txt<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span></span></code></pre>
+<h4 id="APIServer-代码走读"><a href="#APIServer-代码走读" class="headerlink" title="APIServer 代码走读"></a>APIServer 代码走读</h4><p><a target="_blank" rel="noopener" href="https://cncamp.notion.site/kube-apiserver-10d5695cbbb14387b60c6d622005583d">https://cncamp.notion.site/kube-apiserver-10d5695cbbb14387b60c6d622005583d</a></p>
+<pre class="line-numbers language-txt" data-language="txt"><code class="language-txt">cmd/kube-apiserver/app/server.go:NewAPIServerCommand()--&gt;
+completedOptions, err := Complete(s)--&gt;
+    s.Etcd.WatchCacheSizes, err = serveroptions.WriteWatchCacheSizes(sizes)
+Run(completedOptions, genericapiserver.SetupSignalHandler())--&gt;CreateServerChain()--&gt;
+    CreateServerChain()--&gt;
+        CreateKubeAPIServerConfig--&gt;
+            buildGenericConfig(s.ServerRunOptions, proxyTransport)--&gt;
+                genericapiserver.NewConfig(legacyscheme.Codecs) // create codec factory for encoding/decoding
+                controlplane.DefaultAPIResourceConfigSource() // group version: enabled/disabled
+                storageFactoryConfig.Complete(s.Etcd)
+                completedStorageFactoryConfig.New()--&gt; // register access path in etcd for all k8s objects
+                    storageFactory.AddCohabitatingResources(networking.Resource("networkpolicies"), extensions.Resource("networkpolicies"))
+                s.Etcd.ApplyWithStorageFactoryTo(storageFactory, genericConfig)--&gt;
+                    c.AddHealthChecks()
+                    c.RESTOptionsGetter = &amp;StorageFactoryRestOptionsFactory{Options: *s, StorageFactory: factory}
+// 认证
+                s.Authentication.ApplyTo()--&gt; // clientcert, serviceaccount, bootstrap token, 
+                    authenticatorConfig.New()--&gt;
+                        newWebhookTokenAuthenticator(config) // webhook
+// 鉴权
+                BuildAuthorizer(s, genericConfig.EgressSelector, versionedInformers)--&gt;
+                    authorizationConfig.New()--&gt;
+                        rbacAuthorizer := rbac.New()--&gt; // if authorizer type is rbac
+// 准入
+                buildServiceResolver(s.EnableAggregatorRouting, genericConfig.LoopbackClientConfig.Host, versionedInformers)
+                admissionConfig.New(proxyTransport, genericConfig.EgressSelector, serviceResolver)--&gt;
+                    admission.PluginInitializer{webhookPluginInitializer, kubePluginInitializer}
+
+            net.SplitHostPort(s.Etcd.StorageConfig.Transport.ServerList[0])
+            utilwait.PollImmediate(etcdRetryInterval, etcdRetryLimit*etcdRetryInterval, preflight.EtcdConnection{ServerList: s.Etcd.StorageConfig.Transport.ServerList}.CheckEtcdServers)
+            capabilities.Initialize() // allow privillage?
+            config := &amp;controlplane.Config{}
+        createAPIExtensionsConfig()
+        createAPIExtensionsServer()--&gt;
+            apiextensionsConfig.Complete().New(delegateAPIServer)--&gt;
+                s.AddHealthChecks(delegateCheck)
+// 注册通用handler
+                installAPI(s, c.Config) // register generic api handler e.g. index, profiling, metrics, flow control
+        CreateKubeAPIServer(kubeAPIServerConfig, apiExtensionsServer.GenericAPIServer)
+            kubeAPIServerConfig.Complete().New(delegateAPIServer)
+                m.InstallLegacyAPI(&amp;c, c.GenericConfig.RESTOptionsGetter, legacyRESTStorageProvider)--&gt;
+                    m.GenericAPIServer.AddPostStartHookOrDie(controllerName, bootstrapController.PostStartHook)--&gt;
+                        controlplane.controller.Start()--&gt;
+                            async.NewRunner(c.RunKubernetesNamespaces, c.RunKubernetesService, repairClusterIPs.RunUntil, repairNodePorts.RunUntil)
+                    m.GenericAPIServer.AddPreShutdownHookOrDie(controllerName, bootstrapController.PreShutdownHook)
+// 注册core group API handler
+                    m.GenericAPIServer.InstallLegacyAPIGroup() // register handler for /api
+                    restStorageProviders := []RESTStorageProvider{appsrest.StorageProvider{}}
+                m.InstallAPIs(c.ExtraConfig.APIResourceConfigSource, c.GenericConfig.RESTOptionsGetter, restStorageProviders...)--&gt;
+// 初始化对应group中对象的watch cache
+                    restStorageBuilder.NewRESTStorage(apiResourceConfigSource, restOptionsGetter)--&gt; // trigger appsrest.StorageProvider
+                        p.v1Storage(apiResourceConfigSource, restOptionsGetter)--&gt;
+                            daemonsetstore.NewREST(restOptionsGetter)--&gt;
+                                store.CompleteWithOptions(options)--&gt;
+                                    opts, err := options.RESTOptions.GetRESTOptions(e.DefaultQualifiedResource)--&gt; // etcd.go
+                                        ret.Decorator = genericregistry.StorageWithCacher()--&gt;
+                                            cacherstorage.NewCacherFromConfig(cacherConfig)--&gt;
+                                                watchCache := newWatchCache()--&gt;
+// 注册API handler
+                    m.GenericAPIServer.InstallAPIGroups(apiGroupsInfo...)--&gt;  // register handler for /apis
+                        s.installAPIResources(APIGroupPrefix, apiGroupInfo, openAPIModels)--&gt;
+                            apiGroupVersion.InstallREST(s.Handler.GoRestfulContainer)--&gt;
+                                discovery.NewAPIVersionHandler(g.Serializer, g.GroupVersion, staticLister{apiResources})
+        createAggregatorServer(aggregatorConfig, kubeAPIServer.GenericAPIServer, apiExtensionsServer.Informers)--&gt;
+            apiServices := apiServicesToRegister(delegateAPIServer, autoRegistrationController)
+    server.PrepareRun()--&gt;
+        s.GenericAPIServer.PrepareRun()--&gt;
+            s.installHealthz()
+            s.installLivez()
+            s.installReadyz()
+    prepared.Run(stopCh)--&gt;
+        s.runnable.Run(stopCh)--&gt; // preparedGenericAPIServer.Run()
+            s.NonBlockingRun(delayedStopCh)--&gt;
+                s.SecureServingInfo.Serve(s.Handler, s.ShutdownTimeout, internalStopCh)--&gt;
+                    RunServer(secureServer, s.Listener, shutdownTimeout, stopCh)<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
                 
             </div>
             <hr/>
