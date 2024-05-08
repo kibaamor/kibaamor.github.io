@@ -406,14 +406,14 @@
                 
                 <div class="info-break-policy">
                     <i class="far fa-file-word fa-fw"></i>文章字数:&nbsp;&nbsp;
-                    31.6k
+                    33.5k
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-clock fa-fw"></i>阅读时长:&nbsp;&nbsp;
-                    125 分
+                    132 分
                 </div>
                 
 
@@ -3124,6 +3124,228 @@ Run(completedOptions, genericapiserver.SetupSignalHandler())--&gt;CreateServerCh
             s.NonBlockingRun(delayedStopCh)--&gt;
                 s.SecureServingInfo.Serve(s.Handler, s.ShutdownTimeout, internalStopCh)--&gt;
                     RunServer(secureServer, s.Listener, shutdownTimeout, stopCh)<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<h2 id="Kubernetes控制平面组件：调度器和控制器"><a href="#Kubernetes控制平面组件：调度器和控制器" class="headerlink" title="Kubernetes控制平面组件：调度器和控制器"></a>Kubernetes控制平面组件：调度器和控制器</h2><h3 id="调度"><a href="#调度" class="headerlink" title="调度"></a>调度</h3><h4 id="kube-scheduler"><a href="#kube-scheduler" class="headerlink" title="kube-scheduler"></a>kube-scheduler</h4><p>kube-scheduler 负责分配调度 Pod 到集群内的节点上，它监听 kube-apiserver，查询还未分配 Node 的 Pod，然后根据调度策略为这些 Pod 分配节点（更新 Pod 的NodeName 字段）。</p>
+<p>调度器需要充分考虑诸多的因素：</p>
+<ul>
+<li>公平调度</li>
+<li>资源高效利用</li>
+<li>Qos</li>
+<li>affinity 和 anti-affinity</li>
+<li>数据本地化（data locality）</li>
+<li>内部负载干扰（inter-workload interfernece）</li>
+<li>deadlines</li>
+</ul>
+<h4 id="调度器"><a href="#调度器" class="headerlink" title="调度器"></a>调度器</h4><p>kube-scheduler 调度分为两个阶段：</p>
+<ul>
+<li>predicate：过滤不符合条件的节点</li>
+<li>priority：优先级排序，选择优先级最高的节点。</li>
+</ul>
+<h5 id="predicates-策略"><a href="#predicates-策略" class="headerlink" title="predicates 策略"></a>predicates 策略</h5><p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/predicates策略.png" alt="predicates策略"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/predicates策略2.png" alt="predicates策略2"></p>
+<h5 id="predicates-plugin-工作原理"><a href="#predicates-plugin-工作原理" class="headerlink" title="predicates plugin 工作原理"></a>predicates plugin 工作原理</h5><p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/predicatesplugin工作原理.png" alt="predicatesplugin工作原理"></p>
+<h5 id="priorities-策略"><a href="#priorities-策略" class="headerlink" title="priorities 策略"></a>priorities 策略</h5><p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/priorities策略.png" alt="priorities策略"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/priorities策略2.png" alt="priorities策略2"></p>
+<h4 id="资源需求"><a href="#资源需求" class="headerlink" title="资源需求"></a>资源需求</h4><ul>
+<li>CPU<ul>
+<li>requests<ul>
+<li>Kubernetes 调度 Pod 时，会判断当前节点正在运行的 Pod 的 CPU Request 的总和，再加上当前调度 Pod 的 CPU Request，计算其是否超过节点的 CPU 的可分配资源</li>
+</ul>
+</li>
+<li>limits<ul>
+<li>配置 cgroup 以限制资源上限</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>内存<ul>
+<li>requests<ul>
+<li>判断节点的剩余内存是否满足 Pod 的内存请求量，以确定是否可以将 Pod 调度到该节点</li>
+</ul>
+</li>
+<li>limits<ul>
+<li>配置 cgroup 以限制资源上限</li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token operator">&gt;</span> kubectl get node -oyaml
+apiVersion: v1
+items:
+- apiVersion: v1
+  kind: Node
+  <span class="token punctuation">..</span>.
+  status:
+    allocatable:
+      cpu: <span class="token string">"12"</span>
+      ephemeral-storage: 1055762868Ki
+      hugepages-1Gi: <span class="token string">"0"</span>
+      hugepages-2Mi: <span class="token string">"0"</span>
+      memory: 65713368Ki
+      pods: <span class="token string">"110"</span>
+    capacity:
+      cpu: <span class="token string">"12"</span>
+      ephemeral-storage: 1055762868Ki
+      hugepages-1Gi: <span class="token string">"0"</span>
+      hugepages-2Mi: <span class="token string">"0"</span>
+      memory: 65713368Ki
+      pods: <span class="token string">"110"</span>
+    <span class="token punctuation">..</span>.<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<h5 id="磁盘资源需求"><a href="#磁盘资源需求" class="headerlink" title="磁盘资源需求"></a>磁盘资源需求</h5><p>容器临时存储（ephemeral storage）包含日志和可写层数据，可以通过定义 Pod Spec 中的 <code>limits.ephemeral-storage</code> 和 <code>requests.ephemeral-storage</code> 来申请。</p>
+<p>Pod 调度完成后，计算节点对临时存储的限制不是基于 CGroup 的，而是由 kubelet 定时获取容器的日志和容器可写层的磁盘使用情况，如果超过限制，则会对 Pod 进行驱逐。</p>
+<h5 id="Init-Container-的资源需求"><a href="#Init-Container-的资源需求" class="headerlink" title="Init Container 的资源需求"></a>Init Container 的资源需求</h5><ul>
+<li>当 kube-scheduler 调度带有多个 init 容器的 Pod 时，只计算 <code>cpu.request</code> 最多的 init 容器，而不是计算所有的 init 容器总和。</li>
+<li>由于多个 init 容器按顺序执行，并且执行完成立即退出，所以申请最多的资源 init 容器中的所需资源，即可满足所有 init 容器需求。</li>
+<li>kube-scheduler 在计算该节点被占用的资源时，init 容器的资源依然会被纳入计算。因为 init 容器在特定情况下可能会被再次执行，比如由于更换镜像而引起 Sandbox 重建时。</li>
+</ul>
+<h4 id="把-Pod-调度到指定-Node-上"><a href="#把-Pod-调度到指定-Node-上" class="headerlink" title="把 Pod 调度到指定 Node 上"></a>把 Pod 调度到指定 Node 上</h4><p>可以通过 nodeSelector、nodeAffinity、podAffinity 以及 Taints 和 tolerations 等来将 Pod 调度到需求的 Node 上。</p>
+<p>也可以通过设置 nodeName 参数，将 Pod 调度到指定 node 节点上。</p>
+<p>比如，使用 nodeSelector，首先给 Node 加上标签：<code>kubectl label nodes &lt;your-node-name&gt; disktype=ssd</code></p>
+<p>接着，指定该 Pod 只想运行在带有 <code>disktype=ssd</code> 标签的 Node 上。</p>
+<pre class="line-numbers language-yaml" data-language="yaml"><code class="language-yaml"><span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> v1
+<span class="token key atrule">kind</span><span class="token punctuation">:</span> Pod
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> nginx
+  <span class="token key atrule">labels</span><span class="token punctuation">:</span>
+    <span class="token key atrule">env</span><span class="token punctuation">:</span> test
+<span class="token key atrule">spec</span><span class="token punctuation">:</span>
+  <span class="token key atrule">containers</span><span class="token punctuation">:</span>
+  <span class="token punctuation">-</span> <span class="token key atrule">name</span><span class="token punctuation">:</span> nginx
+    <span class="token key atrule">image</span><span class="token punctuation">:</span> nginx
+    <span class="token key atrule">imagePullPolicy</span><span class="token punctuation">:</span> IfNotPresent
+  <span class="token key atrule">nodeSelector</span><span class="token punctuation">:</span>
+    <span class="token key atrule">disktype</span><span class="token punctuation">:</span> ssd<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<h5 id="NodeAffinity"><a href="#NodeAffinity" class="headerlink" title="NodeAffinity"></a>NodeAffinity</h5><p>NodeAffinity 目前支持两种：requiredDuringSchedulingIgnoredDuringExecution 和 preferredDuringSchedulingIgnoredDuringExecution，分别代表必须满足和优选条件。</p>
+<p>比如下面的例子代表调度到包含标签 <code>Kubernetes.io/e2e-az-name</code> 并且值为 <code>e2e-az1</code> 或 <code>e2e-az2</code> 的 Node 上，并且优选还带有标签 <code>another-node-label-key=another-node-label-value</code> 的 Node 。</p>
+<pre class="line-numbers language-yaml" data-language="yaml"><code class="language-yaml"><span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> v1
+<span class="token key atrule">kind</span><span class="token punctuation">:</span> Pod
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> with<span class="token punctuation">-</span>node<span class="token punctuation">-</span>affinity
+<span class="token key atrule">spec</span><span class="token punctuation">:</span>
+  <span class="token key atrule">affinity</span><span class="token punctuation">:</span>
+    <span class="token key atrule">nodeAffinity</span><span class="token punctuation">:</span>
+      <span class="token key atrule">requiredDuringSchedulingIgnoredDuringExection</span><span class="token punctuation">:</span>
+        <span class="token key atrule">nodeSelectorTerms</span><span class="token punctuation">:</span>
+        <span class="token punctuation">-</span> <span class="token key atrule">matchExpressions</span><span class="token punctuation">:</span>
+          <span class="token punctuation">-</span> <span class="token key atrule">key</span><span class="token punctuation">:</span> kubernetes.io/e2e<span class="token punctuation">-</span>az<span class="token punctuation">-</span>name
+            <span class="token key atrule">operator</span><span class="token punctuation">:</span> In
+            <span class="token key atrule">values</span><span class="token punctuation">:</span>
+            <span class="token punctuation">-</span> e2e<span class="token punctuation">-</span>az1
+            <span class="token punctuation">-</span> e2e<span class="token punctuation">-</span>az2
+      <span class="token key atrule">preferredDuringSchedulingIgnoredDuringExection</span><span class="token punctuation">:</span>
+      <span class="token punctuation">-</span> <span class="token key atrule">weight</span><span class="token punctuation">:</span> <span class="token number">1</span>
+        <span class="token key atrule">preference</span><span class="token punctuation">:</span>
+          <span class="token key atrule">matchExpressions</span><span class="token punctuation">:</span>
+          <span class="token punctuation">-</span> <span class="token key atrule">key</span><span class="token punctuation">:</span> another<span class="token punctuation">-</span>node<span class="token punctuation">-</span>label<span class="token punctuation">-</span>key
+            <span class="token key atrule">operator</span><span class="token punctuation">:</span> In
+            <span class="token key atrule">values</span><span class="token punctuation">:</span>
+            <span class="token punctuation">-</span> another<span class="token punctuation">-</span>node<span class="token punctuation">-</span>label<span class="token punctuation">-</span>value
+  <span class="token key atrule">containers</span><span class="token punctuation">:</span>
+  <span class="token punctuation">-</span> <span class="token key atrule">name</span><span class="token punctuation">:</span> with<span class="token punctuation">-</span>node<span class="token punctuation">-</span>affinity
+    <span class="token key atrule">image</span><span class="token punctuation">:</span> gcr.io/google_containers/pause<span class="token punctuation">:</span><span class="token number">2.0</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<h5 id="PodAffinity"><a href="#PodAffinity" class="headerlink" title="PodAffinity"></a>PodAffinity</h5><p>podAffinity 基于 Pod 的标签来选择 Node，仅调度到满足条件 Pod 所在的 Node 上，支持 PodAffinity 和 PodAntiAffinity。这个功能比较绕，以下面的例子为例：</p>
+<p>如果一个 “Node 所在的 Zone 中包含至少一个带有 security=S1 标签且运行中的 Pod”，那么可以调度到该 Node，不调度到 “包含至少一个带有 security=S2 标签且运行中 Pod” 的 Node 上。</p>
+<pre class="line-numbers language-yaml" data-language="yaml"><code class="language-yaml"><span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> v1
+<span class="token key atrule">kind</span><span class="token punctuation">:</span> Pod
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> with<span class="token punctuation">-</span>pod<span class="token punctuation">-</span>affinity
+<span class="token key atrule">spec</span><span class="token punctuation">:</span>
+  <span class="token key atrule">affinity</span><span class="token punctuation">:</span>
+    <span class="token key atrule">podAffinity</span><span class="token punctuation">:</span>
+      <span class="token key atrule">requiredDuringSchedulingIgnoredDuringExection</span><span class="token punctuation">:</span>
+      <span class="token punctuation">-</span> <span class="token key atrule">labelSelector</span><span class="token punctuation">:</span>
+        <span class="token key atrule">matchExpressons</span><span class="token punctuation">:</span>
+        <span class="token punctuation">-</span> <span class="token key atrule">key</span><span class="token punctuation">:</span> security
+          <span class="token key atrule">operator</span><span class="token punctuation">:</span> In
+          <span class="token key atrule">values</span><span class="token punctuation">:</span>
+          <span class="token punctuation">-</span> S1
+    <span class="token key atrule">podAntiAffinity</span><span class="token punctuation">:</span>
+      <span class="token key atrule">preferredDuringSchedulingIgnoredDuringExection</span><span class="token punctuation">:</span>
+      <span class="token punctuation">-</span> <span class="token key atrule">weight</span><span class="token punctuation">:</span> <span class="token number">100</span>
+        <span class="token key atrule">podAffinityTerm</span><span class="token punctuation">:</span>
+        <span class="token punctuation">-</span> <span class="token key atrule">labelSelector</span><span class="token punctuation">:</span>
+          <span class="token key atrule">matchExpressons</span><span class="token punctuation">:</span>
+          <span class="token punctuation">-</span> <span class="token key atrule">key</span><span class="token punctuation">:</span> security
+            <span class="token key atrule">operator</span><span class="token punctuation">:</span> In
+            <span class="token key atrule">values</span><span class="token punctuation">:</span>
+            <span class="token punctuation">-</span> S2
+  <span class="token key atrule">containers</span><span class="token punctuation">:</span>
+  <span class="token punctuation">-</span> <span class="token key atrule">name</span><span class="token punctuation">:</span> with<span class="token punctuation">-</span>pod<span class="token punctuation">-</span>affinity
+    <span class="token key atrule">image</span><span class="token punctuation">:</span> gcr.io/google_containers/pause<span class="token punctuation">:</span><span class="token number">2.0</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<h5 id="Taints-和-Tolerations"><a href="#Taints-和-Tolerations" class="headerlink" title="Taints 和 Tolerations"></a>Taints 和 Tolerations</h5><p>Taints 和 Tolerations 用于保证 Pod 不被调度到不合适的 Node 上，其中 Taint 应用于 Node 上，而 Toleration 则应用于 Pod 上。</p>
+<p>目前支持的 Taint 类型：</p>
+<ul>
+<li>NoSchedule：新的 Pod 不调度到该 Node 上，不影响正在运行的 Pod</li>
+<li>PreferNoSchedule： soft 版的 NoSchedule，尽量不调度到该 Node 上</li>
+<li>NoExecute：新的 Pod 不调度到该 Node 上，并且删除（evict）已在运行的 Pod。 Pod 可以增加一个时间（tolerationSeconds）</li>
+</ul>
+<p>然而，当 Pod 的 Tolerations 匹配 Node 的所有 Taints 的时候可以调度到该 Node 上；当 Pod 是已经运行的时候，也不会被删除（evicted）。另外对于 NoExecute，如果 Pod 增加一个 tolerationSeconds，则会在该时间之后才删除 Pod。</p>
+<h5 id="多租户-Kubernetes-集群计算资源隔离"><a href="#多租户-Kubernetes-集群计算资源隔离" class="headerlink" title="多租户 Kubernetes 集群计算资源隔离"></a>多租户 Kubernetes 集群计算资源隔离</h5><p>Kubernetes 集群一般是通用集群，可被所有用户共享，用户无需关心计算节点细节。</p>
+<p>但往往某些自带计算资源的客户要求：</p>
+<ul>
+<li>带着计算资源加入 Kubernetes 集群</li>
+<li>要求资源隔离</li>
+</ul>
+<p>实现方案：</p>
+<ul>
+<li>将要隔离的计算节点打上 Taints</li>
+<li>在用户创建 Pod 时，定义 Tolerations 来指定要调度到 node taints</li>
+</ul>
+<p>该方案有漏洞吗？如何堵住？</p>
+<ul>
+<li>其他用户如果可以 get nodes 或者 pods，可以看到 taints 信息，也可以用相同的 tolerations 占用资源</li>
+<li>不让用户 get node detail?</li>
+<li>不让用户 get 别人的 pod detail？</li>
+<li>企业内部，也可以通过规范管理，通过统计数据看谁占用了哪些 node</li>
+<li>数据平面上的隔离还需要其他方案配合</li>
+</ul>
+<h5 id="来自生产系统的经验"><a href="#来自生产系统的经验" class="headerlink" title="来自生产系统的经验"></a>来自生产系统的经验</h5><ul>
+<li>用户会忘记打 tolerance，导致 pod 无法调度，pending</li>
+<li>新员工常犯的错误，通过聊天机器人的 Q&amp;A 解决</li>
+<li>其他用户会 get node detail，查到 taints，偷用资源</li>
+<li>通过 dashboard，能看到哪些用户的什么应用跑在哪些节点上</li>
+<li>对于违规用户，批评教育为主</li>
+</ul>
+<h4 id="优先级调度"><a href="#优先级调度" class="headerlink" title="优先级调度"></a>优先级调度</h4><p>从 v1.8 开始，kube-scheduler 支持定义 Pod 的优先级，从而保证高优先级的 Pod 优先调度。开启方法为：</p>
+<ul>
+<li>apiserver 配置 <code>--feature-gates=PodPrioirity=true</code> 和 <code>--runtime-config=scheduling.k8s.io/v1alpha1=true</code></li>
+<li>kube-scheduler 配置 <code>--feature-gates=PodPriority=true</code></li>
+</ul>
+<h5 id="PriorityClass"><a href="#PriorityClass" class="headerlink" title="PriorityClass"></a>PriorityClass</h5><p>在指定 Pod 的优先级之前需要先定义一个 PriorityClass（非 namespace 资源），如：</p>
+<pre class="line-numbers language-yaml" data-language="yaml"><code class="language-yaml"><span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> v1
+<span class="token key atrule">kind</span><span class="token punctuation">:</span> PriorityClass
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> high<span class="token punctuation">-</span>priority
+<span class="token key atrule">value</span><span class="token punctuation">:</span> <span class="token number">1000000</span>
+<span class="token key atrule">globalDefault</span><span class="token punctuation">:</span> <span class="token boolean important">false</span>
+<span class="token key atrule">description</span><span class="token punctuation">:</span> <span class="token string">"This priority class should be used for XYZ service pods only."</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>为 pod 设置 Priority</p>
+<pre class="line-numbers language-yaml" data-language="yaml"><code class="language-yaml"><span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> v1
+<span class="token key atrule">kind</span><span class="token punctuation">:</span> Pod
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> nginx
+  <span class="token key atrule">labels</span><span class="token punctuation">:</span>
+    <span class="token key atrule">env</span><span class="token punctuation">:</span> test
+<span class="token key atrule">spec</span><span class="token punctuation">:</span>
+  <span class="token key atrule">containers</span><span class="token punctuation">:</span>
+  <span class="token punctuation">-</span> <span class="token key atrule">name</span><span class="token punctuation">:</span> nginx
+    <span class="token key atrule">image</span><span class="token punctuation">:</span> nginx
+    <span class="token key atrule">imagePullPolicy</span><span class="token punctuation">:</span> IfNotPresent
+  <span class="token key atrule">priorityClassName</span><span class="token punctuation">:</span> high<span class="token punctuation">-</span>priority<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<h4 id="多调度器"><a href="#多调度器" class="headerlink" title="多调度器"></a>多调度器</h4><p>如果默认的调度器不满足需求，还可以部署自定义的调度器。并且，在整个集群中还可以同时运行多个调度器实例，通过 <code>podSpec.schedulerName</code> 来选择使用哪一个调度器（默认使用内置的调度器）。</p>
+<h4 id="来从生产环境的一些经验"><a href="#来从生产环境的一些经验" class="headerlink" title="来从生产环境的一些经验"></a>来从生产环境的一些经验</h4><ol>
+<li><p>小集群</p>
+<p> 100 个 node，并发创建 8000 个 Pod 的最大调度耗时大概是 2 分钟左右，发生过 node 删除后，scheduler cache 还有信息的情况，导致 Pod 调度失败。</p>
+</li>
+<li><p>放大效应</p>
+<p> 当一个 node 出现问题所以 load 较小时，通常用户的 Pod 都会优先调度到该 Node 上，导致用户所有创建的新 Pod 都失败的情况。</p>
+</li>
+<li><p>应用炸弹</p>
+<p> 存在危险的用户 Pod（比如 fork bomb），在调度到某个 node 上后，会因为打开文件句柄过多导致 node down 机，Pod 会被 evict 到其他节点，再对其他节点造成伤害，依次循环会导致整个 cluster 所有节点不可用。</p>
+</li>
+</ol>
+<p>调度器可以说是运营过程中稳定性最好的组件之一，基本没有太大的维护 effort。</p>
+
                 
             </div>
             <hr/>
