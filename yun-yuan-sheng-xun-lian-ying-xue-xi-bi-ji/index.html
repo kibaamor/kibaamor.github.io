@@ -406,14 +406,14 @@
                 
                 <div class="info-break-policy">
                     <i class="far fa-file-word fa-fw"></i>文章字数:&nbsp;&nbsp;
-                    42.1k
+                    46.2k
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-clock fa-fw"></i>阅读时长:&nbsp;&nbsp;
-                    173 分
+                    191 分
                 </div>
                 
 
@@ -432,7 +432,7 @@
         <div class="card-content article-card-content">
             <div id="articleContent">
                 <p>课程资源： <a target="_blank" rel="noopener" href="https://github.com/kibaamor/101">https://github.com/kibaamor/101</a></p>
-<p>代码走读：<a target="_blank" rel="noopener" href="https://cncamp.notion.site/kubernetes-8a9d48ee26284b3c8ddf9de4c62ea895">https://cncamp.notion.site/kubernetes-8a9d48ee26284b3c8ddf9de4c62ea895</a>, <a target="_blank" rel="noopener" href="https://cncamp.notion.site/mesh-adf426d889f0448faa1671f5e05c9f12">https://cncamp.notion.site/mesh-adf426d889f0448faa1671f5e05c9f12</a></p>
+<p>代码走读：<a target="_blank" rel="noopener" href="https://github.com/kibaamor/101/blob/master/source-code-reading/readme.MD">https://github.com/kibaamor/101/blob/master/source-code-reading/readme.MD</a>, <a target="_blank" rel="noopener" href="https://cncamp.notion.site/golang-843c958dafc54f0aab4fa1e4527da78a">https://cncamp.notion.site/golang-843c958dafc54f0aab4fa1e4527da78a</a>, <a target="_blank" rel="noopener" href="https://cncamp.notion.site/kubernetes-8a9d48ee26284b3c8ddf9de4c62ea895">https://cncamp.notion.site/kubernetes-8a9d48ee26284b3c8ddf9de4c62ea895</a>, <a target="_blank" rel="noopener" href="https://cncamp.notion.site/mesh-adf426d889f0448faa1671f5e05c9f12">https://cncamp.notion.site/mesh-adf426d889f0448faa1671f5e05c9f12</a></p>
 <h2 id="Go-语言特性"><a href="#Go-语言特性" class="headerlink" title="Go 语言特性"></a>Go 语言特性</h2><h3 id="多线程"><a href="#多线程" class="headerlink" title="多线程"></a>多线程</h3><h4 id="并发和并行"><a href="#并发和并行" class="headerlink" title="并发和并行"></a>并发和并行</h4><ul>
 <li>并发（concurrency）：两个或多个事件在同一时间间隔发生。</li>
 <li>并行（parallellism）：两个或者多个事件在同一时刻发生。</li>
@@ -507,6 +507,39 @@
 <li>从网络轮询器中查找是否有 Goroutine 等待运行</li>
 <li>通过 runtime.runqsteal 尝试从其他随机的处理器中窃取待运行的 Goroutine</li>
 </ul>
+<h5 id="源码走读"><a href="#源码走读" class="headerlink" title="源码走读"></a>源码走读</h5><p><a target="_blank" rel="noopener" href="https://cncamp.notion.site/scheduling-b32ff8b83f674741ba9c2ecfd592f997">scheduling</a></p>
+<p>关于M和P的数量的问题答疑昨天群里陷入了讨论，我看了一下代码把调用关系列在了这个文档里</p>
+<p><strong>设计考量</strong></p>
+<ul>
+<li>默认配置下，P的数量 = CPU个数，可通过GOMAXPROCS修改，上限是256</li>
+<li>M数量是内核线程数量，M大于P，上限是10000</li>
+<li>P的数量在调度器初始化的procresize中控制</li>
+<li>当调度器进行调度，唤醒P的时候，会通过met获取idle m，如果获取不到，则创建新的M（也就是内核线程）</li>
+<li>这样做的目的是，M可能陷入系统调用，而系统调用可能是阻塞的，比如磁盘读取，这个时候CPU是空闲的，创建新的M并与P关联，可以让更多的G被调度，充分利用CPU。</li>
+</ul>
+<p><strong>代码分析</strong></p>
+<p><code>/usr/local/go/src/runtime/proc.go</code></p>
+<pre class="line-numbers language-go" data-language="go"><code class="language-go"><span class="token function">schedinit</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token operator">--</span><span class="token operator">&gt;</span>
+    sched<span class="token punctuation">.</span>maxmcount <span class="token operator">=</span> <span class="token number">10000</span> <span class="token comment">// m count limit is 10000 by default</span>
+    procs <span class="token operator">=</span> <span class="token function">atoi32</span><span class="token punctuation">(</span><span class="token function">gogetenv</span><span class="token punctuation">(</span><span class="token string">"GOMAXPROCS"</span><span class="token punctuation">)</span><span class="token punctuation">)</span>
+    <span class="token function">procresize</span><span class="token punctuation">(</span>procs<span class="token punctuation">)</span><span class="token operator">--</span><span class="token operator">&gt;</span>
+        nallp <span class="token operator">:=</span> <span class="token function">make</span><span class="token punctuation">(</span><span class="token punctuation">[</span><span class="token punctuation">]</span><span class="token operator">*</span>p<span class="token punctuation">,</span> nprocs<span class="token punctuation">)</span> <span class="token comment">// P count is read from environment variable GOMAXPROCS</span>
+        pp<span class="token punctuation">.</span><span class="token function">init</span><span class="token punctuation">(</span>i<span class="token punctuation">)</span>
+        p<span class="token punctuation">.</span>m<span class="token punctuation">.</span><span class="token function">set</span><span class="token punctuation">(</span><span class="token function">mget</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token comment">// mget to associate p with idle m</span>
+
+<span class="token function">schedule</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token operator">--</span><span class="token operator">&gt;</span>
+    <span class="token function">wakep</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token operator">--</span><span class="token operator">&gt;</span>
+        <span class="token function">startm</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token operator">--</span><span class="token operator">&gt;</span>
+            nmp <span class="token operator">:=</span> <span class="token function">mget</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+            <span class="token keyword">if</span> nmp <span class="token operator">==</span> <span class="token boolean">nil</span> <span class="token punctuation">{</span>
+                <span class="token function">newm</span><span class="token punctuation">(</span>fn<span class="token punctuation">,</span> _p_<span class="token punctuation">,</span> id<span class="token punctuation">)</span><span class="token operator">--</span><span class="token operator">&gt;</span>
+                    mp <span class="token operator">:=</span> <span class="token function">new</span><span class="token punctuation">(</span>m<span class="token punctuation">)</span>
+                    mp<span class="token punctuation">.</span>g0 <span class="token operator">=</span> <span class="token function">malg</span><span class="token punctuation">(</span><span class="token number">8192</span> <span class="token operator">*</span> sys<span class="token punctuation">.</span>StackGuardMultiplier<span class="token punctuation">)</span> <span class="token comment">// g0 is the maintainer for the m, like create other G</span>
+            <span class="token punctuation">}</span>
+            nmp<span class="token punctuation">.</span>nextp<span class="token punctuation">.</span><span class="token function">set</span><span class="token punctuation">(</span>_p_<span class="token punctuation">)</span>
+            <span class="token function">notewakeup</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>nmp<span class="token punctuation">.</span>park<span class="token punctuation">)</span><span class="token operator">--</span><span class="token operator">&gt;</span>
+                <span class="token function">semawakeup</span><span class="token punctuation">(</span><span class="token punctuation">(</span><span class="token operator">*</span>m<span class="token punctuation">)</span><span class="token punctuation">(</span>unsafe<span class="token punctuation">.</span><span class="token function">Pointer</span><span class="token punctuation">(</span>v<span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">)</span>
+                <span class="token function">pthread_cond_signal</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>mp<span class="token punctuation">.</span>cond<span class="token punctuation">)</span> <span class="token comment">// wake up the kernel thread</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
 <h3 id="内存管理"><a href="#内存管理" class="headerlink" title="内存管理"></a>内存管理</h3><h4 id="TCMalloc"><a href="#TCMalloc" class="headerlink" title="TCMalloc"></a>TCMalloc</h4><blockquote>
 <p><a target="_blank" rel="noopener" href="https://goog-perftools.sourceforge.net/doc/tcmalloc.html">TCMalloc : Thread-Caching Malloc</a></p>
 </blockquote>
@@ -627,7 +660,66 @@
 </ul>
 </li>
 </ul>
-<h3 id="动手编写一个-HTTP-Server"><a href="#动手编写一个-HTTP-Server" class="headerlink" title="动手编写一个 HTTP Server"></a>动手编写一个 HTTP Server</h3><h4 id="Linux-epoll"><a href="#Linux-epoll" class="headerlink" title="Linux epoll"></a>Linux epoll</h4><p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/LinuxEpoll.png" alt="LinuxEpoll"></p>
+<h3 id="动手编写一个-HTTP-Server"><a href="#动手编写一个-HTTP-Server" class="headerlink" title="动手编写一个 HTTP Server"></a>动手编写一个 HTTP Server</h3><p><a target="_blank" rel="noopener" href="https://cncamp.notion.site/http-server-socket-detail-e1f350d63c7c4d9f86ce140949bd90c2">http server socket detail</a></p>
+<pre class="line-numbers language-go" data-language="go"><code class="language-go">http<span class="token punctuation">.</span><span class="token function">ListenAndServe</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token operator">--</span><span class="token operator">&gt;</span>
+    server<span class="token punctuation">.</span><span class="token function">ListenAndServe</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token operator">--</span><span class="token operator">&gt;</span>
+        net<span class="token punctuation">.</span><span class="token function">Listen</span><span class="token punctuation">(</span><span class="token string">"tcp"</span><span class="token punctuation">,</span> addr<span class="token punctuation">)</span><span class="token operator">--</span><span class="token operator">&gt;</span>
+            lc<span class="token punctuation">.</span><span class="token function">Listen</span><span class="token punctuation">(</span>context<span class="token punctuation">.</span><span class="token function">Background</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">,</span> network<span class="token punctuation">,</span> address<span class="token punctuation">)</span><span class="token operator">--</span><span class="token operator">&gt;</span>
+                sl<span class="token punctuation">.</span><span class="token function">listenTCP</span><span class="token punctuation">(</span>ctx<span class="token punctuation">,</span> la<span class="token punctuation">)</span><span class="token operator">--</span><span class="token operator">&gt;</span>
+                    fd<span class="token punctuation">,</span> err <span class="token operator">:=</span> <span class="token function">internetSocket</span><span class="token punctuation">(</span>ctx<span class="token punctuation">,</span> sl<span class="token punctuation">.</span>network<span class="token punctuation">,</span> laddr<span class="token punctuation">,</span> <span class="token boolean">nil</span><span class="token punctuation">,</span> syscall<span class="token punctuation">.</span>SOCK_STREAM<span class="token punctuation">,</span> <span class="token number">0</span><span class="token punctuation">,</span> <span class="token string">"listen"</span><span class="token punctuation">,</span> sl<span class="token punctuation">.</span>ListenConfig<span class="token punctuation">.</span>Control<span class="token punctuation">)</span><span class="token operator">--</span><span class="token operator">&gt;</span>
+                        <span class="token function">socket</span><span class="token punctuation">(</span>ctx<span class="token punctuation">,</span> net<span class="token punctuation">,</span> family<span class="token punctuation">,</span> sotype<span class="token punctuation">,</span> proto<span class="token punctuation">,</span> ipv6only<span class="token punctuation">,</span> laddr<span class="token punctuation">,</span> raddr<span class="token punctuation">,</span> ctrlFn<span class="token punctuation">)</span><span class="token operator">--</span><span class="token operator">&gt;</span>
+                            <span class="token function">sysSocket</span><span class="token punctuation">(</span>family<span class="token punctuation">,</span> sotype<span class="token punctuation">,</span> proto<span class="token punctuation">)</span> <span class="token comment">// syscall.Socket and return fd</span>
+                            fd<span class="token punctuation">,</span> err <span class="token operator">=</span> <span class="token function">newFD</span><span class="token punctuation">(</span>s<span class="token punctuation">,</span> family<span class="token punctuation">,</span> sotype<span class="token punctuation">,</span> net<span class="token punctuation">)</span> <span class="token comment">// fd.pfd.sysfd = sysfd(socket fd)</span>
+                        fd<span class="token punctuation">.</span><span class="token function">listenStream</span><span class="token punctuation">(</span>laddr<span class="token punctuation">,</span> <span class="token function">listenerBacklog</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">,</span> ctrlFn<span class="token punctuation">)</span><span class="token operator">--</span><span class="token operator">&gt;</span>
+                            syscall<span class="token punctuation">.</span><span class="token function">Bind</span><span class="token punctuation">(</span>fd<span class="token punctuation">.</span>pfd<span class="token punctuation">.</span>Sysfd<span class="token punctuation">,</span> lsa<span class="token punctuation">)</span> <span class="token comment">// bind socket with address</span>
+                            <span class="token function">listenFunc</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token comment">// syscall.Listen</span>
+                            fd<span class="token punctuation">.</span><span class="token function">init</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token operator">--</span><span class="token operator">&gt;</span>
+                                <span class="token function">runtime_pollServerInit</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token operator">--</span><span class="token operator">&gt;</span> <span class="token comment">// fd_poll_runtime.go</span>
+                                    <span class="token function">poll_runtime_pollServerInit</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token operator">--</span><span class="token operator">&gt;</span> <span class="token comment">// netpoll.go</span>
+                                        <span class="token function">netpollGenericInit</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token operator">--</span><span class="token operator">&gt;</span>
+                                            <span class="token function">netpollinit</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token operator">--</span><span class="token operator">&gt;</span> <span class="token comment">// netpoll_epoll.go</span>
+                                                <span class="token function">epollcreate1</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+                                                <span class="token function">epollctl</span><span class="token punctuation">(</span>epfd<span class="token punctuation">,</span> _EPOLL_CTL_ADD<span class="token punctuation">,</span> r<span class="token punctuation">,</span> <span class="token operator">&amp;</span>ev<span class="token punctuation">)</span>
+                                <span class="token function">runtime_pollOpen</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token operator">--</span><span class="token operator">&gt;</span>
+                                    <span class="token function">poll_runtime_pollOpen</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token operator">--</span><span class="token operator">&gt;</span> <span class="token comment">// netpoll.go</span>
+                                        <span class="token function">netpollopen</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token operator">--</span><span class="token operator">&gt;</span> <span class="token comment">// netpoll_epoll.go</span>
+                                            <span class="token keyword">var</span> ev epollevent
+                                            ev<span class="token punctuation">.</span>events <span class="token operator">=</span> _EPOLLIN <span class="token operator">|</span> _EPOLLOUT <span class="token operator">|</span> _EPOLLRDHUP <span class="token operator">|</span> _EPOLLET
+                                            <span class="token operator">*</span><span class="token punctuation">(</span><span class="token operator">*</span><span class="token operator">*</span>pollDesc<span class="token punctuation">)</span><span class="token punctuation">(</span>unsafe<span class="token punctuation">.</span><span class="token function">Pointer</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>ev<span class="token punctuation">.</span>data<span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token operator">=</span> pd
+                                            <span class="token keyword">return</span> <span class="token operator">-</span><span class="token function">epollctl</span><span class="token punctuation">(</span>epfd<span class="token punctuation">,</span> _EPOLL_CTL_ADD<span class="token punctuation">,</span> <span class="token function">int32</span><span class="token punctuation">(</span>fd<span class="token punctuation">)</span><span class="token punctuation">,</span> <span class="token operator">&amp;</span>ev<span class="token punctuation">)</span>
+        srv<span class="token punctuation">.</span><span class="token function">Serve</span><span class="token punctuation">(</span>ln<span class="token punctuation">)</span><span class="token operator">--</span><span class="token operator">&gt;</span>
+            l<span class="token punctuation">.</span><span class="token function">Accept</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token operator">--</span><span class="token operator">&gt;</span> <span class="token comment">// tcpsocket.go</span>
+                l<span class="token punctuation">.</span><span class="token function">accept</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token operator">--</span><span class="token operator">&gt;</span> <span class="token comment">// return TCPConn which holds the connection fd</span>
+                    fd <span class="token operator">:=</span> ln<span class="token punctuation">.</span>fd<span class="token punctuation">.</span><span class="token function">accept</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token operator">--</span><span class="token operator">&gt;</span>
+                        fd<span class="token punctuation">.</span>pfd<span class="token punctuation">.</span><span class="token function">Accept</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token operator">--</span><span class="token operator">&gt;</span> <span class="token comment">// fd_unix.go syscall.Accept4</span>
+                            <span class="token keyword">if</span> err <span class="token operator">==</span> <span class="token boolean">nil</span> <span class="token punctuation">{</span>
+                                <span class="token keyword">return</span> s<span class="token punctuation">,</span> rsa<span class="token punctuation">,</span> <span class="token string">""</span><span class="token punctuation">,</span> err
+                            <span class="token punctuation">}</span>
+                            <span class="token keyword">switch</span> err <span class="token punctuation">{</span>
+                            <span class="token keyword">case</span> syscall<span class="token punctuation">.</span>EAGAIN<span class="token punctuation">:</span>
+                                <span class="token keyword">if</span> fd<span class="token punctuation">.</span>pd<span class="token punctuation">.</span><span class="token function">pollable</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+                                    fd<span class="token punctuation">.</span>pd<span class="token punctuation">.</span><span class="token function">waitRead</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token operator">--</span><span class="token operator">&gt;</span>
+                                        <span class="token function">runtime_pollWait</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token operator">--</span><span class="token operator">&gt;</span><span class="token function">poll_runtime_pollWait</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token operator">--</span><span class="token operator">&gt;</span><span class="token function">netpollblock</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token operator">--</span><span class="token operator">&gt;</span>
+                                            atomic<span class="token punctuation">.</span><span class="token function">Casuintptr</span><span class="token punctuation">(</span>gpp<span class="token punctuation">,</span> <span class="token number">0</span><span class="token punctuation">,</span> pdWait<span class="token punctuation">)</span>
+                                            <span class="token function">gopark</span><span class="token punctuation">(</span>netpollblockcommit<span class="token punctuation">,</span> unsafe<span class="token punctuation">.</span><span class="token function">Pointer</span><span class="token punctuation">(</span>gpp<span class="token punctuation">)</span><span class="token punctuation">,</span> waitReasonIOWait<span class="token punctuation">,</span> traceEvGoBlockNet<span class="token punctuation">,</span> <span class="token number">5</span><span class="token punctuation">)</span><span class="token operator">--</span><span class="token operator">&gt;</span>
+                                            <span class="token function">mcall</span><span class="token punctuation">(</span>park_m<span class="token punctuation">)</span> <span class="token comment">// put the go routine to park, schedule-&gt;findrunnable will wake it up</span>
+                                <span class="token punctuation">}</span>
+
+            <span class="token keyword">go</span> c<span class="token punctuation">.</span><span class="token function">serve</span><span class="token punctuation">(</span>connCtx<span class="token punctuation">)</span><span class="token operator">--</span><span class="token operator">&gt;</span>c<span class="token punctuation">.</span><span class="token function">readRequest</span><span class="token punctuation">(</span>ctx<span class="token punctuation">)</span><span class="token operator">--</span><span class="token operator">&gt;</span>
+                req<span class="token punctuation">,</span> err <span class="token operator">:=</span> <span class="token function">readRequest</span><span class="token punctuation">(</span>c<span class="token punctuation">.</span>bufr<span class="token punctuation">,</span> keepHostHeader<span class="token punctuation">)</span><span class="token operator">--</span><span class="token operator">&gt;</span>tp<span class="token punctuation">.</span><span class="token function">ReadLine</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token operator">--</span><span class="token operator">&gt;</span>r<span class="token punctuation">.</span><span class="token function">readLineSlice</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token operator">--</span><span class="token operator">&gt;</span>r<span class="token punctuation">.</span>R<span class="token punctuation">.</span><span class="token function">ReadLine</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token operator">--</span><span class="token operator">&gt;</span>b<span class="token punctuation">.</span><span class="token function">fill</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token operator">--</span><span class="token operator">&gt;</span>
+                    b<span class="token punctuation">.</span>rd<span class="token punctuation">.</span><span class="token function">Read</span><span class="token punctuation">(</span>b<span class="token punctuation">.</span>buf<span class="token punctuation">[</span>b<span class="token punctuation">.</span>w<span class="token punctuation">:</span><span class="token punctuation">]</span><span class="token punctuation">)</span><span class="token operator">--</span><span class="token operator">&gt;</span> <span class="token comment">// fd_unix.go Read implements io.Reader.</span>
+                        <span class="token function">ignoringEINTRIO</span><span class="token punctuation">(</span>syscall<span class="token punctuation">.</span>Read<span class="token punctuation">,</span> fd<span class="token punctuation">.</span>Sysfd<span class="token punctuation">,</span> p<span class="token punctuation">)</span>  <span class="token comment">// syscall.Read</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<pre class="line-numbers language-go" data-language="go"><code class="language-go"><span class="token comment">// shedule parked go routine</span>
+<span class="token function">schedule</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token operator">--</span><span class="token operator">&gt;</span><span class="token function">findrunnable</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token operator">--</span><span class="token operator">&gt;</span>
+    list <span class="token operator">:=</span> <span class="token function">netpoll</span><span class="token punctuation">(</span><span class="token number">0</span><span class="token punctuation">)</span><span class="token operator">--</span><span class="token operator">&gt;</span> <span class="token comment">//proc.go</span>
+        n <span class="token operator">:=</span> <span class="token function">epollwait</span><span class="token punctuation">(</span>epfd<span class="token punctuation">,</span> <span class="token operator">&amp;</span>events<span class="token punctuation">[</span><span class="token number">0</span><span class="token punctuation">]</span><span class="token punctuation">,</span> <span class="token function">int32</span><span class="token punctuation">(</span><span class="token function">len</span><span class="token punctuation">(</span>events<span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">,</span> waitms<span class="token punctuation">)</span>
+        <span class="token keyword">for</span> i <span class="token operator">:=</span> <span class="token function">int32</span><span class="token punctuation">(</span><span class="token number">0</span><span class="token punctuation">)</span><span class="token punctuation">;</span> i <span class="token operator">&lt;</span> n<span class="token punctuation">;</span> i<span class="token operator">++</span> <span class="token punctuation">{</span>
+            <span class="token function">netpollready</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>toRun<span class="token punctuation">,</span> pd<span class="token punctuation">,</span> mode<span class="token punctuation">)</span><span class="token operator">--</span><span class="token operator">&gt;</span>
+                rg <span class="token operator">=</span> <span class="token function">netpollunblock</span><span class="token punctuation">(</span>pd<span class="token punctuation">,</span> <span class="token string">'r'</span><span class="token punctuation">,</span> <span class="token boolean">true</span><span class="token punctuation">)</span> <span class="token comment">// find related go routine of the epoll fd</span>
+                toRun<span class="token punctuation">.</span><span class="token function">push</span><span class="token punctuation">(</span>rg<span class="token punctuation">)</span>
+        <span class="token punctuation">}</span>
+    <span class="token function">startIdle</span><span class="token punctuation">(</span>n<span class="token punctuation">)</span><span class="token operator">--</span><span class="token operator">&gt;</span>startm<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<h4 id="Linux-epoll"><a href="#Linux-epoll" class="headerlink" title="Linux epoll"></a>Linux epoll</h4><p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/LinuxEpoll.png" alt="LinuxEpoll"></p>
 <h4 id="HttpServer-的实现细节"><a href="#HttpServer-的实现细节" class="headerlink" title="HttpServer 的实现细节"></a>HttpServer 的实现细节</h4><p>Go 语言将协程与 fd 资源绑定</p>
 <ul>
 <li>一个 socket fd 与一个协程绑定</li>
@@ -4049,6 +4141,7 @@ server<span class="token punctuation">.</span><span class="token keyword">go</sp
 <li>HTTP Server：kubelet 侦听 HTTP 请求，并响应简单的 API 以提交新的 Pod 清单</li>
 </ul>
 <h4 id="Pod-启动流程"><a href="#Pod-启动流程" class="headerlink" title="Pod 启动流程"></a>Pod 启动流程</h4><p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/Pod启动流程.png" alt="Pod启动流程"></p>
+<p>图中 RunPodSandbox 中 Sandbox 的意义：和 pause contain 有关。pod 不是直接启动的，而是先使用 pause 镜像启动 sandbox container 并设置好（共享 net、pid 等）后，再启动用户定义的 container。</p>
 <h4 id="kubelet-启动-Pod-的流程"><a href="#kubelet-启动-Pod-的流程" class="headerlink" title="kubelet 启动 Pod 的流程"></a>kubelet 启动 Pod 的流程</h4><p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/kubelet启动Pod的流程.png" alt="kubelet启动Pod的流程"></p>
 <h3 id="CRI"><a href="#CRI" class="headerlink" title="CRI"></a>CRI</h3><p>容器运行时（Container Runtime），运行于 Kubernetes（k8s）集群的每个节点中，负责容器的整个生命周期。其中 Docker 是目前应用最广的。随着容器云的发展，越来越多的容器运行时涌现。为了解决这些容器运行时和 Kubernetes 的集成问题，在 Kubernetes 1.5 版本中，社区推出了 CRI（Container Runtime Interface，容器运行时接口）以支持更多的容器运行时。</p>
 <p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/CRI.png" alt="CRI"></p>
@@ -4067,6 +4160,9 @@ server<span class="token punctuation">.</span><span class="token keyword">go</sp
 <p>containerd 和 CRI-O 的方案比起 Docker 简洁很多。</p>
 <p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/开源运行时的比较.png" alt="开源运行时的比较"></p>
 <h4 id="Docker-和-containerd-的差异细节"><a href="#Docker-和-containerd-的差异细节" class="headerlink" title="Docker 和 containerd 的差异细节"></a>Docker 和 containerd 的差异细节</h4><p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/Docker和containerd的差异细节.png" alt="Docker和containerd的差异细节"></p>
+<blockquote>
+<p>将 runtime 从 docker 切换到 containerd <a target="_blank" rel="noopener" href="https://github.com/kibaamor/101/blob/master/module7/cri/docker2containerd.md">https://github.com/kibaamor/101/blob/master/module7/cri/docker2containerd.md</a></p>
+</blockquote>
 <h4 id="多种运行时性能比较"><a href="#多种运行时性能比较" class="headerlink" title="多种运行时性能比较"></a>多种运行时性能比较</h4><p>containerd 在各个方面都表现良好，除了启动容器这项。从总用时来看，containerd 的用时还是要比 CRI-O 要短的。</p>
 <p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/多种运行时性能比较.png" alt="多种运行时性能比较"></p>
 <h4 id="运行时优劣对比"><a href="#运行时优劣对比" class="headerlink" title="运行时优劣对比"></a>运行时优劣对比</h4><ol>
@@ -4075,7 +4171,8 @@ server<span class="token punctuation">.</span><span class="token keyword">go</sp
 <li>从性能上讲，containerd 胜出</li>
 </ol>
 <p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/运行时优劣对比.png" alt="运行时优劣对比"></p>
-<h3 id="CNI"><a href="#CNI" class="headerlink" title="CNI"></a>CNI</h3><p>Kubernetes 网络模型设计的基础原则是：</p>
+<h3 id="CNI"><a href="#CNI" class="headerlink" title="CNI"></a>CNI</h3><p><a target="_blank" rel="noopener" href="https://dramasamy.medium.com/life-of-a-packet-in-kubernetes-part-2-a07f5bf0ff14">https://dramasamy.medium.com/life-of-a-packet-in-kubernetes-part-2-a07f5bf0ff14</a></p>
+<p>Kubernetes 网络模型设计的基础原则是：</p>
 <ul>
 <li>所有的 Pod 能够不通过 NAT 就能相互访问</li>
 <li>所有的节点能够不通过 NAT 就能相互访问</li>
@@ -4084,7 +4181,7 @@ server<span class="token punctuation">.</span><span class="token keyword">go</sp
 <p>Kubernetes 的集群里，IP 地址是以 Pod 为单位进行分配的，每个 Pod 都拥有一个独立的 IP 地址。一个 Pod 内部的所有容器共享一个网络栈，即宿主机上的一个网络命名空间，包括它们的 IP 地址、网络设备、配置等都是共享的。也就是说，Pod 里面的所有容器都能通过 <code>localhost:port</code> 来连接对方。在 Kubernetes 中，提供一个轻量的通用容器网络接口 CNI（Container Network Interface），专门用于设置和删除容器的网络连通性。容器运行时通过 CNI 调用网络插件来完成容器的网络设置。</p>
 <h4 id="CNI-插件分类和常见插件"><a href="#CNI-插件分类和常见插件" class="headerlink" title="CNI 插件分类和常见插件"></a>CNI 插件分类和常见插件</h4><p><a target="_blank" rel="noopener" href="https://github.com/containernetworking/plugins">https://github.com/containernetworking/plugins</a></p>
 <ul>
-<li>IPAM：IP 地址分配</li>
+<li>IPAM（IP Allocation Manager）：IP 地址分配</li>
 <li>主插件：网卡设置<ul>
 <li>bridge：创建一个网桥，并把主机端口和容器端口插入网桥</li>
 <li>ipvlan：为容器添加 ipvlan 网口</li>
@@ -4110,6 +4207,9 @@ server<span class="token punctuation">.</span><span class="token keyword">go</sp
 <h4 id="打通主机层网络"><a href="#打通主机层网络" class="headerlink" title="打通主机层网络"></a>打通主机层网络</h4><p>CNI 插件外，Kubernetes 还需要标准的 CNI 插件 lo，最低版本为 0.2.0 版本。网络插件除支持设置和清理 Pod 网络接口外，该插件还需要支持 Iptables。如果 kube-proxy 工作在 Iptables 模式，网络插件需要确保容器流量能使用 Iptables 转发。例如，如果网络插件将容器连接到 Linux 网桥，必须将 <code>net/bridge/bridge-nf-call-iptables</code> 参数 sysctl 设置为 1，网桥上数据包将遍历 Iptables 规则。如果插件不使用 Linux 桥接器（而是类似 Open vSwitch 或其他某种机制的插件），则赢确保容器流量被正确设置了路由。</p>
 <h4 id="CNI-Plugin"><a href="#CNI-Plugin" class="headerlink" title="CNI Plugin"></a>CNI Plugin</h4><p>ContainerNetworking 组维护了一些 CNI 插件，包括网络接口创建的 bridge、ipvlan、loopback、macvlan、ptp、host-device 等，IP 地址分配的 DHCP、host-local 和 static，其他的 Flannel、tunning、portmap、firewall 等。</p>
 <p>社区还有些第三方网络策略方面的插件，例如 Calico、Cilium 和 Weave 等。可用选项的多样性意味着大多数用户将能够找到适合当前需求和部署环境的 CNI 插件，并在情况变化时迅捷转换解决方案。</p>
+<blockquote>
+<p>目前最有前景的是 <a target="_blank" rel="noopener" href="https://github.com/cilium/cilium">https://github.com/cilium/cilium</a></p>
+</blockquote>
 <h4 id="Flannel"><a href="#Flannel" class="headerlink" title="Flannel"></a>Flannel</h4><p>Flannel 是由 CoreOS 开发的项目，是 CNI 插件早起的入门产品，简单易用。</p>
 <p>Flannel 使用 Kubernetes 集群的现有 etcd 集群来存储其状态信息，从而不必提供专用的数据存储，只需要在每个节点上运行 flanneld 来守护进程。</p>
 <p>每个节点都被分配一个子网，为该节点上的 Pod 分配 IP 地址。</p>
@@ -4188,13 +4288,14 @@ server<span class="token punctuation">.</span><span class="token keyword">go</sp
   <span class="token punctuation">]</span>
 <span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
 <h5 id="Calico-VXLAN"><a href="#Calico-VXLAN" class="headerlink" title="Calico VXLAN"></a>Calico VXLAN</h5><p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/CalicoVXLAN.png" alt="CalicoVXLAN"></p>
+<p><a target="_blank" rel="noopener" href="https://github.com/kibaamor/101/blob/master/module7/cni/data-path.MD">https://github.com/kibaamor/101/blob/master/module7/cni/data-path.MD</a></p>
 <h6 id="IPPool"><a href="#IPPool" class="headerlink" title="IPPool"></a>IPPool</h6><p>IPPool 用来定义一个集群的预定义 IP 段</p>
 <pre class="line-numbers language-yaml" data-language="yaml"><code class="language-yaml"><span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> crd.projectcalico.org/v1
 <span class="token key atrule">kind</span><span class="token punctuation">:</span> IPPool
 <span class="token key atrule">metadata</span><span class="token punctuation">:</span>
   <span class="token key atrule">name</span><span class="token punctuation">:</span> default<span class="token punctuation">-</span>ipv4<span class="token punctuation">-</span>ippool
 <span class="token key atrule">spec</span><span class="token punctuation">:</span>
-  <span class="token key atrule">blockSize</span><span class="token punctuation">:</span> <span class="token number">26</span>
+  <span class="token key atrule">blockSize</span><span class="token punctuation">:</span> <span class="token number">26</span> <span class="token comment"># 每个节点分多少个IP</span>
   <span class="token key atrule">cidr</span><span class="token punctuation">:</span> 192.168.0.0/16
   <span class="token key atrule">ipipMode</span><span class="token punctuation">:</span> Never
   <span class="token key atrule">natOutgoing</span><span class="token punctuation">:</span> <span class="token boolean important">true</span>
@@ -4205,7 +4306,7 @@ server<span class="token punctuation">.</span><span class="token keyword">go</sp
 <span class="token key atrule">kind</span><span class="token punctuation">:</span> IPAMBlock
 <span class="token key atrule">metadata</span><span class="token punctuation">:</span>
   <span class="token key atrule">annotations</span><span class="token punctuation">:</span>
-  <span class="token key atrule">name</span><span class="token punctuation">:</span> 192<span class="token punctuation">-</span>168<span class="token punctuation">-</span>119<span class="token punctuation">-</span>64<span class="token punctuation">-</span><span class="token number">26</span>
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> 192<span class="token punctuation">-</span>168<span class="token punctuation">-</span>119<span class="token punctuation">-</span>64<span class="token punctuation">-</span><span class="token number">26</span> <span class="token comment"># 最后的 26 就是 IPPool 里的 blockSize</span>
 <span class="token key atrule">spec</span><span class="token punctuation">:</span>
   <span class="token key atrule">affinity</span><span class="token punctuation">:</span> host<span class="token punctuation">:</span>cadmin
   <span class="token key atrule">allocations</span><span class="token punctuation">:</span>
@@ -4232,7 +4333,7 @@ server<span class="token punctuation">.</span><span class="token keyword">go</sp
       <span class="token key atrule">node</span><span class="token punctuation">:</span> cadmin
       <span class="token key atrule">pod</span><span class="token punctuation">:</span> calico<span class="token punctuation">-</span>kube<span class="token punctuation">-</span>controllers<span class="token punctuation">-</span>bdd5f97c5<span class="token punctuation">-</span>554z5
       <span class="token key atrule">timestamp</span><span class="token punctuation">:</span> 2021<span class="token punctuation">-</span>09<span class="token punctuation">-</span>30 09<span class="token punctuation">:</span>46<span class="token punctuation">:</span>57.502351346 +0000 UTC<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
-<h5 id="IPAMHandle"><a href="#IPAMHandle" class="headerlink" title="IPAMHandle"></a>IPAMHandle</h5><p>IPAMHandle 用来记录 IP 分配的具体细节</p>
+<h5 id="IPAMHandle"><a href="#IPAMHandle" class="headerlink" title="IPAMHandle"></a>IPAMHandle</h5><p>IPAMHandle 用来记录 IP 分配的具体细节（每个 Pod 一个）</p>
 <pre class="line-numbers language-yaml" data-language="yaml"><code class="language-yaml"><span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> crd.projectcalico.org/v1kind<span class="token punctuation">:</span>IPAMHandle
 <span class="token key atrule">metadata</span><span class="token punctuation">:</span>
   name<span class="token punctuation">:</span>k8s<span class="token punctuation">-</span>pod<span class="token punctuation">-</span>network.8d756941d85c4998016b72c83f9c5a75512c82c052357daf0ec8e67365635d93
@@ -4270,7 +4371,10 @@ Address     HWtype HWaddress            Flags Mask  Iface
 <span class="token operator">&gt;</span> <span class="token function">ip</span> route
 <span class="token number">192.168</span>.119.84 dev cali23a582ef038scope <span class="token function">link</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
 <h4 id="CNI-Plugin-的对比"><a href="#CNI-Plugin-的对比" class="headerlink" title="CNI Plugin 的对比"></a>CNI Plugin 的对比</h4><p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/CNIPlugin的对比.png" alt="CNIPlugin的对比"></p>
-<h3 id="CSI"><a href="#CSI" class="headerlink" title="CSI"></a>CSI</h3><h4 id="容器运行时存储"><a href="#容器运行时存储" class="headerlink" title="容器运行时存储"></a>容器运行时存储</h4><ul>
+<h3 id="CSI"><a href="#CSI" class="headerlink" title="CSI"></a>CSI</h3><h4 id="容器运行时存储"><a href="#容器运行时存储" class="headerlink" title="容器运行时存储"></a>容器运行时存储</h4><blockquote>
+<p>容器运行时存储不建议写数据，甚至不建议写日志，它基于 OverlayFS ，它的主要目的是挂载 rootfs 以启动容器，读写性能其实不高。需要写数据时应该外挂存储。</p>
+</blockquote>
+<ul>
 <li>除外挂存储卷外，容器启动后，运行时所需文件系统性能直接影响容器性能</li>
 <li>早起的 Docker 采用 Device Mapper 作为容器运行时存储驱动，因为 OverlayFS 尚未合并进 Kernel</li>
 <li>目前 Docker 和 containerd 都默认以 OverlayFS 作为运行时存储驱动</li>
@@ -4299,12 +4403,269 @@ Address     HWtype HWaddress            Flags Mask  Iface
 </ul>
 <h4 id="CSI-驱动"><a href="#CSI-驱动" class="headerlink" title="CSI 驱动"></a>CSI 驱动</h4><p>CSI 的驱动一般包含 external-attacker、external-provisioner、external-resizer、external-snapshotter、node-driver-register、CSI driver 等模块，可以根据实际的存储类型和需求进行不同方式的部署。</p>
 <p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/CSI驱动.png" alt="CSI驱动"></p>
-<h4 id="临时存储"><a href="#临时存储" class="headerlink" title="临时存储"></a>临时存储</h4><p>常见的临时存储主要就是 emptyDir 卷。</p>
+<h4 id="临时存储"><a href="#临时存储" class="headerlink" title="临时存储"></a>临时存储</h4><p><a target="_blank" rel="noopener" href="https://github.com/kibaamor/101/blob/master/module7/csi/emptydir/emptydir.yaml">https://github.com/kibaamor/101/blob/master/module7/csi/emptydir/emptydir.yaml</a></p>
+<p>常见的临时存储主要就是 emptyDir 卷。</p>
 <p>emptyDir 是一种经常被用户使用的卷类型，顾名思义，”卷”最初是空的。当 Pod 从节点上删除时，emptyDir 卷中的数据也会被永久删除。但当 Pod 的容器因为某些原因退出再重启时，emptyDir 卷内的数据并不会丢失。</p>
 <p>默认情况下，emptyDir 卷存储在支持该节点所使用的存储介质上，可以是本地磁盘或者网络存储。</p>
 <p>emptyDir 也可以通过将 emptyDir.medium 字段设置为 “Memory” 来通知 Kubernetes 为容器安装 tmpfs，此时数据被存储在内存中，速度相对于本地存储和网络存储快很多。但是在节点重启的时候，内存数据会被清楚；而如果存在磁盘上，则重启后数据依然存在。另外，使用 tmpfs 的内存也会计入容器的使用内存总量中，受系统的 cgroup 限制。</p>
 <p>emptyDir 设计的初衷主要是给应用充当缓存空间，或者存储中间数据，用于快速恢复。然而，这并不是说满足以上需求的用户都被推荐使用 emptyDir，我们要根据用户业务的实际特点来判断是否使用 emptyDir。因为 emptyDir 的空间位于系统根盘，被所有容器共享，所以在磁盘的使用率较高时会触发 Pod 的 eviction 操作，从而影响业务的稳定。</p>
+<h4 id="半持久化存储"><a href="#半持久化存储" class="headerlink" title="半持久化存储"></a>半持久化存储</h4><p>常见的半持久化存储主要是 hostPath 卷。hostPath 卷能将主机节点文件系统上的文件或目录挂载到指定 Pod 中。对普通用户而言一般不需要这样的卷，但是对很多需要获取节点系统信息的 Pod 而言，却是非常必要的。</p>
+<p>例如，hostPath 的用法举例如下:</p>
+<ul>
+<li>某个 Pod 需要获取节点上所有 Pod 的 log，可以通过 hostPath 访问所有 Pod 的 stdout 输出存储目录，例如 /var/log/pods 路径。</li>
+<li>某个 Pod 需要统计系统相关的信息，可以通过 hostPath 访问系统的 /proc 目录。</li>
+</ul>
+<p>使用 hostPath 的时候，除设置必需的 path 属性外，用户还可以有选择性地为 hostPath 卷指定类型支持类型包含目录、字符设备、块设备等。</p>
+<h5 id="hostPath-卷需要注意"><a href="#hostPath-卷需要注意" class="headerlink" title="hostPath 卷需要注意"></a>hostPath 卷需要注意</h5><p>使用同一个目录的 Pod 可能会由于调度到不同的节点，导致目录中的内容有所不同。</p>
+<p>Kubernetes 在调度时无法顾及由 hostPath 使用的资源。</p>
+<p>Pod被删除后，如果没有特别处理，那么hostPath上写的数据会遗留到节点上，占用磁盘空间。</p>
+<h4 id="持久化存储"><a href="#持久化存储" class="headerlink" title="持久化存储"></a>持久化存储</h4><p>支持持久化的存储是所有分布式系统所必备的特性。针对持久化存储，Kubernetes 引入了 StorageClass、Volume、PVC（Persistent Volume Claim）、PV（Persitent Volume）的概念，将存储独立于 Pod 的生命周期来进行管理。</p>
+<p>Kuberntes 目前支持的持久化存储包含各种主流的块存储和文件存储，譬如 awsElasticBlockStore、azureDisk、cinder、NFS、cephfs、iscsi 等，在大类上可以将其分为网络存储和本地存储两种类型。</p>
+<h5 id="StorageClass"><a href="#StorageClass" class="headerlink" title="StorageClass"></a>StorageClass</h5><p>StorageClass 用于指示存储的类型，不同的存储类型可以通过不同的 StorageClass 来为用户提供服务。</p>
+<p>StorageClass 主要包含存储插件 provisioner、卷的创建和 mount 参数等字段。</p>
+<pre class="line-numbers language-yaml" data-language="yaml"><code class="language-yaml">allowVolumeExpansion<span class="token punctuation">:</span><span class="token boolean important">true</span>
+apiVersion<span class="token punctuation">:</span>storage.k8s.io/v1
+kind<span class="token punctuation">:</span>Storageclass
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+  <span class="token key atrule">annotations</span><span class="token punctuation">:</span>
+    <span class="token key atrule">storageclass.kubernetes.io/is-default-class</span><span class="token punctuation">:</span> <span class="token string">"false"</span>
+  name<span class="token punctuation">:</span>rook<span class="token punctuation">-</span>ceph<span class="token punctuation">-</span>block
+<span class="token key atrule">parameters</span><span class="token punctuation">:</span>
+  clusterlD<span class="token punctuation">:</span>rook<span class="token punctuation">-</span>ceph
+  <span class="token key atrule">csi.storage.k8s.io/controller-expand-secret-name</span><span class="token punctuation">:</span> rook<span class="token punctuation">-</span>csi<span class="token punctuation">-</span>rbd<span class="token punctuation">-</span>provisioner
+  <span class="token key atrule">csi.storage.k8s.io/controller-expand-secret-namespace</span><span class="token punctuation">:</span> rook<span class="token punctuation">-</span>ceph
+  csi.storage.k8s.io/fstype<span class="token punctuation">:</span>ext4
+  <span class="token key atrule">csi.storage.k8s.io/node-stage-secret-name</span><span class="token punctuation">:</span> rook<span class="token punctuation">-</span>csi<span class="token punctuation">-</span>rbd<span class="token punctuation">-</span>node
+  csi.storage.k8s.io/node<span class="token punctuation">-</span>stage<span class="token punctuation">-</span>secret<span class="token punctuation">-</span>namespace<span class="token punctuation">:</span>rook<span class="token punctuation">-</span>ceph
+  <span class="token key atrule">csi.storage.k8s.io/provisioner-secret-name</span><span class="token punctuation">:</span> rook<span class="token punctuation">-</span>csi<span class="token punctuation">-</span>rbd<span class="token punctuation">-</span>provisioner
+  <span class="token key atrule">csi.storage.k8s.io/provisioner-secret-namespace</span><span class="token punctuation">:</span> rook<span class="token punctuation">-</span>ceph
+  imageFeatures<span class="token punctuation">:</span>layering
+  imageFormat<span class="token punctuation">:</span><span class="token string">"2"</span>
+  <span class="token key atrule">pool</span><span class="token punctuation">:</span> replicapool
+  <span class="token key atrule">provisioner</span><span class="token punctuation">:</span> rook<span class="token punctuation">-</span>ceph.rbd.csi.ceph.com
+  <span class="token key atrule">reclaimPolicy</span><span class="token punctuation">:</span> Delete
+  volumeBindingMode<span class="token punctuation">:</span>immediate<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<h5 id="PVC"><a href="#PVC" class="headerlink" title="PVC"></a>PVC</h5><p>由用户创建，代表用户对存储需求的声明，主要包含需要的存储大小、存储卷的访问模式、StroageClass 等类型，其中存储卷的访问模式必须与存储的类型一致</p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/PVC.png" alt="PVC"></p>
+<h5 id="PV"><a href="#PV" class="headerlink" title="PV"></a>PV</h5><p>由集群管理员提前创建，或者根据 PVC 的申请需求动态地创建，它代表系统后端的真实的存储空间，可以称之为卷空间。</p>
+<h5 id="存储对象关系"><a href="#存储对象关系" class="headerlink" title="存储对象关系"></a>存储对象关系</h5><p>用户通过创建 PVC 来申请存储。控制器通过 PVC 的 StorageClass 和请求的大小声明来存储后端创建卷，进而创建 PV，Pod 通过指定 PVC 来引用存储。</p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/存储对象关系.png" alt="存储对象关系"></p>
+<h4 id="独占的-Local-Volume"><a href="#独占的-Local-Volume" class="headerlink" title="独占的 Local Volume"></a>独占的 Local Volume</h4><p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/独占的LocalVolume.png" alt="独占的LocalVolume"></p>
+<ul>
+<li>创建 PV：通过 local-volume-provisioner Daemonset 创建本地存储的 PV。</li>
+<li>创建 PVC：用户创建 PVC，由于它处于 pending 状态，所以 kube-controller-manager 并不会对该 PVC 做任何操作。</li>
+<li>创建 Pod：用户创建 Pod。</li>
+<li>Pod 挑选节点：kube-scheduler 开始调度 Pod，通过 PVC 的 <code>resources.request.storage</code> 和 <code>volumeMode</code> 选择满足条件的 PV，并且为 Pod 选择一个合适的节点。</li>
+<li>更新 PV：kube-scheduler 将 PV 的 <code>pv.Spec.claimRef</code> 设置为对应的 PVC，并且设置 annotation <code>pv.kubernetes.io/bound-by-controller</code> 的值为 <code>yes</code>。</li>
+<li>PVC 和 PV 绑定：pv_controller 同步 PVC 和 PV 的状态，并将 PVC 和 PV 进行绑定。</li>
+<li>监听 PVC 对象：kube-scheduler 等待 PVC 的状态变成 Bound 状态。</li>
+<li>Pod 调度到节点：如果 PVC 的状态变为 Bound 则说明调度成功，而如果 PVC一直处于 pending 状态，超时后会再次进行调度。</li>
+<li>Mount 卷启动容器：kubelet监听到有 Pod 已经调度到节点上，对本地存储进行 mount 操作，并启动容器。</li>
+</ul>
+<h4 id="Dynamic-Local-Volume"><a href="#Dynamic-Local-Volume" class="headerlink" title="Dynamic Local Volume"></a>Dynamic Local Volume</h4><p>CSI 驱动需要汇报节点上相关存储的资源信息，以便用于调度但是机器的厂家不同，汇报方式也不同。</p>
+<p>例如，有的厂家的机器节点上具有 NVMe、SSD、HDD 等多种存储介质，希望将这些存储介质分别进行汇报。</p>
+<p>这种需求有别于其他存储类型的 CSI 驱动对接口的需求，因此如何汇报节点的存储信息，以及如何让节点的存储信息应用于调度，目前并没有形成统一的意见。</p>
+<p>集群管理员可以基于节点存储的实际情况对开源 CSI 驱动和调度进行一些代码修改，再进行部署和使用。</p>
+<h5 id="Local-Dynamic-的挂载流程"><a href="#Local-Dynamic-的挂载流程" class="headerlink" title="Local Dynamic 的挂载流程"></a>Local Dynamic 的挂载流程</h5><p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/LocalDynamic的挂载流程.png" alt="LocalDynamic的挂载流程"></p>
+<ul>
+<li>创建 PVC：用户创建 PVC，PVC 处于 pending 状态。</li>
+<li>创建 Pod：用户创建 Pod。</li>
+<li>Pod 选择节点：kube-scheduler 开始调度 Pod，通过 PVC 的 <code>pvc.spec.resources.request.storage</code> 等选择满足条件的节点。</li>
+<li>更新 PVC：选择节点后，kube-scheduler 会给 PVC 添加包含节点信息的 annotation：<code>volume.kubernetes.io/selected-node:&lt;节点名字&gt;</code>。</li>
+<li>创建卷：运行在节点上的容器 external-provisioner 监听到 PVC 带有该节点相关的 annotation，向相应的 CSI 驱动申请分配卷。</li>
+<li>创建 PV：PVC 申请到所需的存储空间后，external-provisione 创建 PV，该 PV 的 <code>pv.Spec.claimRef</code> 设置为对应的 PVC。</li>
+<li>PVC 和 PV 绑定：kube-controller-manager 将 PVC 和 PV 进行绑定，状态修改为 Bound。</li>
+<li>监听 PVC 状态：kube-scheduler 等待 PVC 变成 Bound 状态</li>
+<li>Pod 调度到节点：当 PVC 的状态为 Bound 时，Pod 才算真正调度成功了。如果 PVC一直处于 Pending状态，超时后会再次进行调度。</li>
+<li>Mount 卷：kubelet监听到有 Pod 已经调度到节点上，对本地存储进行 mount 操作。</li>
+<li>启动容器：启动容器。</li>
+</ul>
+<h5 id="Local-Dynamic-的挑战"><a href="#Local-Dynamic-的挑战" class="headerlink" title="Local Dynamic 的挑战"></a>Local Dynamic 的挑战</h5><p>如果将磁盘空间作为一个存储池（例如 LVM）来动态分配，那么在分配出来的逻辑卷空间的使用上，可能会受到其他逻辑卷的 I/O 干扰，因为底层的物理卷可能是同一个。</p>
+<p>如果 PV 后端的磁盘空间是一块独立的物理磁盘，则 I/O 就不会受到干扰。</p>
+<h4 id="生产实践经验分享"><a href="#生产实践经验分享" class="headerlink" title="生产实践经验分享"></a>生产实践经验分享</h4><p>不同介质类型的磁盘，需要设置不同的 StorageClass，以便让用户做区分。StorageClass 需要设置磁盘介质的类型，以便用户了解该类存储的属性。</p>
+<p>在本地存储的 PV 静态部署模式下，每个物理磁盘都尽量只创建一个 PV，而不是划分为多个分区来提供多个本地存储 PV，避免在使用时分区之间的 I/O 干扰。</p>
+<p>本地存储需要配合磁盘检测来使用。当集群部署规模化后，每个集群的本地存储 PV 可能会超过几万个，如磁盘损坏将是频发事件。此时，需要在检测到磁盘损坏、丢盘等问题后，对节点的磁盘和相应的本地存储 PV 进行特定的处理例如触发告警、自动 cordon 节点、自动通知用户等。</p>
+<p>对于提供本地存储节点的磁盘管理，需要做到灵活管理和自动化。节点磁盘的信息可以归一、集中化管理。在 local-volume-provisioner 中增加部署逻辑，当容器运行起来时，拉取该节点需要提供本地存储的磁盘信息，例如磁盘的设备路径，以 Filesystem 或 Block 的模式提供本地存储，或者是否需要加入某个 LVM 的虚拟组（VG）等 local-volume-provisioner 根据获取的磁盘信息对磁盘进行格式化，或者加入到某个 VG，从而形成对本地存储支持的自动化闭环。</p>
+<h4 id="Rook"><a href="#Rook" class="headerlink" title="Rook"></a>Rook</h4><p>Rook 是一款云原生环境下的开源分布式存储编排系统，目前支持 Ceph、NFS、EdgeFS、Cassandra、CockroachDB 等存储系统。它实现了一个自动管理的、自动扩容的、自动修复的分布式存储服务。Rook 支持自动部署、启动、配置、分配、扩容/缩容、升级、迁移、灾难恢复、监控以及资源管理。</p>
+<p><a target="_blank" rel="noopener" href="https://github.com/kibaamor/101/blob/master/module7/csi/rook/rook.md">https://github.com/kibaamor/101/blob/master/module7/csi/rook/rook.md</a></p>
+<h5 id="Rook-架构"><a href="#Rook-架构" class="headerlink" title="Rook 架构"></a>Rook 架构</h5><p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/Rook架构.png" alt="Rook架构"></p>
+<h5 id="Rook-Operator"><a href="#Rook-Operator" class="headerlink" title="Rook Operator"></a>Rook Operator</h5><p>RookOperater 是 Rook 的大脑，以deployment 形式存在。</p>
+<p>其利用 Kubernetes 的 controller-runtime 框架实现了 CRD，并进而接受 Kubernetes 创建资源的请求并创建相关资源（集群，pool，块存储服务，文件存储服务等）。<br>RookOperater 监控存储守护进程，来确保存储集群的健康。</p>
+<p>监听 Rook Discovers 收集到的存储磁盘设备，并创建相应服务（Ceph 的话就是 OSD 了）。</p>
+<h5 id="Rook-Discover"><a href="#Rook-Discover" class="headerlink" title="Rook Discover"></a>Rook Discover</h5><p>Rook Discover 是以 DaemonSet 形式部署在所有的存储机上的，其检测挂接到存储节点上的存储设备。把符合要求的存储设备记录下来，这样 RookOperate 感知到以后就可以基于该存储设备创建相应服务了。</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token comment">## discover device</span>
+lsblk --all --noheadings --list --output KNAME
+lsblk /dev/vdd --bytes --nodeps --pairs --paths --0utput SIZE,ROTA,RO,TYPE,PKNAME,NAME,KNAME
+udevadm info --query<span class="token operator">=</span>property /dev/vdd$ lsblk --noheadings --pairs /dev/vdd
 
+<span class="token comment">## discover ceph inventory</span>
+ceph-volume inventory--format json
+<span class="token keyword">if</span> device has ceph inv,device.cephVolumeData<span class="token operator">=</span>CvData
+<span class="token comment">## put device info into configmap per node</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<h5 id="CSIDriver-发现"><a href="#CSIDriver-发现" class="headerlink" title="CSIDriver 发现"></a>CSIDriver 发现</h5><p>CSI 驱动发现：</p>
+<p>如果一个 CSI 驱动创建 CSIDriver 对象，Kubernetes 用户可以通过 <code>get CSIDriver</code> 命令发现它们；</p>
+<p>CSI 对象有如下特点：</p>
+<ul>
+<li>自定义的 Kubernetes逻辑；</li>
+<li>Kubernetes 对存储卷有一些列操作，这些 CSIDriver 可以自定义支持哪些操作?</li>
+</ul>
+<h5 id="Provisioner"><a href="#Provisioner" class="headerlink" title="Provisioner"></a>Provisioner</h5><p>CSI external-provisioner 是一个监控 Kubernetes PVC 对象的 Sidecar 容器</p>
+<p>当用户创建 PVC 后，Kubernetes 会监测 PVC 对应的 StorageClass，如果 StorageClass 中的 provisioner 与某插件匹配，该容器通过 CSI Endpoint（通常是 unixsocket）调用 CreateVolume 方法。</p>
+<p>如果 CreateVolume 方法调用成功，则 Provisioner sidecar 创建 Kubernetes PV 对象。</p>
+<h5 id="CSI-External-Provisioner"><a href="#CSI-External-Provisioner" class="headerlink" title="CSI External Provisioner"></a>CSI External Provisioner</h5><pre class="line-numbers language-yaml" data-language="yaml"><code class="language-yaml"><span class="token key atrule">containers</span><span class="token punctuation">:</span>
+<span class="token punctuation">-</span> <span class="token key atrule">args</span><span class="token punctuation">:</span>
+  <span class="token punctuation">-</span> <span class="token punctuation">-</span><span class="token punctuation">-</span>csi<span class="token punctuation">-</span>address=$(ADDRESS)
+  <span class="token punctuation">-</span> <span class="token punctuation">-</span><span class="token punctuation">-</span>V=0
+  <span class="token punctuation">-</span> <span class="token punctuation">-</span><span class="token punctuation">-</span>timeout=150s
+  <span class="token punctuation">-</span> <span class="token punctuation">-</span><span class="token punctuation">-</span>retry<span class="token punctuation">-</span>interval<span class="token punctuation">-</span>start=500ms
+  <span class="token key atrule">env</span><span class="token punctuation">:</span>
+    <span class="token punctuation">-</span> name<span class="token punctuation">:</span>ADDRESS
+      value<span class="token punctuation">:</span>unix<span class="token punctuation">:</span>///csi/csi<span class="token punctuation">-</span>provisioner.sock
+  <span class="token key atrule">image</span><span class="token punctuation">:</span> quay.io/k8scsi/csi<span class="token punctuation">-</span>provisioner<span class="token punctuation">:</span>v1.6.0
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> csi<span class="token punctuation">-</span>provisioner
+    <span class="token key atrule">resources</span><span class="token punctuation">:</span> <span class="token punctuation">{</span><span class="token punctuation">}</span>
+  <span class="token key atrule">volumeMounts</span><span class="token punctuation">:</span>
+    <span class="token punctuation">-</span> <span class="token key atrule">mountPath</span><span class="token punctuation">:</span> /csi
+      <span class="token key atrule">name</span><span class="token punctuation">:</span> socket<span class="token punctuation">-</span>dir
+    <span class="token punctuation">-</span> <span class="token key atrule">mountPath</span><span class="token punctuation">:</span> /var/run/secrets/kubernetes.io/serviceaccount
+      <span class="token key atrule">name</span><span class="token punctuation">:</span> rook<span class="token punctuation">-</span>csi<span class="token punctuation">-</span>rbd<span class="token punctuation">-</span>provisioner<span class="token punctuation">-</span>sa<span class="token punctuation">-</span>token<span class="token punctuation">-</span>mxv84
+      <span class="token key atrule">readOnly</span><span class="token punctuation">:</span> <span class="token boolean important">true</span>
+<span class="token punctuation">-</span> <span class="token key atrule">args</span><span class="token punctuation">:</span>
+  <span class="token punctuation">-</span> <span class="token punctuation">-</span><span class="token punctuation">-</span>nodeid=$(NODE ID)
+  <span class="token punctuation">-</span> <span class="token punctuation">-</span><span class="token punctuation">-</span>endpoint=$(CSI ENDPOINT)
+  <span class="token punctuation">-</span> <span class="token punctuation">-</span><span class="token punctuation">-</span>V=0
+  <span class="token punctuation">-</span> <span class="token punctuation">-</span><span class="token punctuation">-</span>type=rbd
+  <span class="token punctuation">-</span> <span class="token punctuation">-</span><span class="token punctuation">-</span>controllerserver=true
+  <span class="token punctuation">-</span> <span class="token punctuation">-</span><span class="token punctuation">-</span>drivername=rook<span class="token punctuation">-</span>ceph.rbd.csi.ceph.com
+  <span class="token key atrule">env</span><span class="token punctuation">:</span>
+    <span class="token punctuation">-</span> name<span class="token punctuation">:</span>CSI ENDPOINT
+      <span class="token key atrule">value</span><span class="token punctuation">:</span> unix<span class="token punctuation">:</span>///csi/csi<span class="token punctuation">-</span>provisioner.sock
+  <span class="token key atrule">image</span><span class="token punctuation">:</span> quay.io/cephcsi/cephcsi<span class="token punctuation">:</span>v3.0.0
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> csi<span class="token punctuation">-</span>rbdplugin
+  <span class="token punctuation">-</span> <span class="token key atrule">emptyDir</span><span class="token punctuation">:</span>
+    <span class="token key atrule">medium</span><span class="token punctuation">:</span> Memory
+    <span class="token key atrule">name</span><span class="token punctuation">:</span> socket<span class="token punctuation">-</span>dir<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<h5 id="Provisioner-代码"><a href="#Provisioner-代码" class="headerlink" title="Provisioner 代码"></a>Provisioner 代码</h5><pre class="line-numbers language-go" data-language="go"><code class="language-go">controller<span class="token operator">/</span>controller<span class="token punctuation">.</span><span class="token keyword">go</span>
+    syncClaim <span class="token operator">-</span><span class="token operator">&gt;</span>provisionClaimOperation<span class="token operator">-</span><span class="token operator">&gt;</span>provisioner<span class="token punctuation">.</span>Provision
+        pkg<span class="token operator">/</span>operator<span class="token operator">/</span>ceph<span class="token operator">/</span>provisioner<span class="token operator">/</span>provisioner<span class="token punctuation">.</span><span class="token keyword">go</span>
+            Provision<span class="token operator">-</span><span class="token operator">&gt;</span>createVolume
+                ceph<span class="token punctuation">.</span>Createlmage
+        
+        pkg<span class="token operator">/</span>daemon<span class="token operator">/</span>ceph<span class="token operator">/</span>client<span class="token operator">/</span>image<span class="token punctuation">.</span><span class="token keyword">go</span>
+        
+        rbd create poolName<span class="token operator">/</span>name <span class="token operator">-</span>size sizeMB
+volumeStore<span class="token punctuation">.</span>StoreVolume
+    controller<span class="token operator">/</span>volume_store<span class="token punctuation">.</span><span class="token keyword">go</span>
+        doSaveVolume
+            client<span class="token punctuation">.</span><span class="token function">CoreV1</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">PersistentVolumes</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">Create</span><span class="token punctuation">(</span>volume<span class="token punctuation">)</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<h5 id="Provisioner-log"><a href="#Provisioner-log" class="headerlink" title="Provisioner log"></a>Provisioner log</h5><pre class="line-numbers language-txt" data-language="txt"><code class="language-txt">10816 10:17:32.535207   1 connection.go:153] connecting to unix:///csi/csiprovisioner.sock
+10816 10:17:54.361911   1 volume store.go:97] Starting save volume queue
+10816 10:17:54.461930   1 controller.go:1284] provision "default/mysql-pv-claim" class
+"rook-ceph-block": started
+10816 10:17:54.462078   1 controller.go:848] Started provisioner controller rook-ceph.rbd.csi.ceph.com csi-rbdplugin-provisioner-677577c77c-vwkzz ca5971ab-2293-4e529bc9-c490f7f50b07!
+1081610:17:54.465752 1event.go:281] Event(v1.0bjectReference{Kind:"PersistentVolumeClaim", Namespace:"default"Name:"mysal-pv-claim",UlD:"24449707-6738-425c-ac88-de3c470cf91a",APIVersion:"y1"ResourceVersion:"45668", FieldPath:""): type:'Normal' reason: 'Provisioning' Externalprovisioner is provisioning volume for claim "default/mysql-pv-claim"<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<h5 id="Rook-Agent"><a href="#Rook-Agent" class="headerlink" title="Rook Agent"></a>Rook Agent</h5><p>RookAgent 是以 Daemonset 形式部署在所有的存储机上的，其处理所有的存储操作，例如挂卸载存储卷以及格式化文件系统等。</p>
+<h5 id="CSI-插件注册"><a href="#CSI-插件注册" class="headerlink" title="CSI 插件注册"></a>CSI 插件注册</h5><pre class="line-numbers language-yaml" data-language="yaml"><code class="language-yaml"><span class="token key atrule">spec</span><span class="token punctuation">:</span>
+  <span class="token key atrule">hostNetwork</span><span class="token punctuation">:</span> <span class="token boolean important">true</span>
+  <span class="token key atrule">hostPID</span><span class="token punctuation">:</span> <span class="token boolean important">true</span>
+  <span class="token punctuation">-</span> <span class="token key atrule">args</span><span class="token punctuation">:</span>
+  <span class="token punctuation">-</span> <span class="token punctuation">-</span>V=0
+  <span class="token punctuation">-</span> <span class="token punctuation">-</span>csi<span class="token punctuation">-</span>address=/csi/csi.sock
+  <span class="token punctuation">-</span> <span class="token punctuation">-</span>kubelet<span class="token punctuation">-</span>registration<span class="token punctuation">-</span>path=/var/lib/kubelet/plugins/rook<span class="token punctuation">-</span>ceph.rbd.csi.ceph.com/csi.sock
+  <span class="token key atrule">image</span><span class="token punctuation">:</span> quay.io/k8scsi/csi<span class="token punctuation">-</span>node<span class="token punctuation">-</span>driver<span class="token punctuation">-</span>registrar<span class="token punctuation">:</span>v1.2.0
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> driver<span class="token punctuation">-</span>registrar
+  <span class="token key atrule">resources</span><span class="token punctuation">:</span> <span class="token punctuation">{</span><span class="token punctuation">}</span>
+  <span class="token key atrule">securitycontext</span><span class="token punctuation">:</span>
+    <span class="token key atrule">privileged</span><span class="token punctuation">:</span> <span class="token boolean important">true</span>
+  <span class="token key atrule">volumeMounts</span><span class="token punctuation">:</span>
+  <span class="token punctuation">-</span> <span class="token key atrule">mountPath</span><span class="token punctuation">:</span> /csi
+    <span class="token key atrule">name</span><span class="token punctuation">:</span> plugin<span class="token punctuation">-</span>dir
+  <span class="token punctuation">-</span> <span class="token key atrule">mountPath</span><span class="token punctuation">:</span> /registration
+    <span class="token key atrule">name</span><span class="token punctuation">:</span> registration<span class="token punctuation">-</span>dir<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<h5 id="CSI-Driver"><a href="#CSI-Driver" class="headerlink" title="CSI Driver"></a>CSI Driver</h5><pre class="line-numbers language-yaml" data-language="yaml"><code class="language-yaml">apiVersion<span class="token punctuation">:</span>storage.k8s.io/v1
+<span class="token key atrule">kind</span><span class="token punctuation">:</span> CSlDriver
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> rook<span class="token punctuation">-</span>ceph.rbd.csi.ceph.com
+<span class="token key atrule">spec</span><span class="token punctuation">:</span>
+  <span class="token key atrule">attachRequired</span><span class="token punctuation">:</span> <span class="token boolean important">true</span>
+  <span class="token key atrule">podinfoOnMount</span><span class="token punctuation">:</span> <span class="token boolean important">false</span>
+  <span class="token key atrule">volumeLifecycleModes</span><span class="token punctuation">:</span>
+  <span class="token punctuation">-</span> Persistent<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token operator">&gt;</span> <span class="token function">ls</span> /var/lib/kubelet/plugins/rook-ceph.rbd.csi.ceph.com
+csi.sock<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre>
+<pre class="line-numbers language-yaml" data-language="yaml"><code class="language-yaml"><span class="token punctuation">-</span> <span class="token key atrule">args</span><span class="token punctuation">:</span>
+  <span class="token punctuation">-</span> <span class="token punctuation">-</span><span class="token punctuation">-</span>nodeid=$(NODE ID)
+  <span class="token punctuation">-</span> <span class="token punctuation">-</span><span class="token punctuation">-</span>endpoint=$(CSI ENDPOINT)
+  <span class="token punctuation">-</span> <span class="token punctuation">-</span><span class="token punctuation">-</span>V=0
+  <span class="token punctuation">-</span> <span class="token punctuation">-</span><span class="token punctuation">-</span>type=rbd
+  <span class="token punctuation">-</span> <span class="token punctuation">-</span><span class="token punctuation">-</span>nodeserver=true
+  <span class="token punctuation">-</span> <span class="token punctuation">-</span><span class="token punctuation">-</span>drivername=rook<span class="token punctuation">-</span>ceph.rbd.csi.ceph.com
+  <span class="token punctuation">-</span> <span class="token punctuation">-</span><span class="token punctuation">-</span>pidlimit=<span class="token punctuation">-</span><span class="token number">1</span>
+  <span class="token punctuation">-</span> <span class="token punctuation">-</span><span class="token punctuation">-</span>metricsport=9090
+  <span class="token punctuation">-</span> <span class="token punctuation">-</span><span class="token punctuation">-</span>metricspath=/metrics
+  <span class="token punctuation">-</span> <span class="token punctuation">-</span><span class="token punctuation">-</span>enablegrpcmetrics=true
+  <span class="token key atrule">env</span><span class="token punctuation">:</span>
+  <span class="token punctuation">-</span> <span class="token key atrule">name</span><span class="token punctuation">:</span> CSI ENDPOINT
+    <span class="token key atrule">value</span><span class="token punctuation">:</span> unix<span class="token punctuation">:</span>///csi/csi.sock
+  <span class="token key atrule">image</span><span class="token punctuation">:</span> quay.io/cephcsi/cephcsi<span class="token punctuation">:</span>v3.0.0
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> csi<span class="token punctuation">-</span>rbdplugin
+  <span class="token key atrule">securityContext</span><span class="token punctuation">:</span>
+    allowPrivilegeEscalation<span class="token punctuation">:</span><span class="token boolean important">true</span>
+    <span class="token key atrule">capabilities</span><span class="token punctuation">:</span>
+      <span class="token key atrule">add</span><span class="token punctuation">:</span>
+      <span class="token punctuation">-</span> SYS_ADMIN
+    <span class="token key atrule">privileged</span><span class="token punctuation">:</span> <span class="token boolean important">true</span>
+  <span class="token punctuation">-</span> <span class="token key atrule">hostPath</span><span class="token punctuation">:</span>
+    path<span class="token punctuation">:</span>/var/lib/kubelet/plugins/rook<span class="token punctuation">-</span>ceph.rbd.csi.ceph.com
+    <span class="token key atrule">type</span><span class="token punctuation">:</span> DirectoryOrCreate
+    <span class="token key atrule">name</span><span class="token punctuation">:</span> plugin<span class="token punctuation">-</span>dir<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<h5 id="Agent"><a href="#Agent" class="headerlink" title="Agent"></a>Agent</h5><pre class="line-numbers language-go" data-language="go"><code class="language-go">pkg<span class="token operator">/</span>daemon<span class="token operator">/</span>ceph<span class="token operator">/</span>agent<span class="token operator">/</span>agent<span class="token punctuation">.</span><span class="token keyword">go</span>
+    flexvolume<span class="token punctuation">.</span><span class="token function">NewController</span><span class="token punctuation">(</span>a<span class="token punctuation">.</span>context<span class="token punctuation">,</span> volumeAttachmentController<span class="token punctuation">,</span> volumeManager<span class="token punctuation">)</span>
+    rpc<span class="token punctuation">.</span><span class="token function">Register</span><span class="token punctuation">(</span>flexvolumeController<span class="token punctuation">)</span>
+    flexvolumeServer<span class="token punctuation">.</span>Start<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span></span></code></pre>
+<h5 id="Cluster"><a href="#Cluster" class="headerlink" title="Cluster"></a>Cluster</h5><p>针对不同 ceph cluster，rook 启动一组管理组件，包括: mon, mgr, osd, mds, rgw。</p>
+<pre class="line-numbers language-yaml" data-language="yaml"><code class="language-yaml"><span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> ceph.rook.io/v1
+<span class="token key atrule">kind</span><span class="token punctuation">:</span> CephCluster
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> rook<span class="token punctuation">-</span>ceph
+  <span class="token key atrule">namespace</span><span class="token punctuation">:</span> rook<span class="token punctuation">-</span>ceph
+<span class="token key atrule">spec</span><span class="token punctuation">:</span>
+  <span class="token key atrule">cephVersion</span><span class="token punctuation">:</span>
+    <span class="token key atrule">image</span><span class="token punctuation">:</span> ceph/ceph<span class="token punctuation">:</span>v14.2.10
+    <span class="token key atrule">dataDirHostPath</span><span class="token punctuation">:</span> /var/lib/rook
+  <span class="token key atrule">mon</span><span class="token punctuation">:</span>
+    count<span class="token punctuation">:</span><span class="token number">3</span>
+    <span class="token key atrule">allowMultiplePerNode</span><span class="token punctuation">:</span> <span class="token boolean important">false</span>
+  <span class="token key atrule">mgr</span><span class="token punctuation">:</span>
+    <span class="token key atrule">modules</span><span class="token punctuation">:</span>
+    <span class="token punctuation">-</span> <span class="token key atrule">name</span><span class="token punctuation">:</span> pg_autoscaler
+      <span class="token key atrule">enabled</span><span class="token punctuation">:</span> <span class="token boolean important">true</span>
+  <span class="token key atrule">dashboard</span><span class="token punctuation">:</span>
+    <span class="token key atrule">enabled</span><span class="token punctuation">:</span> <span class="token boolean important">true</span>
+  <span class="token key atrule">storage</span><span class="token punctuation">:</span>
+    <span class="token key atrule">useAllNodes</span><span class="token punctuation">:</span> <span class="token boolean important">true</span>
+    <span class="token key atrule">useAllDevices</span><span class="token punctuation">:</span> <span class="token boolean important">true</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<h5 id="Pool"><a href="#Pool" class="headerlink" title="Pool"></a>Pool</h5><p>-个 ceph cluster 可以有多个 pool 定义副本数量，故障域等多个属性。</p>
+<pre class="line-numbers language-yaml" data-language="yaml"><code class="language-yaml"><span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> ceph.rook.io/v1
+<span class="token key atrule">kind</span><span class="token punctuation">:</span> cephBlockPool
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> replicapool
+  <span class="token key atrule">namespace</span><span class="token punctuation">:</span> rook<span class="token punctuation">-</span>ceph
+<span class="token key atrule">spec</span><span class="token punctuation">:</span>
+  <span class="token key atrule">compressionMode</span><span class="token punctuation">:</span> <span class="token string">""</span>
+  <span class="token key atrule">crushRoot</span><span class="token punctuation">:</span> <span class="token string">""</span>
+  <span class="token key atrule">deviceClass</span><span class="token punctuation">:</span> <span class="token string">""</span>
+  <span class="token key atrule">erasureCoded</span><span class="token punctuation">:</span>
+    <span class="token key atrule">algorithm</span><span class="token punctuation">:</span> <span class="token string">""</span>
+    <span class="token key atrule">codingChunks</span><span class="token punctuation">:</span> <span class="token number">0</span>
+    <span class="token key atrule">dataChunks</span><span class="token punctuation">:</span> <span class="token number">0</span>
+  <span class="token key atrule">failureDomain</span><span class="token punctuation">:</span> host
+  <span class="token key atrule">replicated</span><span class="token punctuation">:</span>
+    <span class="token key atrule">requireSafeReplicaSize</span><span class="token punctuation">:</span> <span class="token boolean important">false</span>
+    <span class="token key atrule">size</span><span class="token punctuation">:</span> <span class="token number">1</span>
+    <span class="token key atrule">targetSizeRatio</span><span class="token punctuation">:</span> <span class="token number">0</span>
+<span class="token key atrule">status</span><span class="token punctuation">:</span>
+  <span class="token key atrule">phase</span><span class="token punctuation">:</span> Ready<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
                 
             </div>
             <hr/>
