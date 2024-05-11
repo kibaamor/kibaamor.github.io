@@ -399,21 +399,21 @@
                 
                 <div class="post-date info-break-policy">
                     <i class="far fa-calendar-check fa-fw"></i>更新日期:&nbsp;&nbsp;
-                    2024-05-10
+                    2024-05-11
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-file-word fa-fw"></i>文章字数:&nbsp;&nbsp;
-                    37k
+                    42.1k
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-clock fa-fw"></i>阅读时长:&nbsp;&nbsp;
-                    151 分
+                    173 分
                 </div>
                 
 
@@ -3915,6 +3915,395 @@ spec:
   leaseDurationSeconds: <span class="token number">3600</span>
   renewTime: <span class="token string">"2024-05-10T15:13:28.775201Z"</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
 <h4 id="Leader-Election"><a href="#Leader-Election" class="headerlink" title="Leader Election"></a>Leader Election</h4><p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/LeaderElection.png" alt="LeaderElection"></p>
+<h3 id="kubelet"><a href="#kubelet" class="headerlink" title="kubelet"></a>kubelet</h3><p><a target="_blank" rel="noopener" href="https://cncamp.notion.site/kubelet-go-c3b5cf9bbf4b4e3098720f61efb15e0e">kubelet.go</a></p>
+<pre class="line-numbers language-go" data-language="go"><code class="language-go">server<span class="token punctuation">.</span><span class="token keyword">go</span><span class="token punctuation">:</span><span class="token function">NewKubeletCommand</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token operator">--</span><span class="token operator">&gt;&gt;</span>
+kubeletDeps<span class="token punctuation">,</span> err <span class="token operator">:=</span> <span class="token function">UnsecuredDependencies</span><span class="token punctuation">(</span>kubeletServer<span class="token punctuation">,</span> utilfeature<span class="token punctuation">.</span>DefaultFeatureGate<span class="token punctuation">)</span><span class="token operator">--</span><span class="token operator">&gt;&gt;</span>
+  plugins<span class="token punctuation">,</span> err <span class="token operator">:=</span> <span class="token function">ProbeVolumePlugins</span><span class="token punctuation">(</span>featureGate<span class="token punctuation">)</span>
+server<span class="token punctuation">.</span><span class="token keyword">go</span><span class="token punctuation">:</span><span class="token function">Run</span><span class="token punctuation">(</span>kubeletServer<span class="token punctuation">,</span> kubeletDeps<span class="token punctuation">,</span> utilfeature<span class="token punctuation">.</span>DefaultFeatureGate<span class="token punctuation">,</span> stopCh<span class="token punctuation">)</span><span class="token operator">--</span><span class="token operator">&gt;&gt;</span>
+  <span class="token function">run</span><span class="token punctuation">(</span>s<span class="token punctuation">,</span> kubeDeps<span class="token punctuation">,</span> featureGate<span class="token punctuation">,</span> stopCh<span class="token punctuation">)</span><span class="token operator">--</span><span class="token operator">&gt;&gt;</span>
+    kubeDeps<span class="token punctuation">.</span>ContainerManager<span class="token punctuation">,</span> err <span class="token operator">=</span> cm<span class="token punctuation">.</span><span class="token function">NewContainerManager</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token comment">// init runtime service(CRI), -container-runtime=remote --runtime-request-timeout=15m --container-runtime-endpoint=unix:///var/containerd/containerd.sock</span>
+    kubelet<span class="token punctuation">.</span><span class="token function">PreInitRuntimeService</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token operator">--</span><span class="token operator">&gt;&gt;</span>
+      remote<span class="token punctuation">.</span><span class="token function">NewRemoteRuntimeService</span><span class="token punctuation">(</span>remoteRuntimeEndpoint<span class="token punctuation">,</span> kubeCfg<span class="token punctuation">.</span>RuntimeRequestTimeout<span class="token punctuation">.</span>Duration<span class="token punctuation">)</span>
+    <span class="token function">RunKubelet</span><span class="token punctuation">(</span>s<span class="token punctuation">,</span> kubeDeps<span class="token punctuation">,</span> s<span class="token punctuation">.</span>RunOnce<span class="token punctuation">)</span><span class="token operator">--</span><span class="token operator">&gt;&gt;</span>
+      <span class="token function">createAndInitKubelet</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token operator">--</span><span class="token operator">&gt;&gt;</span>
+        kubelet<span class="token punctuation">.</span><span class="token function">NewMainKubelet</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token operator">--</span><span class="token operator">&gt;&gt;</span>
+          <span class="token function">makePodSourceConfig</span><span class="token punctuation">(</span>kubeCfg<span class="token punctuation">,</span> kubeDeps<span class="token punctuation">,</span> nodeName<span class="token punctuation">,</span> bootstrapCheckpointPath<span class="token punctuation">)</span><span class="token operator">--</span><span class="token operator">&gt;&gt;</span>
+            updatechannel <span class="token operator">=</span> cfg<span class="token punctuation">.</span><span class="token function">Channel</span><span class="token punctuation">(</span>kubetypes<span class="token punctuation">.</span>ApiserverSource<span class="token punctuation">)</span>
+          klet <span class="token operator">:=</span> <span class="token operator">&amp;</span>Kubelet<span class="token punctuation">{</span><span class="token punctuation">}</span>
+          <span class="token comment">//*******init volume plugins</span>
+          runtime<span class="token punctuation">,</span> err <span class="token operator">:=</span> kuberuntime<span class="token punctuation">.</span><span class="token function">NewKubeGenericRuntimeManager</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+          <span class="token function">NewInitializedVolumePluginMgr</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token operator">--</span><span class="token operator">&gt;&gt;</span>
+            kvh<span class="token punctuation">.</span>volumePluginMgr<span class="token punctuation">.</span><span class="token function">InitPlugins</span><span class="token punctuation">(</span>plugins<span class="token punctuation">,</span> prober<span class="token punctuation">,</span> kvh<span class="token punctuation">)</span><span class="token operator">--</span><span class="token operator">&gt;&gt;</span>
+      <span class="token function">startKubelet</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token operator">--</span><span class="token operator">&gt;&gt;</span>
+        k<span class="token punctuation">.</span><span class="token function">Run</span><span class="token punctuation">(</span>podCfg<span class="token punctuation">.</span><span class="token function">Updates</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token operator">--</span><span class="token operator">&gt;&gt;</span>
+          <span class="token comment">//*******run volume manager, and reconcile function would attach volume for attachable plugin and mount volume</span>
+          <span class="token keyword">go</span> kl<span class="token punctuation">.</span>volumeManager<span class="token punctuation">.</span><span class="token function">Run</span><span class="token punctuation">(</span>kl<span class="token punctuation">.</span>sourcesReady<span class="token punctuation">,</span> wait<span class="token punctuation">.</span>NeverStop<span class="token punctuation">)</span><span class="token operator">--</span><span class="token operator">&gt;&gt;</span>
+            vm<span class="token punctuation">.</span>desiredStateOfWorldPopulator<span class="token punctuation">.</span><span class="token function">Run</span><span class="token punctuation">(</span>sourcesReady<span class="token punctuation">,</span> stopCh<span class="token punctuation">)</span><span class="token operator">--</span><span class="token operator">&gt;&gt;</span>
+              populatorLoop<span class="token operator">--</span><span class="token operator">&gt;&gt;</span>
+                dswp<span class="token punctuation">.</span><span class="token function">findAndAddNewPods</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token operator">--</span><span class="token operator">&gt;&gt;</span>
+                  dswp<span class="token punctuation">.</span><span class="token function">processPodVolumes</span><span class="token punctuation">(</span>pod<span class="token punctuation">,</span> mountedVolumesForPod<span class="token punctuation">,</span> processedVolumesForFSResize<span class="token punctuation">)</span><span class="token operator">--</span><span class="token operator">&gt;&gt;</span>
+                    mounts<span class="token punctuation">,</span> devices <span class="token operator">:=</span> util<span class="token punctuation">.</span><span class="token function">GetPodVolumeNames</span><span class="token punctuation">(</span>pod<span class="token punctuation">)</span>
+                    dswp<span class="token punctuation">.</span><span class="token function">createVolumeSpec</span><span class="token punctuation">(</span>podVolume<span class="token punctuation">,</span> pod<span class="token punctuation">.</span>Name<span class="token punctuation">,</span> pod<span class="token punctuation">.</span>Namespace<span class="token punctuation">,</span> mounts<span class="token punctuation">,</span> devices<span class="token punctuation">)</span>
+                    dswp<span class="token punctuation">.</span>desiredStateOfWorld<span class="token punctuation">.</span><span class="token function">AddPodToVolume</span><span class="token punctuation">(</span>uniquePodName<span class="token punctuation">,</span> pod<span class="token punctuation">,</span> volumeSpec<span class="token punctuation">,</span> podVolume<span class="token punctuation">.</span>Name<span class="token punctuation">,</span> volumeGidValue<span class="token punctuation">)</span><span class="token operator">--</span><span class="token operator">&gt;&gt;</span>
+                      dsw<span class="token punctuation">.</span>volumesToMount<span class="token punctuation">[</span>volumeName<span class="token punctuation">]</span> <span class="token operator">=</span> volumeToMount<span class="token punctuation">{</span><span class="token punctuation">}</span>
+            vm<span class="token punctuation">.</span>reconciler<span class="token punctuation">.</span><span class="token function">Run</span><span class="token punctuation">(</span>stopCh<span class="token punctuation">)</span><span class="token operator">--</span><span class="token operator">&gt;&gt;</span>	
+              <span class="token function">reconciliationLoopFunc</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token operator">--</span><span class="token operator">&gt;&gt;</span> <span class="token comment">// reconcile every 100 ms</span>
+                mountAttachVolumes<span class="token operator">--</span><span class="token operator">&gt;&gt;</span>
+                  rc<span class="token punctuation">.</span>desiredStateOfWorld<span class="token punctuation">.</span><span class="token function">GetVolumesToMount</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+                  rc<span class="token punctuation">.</span>operationExecutor<span class="token punctuation">.</span><span class="token function">AttachVolume</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token operator">--</span><span class="token operator">&gt;&gt;</span>	<span class="token comment">// attachable plugin, e.g. 	CSI plugin</span>
+                    operationGenerator<span class="token punctuation">.</span><span class="token function">GenerateAttachVolumeFunc</span><span class="token punctuation">(</span>volumeToAttach<span class="token punctuation">,</span> actualStateOfWorld<span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">Run</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+                  rc<span class="token punctuation">.</span>operationExecutor<span class="token punctuation">.</span><span class="token function">MountVolume</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token operator">--</span><span class="token operator">&gt;&gt;</span>  <span class="token comment">// volume need to mount, like ceph, configmap, emptyDir</span>
+                    oe<span class="token punctuation">.</span>operationGenerator<span class="token punctuation">.</span><span class="token function">GenerateMapVolumeFunc</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">Run</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token operator">--</span><span class="token operator">&gt;&gt;</span>
+                      volumePlugin<span class="token punctuation">,</span> err <span class="token operator">:=</span> og<span class="token punctuation">.</span>volumePluginMgr<span class="token punctuation">.</span><span class="token function">FindPluginBySpec</span><span class="token punctuation">(</span>volumeToMount<span class="token punctuation">.</span>VolumeSpec<span class="token punctuation">)</span>
+                      volumePlugin<span class="token punctuation">.</span><span class="token function">NewMounter</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+                      volumeMounter<span class="token punctuation">.</span><span class="token function">SetUp</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+          kl<span class="token punctuation">.</span><span class="token function">syncLoop</span><span class="token punctuation">(</span>updates<span class="token punctuation">,</span> kl<span class="token punctuation">)</span><span class="token operator">--</span><span class="token operator">&gt;&gt;</span>
+            kl<span class="token punctuation">.</span><span class="token function">syncLoopIteration</span><span class="token punctuation">(</span>updates<span class="token punctuation">,</span> handler<span class="token punctuation">,</span> syncTicker<span class="token punctuation">.</span>C<span class="token punctuation">,</span> housekeepingTicker<span class="token punctuation">.</span>C<span class="token punctuation">,</span> plegCh<span class="token punctuation">)</span><span class="token operator">--</span><span class="token operator">&gt;&gt;</span>
+              <span class="token comment">//*******handle pod creation event</span>
+              handler<span class="token punctuation">.</span><span class="token function">HandlePodAdditions</span><span class="token punctuation">(</span>u<span class="token punctuation">.</span>Pods<span class="token punctuation">)</span><span class="token operator">--</span><span class="token operator">&gt;&gt;</span>
+                kl<span class="token punctuation">.</span>podManager<span class="token punctuation">.</span><span class="token function">AddPod</span><span class="token punctuation">(</span>pod<span class="token punctuation">)</span>
+                kl<span class="token punctuation">.</span><span class="token function">canAdmitPod</span><span class="token punctuation">(</span>activePods<span class="token punctuation">,</span> pod<span class="token punctuation">)</span> <span class="token comment">// check admit, if admit check fail, it will error out</span>
+                kl<span class="token punctuation">.</span><span class="token function">dispatchWork</span><span class="token punctuation">(</span>pod<span class="token punctuation">,</span> kubetypes<span class="token punctuation">.</span>SyncPodCreate<span class="token punctuation">,</span> mirrorPod<span class="token punctuation">,</span> start<span class="token punctuation">)</span><span class="token operator">--</span><span class="token operator">&gt;&gt;</span>
+                  kl<span class="token punctuation">.</span>podWorkers<span class="token punctuation">.</span><span class="token function">UpdatePod</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token operator">--</span><span class="token operator">&gt;&gt;</span>
+                    p<span class="token punctuation">.</span><span class="token function">managePodLoop</span><span class="token punctuation">(</span>podUpdates<span class="token punctuation">)</span><span class="token operator">--</span><span class="token operator">&gt;&gt;</span>
+                      p<span class="token punctuation">.</span><span class="token function">syncPodFn</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token operator">--</span><span class="token operator">&gt;&gt;</span>
+                        kubelet<span class="token punctuation">.</span><span class="token keyword">go</span><span class="token punctuation">:</span><span class="token function">syncPod</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token operator">--</span><span class="token operator">&gt;&gt;</span>
+                          runnable <span class="token operator">:=</span> kl<span class="token punctuation">.</span><span class="token function">canRunPod</span><span class="token punctuation">(</span>pod<span class="token punctuation">)</span> <span class="token comment">// check soft admin, pod will be pending if check fails</span>
+                          kl<span class="token punctuation">.</span>runtimeState<span class="token punctuation">.</span><span class="token function">networkErrors</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token comment">// check network plugin status</span>
+                          kl<span class="token punctuation">.</span>containerManager<span class="token punctuation">.</span><span class="token function">UpdateQOSCgroups</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+                          kl<span class="token punctuation">.</span><span class="token function">makePodDataDirs</span><span class="token punctuation">(</span>pod<span class="token punctuation">)</span>
+                          kl<span class="token punctuation">.</span>volumeManager<span class="token punctuation">.</span><span class="token function">WaitForAttachAndMount</span><span class="token punctuation">(</span>pod<span class="token punctuation">)</span>
+                          <span class="token punctuation">(</span>kubeGenericRuntimeManager<span class="token punctuation">)</span>kl<span class="token punctuation">.</span>containerRuntime<span class="token punctuation">.</span><span class="token function">SyncPod</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token operator">--</span><span class="token operator">&gt;&gt;</span>
+                            m<span class="token punctuation">.</span><span class="token function">computePodActions</span><span class="token punctuation">(</span>pod<span class="token punctuation">,</span> podStatus<span class="token punctuation">)</span> <span class="token comment">// create sandbox container?</span>
+                            m<span class="token punctuation">.</span><span class="token function">createPodSandbox</span><span class="token punctuation">(</span>pod<span class="token punctuation">,</span> podContainerChanges<span class="token punctuation">.</span>Attempt<span class="token punctuation">)</span><span class="token operator">--</span><span class="token operator">&gt;&gt;</span>
+                              m<span class="token punctuation">.</span>osInterface<span class="token punctuation">.</span><span class="token function">MkdirAll</span><span class="token punctuation">(</span>podSandboxConfig<span class="token punctuation">.</span>LogDirectory<span class="token punctuation">,</span> <span class="token number">0755</span><span class="token punctuation">)</span>
+                              <span class="token comment">//*******calling CRI</span>
+                              m<span class="token punctuation">.</span>runtimeService<span class="token punctuation">.</span><span class="token function">RunPodSandbox</span><span class="token punctuation">(</span>podSandboxConfig<span class="token punctuation">,</span> runtimeHandler<span class="token punctuation">)</span><span class="token operator">--</span><span class="token operator">&gt;&gt;</span><span class="token comment">// k8s.io/cri-api/pkg/apis/runtime/v1alpha2/api.pb.go</span>
+                                c<span class="token punctuation">.</span>cc<span class="token punctuation">.</span><span class="token function">Invoke</span><span class="token punctuation">(</span>ctx<span class="token punctuation">,</span> <span class="token string">"/runtime.v1alpha2.RuntimeService/RunPodSandbox"</span><span class="token punctuation">)</span> <span class="token comment">// call remote runtime service which is served by containerd</span>
+                              <span class="token function">start</span><span class="token punctuation">(</span><span class="token string">"init container"</span><span class="token punctuation">,</span> <span class="token function">containerStartSpec</span><span class="token punctuation">(</span>container<span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token operator">--</span><span class="token operator">&gt;&gt;</span>
+                                <span class="token function">startContainer</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+                              <span class="token function">start</span><span class="token punctuation">(</span><span class="token string">"container"</span><span class="token punctuation">,</span> <span class="token function">containerStartSpec</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>pod<span class="token punctuation">.</span>Spec<span class="token punctuation">.</span>Containers<span class="token punctuation">[</span>idx<span class="token punctuation">]</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token operator">--</span><span class="token operator">&gt;&gt;</span>
+                                <span class="token function">startContainer</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token operator">--</span><span class="token operator">&gt;&gt;</span>
+                                  m<span class="token punctuation">.</span>imagePuller<span class="token punctuation">.</span><span class="token function">EnsureImageExists</span><span class="token punctuation">(</span>pod<span class="token punctuation">,</span> container<span class="token punctuation">,</span> pullSecrets<span class="token punctuation">,</span> podSandboxConfig<span class="token punctuation">)</span><span class="token operator">--</span><span class="token operator">&gt;&gt;</span>
+                                    c<span class="token punctuation">.</span>cc<span class="token punctuation">.</span><span class="token function">Invoke</span><span class="token punctuation">(</span>ctx<span class="token punctuation">,</span> <span class="token string">"/runtime.v1alpha2.ImageService/PullImage"</span>
+                                  m<span class="token punctuation">.</span>runtimeService<span class="token punctuation">.</span><span class="token function">CreateContainer</span><span class="token punctuation">(</span>podSandboxID<span class="token punctuation">,</span> containerConfig<span class="token punctuation">,</span> podSandboxConfig<span class="token punctuation">)</span><span class="token operator">--</span><span class="token operator">&gt;&gt;</span>
+                                    c<span class="token punctuation">.</span>cc<span class="token punctuation">.</span><span class="token function">Invoke</span><span class="token punctuation">(</span>ctx<span class="token punctuation">,</span> <span class="token string">"/runtime.v1alpha2.RuntimeService/CreateContainer"</span><span class="token punctuation">)</span>
+                                  m<span class="token punctuation">.</span>internalLifecycle<span class="token punctuation">.</span><span class="token function">PreStartContainer</span><span class="token punctuation">(</span>pod<span class="token punctuation">,</span> container<span class="token punctuation">,</span> containerID<span class="token punctuation">)</span> <span class="token comment">// set cpu set</span>
+                                  m<span class="token punctuation">.</span>runtimeService<span class="token punctuation">.</span><span class="token function">StartContainer</span><span class="token punctuation">(</span>containerID<span class="token punctuation">)</span><span class="token operator">--</span><span class="token operator">&gt;&gt;</span>
+                                    c<span class="token punctuation">.</span>cc<span class="token punctuation">.</span><span class="token function">Invoke</span><span class="token punctuation">(</span>ctx<span class="token punctuation">,</span> <span class="token string">"/runtime.v1alpha2.RuntimeService/StartContainer"</span><span class="token punctuation">)</span>
+
+containerd
+server<span class="token punctuation">.</span><span class="token keyword">go</span><span class="token punctuation">:</span>service<span class="token punctuation">.</span><span class="token function">Register</span><span class="token punctuation">(</span>grpcServer<span class="token punctuation">)</span><span class="token operator">--</span><span class="token operator">&gt;&gt;</span>
+  runtime<span class="token punctuation">.</span><span class="token function">RegisterRuntimeServiceServer</span><span class="token punctuation">(</span>s<span class="token punctuation">,</span> instrumented<span class="token punctuation">)</span><span class="token operator">--</span><span class="token operator">&gt;&gt;</span>
+      s<span class="token punctuation">.</span><span class="token function">RegisterService</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>_RuntimeService_serviceDesc<span class="token punctuation">,</span> srv<span class="token punctuation">)</span><span class="token operator">--</span><span class="token operator">&gt;&gt;</span>
+        Handler<span class="token punctuation">:</span>    _RuntimeService_RunPodSandbox_Handler<span class="token punctuation">,</span>	<span class="token comment">// api.pb.go</span>
+        srv<span class="token punctuation">.</span><span class="token punctuation">(</span>RuntimeServiceServer<span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">RunPodSandbox</span><span class="token punctuation">(</span>ctx<span class="token punctuation">,</span> in<span class="token punctuation">)</span><span class="token operator">--</span><span class="token operator">&gt;&gt;</span> <span class="token comment">//"/runtime.v1alpha2.RuntimeService/RunPodSandbox"</span>
+          <span class="token function">RunPodSandbox</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token operator">--</span><span class="token operator">&gt;&gt;</span> <span class="token comment">// pkg/server/sandbox_run.go</span>
+            sandboxstore<span class="token punctuation">.</span><span class="token function">NewSandbox</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+            c<span class="token punctuation">.</span><span class="token function">ensureImageExists</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+            c<span class="token punctuation">.</span><span class="token function">getSandboxRuntime</span><span class="token punctuation">(</span>config<span class="token punctuation">,</span> r<span class="token punctuation">.</span><span class="token function">GetRuntimeHandler</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span>
+            netns<span class="token punctuation">.</span><span class="token function">NewNetNS</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+            c<span class="token punctuation">.</span><span class="token function">setupPodNetwork</span><span class="token punctuation">(</span>ctx<span class="token punctuation">,</span> <span class="token operator">&amp;</span>sandbox<span class="token punctuation">)</span><span class="token operator">--</span><span class="token operator">&gt;&gt;</span>
+              c<span class="token punctuation">.</span>netPlugin<span class="token punctuation">.</span><span class="token function">Setup</span><span class="token punctuation">(</span>ctx<span class="token punctuation">,</span> id<span class="token punctuation">,</span> path<span class="token punctuation">,</span> opts<span class="token operator">...</span><span class="token punctuation">)</span><span class="token operator">--</span><span class="token operator">&gt;&gt;</span>
+                network<span class="token punctuation">.</span><span class="token function">Attach</span><span class="token punctuation">(</span>ctx<span class="token punctuation">,</span> ns<span class="token punctuation">)</span><span class="token operator">--</span><span class="token operator">&gt;&gt;</span>
+                  n<span class="token punctuation">.</span>cni<span class="token punctuation">.</span><span class="token function">AddNetworkList</span><span class="token punctuation">(</span>ctx<span class="token punctuation">,</span> n<span class="token punctuation">.</span>config<span class="token punctuation">,</span> ns<span class="token punctuation">.</span><span class="token function">config</span><span class="token punctuation">(</span>n<span class="token punctuation">.</span>ifName<span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token operator">--</span><span class="token operator">&gt;&gt;</span>
+                    c<span class="token punctuation">.</span><span class="token function">addNetwork</span><span class="token punctuation">(</span>ctx<span class="token punctuation">,</span> list<span class="token punctuation">.</span>Name<span class="token punctuation">,</span> list<span class="token punctuation">.</span>CNIVersion<span class="token punctuation">,</span> net<span class="token punctuation">,</span> result<span class="token punctuation">,</span> rt<span class="token punctuation">)</span><span class="token operator">--</span><span class="token operator">&gt;&gt;</span><span class="token comment">// for each network plugin</span>
+                      c<span class="token punctuation">.</span>exec<span class="token punctuation">.</span><span class="token function">FindInPath</span><span class="token punctuation">(</span>net<span class="token punctuation">.</span>Network<span class="token punctuation">.</span>Type<span class="token punctuation">,</span> c<span class="token punctuation">.</span>Path<span class="token punctuation">)</span>
+                      <span class="token function">buildOneConfig</span><span class="token punctuation">(</span>name<span class="token punctuation">,</span> cniVersion<span class="token punctuation">,</span> net<span class="token punctuation">,</span> prevResult<span class="token punctuation">,</span> rt<span class="token punctuation">)</span>
+                      invoke<span class="token punctuation">.</span><span class="token function">ExecPluginWithResult</span><span class="token punctuation">(</span>ctx<span class="token punctuation">,</span> pluginPath<span class="token punctuation">,</span> newConf<span class="token punctuation">.</span>Bytes<span class="token punctuation">,</span> c<span class="token punctuation">.</span><span class="token function">args</span><span class="token punctuation">(</span><span class="token string">"ADD"</span><span class="token punctuation">,</span> rt<span class="token punctuation">)</span><span class="token punctuation">,</span> c<span class="token punctuation">.</span>exec<span class="token punctuation">)</span>
+            c<span class="token punctuation">.</span>client<span class="token punctuation">.</span><span class="token function">NewContainer</span><span class="token punctuation">(</span>ctx<span class="token punctuation">,</span> id<span class="token punctuation">,</span> opts<span class="token operator">...</span><span class="token punctuation">)</span>
+            c<span class="token punctuation">.</span>os<span class="token punctuation">.</span><span class="token function">MkdirAll</span><span class="token punctuation">(</span>sandboxRootDir<span class="token punctuation">,</span> <span class="token number">0755</span><span class="token punctuation">)</span>
+            c<span class="token punctuation">.</span>os<span class="token punctuation">.</span><span class="token function">MkdirAll</span><span class="token punctuation">(</span>volatileSandboxRootDir<span class="token punctuation">,</span> <span class="token number">0755</span><span class="token punctuation">)</span>
+            c<span class="token punctuation">.</span><span class="token function">setupSandboxFiles</span><span class="token punctuation">(</span>id<span class="token punctuation">,</span> config<span class="token punctuation">)</span>
+            container<span class="token punctuation">.</span><span class="token function">NewTask</span><span class="token punctuation">(</span>ctx<span class="token punctuation">,</span> containerdio<span class="token punctuation">.</span>NullIO<span class="token punctuation">,</span> taskOpts<span class="token operator">...</span><span class="token punctuation">)</span>
+            task<span class="token punctuation">.</span><span class="token function">Start</span><span class="token punctuation">(</span>ctx<span class="token punctuation">)</span><span class="token operator">--</span><span class="token operator">&gt;&gt;</span>
+              c<span class="token punctuation">.</span>client<span class="token punctuation">.</span><span class="token function">TaskService</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">Create</span><span class="token punctuation">(</span>ctx<span class="token punctuation">,</span> request<span class="token punctuation">)</span><span class="token operator">--</span><span class="token operator">&gt;&gt;</span>
+                s<span class="token punctuation">.</span>local<span class="token punctuation">.</span><span class="token function">Create</span><span class="token punctuation">(</span>ctx<span class="token punctuation">,</span> r<span class="token punctuation">)</span><span class="token operator">--</span><span class="token operator">&gt;&gt;</span>
+                  l<span class="token punctuation">.</span><span class="token function">getRuntime</span><span class="token punctuation">(</span>container<span class="token punctuation">.</span>Runtime<span class="token punctuation">.</span>Name<span class="token punctuation">)</span>
+                  rtime<span class="token punctuation">.</span><span class="token function">Create</span><span class="token punctuation">(</span>ctx<span class="token punctuation">,</span> r<span class="token punctuation">.</span>ContainerID<span class="token punctuation">,</span> opts<span class="token punctuation">)</span><span class="token operator">--</span><span class="token operator">&gt;&gt;</span>
+                    b <span class="token operator">:=</span> <span class="token function">shimBinary</span><span class="token punctuation">(</span>ctx<span class="token punctuation">,</span> bundle<span class="token punctuation">,</span> opts<span class="token punctuation">.</span>Runtime<span class="token punctuation">,</span> m<span class="token punctuation">.</span>containerdAddress<span class="token punctuation">,</span> m<span class="token punctuation">.</span>containerdTTRPCAddress<span class="token punctuation">,</span> m<span class="token punctuation">.</span>events<span class="token punctuation">,</span> m<span class="token punctuation">.</span>tasks<span class="token punctuation">)</span>
+                    b<span class="token punctuation">.</span><span class="token function">Start</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+                    shim<span class="token punctuation">.</span><span class="token function">Create</span><span class="token punctuation">(</span>ctx<span class="token punctuation">,</span> opts<span class="token punctuation">)</span><span class="token operator">--</span><span class="token operator">&gt;&gt;</span>
+                      c<span class="token punctuation">.</span>client<span class="token punctuation">.</span><span class="token function">Call</span><span class="token punctuation">(</span>ctx<span class="token punctuation">,</span> <span class="token string">"containerd.task.v2.Task"</span><span class="token punctuation">,</span> <span class="token string">"Create"</span><span class="token punctuation">,</span> req<span class="token punctuation">,</span> <span class="token operator">&amp;</span>resp<span class="token punctuation">)</span>
+
+  runtime<span class="token punctuation">.</span><span class="token function">RegisterImageServiceServer</span><span class="token punctuation">(</span>s<span class="token punctuation">,</span> instrumented<span class="token punctuation">)</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<h4 id="kubelet-架构"><a href="#kubelet-架构" class="headerlink" title="kubelet 架构"></a>kubelet 架构</h4><p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/kubelet架构.png" alt="kubelet架构"></p>
+<h4 id="kubelet-管理-Pod-的核心流程"><a href="#kubelet-管理-Pod-的核心流程" class="headerlink" title="kubelet 管理 Pod 的核心流程"></a>kubelet 管理 Pod 的核心流程</h4><p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/kubelet管理Pod的核心流程.png" alt="kubelet管理Pod的核心流程"></p>
+<h4 id="kubelet-1"><a href="#kubelet-1" class="headerlink" title="kubelet"></a>kubelet</h4><p>每个节点上都运行一个 kubelet 服务进程，默认监听 10250 端口。</p>
+<ul>
+<li>接收并执行 master 发来的指令</li>
+<li>管理 Pod 及 Pod 中的容器</li>
+<li>每个 kubelet 进程会在 API Server 上注册节点自身信息，定期向 master 节点汇报节点的资源使用情况，并通过 cAdvisor 监控节点和容器的资源</li>
+</ul>
+<h4 id="节点管理"><a href="#节点管理" class="headerlink" title="节点管理"></a>节点管理</h4><p>节点管理主要是节点自注册和节点状态更新：</p>
+<ul>
+<li>kubelet 可以通过设置启动参数 <code>--register-node</code> 来确定是否向 API Server 注册自己</li>
+<li>如果 kubelet 没有选择自注册模式，则需要用户自己配置 Node 资源信息，同时需要告知 kubelet 集群上的 API Server 的位置</li>
+<li>kubelet 在启动时通过 API Server 注册节点信息，并定时向 API Server发送节点新消息，API Server 在接收到新消息后，将信息写入 etcd</li>
+</ul>
+<h4 id="Pod-管理"><a href="#Pod-管理" class="headerlink" title="Pod 管理"></a>Pod 管理</h4><p>获取 Pod 清单：</p>
+<ul>
+<li>文件：启动参数 <code>--config</code> 指定的配置目录下的文件（默认 <code>/etc/kubernetes/manifests</code>）。该文件每 20 秒重新检查一次（可配置）</li>
+<li>HTTP endpoint（URL）：启动参数 <code>--manifest-url</code> 设置。每 20 秒检查一次这个端点（可配置）</li>
+<li>API Server：通过 API Server 监听 etcd 目录，同步 Pod 清单</li>
+<li>HTTP Server：kubelet 侦听 HTTP 请求，并响应简单的 API 以提交新的 Pod 清单</li>
+</ul>
+<h4 id="Pod-启动流程"><a href="#Pod-启动流程" class="headerlink" title="Pod 启动流程"></a>Pod 启动流程</h4><p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/Pod启动流程.png" alt="Pod启动流程"></p>
+<h4 id="kubelet-启动-Pod-的流程"><a href="#kubelet-启动-Pod-的流程" class="headerlink" title="kubelet 启动 Pod 的流程"></a>kubelet 启动 Pod 的流程</h4><p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/kubelet启动Pod的流程.png" alt="kubelet启动Pod的流程"></p>
+<h3 id="CRI"><a href="#CRI" class="headerlink" title="CRI"></a>CRI</h3><p>容器运行时（Container Runtime），运行于 Kubernetes（k8s）集群的每个节点中，负责容器的整个生命周期。其中 Docker 是目前应用最广的。随着容器云的发展，越来越多的容器运行时涌现。为了解决这些容器运行时和 Kubernetes 的集成问题，在 Kubernetes 1.5 版本中，社区推出了 CRI（Container Runtime Interface，容器运行时接口）以支持更多的容器运行时。</p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/CRI.png" alt="CRI"></p>
+<p>CRI 是 Kubernetes 定义的一组 gRPC 服务。kubelet 作为客户端，基于 gRPC 框架，通过 Socket 和容器运行时通信。它包括两类服务：镜像服务（Image Service）和运行时服务（Runtime Service）。镜像服务提供下载、检查和删除镜像的远程程序调用。运行时服务包括用于管理容器生命周期，以及与容器交互的调用（exec / attach / port-forward）的远程程序调用。</p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/CRI2.png" alt="CRI2"></p>
+<h4 id="运行时的层级"><a href="#运行时的层级" class="headerlink" title="运行时的层级"></a>运行时的层级</h4><p>Dockershim，containerd 和 CRI-O 都是遵循 CRI 的容器运行时，我们称他们为 <strong>高层级运行时（High-Level Runtime）</strong> 。</p>
+<p>OCI（Open Container Initiative，开发容器计划）定义了创建容器的格式和运行时的开源行业标准，包括镜像规范（Image Specification）和运行时规范（Runtime Specification）。</p>
+<p>镜像规范定义了 OCI 镜像的标准。高层级运行时将会下载一个 OCI 镜像，并把它解压成 OCI 运行时文件系统包（filesystem bundle）。</p>
+<p>运行时规范则描述了如何从 OCI 运行时文件系统包运行容器，并定义它的配置、运行环境和生命周期。如何为新容器设置命名空间（namespaces）和控制组（cgroups），以及挂载根文件系统等等操作，都是在这里定义的。它的一个参考实现就 runC。我们称其为 <strong>低层级运行时（Low-Level Runtime）</strong>。除 runC 以外，也有以后很多其他的运行时遵循 OCI 标准，例如 kata-runtime。</p>
+<h4 id="CRI-1"><a href="#CRI-1" class="headerlink" title="CRI"></a>CRI</h4><p>容器运行时是真正起删和管理容器的组件。容器运行时可以分为高层和低层的运行时。高层运行时主要包括 Docker、containerd 和 CRI-O，低层的运行时，包含了 runC，kata 和 gVisor。低层运行时 kata 和 gVisor 都还处于小规模落地或者实验阶段，其生态成熟度和使用案例都比较欠缺，所以除非有特殊的需求，否则 runC 几乎是必然的选择。因此在对容器运行时的选择上，主要是聚焦于上层运行时的选择。</p>
+<p>Docker 内部关于容器运行时功能的核心组件是 containerd，后来 containerd 也可以直接和 kubelet 通过 CRI 对接，独立在 Kubernetes 中使用。相对 Docker 而言，containerd 减少了 Docker 所需的处理模块 Dockerd 和 Docker-shim，并且对 Docker 支持的存储驱动进行了优化，因此在容器的创建启动停止和删除，以及对镜像的拉取上，都具有性能上的优势。架构的简化同时也带来了维护的便利。当然 Docker 也具有很多 containerd 不具有的功能，例如支持 zfs 存储驱动，支持对日志的大小和文件限制，在以 overlayfs2 做存储驱动的情况下，可以通过 xfs_quota 来对容器的可写层进行大小限制等。尽管如此，containerd 目前也基本上能够满足容器的众多管理需求，所以将它作为运行时的也越来越多。</p>
+<p>kubelet 和运行时的关系：</p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/kubelet和运行时的关系.png" alt="kubelet和运行时的关系"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/CRI3.png" alt="CRI3"></p>
+<h4 id="开源运行时的比较"><a href="#开源运行时的比较" class="headerlink" title="开源运行时的比较"></a>开源运行时的比较</h4><p>Docker 的多层封装和调用，导致其在可维护性上略逊一筹，增加了线上问题的定位难度；几乎除了重启 Docker，我们就毫无他法了。</p>
+<p>containerd 和 CRI-O 的方案比起 Docker 简洁很多。</p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/开源运行时的比较.png" alt="开源运行时的比较"></p>
+<h4 id="Docker-和-containerd-的差异细节"><a href="#Docker-和-containerd-的差异细节" class="headerlink" title="Docker 和 containerd 的差异细节"></a>Docker 和 containerd 的差异细节</h4><p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/Docker和containerd的差异细节.png" alt="Docker和containerd的差异细节"></p>
+<h4 id="多种运行时性能比较"><a href="#多种运行时性能比较" class="headerlink" title="多种运行时性能比较"></a>多种运行时性能比较</h4><p>containerd 在各个方面都表现良好，除了启动容器这项。从总用时来看，containerd 的用时还是要比 CRI-O 要短的。</p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/多种运行时性能比较.png" alt="多种运行时性能比较"></p>
+<h4 id="运行时优劣对比"><a href="#运行时优劣对比" class="headerlink" title="运行时优劣对比"></a>运行时优劣对比</h4><ol>
+<li>功能性来讲，containerd 和 CRI-O 都符合 CRI 和 OCI 的标准</li>
+<li>在稳定性上，containerd 略胜一筹</li>
+<li>从性能上讲，containerd 胜出</li>
+</ol>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/运行时优劣对比.png" alt="运行时优劣对比"></p>
+<h3 id="CNI"><a href="#CNI" class="headerlink" title="CNI"></a>CNI</h3><p>Kubernetes 网络模型设计的基础原则是：</p>
+<ul>
+<li>所有的 Pod 能够不通过 NAT 就能相互访问</li>
+<li>所有的节点能够不通过 NAT 就能相互访问</li>
+<li>容器内看见的 IP 地址和外部组件看到的容器 IP 是一样的</li>
+</ul>
+<p>Kubernetes 的集群里，IP 地址是以 Pod 为单位进行分配的，每个 Pod 都拥有一个独立的 IP 地址。一个 Pod 内部的所有容器共享一个网络栈，即宿主机上的一个网络命名空间，包括它们的 IP 地址、网络设备、配置等都是共享的。也就是说，Pod 里面的所有容器都能通过 <code>localhost:port</code> 来连接对方。在 Kubernetes 中，提供一个轻量的通用容器网络接口 CNI（Container Network Interface），专门用于设置和删除容器的网络连通性。容器运行时通过 CNI 调用网络插件来完成容器的网络设置。</p>
+<h4 id="CNI-插件分类和常见插件"><a href="#CNI-插件分类和常见插件" class="headerlink" title="CNI 插件分类和常见插件"></a>CNI 插件分类和常见插件</h4><p><a target="_blank" rel="noopener" href="https://github.com/containernetworking/plugins">https://github.com/containernetworking/plugins</a></p>
+<ul>
+<li>IPAM：IP 地址分配</li>
+<li>主插件：网卡设置<ul>
+<li>bridge：创建一个网桥，并把主机端口和容器端口插入网桥</li>
+<li>ipvlan：为容器添加 ipvlan 网口</li>
+<li>loopback：设置 loopback 网口</li>
+</ul>
+</li>
+<li>Meta：附加功能<ul>
+<li>portmap：设置主机端口和容器端口映射</li>
+<li>bandwidth：利用 Linux Traffic Control 限流</li>
+<li>firewall：通过 iptables 或 firewalld 为容器设置防火墙规则</li>
+</ul>
+</li>
+</ul>
+<h4 id="CNI-插件运行时机制"><a href="#CNI-插件运行时机制" class="headerlink" title="CNI 插件运行时机制"></a>CNI 插件运行时机制</h4><p>容器运行时在启动时会从 CNI 的配置目录中读取 Json 格式的配置文件，文件后缀为 “.conf”, “.conflist” 或 “.json”。如果配置目录中包含多个文件，一般情况下，会以名字排序选用第一个配置文件作为默认的网络配置，并加载获取其中指定的 CNI 插件名称和配置参数。</p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/CNI插件运行时机制.png" alt="CNI插件运行时机制"></p>
+<h4 id="CNI-的运行机制"><a href="#CNI-的运行机制" class="headerlink" title="CNI 的运行机制"></a>CNI 的运行机制</h4><p>关于容器网络管理，容器运行时一般需要配置两个参数 <code>--cni-bin-dir</code> 和 <code>--cni-conf-dir</code>。有一种特殊情况，kubelet 内置的 Docker 作为容器运行时，是由 kubelet 来查找 CNI 插件的，运行插件来为容器设置网络，这两个参数应该配置在 kubelet 处：</p>
+<ul>
+<li><code>cni-bin-dir</code>：网络插件的可执行文件所在的目录。默认是<code>/opt/cni/bin</code>。</li>
+<li><code>cni-conf-dir</code>：网络插件的配置文件所在目录。默认是<code>/etc/cni/net.d</code>。</li>
+</ul>
+<h4 id="CNI-插件设计考量"><a href="#CNI-插件设计考量" class="headerlink" title="CNI 插件设计考量"></a>CNI 插件设计考量</h4><p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/CNI插件设计考量.png" alt="CNI插件设计考量"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/CNI插件设计考量2.png" alt="CNI插件设计考量2"></p>
+<h4 id="打通主机层网络"><a href="#打通主机层网络" class="headerlink" title="打通主机层网络"></a>打通主机层网络</h4><p>CNI 插件外，Kubernetes 还需要标准的 CNI 插件 lo，最低版本为 0.2.0 版本。网络插件除支持设置和清理 Pod 网络接口外，该插件还需要支持 Iptables。如果 kube-proxy 工作在 Iptables 模式，网络插件需要确保容器流量能使用 Iptables 转发。例如，如果网络插件将容器连接到 Linux 网桥，必须将 <code>net/bridge/bridge-nf-call-iptables</code> 参数 sysctl 设置为 1，网桥上数据包将遍历 Iptables 规则。如果插件不使用 Linux 桥接器（而是类似 Open vSwitch 或其他某种机制的插件），则赢确保容器流量被正确设置了路由。</p>
+<h4 id="CNI-Plugin"><a href="#CNI-Plugin" class="headerlink" title="CNI Plugin"></a>CNI Plugin</h4><p>ContainerNetworking 组维护了一些 CNI 插件，包括网络接口创建的 bridge、ipvlan、loopback、macvlan、ptp、host-device 等，IP 地址分配的 DHCP、host-local 和 static，其他的 Flannel、tunning、portmap、firewall 等。</p>
+<p>社区还有些第三方网络策略方面的插件，例如 Calico、Cilium 和 Weave 等。可用选项的多样性意味着大多数用户将能够找到适合当前需求和部署环境的 CNI 插件，并在情况变化时迅捷转换解决方案。</p>
+<h4 id="Flannel"><a href="#Flannel" class="headerlink" title="Flannel"></a>Flannel</h4><p>Flannel 是由 CoreOS 开发的项目，是 CNI 插件早起的入门产品，简单易用。</p>
+<p>Flannel 使用 Kubernetes 集群的现有 etcd 集群来存储其状态信息，从而不必提供专用的数据存储，只需要在每个节点上运行 flanneld 来守护进程。</p>
+<p>每个节点都被分配一个子网，为该节点上的 Pod 分配 IP 地址。</p>
+<p>同一个主机内的 Pod 可以使用网桥进行通信，而不同主机上的 Pod 将通过 flanneld 将其流量封装在 UDP 数据包中，以路由到适当的目的地。</p>
+<p>封装方式默认和推荐的方法是使用 VXLAN，因为它具有良好的性能，并且比其他选项要少些人为干预。虽然使用 VXLAN 之类的技术封装的解决方案效果很好，但缺点就是该过程使流量跟踪变得困难。</p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/FlannelPlugin.png" alt="FlannelPlugin"></p>
+<h4 id="Calico"><a href="#Calico" class="headerlink" title="Calico"></a>Calico</h4><p>Calico 以其性能、灵活性和网络策略而闻名，不仅涉及在主机和 Pod 之间提供网络连接，而且还涉及网络安全性和策略管理。</p>
+<p>对于同网段通信，基于第 3 层，Calico 使用 BGP 路由协议在主机之间路由数据包，使用 BGP 路由协议也意味着数据包在主机之间移动时不需要包装在额外的封装层中。</p>
+<p>对于跨网段通信，基于 IPinIP 使用虚拟网卡设备 tunl0，用一个 IP 数据包封装另一个 IP 数据包，外层 IP 数据包头的源地址为隧道入口设置的 IP 地址，目标地址为隧道出口设备的 IP 地址。</p>
+<p>网络策略是 Calico 最受欢迎的功能之一，使用 ACLs 协议和 kube-proxy 来创建 iptables 过滤规则，从而实现隔离容器网络的目的。</p>
+<p>此外，Calico 还可以与服务网格 Istio 集成，在服务网格层和网络基础结构层上解释和实施集群中工作负载的策略。这意味着你可以配置功能强大的规则，以描述 Pod 应该如何发送和接收流量，提高安全性及加强网络环境的控制。</p>
+<p>Calico 属于完全分布式的横向扩展结构，允许开发人员和管理员快速和平稳地扩展部署规模。对于性能和功能（如网络策略）要求高的环境，Calico 是一个不错的选择。</p>
+<h5 id="Calico-组件"><a href="#Calico-组件" class="headerlink" title="Calico 组件"></a>Calico 组件</h5><p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/Calico组件.png" alt="Calico组件"></p>
+<h5 id="Calico-初始化"><a href="#Calico-初始化" class="headerlink" title="Calico 初始化"></a>Calico 初始化</h5><p>配置和 CNI 二进制文件由 initContainer 推送</p>
+<pre class="line-numbers language-yaml" data-language="yaml"><code class="language-yaml"><span class="token punctuation">-</span> <span class="token key atrule">command</span><span class="token punctuation">:</span>
+  <span class="token punctuation">-</span> /opt/cni/bin/install
+  <span class="token key atrule">env</span><span class="token punctuation">:</span>
+  <span class="token punctuation">-</span> <span class="token key atrule">name</span><span class="token punctuation">:</span> CNI_CONF_NAME
+    <span class="token key atrule">value</span><span class="token punctuation">:</span> 10<span class="token punctuation">-</span>calico.conflist
+  <span class="token punctuation">-</span> <span class="token key atrule">name</span><span class="token punctuation">:</span> SLEEP
+    <span class="token key atrule">value</span><span class="token punctuation">:</span> <span class="token string">"false"</span>
+  <span class="token punctuation">-</span> <span class="token key atrule">name</span><span class="token punctuation">:</span> CNI_NET_DIR
+    <span class="token key atrule">value</span><span class="token punctuation">:</span> /etc/cni/net.d
+  <span class="token punctuation">-</span> <span class="token key atrule">name</span><span class="token punctuation">:</span> CNI_NETWORK_CONFIG
+    <span class="token key atrule">valueFrom</span><span class="token punctuation">:</span>
+      <span class="token key atrule">configMapKeyRef</span><span class="token punctuation">:</span>
+        <span class="token key atrule">key</span><span class="token punctuation">:</span> config
+        <span class="token key atrule">name</span><span class="token punctuation">:</span> cni<span class="token punctuation">-</span>config
+  <span class="token punctuation">-</span> <span class="token key atrule">name</span><span class="token punctuation">:</span> KUBERNETES_SERVICE_HOST
+    <span class="token key atrule">value</span><span class="token punctuation">:</span> 10.96.0.1
+  <span class="token punctuation">-</span> <span class="token key atrule">name</span><span class="token punctuation">:</span> KUBERNETES_SERVICE_PORT
+    <span class="token key atrule">value</span><span class="token punctuation">:</span> <span class="token string">"443"</span>
+  <span class="token key atrule">image</span><span class="token punctuation">:</span> docker.io/calico/cni<span class="token punctuation">:</span>v3.20.1
+  <span class="token key atrule">imagePullPolicy</span><span class="token punctuation">:</span> IfNotPresent
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> install<span class="token punctuation">-</span>cni<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<h5 id="Calico-配置一览"><a href="#Calico-配置一览" class="headerlink" title="Calico 配置一览"></a>Calico 配置一览</h5><pre class="line-numbers language-yaml" data-language="yaml"><code class="language-yaml"><span class="token punctuation">{</span>
+  <span class="token key atrule">"name"</span><span class="token punctuation">:</span> <span class="token string">"k8s-pod-network"</span><span class="token punctuation">,</span>
+  <span class="token key atrule">"cniVersion"</span><span class="token punctuation">:</span> <span class="token string">"0.3.1"</span><span class="token punctuation">,</span>
+  <span class="token key atrule">"plugins"</span><span class="token punctuation">:</span> <span class="token punctuation">[</span>
+    <span class="token punctuation">{</span>
+      <span class="token key atrule">"type"</span><span class="token punctuation">:</span> <span class="token string">"calico"</span><span class="token punctuation">,</span>
+      <span class="token key atrule">"datastore_type"</span><span class="token punctuation">:</span> <span class="token string">"kubernetes"</span><span class="token punctuation">,</span>
+      <span class="token key atrule">"mtu"</span><span class="token punctuation">:</span> <span class="token number">0</span><span class="token punctuation">,</span>
+      <span class="token key atrule">"nodename_file_optional"</span><span class="token punctuation">:</span> <span class="token boolean important">false</span><span class="token punctuation">,</span>
+      <span class="token key atrule">"log_level"</span><span class="token punctuation">:</span> <span class="token string">"Info"</span><span class="token punctuation">,</span>
+      <span class="token key atrule">"log_file_path"</span><span class="token punctuation">:</span> <span class="token string">"/var/log/calico/cni/cni.log"</span><span class="token punctuation">,</span>
+      <span class="token key atrule">"ipam"</span><span class="token punctuation">:</span> <span class="token punctuation">{</span>
+        <span class="token key atrule">"type"</span><span class="token punctuation">:</span> <span class="token string">"calico-ipam"</span><span class="token punctuation">,</span>
+        <span class="token key atrule">"assign_ipv4"</span><span class="token punctuation">:</span> <span class="token string">"true"</span><span class="token punctuation">,</span>
+        <span class="token key atrule">"asign_ipv6"</span><span class="token punctuation">:</span> <span class="token string">"false"</span>
+      <span class="token punctuation">}</span><span class="token punctuation">,</span>
+      <span class="token key atrule">"container_settings"</span><span class="token punctuation">:</span> <span class="token punctuation">{</span>
+        <span class="token key atrule">"allow_ip_forwarding"</span><span class="token punctuation">:</span> <span class="token boolean important">false</span>
+      <span class="token punctuation">}</span><span class="token punctuation">,</span>
+      <span class="token key atrule">"policy"</span><span class="token punctuation">:</span> <span class="token punctuation">{</span>
+        <span class="token key atrule">"type"</span><span class="token punctuation">:</span> <span class="token string">"k8s"</span>
+      <span class="token punctuation">}</span><span class="token punctuation">,</span>
+      <span class="token key atrule">"kubernetes"</span><span class="token punctuation">:</span> <span class="token punctuation">{</span>
+        <span class="token key atrule">"k8s_api_root"</span><span class="token punctuation">:</span> <span class="token string">"https://10.96.0.1:443"</span><span class="token punctuation">,</span>
+        <span class="token key atrule">"kubeconfig"</span><span class="token punctuation">:</span> <span class="token string">"/etc/cni/net.d/calico-kubeconfig"</span>
+      <span class="token punctuation">}</span>
+    <span class="token punctuation">}</span><span class="token punctuation">,</span>
+    <span class="token punctuation">{</span>
+      <span class="token key atrule">"type"</span><span class="token punctuation">:</span> <span class="token string">"bandwidth"</span><span class="token punctuation">,</span>
+      <span class="token key atrule">"capabilities"</span><span class="token punctuation">:</span> <span class="token punctuation">{</span>
+        <span class="token key atrule">"bandwidth"</span><span class="token punctuation">:</span> <span class="token boolean important">true</span>
+      <span class="token punctuation">}</span>
+    <span class="token punctuation">}</span><span class="token punctuation">,</span>
+    <span class="token punctuation">{</span>
+      <span class="token key atrule">"type"</span><span class="token punctuation">:</span> <span class="token string">"portmap"</span><span class="token punctuation">,</span>
+      <span class="token key atrule">"snat"</span><span class="token punctuation">:</span> <span class="token boolean important">true</span><span class="token punctuation">,</span>
+      <span class="token key atrule">"capabilities"</span><span class="token punctuation">:</span> <span class="token punctuation">{</span>
+        <span class="token key atrule">"portMappings"</span><span class="token punctuation">:</span> <span class="token boolean important">true</span>
+      <span class="token punctuation">}</span>
+    <span class="token punctuation">}</span>
+  <span class="token punctuation">]</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<h5 id="Calico-VXLAN"><a href="#Calico-VXLAN" class="headerlink" title="Calico VXLAN"></a>Calico VXLAN</h5><p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/CalicoVXLAN.png" alt="CalicoVXLAN"></p>
+<h6 id="IPPool"><a href="#IPPool" class="headerlink" title="IPPool"></a>IPPool</h6><p>IPPool 用来定义一个集群的预定义 IP 段</p>
+<pre class="line-numbers language-yaml" data-language="yaml"><code class="language-yaml"><span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> crd.projectcalico.org/v1
+<span class="token key atrule">kind</span><span class="token punctuation">:</span> IPPool
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> default<span class="token punctuation">-</span>ipv4<span class="token punctuation">-</span>ippool
+<span class="token key atrule">spec</span><span class="token punctuation">:</span>
+  <span class="token key atrule">blockSize</span><span class="token punctuation">:</span> <span class="token number">26</span>
+  <span class="token key atrule">cidr</span><span class="token punctuation">:</span> 192.168.0.0/16
+  <span class="token key atrule">ipipMode</span><span class="token punctuation">:</span> Never
+  <span class="token key atrule">natOutgoing</span><span class="token punctuation">:</span> <span class="token boolean important">true</span>
+  <span class="token key atrule">nodeSelector</span><span class="token punctuation">:</span> all()
+  <span class="token key atrule">vxlanMode</span><span class="token punctuation">:</span> CrossSubnet<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<h5 id="IPAMBlock"><a href="#IPAMBlock" class="headerlink" title="IPAMBlock"></a>IPAMBlock</h5><p>IPAMBlock 用来定义每个主机预分配的 IP 段</p>
+<pre class="line-numbers language-yaml" data-language="yaml"><code class="language-yaml"><span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> crd.projectcalico.org/v1
+<span class="token key atrule">kind</span><span class="token punctuation">:</span> IPAMBlock
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+  <span class="token key atrule">annotations</span><span class="token punctuation">:</span>
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> 192<span class="token punctuation">-</span>168<span class="token punctuation">-</span>119<span class="token punctuation">-</span>64<span class="token punctuation">-</span><span class="token number">26</span>
+<span class="token key atrule">spec</span><span class="token punctuation">:</span>
+  <span class="token key atrule">affinity</span><span class="token punctuation">:</span> host<span class="token punctuation">:</span>cadmin
+  <span class="token key atrule">allocations</span><span class="token punctuation">:</span>
+  <span class="token punctuation">-</span> <span class="token null important">null</span>
+  <span class="token punctuation">-</span> <span class="token number">0</span>
+  <span class="token punctuation">-</span> <span class="token null important">null</span>
+  <span class="token punctuation">-</span> <span class="token number">1</span>
+  <span class="token punctuation">-</span> <span class="token number">2</span>
+  <span class="token punctuation">-</span> <span class="token number">3</span>
+  <span class="token key atrule">attributes</span><span class="token punctuation">:</span>
+  <span class="token punctuation">-</span> <span class="token key atrule">handle_id</span><span class="token punctuation">:</span> vxlan<span class="token punctuation">-</span>tunnel<span class="token punctuation">-</span>addr<span class="token punctuation">-</span>cadmin
+    <span class="token key atrule">secondary</span><span class="token punctuation">:</span>
+      <span class="token key atrule">node</span><span class="token punctuation">:</span> cadmin
+      <span class="token key atrule">type</span><span class="token punctuation">:</span> vxlanTunnelAddress
+  <span class="token punctuation">-</span> <span class="token key atrule">handle_id</span><span class="token punctuation">:</span> k8s<span class="token punctuation">-</span>pod<span class="token punctuation">-</span>network.6680d3883d6150e75ffbd031f86c689a97a5be0f260c6442b2bb46b567c2ca40
+    <span class="token key atrule">secondary</span><span class="token punctuation">:</span>
+      <span class="token key atrule">namespace</span><span class="token punctuation">:</span> calico<span class="token punctuation">-</span>apiserver
+      <span class="token key atrule">node</span><span class="token punctuation">:</span> cadmin
+      <span class="token key atrule">pod</span><span class="token punctuation">:</span> calico<span class="token punctuation">-</span>apisever<span class="token punctuation">-</span>77dffffcdf<span class="token punctuation">-</span>g2tcx
+      <span class="token key atrule">timestamp</span><span class="token punctuation">:</span> 2021<span class="token punctuation">-</span>09<span class="token punctuation">-</span>30 09<span class="token punctuation">:</span>46<span class="token punctuation">:</span>57.45651816 +0000 UTC
+  <span class="token punctuation">-</span> <span class="token key atrule">handle_id</span><span class="token punctuation">:</span> k8s<span class="token punctuation">-</span>pod<span class="token punctuation">-</span>network.b10d7702bf334fc55a5e399a731ab3201ea9990a1e3bc79894abddd712646699
+    <span class="token key atrule">secondary</span><span class="token punctuation">:</span>
+      <span class="token key atrule">namespace</span><span class="token punctuation">:</span> calico<span class="token punctuation">-</span>system
+      <span class="token key atrule">node</span><span class="token punctuation">:</span> cadmin
+      <span class="token key atrule">pod</span><span class="token punctuation">:</span> calico<span class="token punctuation">-</span>kube<span class="token punctuation">-</span>controllers<span class="token punctuation">-</span>bdd5f97c5<span class="token punctuation">-</span>554z5
+      <span class="token key atrule">timestamp</span><span class="token punctuation">:</span> 2021<span class="token punctuation">-</span>09<span class="token punctuation">-</span>30 09<span class="token punctuation">:</span>46<span class="token punctuation">:</span>57.502351346 +0000 UTC<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<h5 id="IPAMHandle"><a href="#IPAMHandle" class="headerlink" title="IPAMHandle"></a>IPAMHandle</h5><p>IPAMHandle 用来记录 IP 分配的具体细节</p>
+<pre class="line-numbers language-yaml" data-language="yaml"><code class="language-yaml"><span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> crd.projectcalico.org/v1kind<span class="token punctuation">:</span>IPAMHandle
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+  name<span class="token punctuation">:</span>k8s<span class="token punctuation">-</span>pod<span class="token punctuation">-</span>network.8d756941d85c4998016b72c83f9c5a75512c82c052357daf0ec8e67365635d93
+<span class="token key atrule">spec</span><span class="token punctuation">:</span>
+  <span class="token key atrule">block</span><span class="token punctuation">:</span>
+    192.168.119.64/26<span class="token punctuation">:</span><span class="token number">1</span>
+  deleted<span class="token punctuation">:</span><span class="token boolean important">false</span>
+  handlelD<span class="token punctuation">:</span>k8s<span class="token punctuation">-</span>pod<span class="token punctuation">-</span>network.8d75b941d85c4998016b72c83f9c5a75512c82c052357daf0ec8e67365635d93<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<h5 id="创建-Pod-并查看-IP-配置情况"><a href="#创建-Pod-并查看-IP-配置情况" class="headerlink" title="创建 Pod 并查看 IP 配置情况"></a>创建 Pod 并查看 IP 配置情况</h5><p>容器 namespace</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token operator">&gt;</span> nsenter -t <span class="token number">720702</span> -n <span class="token function">ip</span> a
+<span class="token number">1</span>: lo: <span class="token operator">&lt;</span>LOOPBACK,UP,LOWER UP<span class="token operator">&gt;</span> mtu <span class="token number">65536</span> qdisc noqueue state UNKNOWN group default qlen <span class="token number">1000</span>
+    link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00
+    inet <span class="token number">127.0</span>.0.1/8 scope <span class="token function">host</span> lo
+        valid lft forever preferred lft forever
+<span class="token number">3</span>: ethO@if27: <span class="token operator">&lt;</span>BROADCAST,MULTICAST,UP,LOWER UP<span class="token operator">&gt;</span> mtu <span class="token number">1450</span> gdisc noqueue state UP groupdefault
+    link/ether f2:86:d2:4f:1f:30 brd ff:ff:ff:ff:ff:ff link-netnsid <span class="token number">0</span>
+    inet192.168.119.84/32 brd <span class="token number">192.168</span>.119.84 scope global eth0
+      valid lft forever preferred lft forever
+
+<span class="token operator">&gt;</span> nsenter -t <span class="token number">720702</span>-n <span class="token function">ip</span> r
+default via <span class="token number">169.254</span>.1.1 dev eth0
+<span class="token number">169.254</span>.1.1 dev eth0 scope <span class="token function">link</span>
+
+<span class="token operator">&gt;</span> nsenter -t <span class="token number">720702</span> -n arp
+Address     HWtype HWaddress            Flags Mask  Iface
+<span class="token number">169.254</span>.1.1 ether  ee:ee:ee:ee:ee:ee    C           eth0
+<span class="token number">10.0</span>.2.15   ether  ee:ee:ee:ee:ee:ee    C           eth0<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>主机 namespace</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token operator">&gt;</span> <span class="token function">ip</span> <span class="token function">link</span>
+<span class="token number">27</span>: cali23a582ef038@if3:<span class="token operator">&lt;</span>BROADCAST,MULTICAST,UP,LOWER UP<span class="token operator">&gt;</span>mtu <span class="token number">1450</span> qdiscnoqueue state UP group default
+    link/ether ee:ee:ee:ee:ee:ee brd ff:ff:ff:ff:ff:ff link-netnsid <span class="token number">9</span>
+    inet6 fe80::ecee:eeff:feee:eeee/64 scope <span class="token function">link</span>
+        valid lft forever preferred lft forever
+        
+<span class="token operator">&gt;</span> <span class="token function">ip</span> route
+<span class="token number">192.168</span>.119.84 dev cali23a582ef038scope <span class="token function">link</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<h4 id="CNI-Plugin-的对比"><a href="#CNI-Plugin-的对比" class="headerlink" title="CNI Plugin 的对比"></a>CNI Plugin 的对比</h4><p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/CNIPlugin的对比.png" alt="CNIPlugin的对比"></p>
+<h3 id="CSI"><a href="#CSI" class="headerlink" title="CSI"></a>CSI</h3><h4 id="容器运行时存储"><a href="#容器运行时存储" class="headerlink" title="容器运行时存储"></a>容器运行时存储</h4><ul>
+<li>除外挂存储卷外，容器启动后，运行时所需文件系统性能直接影响容器性能</li>
+<li>早起的 Docker 采用 Device Mapper 作为容器运行时存储驱动，因为 OverlayFS 尚未合并进 Kernel</li>
+<li>目前 Docker 和 containerd 都默认以 OverlayFS 作为运行时存储驱动</li>
+<li>OverlayFS 目前已经有非常好的性能，与 DeviceMapper 相比优 20%，与操作主机文件性能几乎一致</li>
+</ul>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/容器运行时存储.png" alt="容器运行时存储"></p>
+<h4 id="存储卷插件管理"><a href="#存储卷插件管理" class="headerlink" title="存储卷插件管理"></a>存储卷插件管理</h4><p>Kubernetes 支持以插件的形式来实现对不同存储的支持和扩展，这些扩展基于如下三种方式：</p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/存储卷插件管理.png" alt="存储卷插件管理"></p>
+<h4 id="out-of-tree-CSI-插件"><a href="#out-of-tree-CSI-插件" class="headerlink" title="out-of-tree CSI 插件"></a>out-of-tree CSI 插件</h4><p>CSI 通过 RPC 与存储驱动进行交互</p>
+<p>在设计 CSI 的时候，Kubernetes 对 CSI 存储驱动和打包和部署要求很少，主要定义了 Kubernetes 的两个相关模块：</p>
+<ul>
+<li>kube-controller-manager:<ul>
+<li>kube-controller-manager 模块用于感知 CSI 驱动存在</li>
+<li>Kubernetes 的主控模块通过 Unix domain socket（而不是 CSI 驱动）或者其他方式进行直接地交互</li>
+<li>Kubernetes 的主控模块只与 Kubernetes 相关的 API 进行交互</li>
+<li>因此 CSI 驱动若有依赖于 Kubernetes API 的操作，例如卷的创建、卷的 attach、卷的快照等，需要在 CSI 驱动里面通过 Kubernetes 的 API，来触发相关的 CSI 操作</li>
+</ul>
+</li>
+<li>kubelet：<ul>
+<li>kubelet 模块用于与 CSI 驱动进行交互</li>
+<li>kubelet 通过 Unix domain socket 向 CSI 驱动发起 CSI 调用（如 NodeStageVolume、NodePublishVolume 等），再发起 mount 卷和 umount 卷</li>
+<li>kubelet 通过插件注册机制发现 CSI 驱动及用于和 CSI 驱动交互的 Unix Domain Socket</li>
+<li>所有部署在 Kubernetes 集群中的 CSI 驱动都要通过 kubelet 的插件注册机制来注册自己</li>
+</ul>
+</li>
+</ul>
+<h4 id="CSI-驱动"><a href="#CSI-驱动" class="headerlink" title="CSI 驱动"></a>CSI 驱动</h4><p>CSI 的驱动一般包含 external-attacker、external-provisioner、external-resizer、external-snapshotter、node-driver-register、CSI driver 等模块，可以根据实际的存储类型和需求进行不同方式的部署。</p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/CSI驱动.png" alt="CSI驱动"></p>
+<h4 id="临时存储"><a href="#临时存储" class="headerlink" title="临时存储"></a>临时存储</h4><p>常见的临时存储主要就是 emptyDir 卷。</p>
+<p>emptyDir 是一种经常被用户使用的卷类型，顾名思义，”卷”最初是空的。当 Pod 从节点上删除时，emptyDir 卷中的数据也会被永久删除。但当 Pod 的容器因为某些原因退出再重启时，emptyDir 卷内的数据并不会丢失。</p>
+<p>默认情况下，emptyDir 卷存储在支持该节点所使用的存储介质上，可以是本地磁盘或者网络存储。</p>
+<p>emptyDir 也可以通过将 emptyDir.medium 字段设置为 “Memory” 来通知 Kubernetes 为容器安装 tmpfs，此时数据被存储在内存中，速度相对于本地存储和网络存储快很多。但是在节点重启的时候，内存数据会被清楚；而如果存在磁盘上，则重启后数据依然存在。另外，使用 tmpfs 的内存也会计入容器的使用内存总量中，受系统的 cgroup 限制。</p>
+<p>emptyDir 设计的初衷主要是给应用充当缓存空间，或者存储中间数据，用于快速恢复。然而，这并不是说满足以上需求的用户都被推荐使用 emptyDir，我们要根据用户业务的实际特点来判断是否使用 emptyDir。因为 emptyDir 的空间位于系统根盘，被所有容器共享，所以在磁盘的使用率较高时会触发 Pod 的 eviction 操作，从而影响业务的稳定。</p>
 
                 
             </div>
