@@ -399,21 +399,21 @@
                 
                 <div class="post-date info-break-policy">
                     <i class="far fa-calendar-check fa-fw"></i>更新日期:&nbsp;&nbsp;
-                    2024-05-14
+                    2024-05-15
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-file-word fa-fw"></i>文章字数:&nbsp;&nbsp;
-                    50.5k
+                    52.1k
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-clock fa-fw"></i>阅读时长:&nbsp;&nbsp;
-                    207 分
+                    214 分
                 </div>
                 
 
@@ -5011,6 +5011,131 @@ value: <span class="token number">2000001000</span><span aria-hidden="true" clas
 <h5 id="隧道技术"><a href="#隧道技术" class="headerlink" title="隧道技术"></a>隧道技术</h5><p>负载均衡中常用的隧道技术是 IP over IP，其原理是保持原始数据包 IP 头不变，在 IP 头外层增加额外的 IP 包头后转发给上游服务器。</p>
 <p>上游服务器接收 IP 数据包，解开外层 IP 包头后，剩下的是原始数据包。</p>
 <p>同样的，原始数据包中的目标 IP 地址要配置在上游服务器中，上游服务器处理完数据请求以后响应包通过网关直接返回给客户端。</p>
+<h3 id="Service-对象"><a href="#Service-对象" class="headerlink" title="Service 对象"></a>Service 对象</h3><h4 id="Service对象"><a href="#Service对象" class="headerlink" title="Service对象"></a>Service对象</h4><p>Service selector</p>
+<ul>
+<li>Kubernetes 允许将 Pod 对象通过标签( Label )进行标记，并通过 Service Selector 定义基于 Pod 标签的过滤规则以便选择服务的上游应用实例</li>
+</ul>
+<p>Ports</p>
+<ul>
+<li>Ports 属性中定义了服务的端口、协议目标端口等信息</li>
+</ul>
+<pre class="line-numbers language-yaml" data-language="yaml"><code class="language-yaml"><span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> v1
+<span class="token key atrule">kind</span><span class="token punctuation">:</span> Service
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> nginx<span class="token punctuation">-</span>service
+<span class="token key atrule">spec</span><span class="token punctuation">:</span>
+  <span class="token key atrule">selector</span><span class="token punctuation">:</span>
+    <span class="token key atrule">app</span><span class="token punctuation">:</span> nginx
+  <span class="token key atrule">ports</span><span class="token punctuation">:</span>
+  <span class="token punctuation">-</span> <span class="token key atrule">protocol</span><span class="token punctuation">:</span> TCP
+    <span class="token key atrule">port</span><span class="token punctuation">:</span> <span class="token number">80</span>
+    <span class="token key atrule">targetPort</span><span class="token punctuation">:</span> <span class="token number">80</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<h4 id="Endpoint-对象"><a href="#Endpoint-对象" class="headerlink" title="Endpoint 对象"></a>Endpoint 对象</h4><p>当 Service 的 selector 不为空时，Kubernetes EndpointController 会侦听服务创建事件，创建与 Service 同名的 Endpoint 对象</p>
+<p>selector 能够选取的所有 PodIP 都会被配置到 addresses 属性中</p>
+<ul>
+<li>如果此时 selector 所对应的 filter 查询不到对应的 Pod，则 addresses 列表为空</li>
+<li>默认配置下，如果此时对应的 Pod 为 not ready 状态，则对应的 PodIP 只会出现在 subsets 的 notReadyAddresses 属性中，这意味着对应的 Pod 还没准备好提供服务，不能作为流量转发的目标。</li>
+<li>如果设置了 PublishNotReadyAdddress 为 true，则无论 Pod 是否就绪都会被加入 readyAddress list</li>
+</ul>
+<pre class="line-numbers language-yaml" data-language="yaml"><code class="language-yaml"><span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> v1
+<span class="token key atrule">kind</span><span class="token punctuation">:</span> Endpoint
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> nginx<span class="token punctuation">-</span>service
+<span class="token key atrule">subsets</span><span class="token punctuation">:</span>
+  <span class="token punctuation">-</span> <span class="token key atrule">addresses</span><span class="token punctuation">:</span>
+    <span class="token punctuation">-</span> <span class="token key atrule">ip</span><span class="token punctuation">:</span> 10.1.1.21
+      <span class="token key atrule">nodeName</span><span class="token punctuation">:</span> minikube
+      <span class="token key atrule">targetRef</span><span class="token punctuation">:</span>
+        <span class="token key atrule">kind</span><span class="token punctuation">:</span> Pod
+        <span class="token key atrule">name</span><span class="token punctuation">:</span> nginx<span class="token punctuation">-</span>deployment<span class="token punctuation">-</span>5754944d6c<span class="token punctuation">-</span>hnw27
+        <span class="token key atrule">namespace</span><span class="token punctuation">:</span> default
+        <span class="token key atrule">resourceVersion</span><span class="token punctuation">:</span> <span class="token string">"722191"</span>
+        <span class="token key atrule">uid</span><span class="token punctuation">:</span> 8a3390ae<span class="token punctuation">-</span>2f8e<span class="token punctuation">-</span>47bf<span class="token punctuation">-</span>b8dd<span class="token punctuation">-</span>70fae7fb0d32<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<h4 id="Endpointslice-对象"><a href="#Endpointslice-对象" class="headerlink" title="Endpointslice 对象"></a>Endpointslice 对象</h4><p>当某个 Service 对应的 backend Pod 较多时 Endpoint 对象就会因保存的地址信息过多而变得异常庞大</p>
+<p>Pod 状态的变更会引起 Endpoint 的变更 Endpoint 的变更会被推送至所有节点，从而导致持续占用大量网络带宽</p>
+<p>EndpointSlice 对象，用于对 Pod 较多的 Endpoint 进行切片，切片大小可以自定义</p>
+<pre class="line-numbers language-yaml" data-language="yaml"><code class="language-yaml"><span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> discovery.k8s.io/vlbeta1
+<span class="token key atrule">kind</span><span class="token punctuation">:</span> Endpointslice
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> example<span class="token punctuation">-</span>abc
+  <span class="token key atrule">labels</span><span class="token punctuation">:</span>
+    <span class="token key atrule">kubernetes.io/service-name</span><span class="token punctuation">:</span> example
+<span class="token key atrule">addressType</span><span class="token punctuation">:</span> IPv4
+<span class="token key atrule">ports</span><span class="token punctuation">:</span>
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> http
+  <span class="token key atrule">protocol</span><span class="token punctuation">:</span> TCP
+  <span class="token key atrule">port</span><span class="token punctuation">:</span> <span class="token number">80</span>
+  <span class="token key atrule">endpoints</span><span class="token punctuation">:</span>
+    <span class="token punctuation">-</span> <span class="token key atrule">addresses</span><span class="token punctuation">:</span> <span class="token string">"10.1.2.3"</span>
+      <span class="token key atrule">conditions</span><span class="token punctuation">:</span>
+        ready<span class="token punctuation">:</span><span class="token boolean important">true</span>
+      <span class="token key atrule">hostname</span><span class="token punctuation">:</span> pod<span class="token punctuation">-</span><span class="token number">1</span>
+      <span class="token key atrule">topology</span><span class="token punctuation">:</span>
+        <span class="token key atrule">kubernetes.io/hostname</span><span class="token punctuation">:</span> node<span class="token punctuation">-</span><span class="token number">1</span>
+        <span class="token key atrule">topology.kubernetes.io/zone</span><span class="token punctuation">:</span> us<span class="token punctuation">-</span>west2<span class="token punctuation">-</span>a<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<h4 id="不定义-Selector-的-Service"><a href="#不定义-Selector-的-Service" class="headerlink" title="不定义 Selector 的 Service"></a>不定义 Selector 的 Service</h4><p>用户创建了 Service 但不定义 Selector</p>
+<ul>
+<li>Endpoint Controller 不会为该 Service 自动创建 Endpoint</li>
+<li>用户可以手动创建 Endpoint 对象，并设置任意 IP 地址到 Address 属性</li>
+<li>访问该服务的请求会被转发至目标地址</li>
+</ul>
+<p>通过该类型服务，可以为集群外的一组 Endpoint 创建服务</p>
+<h4 id="Service、Endpoint-和-Pod-的对应关系"><a href="#Service、Endpoint-和-Pod-的对应关系" class="headerlink" title="Service、Endpoint 和 Pod 的对应关系"></a>Service、Endpoint 和 Pod 的对应关系</h4><p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/Service、Endpoint和Pod的对应关系.png" alt="Service、Endpoint和Pod的对应关系"></p>
+<h4 id="Service类型"><a href="#Service类型" class="headerlink" title="Service类型"></a>Service类型</h4><ul>
+<li><p>clusterIP</p>
+<ul>
+<li>Service 的默认类型，服务被发布至仅集群内部可见的虚拟 IP 地址上。</li>
+<li>在 API Server 启动时，需要通过 <code>service-cluster-ip-range</code> 参数配置虚拟 IP 地址段， API Server 中有用于分配 IP 地址和端口的组件，当该组件捕获 Service 对象并创建事件时，会从配置的虚拟 IP 地址段中去一个有效的 IP 地址，分配给该 Service 对象。</li>
+</ul>
+</li>
+<li><p>nodePort</p>
+<ul>
+<li>在 API Server 启动时，需要通过 <code>node-port-range</code> 参数配置 nodePort 的范围，同样的，API Server 组件会捕获 Service 对象并创建事件，即从配置好的 nodePort 范围取一个有效端口，分配给该 Service。</li>
+<li>每个节点的 kube-proxy 会尝试在服务分配的 nodePort 上建立侦听器接收请求，并转发给服务对应的后端 Pod 实例。</li>
+</ul>
+</li>
+<li><p>LoadBalancer</p>
+<ul>
+<li>企业数据中心一般会采购一些负载均衡器，作为外网请求进入数据中心内部的统一流量入口。</li>
+<li>针对不同的基础架构云平台，Kubernertes Cloud Manager 提供支持不同供应商API的 Service Controller。如果需要在 Openstack 云平台上搭建 Kubernetes 集群，那么只需提供一份openstack.rc，Openstack Service Controller 即可通过调用 LBaaS API 完成负载均衡配置。</li>
+</ul>
+</li>
+</ul>
+<h4 id="其他类型服务"><a href="#其他类型服务" class="headerlink" title="其他类型服务"></a>其他类型服务</h4><ul>
+<li>Headless Service<ul>
+<li>Headless 服务是用户将 clusterIP 显示定义为 None 的服务，</li>
+<li>无头的服务意味着 Kubernetes 不会为该服务分配统一入口，包括 clusterIP，nodePort 等</li>
+</ul>
+</li>
+<li>ExternalName Service<ul>
+<li>为一个服务创建别名</li>
+</ul>
+</li>
+</ul>
+<p>Headless 和 externalName 服务的使用场景?我们随后讨论</p>
+<h4 id="Service-Topology"><a href="#Service-Topology" class="headerlink" title="Service Topology"></a>Service Topology</h4><p>一个网络调用的延迟受客户端和服务器所处位置的影响，两者是否在同一节点、同一机架、同-可用区、同一数据中心，都会影响参与数据传输的设备数量</p>
+<p>在分布式系统中，为保证系统的高可用，往往需要控制应用的错误域( FailureDomain )，比如通过反亲和性配置，将一个应用的多个副本部署在不同机架，甚至不同的数据中心</p>
+<p>Kubernetes 提供通用标签来标记节点所处的物理位置，如:</p>
+<pre class="line-numbers language-yaml" data-language="yaml"><code class="language-yaml"><span class="token key atrule">topology.kubernetes.io/zone</span><span class="token punctuation">:</span> us<span class="token punctuation">-</span>west2<span class="token punctuation">-</span>a
+<span class="token key atrule">failure-domain.beta.kubernetes.io/region</span><span class="token punctuation">:</span> us<span class="token punctuation">-</span>west
+<span class="token key atrule">failure-domain.tess.io/network-device</span><span class="token punctuation">:</span> us<span class="token punctuation">-</span>west05<span class="token punctuation">-</span>ra053
+<span class="token key atrule">failure-domain.tess.io/rack</span><span class="token punctuation">:</span> us_west02_02<span class="token punctuation">-</span>314_19_12
+<span class="token key atrule">kubernetes.io/hostname</span><span class="token punctuation">:</span> node<span class="token punctuation">-</span><span class="token number">1</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>Service 引入了 topologyKeys 属性，可以通过如下设置来控制流量</p>
+<ul>
+<li>当 topologyKeys 设置为 [“kubernetes.io/hostname”] 时，调用服务的客户端所在节点上如果有服务实例正在运行，则该实例处理请求，否则，调用失败。</li>
+<li>当 topologyKeys 设置为 [“kubernetes.io/hostname”,”topology.kubernetes.io/zone”,”topology.kubernetes.io/region”] 时，若同一节点有对应的服务实例，则请求会优先转发至该实例。否则，顺序查找当前 zone 及当前 region 是否有服务实例，并将请求按顺序转发。</li>
+<li>当 topologyKeys 设置为 [“topology.kubernetes.io/zone”,”*”] 时，请求会被优先转发至当前 zone 的服务实例。如果当前 zone 不存在服务实例，则请求会被转发至任意服务实例。</li>
+</ul>
+<h3 id="kube-proxy"><a href="#kube-proxy" class="headerlink" title="kube-proxy"></a>kube-proxy</h3><h4 id="kube-proxy-1"><a href="#kube-proxy-1" class="headerlink" title="kube-proxy"></a>kube-proxy</h4><p>每台机器上都运行一个 kube-proxy 服务，它监听 API server 中 service 和 endpoint 的变化情况，并通过 iptables 等来为服务配置负载均衡(仅支持 TCP 和 UDP )。</p>
+<p>kube-proxy 可以直接运行在物理机上，也可以以 static pod 或者 DaemonSet 的方式运行。</p>
+<p>kube-proxy 当前支持一下几种实现</p>
+<ul>
+<li>userspace：最早的负载均衡方案，它在用户空间监听一个端口，所有服务通过 iptables 转发到这个端口，然后在其内部负载均衡到实际的 Pod。该方式最主要的问题是效率低，有明显的性能瓶颈</li>
+<li>iptables：目前推荐的方案，完全以 iptables 规则的方式来实现 service 负载均衡。该方式最主要的问题是在服务多的时候产生太多的 iptables 规则，非增量式更新会引入一定的时<br>延，大规模情况下有明显的性能问题</li>
+<li>ipvs：为解决 iptables 模式的性能问题，v1.8 新增了 ipvs 模式，采用增量式更新，并可以保证 service 更新期间连接保持不断开</li>
+<li>winuserspace：同 userspace，但仅工作在 windows 上</li>
+</ul>
 
                 
             </div>
