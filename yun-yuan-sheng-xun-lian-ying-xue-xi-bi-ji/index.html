@@ -406,14 +406,14 @@
                 
                 <div class="info-break-policy">
                     <i class="far fa-file-word fa-fw"></i>文章字数:&nbsp;&nbsp;
-                    53k
+                    54k
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-clock fa-fw"></i>阅读时长:&nbsp;&nbsp;
-                    218 分
+                    222 分
                 </div>
                 
 
@@ -5193,6 +5193,160 @@ options ndots:4<span aria-hidden="true" class="line-numbers-rows"><span></span><
 <li>Headless service 的 DNS 记录，应该按需创建，否则对企业 DNS 冲击过大</li>
 </ul>
 <p>服务在集群内通过 CoreDNS 寻址，在集群外通过企业 DNS 寻址，服务在集群内外有统一标识。</p>
+<h4 id="Kubernetes-中的负载均衡技术"><a href="#Kubernetes-中的负载均衡技术" class="headerlink" title="Kubernetes 中的负载均衡技术"></a>Kubernetes 中的负载均衡技术</h4><p>基于 L4 的服务</p>
+<ul>
+<li>基于 iptables/ipvs 的分布式四层负载均衡技术</li>
+<li>多种 Load Balancer Provider 提供与企业现有 ELB 的整合</li>
+<li>kube-proxy 基于 iptables rules 为 Kubernetes 形成全局统一的 distributed load balancer</li>
+<li>kube-proxy 是一种 mesh, InternalClient 无论通过 podip，nodeport 还是 LBVIP 都经由 kube-proxy 跳转至pod</li>
+<li>属于 Kubernetes core</li>
+</ul>
+<p>基于L7的 Ingress</p>
+<ul>
+<li>基于七层应用层，提供更多功能</li>
+<li>TLS termination</li>
+<li>L7 path forwarding</li>
+<li>URL/http header rewrite</li>
+<li>与采用 7 层软件紧密相关</li>
+</ul>
+<h4 id="Service-中的-Ingress-的对比"><a href="#Service-中的-Ingress-的对比" class="headerlink" title="Service 中的 Ingress 的对比"></a>Service 中的 Ingress 的对比</h4><p>基于 L4 的服务</p>
+<ul>
+<li>每个应用独占 ELB，浪费资源</li>
+<li>为每个服务动态创建 DNS 记录，频繁的 DNS 更新</li>
+<li>支持 TCP 和 UDP，业务部门需要启动 HTTPS 服务，自己管理证书</li>
+</ul>
+<p>基于 L7 的 Ingress</p>
+<ul>
+<li>多个应用共享 ELB，节省资源</li>
+<li>多个应用共享一个 Domain，可采用静态 DNS 配置</li>
+<li>TLS termination 发生在 Ingress 层，可集中管理证书</li>
+<li>更多复杂性，更多的网络 hop</li>
+</ul>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/Service中的Ingress的对比.png" alt="Service中的Ingress的对比"></p>
+<h4 id="ingress"><a href="#ingress" class="headerlink" title="ingress"></a>ingress</h4><p>ingress</p>
+<ul>
+<li>Ingress 是一层代理</li>
+<li>负责根据 hostname 和 path 将流量转发到不同的服务上，使得一个负载均衡器用于多个后台应用</li>
+<li>Kubernetes Ingress Spec 是转发规则的集合</li>
+</ul>
+<p>ingress Controller</p>
+<ul>
+<li>确保实际状态( Actual )与期望状态( Desired )一致的 ControlLoop</li>
+<li>Ingress Controller 确保</li>
+<li>负载均衡配置</li>
+<li>边缘路由配置</li>
+<li>DNS 配置</li>
+</ul>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/ingress.png" alt="ingress"></p>
+<h4 id="传统应用网络拓扑"><a href="#传统应用网络拓扑" class="headerlink" title="传统应用网络拓扑"></a>传统应用网络拓扑</h4><p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/传统应用网络拓扑.png" alt="传统应用网络拓扑"></p>
+<h4 id="三步构建-Ingress-Controller"><a href="#三步构建-Ingress-Controller" class="headerlink" title="三步构建 Ingress Controller"></a>三步构建 Ingress Controller</h4><p>复用 Kubernetes LoadBalancer 接口</p>
+<pre class="line-numbers language-go" data-language="go"><code class="language-go"><span class="token function">GetLoadBalancer</span><span class="token punctuation">(</span>clusterName <span class="token builtin">string</span><span class="token punctuation">,</span> service <span class="token operator">*</span>api<span class="token punctuation">.</span>Service<span class="token punctuation">)</span> <span class="token punctuation">(</span><span class="token operator">*</span>api<span class="token punctuation">.</span>LoadBalancerStatus<span class="token punctuation">,</span> <span class="token builtin">bool</span><span class="token punctuation">,</span> <span class="token builtin">error</span><span class="token punctuation">)</span>
+<span class="token function">EnsureLoadBalancer</span><span class="token punctuation">(</span>clusterName <span class="token builtin">string</span><span class="token punctuation">,</span> service <span class="token operator">*</span>api<span class="token punctuation">.</span>Senvice<span class="token punctuation">,</span> members <span class="token punctuation">[</span><span class="token punctuation">]</span><span class="token builtin">string</span><span class="token punctuation">)</span> <span class="token punctuation">(</span><span class="token operator">*</span>api<span class="token punctuation">.</span>LoadBalancerStatus<span class="token punctuation">,</span> <span class="token builtin">error</span><span class="token punctuation">)</span>
+<span class="token function">UpdateLoadBalancer</span><span class="token punctuation">(</span>clusterName <span class="token builtin">string</span><span class="token punctuation">,</span> service <span class="token operator">*</span>api<span class="token punctuation">.</span>Service<span class="token punctuation">,</span> members <span class="token punctuation">[</span><span class="token punctuation">]</span><span class="token builtin">string</span><span class="token punctuation">)</span> <span class="token punctuation">(</span><span class="token operator">*</span>api<span class="token punctuation">.</span>oadBalancerStatus<span class="token punctuation">,</span> <span class="token builtin">error</span><span class="token punctuation">)</span>
+<span class="token function">EnsureLoadBalancerDeleted</span><span class="token punctuation">(</span>clusterName <span class="token builtin">string</span><span class="token punctuation">,</span> service <span class="token operator">*</span>api<span class="token punctuation">.</span>Service<span class="token punctuation">)</span> <span class="token builtin">error</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span></span></code></pre>
+<p>定义 Informer，监控 ingress，secret，service，endpoint 的变化，加入相应的队列</p>
+<pre class="line-numbers language-go" data-language="go"><code class="language-go">lbc<span class="token punctuation">.</span>ingLister<span class="token punctuation">.</span>Store<span class="token punctuation">,</span>lbc<span class="token punctuation">.</span>ingController <span class="token operator">=</span> framework<span class="token punctuation">.</span><span class="token function">Newinformer</span><span class="token punctuation">(</span>
+    <span class="token operator">&amp;</span>cache<span class="token punctuation">.</span>Listwatch<span class="token punctuation">{</span>
+        ListFunc<span class="token punctuation">:</span> <span class="token function">ingressListFunc</span><span class="token punctuation">(</span>lbc<span class="token punctuation">.</span>client<span class="token punctuation">,</span> namespace<span class="token punctuation">)</span><span class="token punctuation">,</span>
+        WatchFunc<span class="token punctuation">:</span> <span class="token function">ingressWatchFunc</span><span class="token punctuation">(</span>lbc<span class="token punctuation">.</span>client<span class="token punctuation">,</span> namespace<span class="token punctuation">)</span><span class="token punctuation">,</span>
+    <span class="token punctuation">}</span><span class="token punctuation">,</span>
+    <span class="token operator">&amp;</span>extensions<span class="token punctuation">.</span>Ingress<span class="token punctuation">{</span><span class="token punctuation">}</span><span class="token punctuation">,</span> resyncPeriod<span class="token punctuation">,</span> framework<span class="token punctuation">.</span>ResourceEventHandlerFuncs<span class="token punctuation">{</span>
+        AddFunc<span class="token punctuation">:</span> <span class="token keyword">func</span><span class="token punctuation">(</span>obi <span class="token keyword">interface</span><span class="token punctuation">{</span><span class="token punctuation">}</span><span class="token punctuation">)</span><span class="token punctuation">{</span>
+            lbc<span class="token punctuation">.</span>ingQueue<span class="token punctuation">.</span><span class="token function">enqueueing</span><span class="token punctuation">(</span>obj<span class="token punctuation">)</span>
+        <span class="token punctuation">}</span><span class="token punctuation">,</span>
+    <span class="token punctuation">}</span><span class="token punctuation">)</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>启动 worker，遍历 ingress 队列</p>
+<ul>
+<li>为 Ingress Domain 创建 LoadBalancer service 依 赖service controller 创建 ingress vip</li>
+<li>为 Ingress Domain 创建 DNS A record 并指向 Ingress VIP</li>
+<li>更新 Ingress 状态</li>
+</ul>
+<h4 id="为什么需要构建-SLB-方案"><a href="#为什么需要构建-SLB-方案" class="headerlink" title="为什么需要构建 SLB 方案"></a>为什么需要构建 SLB 方案</h4><p>成本</p>
+<ul>
+<li>硬件 LB 价格昂贵</li>
+<li>固定的 tech refresh 周期</li>
+</ul>
+<p>配置管理</p>
+<ul>
+<li>LB 设备的 onboard/offboard 由不同 team 管理</li>
+<li>不同设备 API 不一样，不支持 L7 API</li>
+<li>基于传统的 ssh 接口，效率低下</li>
+<li>Flex up/down 以及 Migration 复杂</li>
+</ul>
+<p>部署模式</p>
+<ul>
+<li>1+1 模式</li>
+<li>隔离性差</li>
+</ul>
+<h4 id="堪待解决的问题"><a href="#堪待解决的问题" class="headerlink" title="堪待解决的问题"></a>堪待解决的问题</h4><p>负载均衡配置</p>
+<ul>
+<li>7 层方案：Envoy vs. Nginx vs. Haproxy</li>
+<li>4 层方案：抛弃传统 HLB 的支持，用 IPVS 取代</li>
+</ul>
+<p>边缘路由配置</p>
+<ul>
+<li>Ingress VIP 通过 BGP 协议发布给 TOR</li>
+</ul>
+<p>DNS 配置</p>
+<ul>
+<li>Ingress VIP 通过 BGP 协议发布给 TOR</li>
+</ul>
+<p>需要解决问题：如何让 domain 用户自定义后台应用的访问地址，如何优化访问路径</p>
+<ul>
+<li><p>L4 Provider</p>
+<p>  IPVS 插件</p>
+<ul>
+<li>基于 IPAM 分配 VIP</li>
+<li>将 VIP 绑定至 IPVS Directors</li>
+<li>创建 IP tunnel</li>
+<li>通过 BGP 发布 VIP 路由</li>
+</ul>
+</li>
+<li><p>L7 Provider</p>
+<ul>
+<li>基于 Envoy 提供 L7 Path forwarding</li>
+<li>可以提供 TLS Termination</li>
+<li>基于 upstream 的 Istio 实现配置管理和热加载</li>
+<li>基于 Istio 实现 Service Mesh</li>
+</ul>
+</li>
+<li><p>DNS Provider</p>
+<ul>
+<li>创建 DNS 记录</li>
+<li>为多个 Cluster 的 ingress VIP 生成相同的 DNS 记录实现 DNS 联邦</li>
+</ul>
+</li>
+<li><p>Ingress Controller</p>
+<ul>
+<li>编排控制器</li>
+<li>为 ingress 创建 service object，将 LB 配置委派给 service controller</li>
+<li>创建 configmap 为每个 ingress 创建 envoy 配置</li>
+<li>创建 L7 pod 的 deployment 加载 envoy 集群</li>
+<li>生成 DNS 记录</li>
+</ul>
+</li>
+</ul>
+<h4 id="L4-集群架构"><a href="#L4-集群架构" class="headerlink" title="L4 集群架构"></a>L4 集群架构</h4><p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/L4集群架构.png" alt="L4集群架构"></p>
+<h4 id="L7-集群架构"><a href="#L7-集群架构" class="headerlink" title="L7 集群架构"></a>L7 集群架构</h4><p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/L7集群架构.png" alt="L7集群架构"></p>
+<h4 id="数据流"><a href="#数据流" class="headerlink" title="数据流"></a>数据流</h4><p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/数据流.png" alt="数据流"></p>
+<h4 id="跨大陆的互联网调用"><a href="#跨大陆的互联网调用" class="headerlink" title="跨大陆的互联网调用"></a>跨大陆的互联网调用</h4><p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/跨大陆的互联网调用.png" alt="跨大陆的互联网调用"></p>
+<h4 id="互联网路径的不确定性"><a href="#互联网路径的不确定性" class="headerlink" title="互联网路径的不确定性"></a>互联网路径的不确定性</h4><p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/互联网路径的不确定性.png" alt="互联网路径的不确定性"></p>
+<h4 id="边缘加速方案综述"><a href="#边缘加速方案综述" class="headerlink" title="边缘加速方案综述"></a>边缘加速方案综述</h4><p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/边缘加速方案综述.png" alt="边缘加速方案综述"></p>
+<h4 id="边缘加速组件"><a href="#边缘加速组件" class="headerlink" title="边缘加速组件"></a>边缘加速组件</h4><p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/边缘加速组件.png" alt="边缘加速组件"></p>
+<h4 id="对网络路径的优化"><a href="#对网络路径的优化" class="headerlink" title="对网络路径的优化"></a>对网络路径的优化</h4><p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/对网络路径的优化.png" alt="对网络路径的优化"></p>
+<h4 id="不同方案的响应时间对比"><a href="#不同方案的响应时间对比" class="headerlink" title="不同方案的响应时间对比"></a>不同方案的响应时间对比</h4><p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/不同方案的响应时间对比.png" alt="不同方案的响应时间对比"></p>
+<h4 id="课后作业-第二部分"><a href="#课后作业-第二部分" class="headerlink" title="课后作业(第二部分)"></a>课后作业(第二部分)</h4><p>除了将 httpServer 应用优雅的运行在 Kubernetes 之上，我们还应该考虑如何将服务发布给对内和对外的调用方。</p>
+<p>来尝试用 Service，Ingress 将你的服务发布给集群外部的调用方吧</p>
+<p>在第一部分的基础上提供更加完备的部署 spec，包括(不限于)</p>
+<ul>
+<li>Service</li>
+<li>Ingress</li>
+</ul>
+<p>可以考虑的细节</p>
+<ul>
+<li>如何确保整个应用的高可用</li>
+<li>如何通过证书保证 httpServer 的通讯安全</li>
+</ul>
 
                 
             </div>
