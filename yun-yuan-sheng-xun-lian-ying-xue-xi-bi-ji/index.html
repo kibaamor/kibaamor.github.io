@@ -406,14 +406,14 @@
                 
                 <div class="info-break-policy">
                     <i class="far fa-file-word fa-fw"></i>文章字数:&nbsp;&nbsp;
-                    54k
+                    54.7k
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-clock fa-fw"></i>阅读时长:&nbsp;&nbsp;
-                    222 分
+                    225 分
                 </div>
                 
 
@@ -5011,7 +5011,8 @@ value: <span class="token number">2000001000</span><span aria-hidden="true" clas
 <h5 id="隧道技术"><a href="#隧道技术" class="headerlink" title="隧道技术"></a>隧道技术</h5><p>负载均衡中常用的隧道技术是 IP over IP，其原理是保持原始数据包 IP 头不变，在 IP 头外层增加额外的 IP 包头后转发给上游服务器。</p>
 <p>上游服务器接收 IP 数据包，解开外层 IP 包头后，剩下的是原始数据包。</p>
 <p>同样的，原始数据包中的目标 IP 地址要配置在上游服务器中，上游服务器处理完数据请求以后响应包通过网关直接返回给客户端。</p>
-<h3 id="Service-对象"><a href="#Service-对象" class="headerlink" title="Service 对象"></a>Service 对象</h3><h4 id="Service对象"><a href="#Service对象" class="headerlink" title="Service对象"></a>Service对象</h4><p>Service selector</p>
+<h3 id="Service-对象"><a href="#Service-对象" class="headerlink" title="Service 对象"></a>Service 对象</h3><p><a target="_blank" rel="noopener" href="https://github.com/kibaamor/101/tree/master/module8/service">https://github.com/kibaamor/101/tree/master/module8/service</a></p>
+<h4 id="Service对象"><a href="#Service对象" class="headerlink" title="Service对象"></a>Service对象</h4><p>Service selector</p>
 <ul>
 <li>Kubernetes 允许将 Pod 对象通过标签( Label )进行标记，并通过 Service Selector 定义基于 Pod 标签的过滤规则以便选择服务的上游应用实例</li>
 </ul>
@@ -5030,7 +5031,11 @@ value: <span class="token number">2000001000</span><span aria-hidden="true" clas
   <span class="token punctuation">-</span> <span class="token key atrule">protocol</span><span class="token punctuation">:</span> TCP
     <span class="token key atrule">port</span><span class="token punctuation">:</span> <span class="token number">80</span>
     <span class="token key atrule">targetPort</span><span class="token punctuation">:</span> <span class="token number">80</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
-<h4 id="Endpoint-对象"><a href="#Endpoint-对象" class="headerlink" title="Endpoint 对象"></a>Endpoint 对象</h4><p>当 Service 的 selector 不为空时，Kubernetes EndpointController 会侦听服务创建事件，创建与 Service 同名的 Endpoint 对象</p>
+<h4 id="Endpoint-对象"><a href="#Endpoint-对象" class="headerlink" title="Endpoint 对象"></a>Endpoint 对象</h4><blockquote>
+<p>Q：为什么需要 endpoint 对象？</p>
+<p>A：为不同的 port 发布不同的服务器，处理多个 pod 对多个 service 的情况，endpont 就作为 pod 和 service 的中间表。</p>
+</blockquote>
+<p>当 Service 的 selector 不为空时，Kubernetes EndpointController 会侦听服务创建事件，创建与 Service 同名的 Endpoint 对象</p>
 <p>selector 能够选取的所有 PodIP 都会被配置到 addresses 属性中</p>
 <ul>
 <li>如果此时 selector 所对应的 filter 查询不到对应的 Pod，则 addresses 列表为空</li>
@@ -5076,10 +5081,32 @@ value: <span class="token number">2000001000</span><span aria-hidden="true" clas
 <h4 id="不定义-Selector-的-Service"><a href="#不定义-Selector-的-Service" class="headerlink" title="不定义 Selector 的 Service"></a>不定义 Selector 的 Service</h4><p>用户创建了 Service 但不定义 Selector</p>
 <ul>
 <li>Endpoint Controller 不会为该 Service 自动创建 Endpoint</li>
-<li>用户可以手动创建 Endpoint 对象，并设置任意 IP 地址到 Address 属性</li>
+<li>用户可以手动创建一个与 Service 同名的 Endpoint 对象，并设置任意 IP 地址到 Address 属性</li>
 <li>访问该服务的请求会被转发至目标地址</li>
 </ul>
 <p>通过该类型服务，可以为集群外的一组 Endpoint 创建服务</p>
+<p><a target="_blank" rel="noopener" href="https://github.com/kibaamor/101/blob/master/module8/service/service-without-selector.yaml">https://github.com/kibaamor/101/blob/master/module8/service/service-without-selector.yaml</a></p>
+<pre class="line-numbers language-yaml" data-language="yaml"><code class="language-yaml"><span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> v1
+<span class="token key atrule">kind</span><span class="token punctuation">:</span> Service
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> service<span class="token punctuation">-</span>without<span class="token punctuation">-</span>selector
+<span class="token key atrule">spec</span><span class="token punctuation">:</span>
+  <span class="token key atrule">ports</span><span class="token punctuation">:</span>
+    <span class="token punctuation">-</span> <span class="token key atrule">port</span><span class="token punctuation">:</span> <span class="token number">80</span>
+      <span class="token key atrule">protocol</span><span class="token punctuation">:</span> TCP
+      <span class="token key atrule">name</span><span class="token punctuation">:</span> http<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p><a target="_blank" rel="noopener" href="https://github.com/kibaamor/101/blob/master/module8/service/endpoint-without-selector.yaml">https://github.com/kibaamor/101/blob/master/module8/service/endpoint-without-selector.yaml</a></p>
+<pre class="line-numbers language-yaml" data-language="yaml"><code class="language-yaml"><span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> v1
+<span class="token key atrule">kind</span><span class="token punctuation">:</span> Endpoints
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> service<span class="token punctuation">-</span>without<span class="token punctuation">-</span>selector
+<span class="token key atrule">subsets</span><span class="token punctuation">:</span>
+  <span class="token punctuation">-</span> <span class="token key atrule">addresses</span><span class="token punctuation">:</span>
+      <span class="token punctuation">-</span> <span class="token key atrule">ip</span><span class="token punctuation">:</span> 220.181.38.148
+    <span class="token key atrule">ports</span><span class="token punctuation">:</span>
+      <span class="token punctuation">-</span> <span class="token key atrule">name</span><span class="token punctuation">:</span> http
+        <span class="token key atrule">port</span><span class="token punctuation">:</span> <span class="token number">80</span>
+        <span class="token key atrule">protocol</span><span class="token punctuation">:</span> TCP<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
 <h4 id="Service、Endpoint-和-Pod-的对应关系"><a href="#Service、Endpoint-和-Pod-的对应关系" class="headerlink" title="Service、Endpoint 和 Pod 的对应关系"></a>Service、Endpoint 和 Pod 的对应关系</h4><p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/Service、Endpoint和Pod的对应关系.png" alt="Service、Endpoint和Pod的对应关系"></p>
 <h4 id="Service类型"><a href="#Service类型" class="headerlink" title="Service类型"></a>Service类型</h4><ul>
 <li><p>clusterIP</p>
@@ -5101,16 +5128,36 @@ value: <span class="token number">2000001000</span><span aria-hidden="true" clas
 </ul>
 </li>
 </ul>
-<h4 id="其他类型服务"><a href="#其他类型服务" class="headerlink" title="其他类型服务"></a>其他类型服务</h4><ul>
-<li>Headless Service<ul>
+<h4 id="其他类型服务"><a href="#其他类型服务" class="headerlink" title="其他类型服务"></a>其他类型服务</h4><p>Headless Service</p>
+<p><a target="_blank" rel="noopener" href="https://github.com/kibaamor/101/blob/master/module8/service/headless-svc.yaml">https://github.com/kibaamor/101/blob/master/module8/service/headless-svc.yaml</a></p>
+<pre class="line-numbers language-yaml" data-language="yaml"><code class="language-yaml"><span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> v1
+<span class="token key atrule">kind</span><span class="token punctuation">:</span> Service
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> nginx<span class="token punctuation">-</span>headless
+<span class="token key atrule">spec</span><span class="token punctuation">:</span>
+  <span class="token key atrule">ClusterIP</span><span class="token punctuation">:</span> None
+  <span class="token key atrule">ports</span><span class="token punctuation">:</span>
+    <span class="token punctuation">-</span> <span class="token key atrule">port</span><span class="token punctuation">:</span> <span class="token number">80</span>
+      <span class="token key atrule">protocol</span><span class="token punctuation">:</span> TCP
+      <span class="token key atrule">name</span><span class="token punctuation">:</span> http
+  <span class="token key atrule">selector</span><span class="token punctuation">:</span>
+    <span class="token key atrule">app</span><span class="token punctuation">:</span> nginx<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<ul>
 <li>Headless 服务是用户将 clusterIP 显示定义为 None 的服务，</li>
 <li>无头的服务意味着 Kubernetes 不会为该服务分配统一入口，包括 clusterIP，nodePort 等</li>
 </ul>
-</li>
-<li>ExternalName Service<ul>
+<p>ExternalName Service</p>
+<p><a target="_blank" rel="noopener" href="https://github.com/kibaamor/101/blob/master/module8/service/service-external-name.yaml">https://github.com/kibaamor/101/blob/master/module8/service/service-external-name.yaml</a></p>
+<pre class="line-numbers language-yaml" data-language="yaml"><code class="language-yaml"><span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> v1
+<span class="token key atrule">kind</span><span class="token punctuation">:</span> Service
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> my<span class="token punctuation">-</span>service
+  <span class="token key atrule">namespace</span><span class="token punctuation">:</span> prod
+<span class="token key atrule">spec</span><span class="token punctuation">:</span>
+  <span class="token key atrule">type</span><span class="token punctuation">:</span> ExternalName
+  <span class="token key atrule">externalName</span><span class="token punctuation">:</span> tencent.com<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<ul>
 <li>为一个服务创建别名</li>
-</ul>
-</li>
 </ul>
 <p>Headless 和 externalName 服务的使用场景?我们随后讨论</p>
 <h4 id="Service-Topology"><a href="#Service-Topology" class="headerlink" title="Service Topology"></a>Service Topology</h4><p>一个网络调用的延迟受客户端和服务器所处位置的影响，两者是否在同一节点、同一机架、同-可用区、同一数据中心，都会影响参与数据传输的设备数量</p>
@@ -5137,24 +5184,66 @@ value: <span class="token number">2000001000</span><span aria-hidden="true" clas
 <li>winuserspace：同 userspace，但仅工作在 windows 上</li>
 </ul>
 <h4 id="Linux内核处理数据包：Netfilter-框架"><a href="#Linux内核处理数据包：Netfilter-框架" class="headerlink" title="Linux内核处理数据包：Netfilter 框架"></a>Linux内核处理数据包：Netfilter 框架</h4><p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/Netfilter框架.png" alt="Netfilter框架"></p>
+<blockquote>
+<p><a target="_blank" rel="noopener" href="https://blog.csdn.net/qq_35376521/article/details/126930679">tcpdump 和 iptables(netfilter) 处理数据包的先后顺序</a></p>
+<p>结论</p>
+<ul>
+<li>进站的数据包先经过 tcpdump，再经过 iptables</li>
+<li>出站的数据包先经过 iptables，再经过 tcpdump</li>
+</ul>
+<p>原理分析</p>
+<ul>
+<li>事实上tcpdump在链路层就已经捕获数据包 (从 tcpdump man page 得知)</li>
+<li>而 iptables 工作在协议栈的网络层，原理上 tcpdump 就比 iptables 更接近网卡设备</li>
+</ul>
+</blockquote>
 <h4 id="Netfilter-和-iptables"><a href="#Netfilter-和-iptables" class="headerlink" title="Netfilter 和 iptables"></a>Netfilter 和 iptables</h4><p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/Netfilter和iptables.png" alt="Netfilter和iptables"></p>
 <h4 id="iptables"><a href="#iptables" class="headerlink" title="iptables"></a>iptables</h4><p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/iptables.png" alt="iptables"></p>
 <h4 id="iptables-支持的锚点"><a href="#iptables-支持的锚点" class="headerlink" title="iptables 支持的锚点"></a>iptables 支持的锚点</h4><p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/iptables支持的锚点.png" alt="iptables支持的锚点"></p>
 <h4 id="kube-proxy-工作原理"><a href="#kube-proxy-工作原理" class="headerlink" title="kube-proxy 工作原理"></a>kube-proxy 工作原理</h4><p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/kube-proxy工作原理.png" alt="kube-proxy工作原理"></p>
 <h4 id="Kubernetes-iptables-规则"><a href="#Kubernetes-iptables-规则" class="headerlink" title="Kubernetes iptables 规则"></a>Kubernetes iptables 规则</h4><p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/Kubernetesiptables规则.png" alt="Kubernetesiptables规则"></p>
-<h4 id="iptables-示例"><a href="#iptables-示例" class="headerlink" title="iptables 示例"></a>iptables 示例</h4><pre class="line-numbers language-txt" data-language="txt"><code class="language-txt">-A KUBE-MARK-DROP -j MARK --set-xmark 0x8000/0x8000
--A KUBE-MARK-MASQ -j MARK --set-xmark 0x4000/0x4000
--A KUBE-POSTROUTING -m comment --comment "kubernetes service traffic requiring SNAT" -m mark --mark 0x4000/0x4000 -j MASQUERADE
+<h4 id="iptables-示例"><a href="#iptables-示例" class="headerlink" title="iptables 示例"></a>iptables 示例</h4><pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ kubectl get svc nginx-basic -owide
+NAME          TYPE        CLUSTER-IP      EXTERNAL-IP   PORT<span class="token punctuation">(</span>S<span class="token punctuation">)</span>   AGE   SELECTOR
+nginx-basic   ClusterIP   <span class="token number">10.96</span>.240.161   <span class="token operator">&lt;</span>none<span class="token operator">&gt;</span>        <span class="token number">80</span>/TCP    74m   <span class="token assign-left variable">app</span><span class="token operator">=</span>nginx
 
--A KUBE-SEP-55QZ6T7MF3AHPO0B -s 10.244.1.6/32 -m comment --comment "default/http:" -j KUBE-MARK-MASQ
--A KUBE-SEP-55QZ6T7MF3AHP00B -p tcp -m comment --comment "default/http:" -m tcp -i DNAT --to-destination 10.244.1.6:80
+$ kubectl get pod -l <span class="token assign-left variable">app</span><span class="token operator">=</span>nginx -owide
+NAME                                READY   STATUS    RESTARTS   AGE   IP            NODE       NOMINATED NODE   READINESS GATES
+nginx-deployment-77b4fdf86c-glrrd   <span class="token number">1</span>/1     Running   <span class="token number">0</span>          14s   <span class="token number">10.244</span>.0.52   minikube   <span class="token operator">&lt;</span>none<span class="token operator">&gt;</span>           <span class="token operator">&lt;</span>none<span class="token operator">&gt;</span>
+nginx-deployment-77b4fdf86c-k7mf4   <span class="token number">1</span>/1     Running   <span class="token number">0</span>          14s   <span class="token number">10.244</span>.0.51   minikube   <span class="token operator">&lt;</span>none<span class="token operator">&gt;</span>           <span class="token operator">&lt;</span>none<span class="token operator">&gt;</span>
+nginx-deployment-77b4fdf86c-wplrw   <span class="token number">1</span>/1     Running   <span class="token number">0</span>          14s   <span class="token number">10.244</span>.0.50   minikube   <span class="token operator">&lt;</span>none<span class="token operator">&gt;</span>           <span class="token operator">&lt;</span>none<span class="token operator">&gt;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<pre class="line-numbers language-txt" data-language="txt"><code class="language-txt">-A PREROUTING -m comment --comment "kubernetes service portals" -j KUBE-SERVICES
+-A OUTPUT -m comment --comment "kubernetes service portals" -j KUBE-SERVICES
 
--A KUBE-SEP-KJZJRL2KRWMXNR3J -s 10.244.1.5/32 -m comment --comment "default/http:" -j KUBE-MARK-MASQ
--A KUBE-SEP-KJZJRL2KRWMXNR3J -p tcp -m comment --comment "default/http:" -m tcp -j DNAT --to-destination 10.244.1.5:80
+-A KUBE-SERVICES -d 10.96.240.161/32 -p tcp -m comment --comment "default/nginx-basic:http cluster IP" -m tcp --dport 80 -j KUBE-SVC-WWRFY3PZ7W3FGMQW
 
--A KUBE-SERVICES -d 10.101.85.234/32 -p tcp -m comment --comment "default/http: cluster lp" -m tcp -dport 80 -jKUBE-SVC-7IMAZDGB2ONONK4Z
--A KUBE-SVC-7IMAZDGB2ONQNK4Z -m comment --comment "default/http:" -m statistic --mode random -.probability 0.50000000000 -j KUBE-SEP-KJZJRL2KRWMXNR3J
--A KUBE-SVC-7IMAZDGB2ONONK4Z -m comment --comment "default/htto:" -j KUBE-SEP-550Z6T7MF3AHPOOB<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+-A KUBE-SVC-WWRFY3PZ7W3FGMQW ! -s 10.244.0.0/16 -d 10.96.240.161/32 -p tcp -m comment --comment "default/nginx-basic:http cluster IP" -m tcp --dport 80 -j KUBE-MARK-MASQ
+-A KUBE-SVC-WWRFY3PZ7W3FGMQW -m comment --comment "default/nginx-basic:http -&gt; 10.244.0.50:80" -m statistic --mode random --probability 0.33333333349 -j KUBE-SEP-GDFWTYWRXAR6P5IV
+-A KUBE-SVC-WWRFY3PZ7W3FGMQW -m comment --comment "default/nginx-basic:http -&gt; 10.244.0.51:80" -m statistic --mode random --probability 0.50000000000 -j KUBE-SEP-KT26XBLI5UEBCGC6
+-A KUBE-SVC-WWRFY3PZ7W3FGMQW -m comment --comment "default/nginx-basic:http -&gt; 10.244.0.52:80" -j KUBE-SEP-LEDXNGZ5TZMIGQDD
+
+-A KUBE-SEP-GDFWTYWRXAR6P5IV -s 10.244.0.50/32 -m comment --comment "default/nginx-basic:http" -j KUBE-MARK-MASQ
+-A KUBE-SEP-GDFWTYWRXAR6P5IV -p tcp -m comment --comment "default/nginx-basic:http" -m tcp -j DNAT --to-destination 10.244.0.50:80
+
+-A KUBE-SEP-KT26XBLI5UEBCGC6 -s 10.244.0.51/32 -m comment --comment "default/nginx-basic:http" -j KUBE-MARK-MASQ
+-A KUBE-SEP-KT26XBLI5UEBCGC6 -p tcp -m comment --comment "default/nginx-basic:http" -m tcp -j DNAT --to-destination 10.244.0.51:80
+
+-A KUBE-SEP-LEDXNGZ5TZMIGQDD -s 10.244.0.52/32 -m comment --comment "default/nginx-basic:http" -j KUBE-MARK-MASQ
+-A KUBE-SEP-LEDXNGZ5TZMIGQDD -p tcp -m comment --comment "default/nginx-basic:http" -m tcp -j DNAT --to-destination 10.244.0.52:80
+
+-A POSTROUTING -m comment --comment "kubernetes postrouting rules" -j KUBE-POSTROUTING
+
+-A KUBE-MARK-MASQ -j MARK --set-xmark 0x4000/0x4000 # mark packet with 0x4000
+
+-A KUBE-POSTROUTING -m mark ! --mark 0x4000/0x4000 -j RETURN
+-A KUBE-POSTROUTING -j MARK --set-xmark 0x4000/0x0 # clear mark 0x4000
+-A KUBE-POSTROUTING -m comment --comment "kubernetes service traffic requiring SNAT" -j MASQUERADE --random-fully
+
+-A FORWARD -m comment --comment "kubernetes forwarding rules" -j KUBE-FORWARD
+
+-A KUBE-FORWARD -m comment --comment "kubernetes forwarding rules" -m mark --mark 0x4000/0x4000 -j ACCEPT<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<blockquote>
+<p><a target="_blank" rel="noopener" href="https://www.man7.org/linux/man-pages/man8/iptables-extensions.8.html">iptables-extensions(8) — Linux manual page</a></p>
+</blockquote>
 <h4 id="IPVS"><a href="#IPVS" class="headerlink" title="IPVS"></a>IPVS</h4><p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/IPVS.png" alt="IPVS"></p>
 <h4 id="IPVS-支持的锚点和核心函数"><a href="#IPVS-支持的锚点和核心函数" class="headerlink" title="IPVS 支持的锚点和核心函数"></a>IPVS 支持的锚点和核心函数</h4><p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/IPVS支持的锚点和核心函数.png" alt="IPVS支持的锚点和核心函数"></p>
 <h4 id="域名服务"><a href="#域名服务" class="headerlink" title="域名服务"></a>域名服务</h4><p>Kubernetes Service 通过虚拟 IP 地址或者节点端口为用户应用提供访问入口</p>
@@ -5164,7 +5253,7 @@ value: <span class="token number">2000001000</span><span aria-hidden="true" clas
 <p>CoreDNS 的实现原理是，控制器监听 Service 和 Endpoint 的变化并配置 DNS，客户端 Pod 在进行域名解析时，从 CoreDNS 中查询服务对应的地址记录</p>
 <p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/CoreDNS.png" alt="CoreDNS"></p>
 <h4 id="不同类型服务的-DNS-记录"><a href="#不同类型服务的-DNS-记录" class="headerlink" title="不同类型服务的 DNS 记录"></a>不同类型服务的 DNS 记录</h4><ul>
-<li>普通Service<ul>
+<li>普通 Service<ul>
 <li>ClusterIP、nodePort、LoadBalancer 类型的 Service 都拥有 API Server 分配的 ClusterIP，CoreDNS 会为这些 Service 创建 FQDN 格式为 <code>$svcname.$namespace.svc.$clusterdomain:clusterIP</code> 的 A 记录及 PTR 记录，并为端口创建 SRV 记录。</li>
 </ul>
 </li>
@@ -5178,6 +5267,9 @@ value: <span class="token number">2000001000</span><span aria-hidden="true" clas
 </ul>
 </li>
 </ul>
+<blockquote>
+<p>从 ClusterIP 到 nodePort 到 LoadBalancer，后一个类型都包含前一个类型的内容。比如 NodePort 也会有一个 ClusterIP。</p>
+</blockquote>
 <h4 id="Kubernetes-中的域名解析"><a href="#Kubernetes-中的域名解析" class="headerlink" title="Kubernetes 中的域名解析"></a>Kubernetes 中的域名解析</h4><p>Kubernetes Pod 有一个与 DNS 策略相关的属性 DNSPolicy，默认值是 ClusterFirst。</p>
 <p>Pod启动后的 <code>/etc/resolv.conf</code> 会被改写，所有的地址解析优先发送至 CoreDNS</p>
 <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ <span class="token function">cat</span> /etc/resolv.conf
