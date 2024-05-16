@@ -399,21 +399,21 @@
                 
                 <div class="post-date info-break-policy">
                     <i class="far fa-calendar-check fa-fw"></i>更新日期:&nbsp;&nbsp;
-                    2024-05-16
+                    2024-05-17
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-file-word fa-fw"></i>文章字数:&nbsp;&nbsp;
-                    55.9k
+                    56.9k
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-clock fa-fw"></i>阅读时长:&nbsp;&nbsp;
-                    232 分
+                    238 分
                 </div>
                 
 
@@ -5203,7 +5203,7 @@ value: <span class="token number">2000001000</span><span aria-hidden="true" clas
 <h4 id="iptables-支持的锚点"><a href="#iptables-支持的锚点" class="headerlink" title="iptables 支持的锚点"></a>iptables 支持的锚点</h4><p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/iptables支持的锚点.png" alt="iptables支持的锚点"></p>
 <h4 id="kube-proxy-工作原理"><a href="#kube-proxy-工作原理" class="headerlink" title="kube-proxy 工作原理"></a>kube-proxy 工作原理</h4><p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/kube-proxy工作原理.png" alt="kube-proxy工作原理"></p>
 <h4 id="Kubernetes-iptables-规则"><a href="#Kubernetes-iptables-规则" class="headerlink" title="Kubernetes iptables 规则"></a>Kubernetes iptables 规则</h4><p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/Kubernetesiptables规则.png" alt="Kubernetesiptables规则"></p>
-<h4 id="iptables-示例"><a href="#iptables-示例" class="headerlink" title="iptables 示例"></a>iptables 示例</h4><pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ kubectl get svc nginx-basic -owide
+<h4 id="iptables-示例"><a href="#iptables-示例" class="headerlink" title="iptables 示例"></a>iptables 示例</h4><h5 id="ClusterIP-的-iptables-规则分析"><a href="#ClusterIP-的-iptables-规则分析" class="headerlink" title="ClusterIP 的 iptables 规则分析"></a>ClusterIP 的 iptables 规则分析</h5><pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ kubectl get svc nginx-basic -owide
 NAME          TYPE        CLUSTER-IP      EXTERNAL-IP   PORT<span class="token punctuation">(</span>S<span class="token punctuation">)</span>   AGE   SELECTOR
 nginx-basic   ClusterIP   <span class="token number">10.96</span>.240.161   <span class="token operator">&lt;</span>none<span class="token operator">&gt;</span>        <span class="token number">80</span>/TCP    74m   <span class="token assign-left variable">app</span><span class="token operator">=</span>nginx
 
@@ -5245,6 +5245,46 @@ nginx-deployment-77b4fdf86c-wplrw   <span class="token number">1</span>/1     Ru
 <blockquote>
 <p><a target="_blank" rel="noopener" href="https://www.man7.org/linux/man-pages/man8/iptables-extensions.8.html">iptables-extensions(8) — Linux manual page</a></p>
 </blockquote>
+<h5 id="NodePort-的-iptables-分析"><a href="#NodePort-的-iptables-分析" class="headerlink" title="NodePort 的 iptables 分析"></a>NodePort 的 iptables 分析</h5><pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ kubectl get svc nginx-service
+NAME            TYPE       CLUSTER-IP    EXTERNAL-IP   PORT<span class="token punctuation">(</span>S<span class="token punctuation">)</span>        AGE
+nginx-service   NodePort   <span class="token number">10.97</span>.2.223   <span class="token operator">&lt;</span>none<span class="token operator">&gt;</span>        <span class="token number">80</span>:30506/TCP   171m
+
+$ kubectl get ep nginx-service
+NAME            ENDPOINTS                                     AGE
+nginx-service   <span class="token number">10.244</span>.0.10:80,10.244.0.11:80,10.244.0.9:80   171m
+
+$ nft list chain <span class="token function">ip</span> nat KUBE-NODEPORTS
+table <span class="token function">ip</span> nat <span class="token punctuation">{</span>
+    chain KUBE-NODEPORTS <span class="token punctuation">{</span>
+        meta l4proto tcp  tcp dport <span class="token number">30506</span> counter packets <span class="token number">0</span> bytes <span class="token number">0</span> jump KUBE-EXT-6IM33IEVEEV7U3GP
+        meta l4proto tcp  tcp dport <span class="token number">31235</span> counter packets <span class="token number">0</span> bytes <span class="token number">0</span> jump KUBE-EXT-CG5I4G2RS3ZVWGLK
+        meta l4proto tcp  tcp dport <span class="token number">31687</span> counter packets <span class="token number">0</span> bytes <span class="token number">0</span> jump KUBE-EXT-EDNDUDH2C75GIR6O
+    <span class="token punctuation">}</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<pre class="line-numbers language-txt" data-language="txt"><code class="language-txt">-A PREROUTING -m comment --comment "kubernetes service portals" -j KUBE-SERVICES
+
+-A KUBE-SERVICES -m comment --comment "kubernetes service nodeports; NOTE: this must be the last rule in this chain" -m addrtype --dst-type LOCAL -j KUBE-NODEPORTS
+
+-A KUBE-NODEPORTS -p tcp -m comment --comment "default/nginx-service:http" -j KUBE-EXT-6IM33IEVEEV7U3GP
+
+-A KUBE-EXT-6IM33IEVEEV7U3GP -m comment --comment "masquerade traffic for default/nginx-service:http external destinations" -j KUBE-MARK-MASQ
+-A KUBE-EXT-6IM33IEVEEV7U3GP -j KUBE-SVC-6IM33IEVEEV7U3GP
+
+-A KUBE-MARK-MASQ -j MARK --set-xmark 0x4000/0x4000
+
+-A KUBE-SVC-6IM33IEVEEV7U3GP ! -s 10.244.0.0/16 -d 10.97.2.223/32 -p tcp -m comment --comment "default/nginx-service:http cluster IP" -j KUBE-MARK-MASQ
+-A KUBE-SVC-6IM33IEVEEV7U3GP -m comment --comment "default/nginx-service:http -&gt; 10.244.0.10:80" -m statistic --mode random --probability 0.33333333349 -j KUBE-SEP-UNA35ZJ3UYOAR4VQ
+-A KUBE-SVC-6IM33IEVEEV7U3GP -m comment --comment "default/nginx-service:http -&gt; 10.244.0.11:80" -m statistic --mode random --probability 0.50000000000 -j KUBE-SEP-BSP7ITGKKKE54DZJ
+-A KUBE-SVC-6IM33IEVEEV7U3GP -m comment --comment "default/nginx-service:http -&gt; 10.244.0.9:80" -j KUBE-SEP-5AGZ67ZS4PKMABRU
+
+-A KUBE-SEP-UNA35ZJ3UYOAR4VQ -s 10.244.0.10/32 -m comment --comment "default/nginx-service:http" -j KUBE-MARK-MASQ
+-A KUBE-SEP-UNA35ZJ3UYOAR4VQ -p tcp -m comment --comment "default/nginx-service:http" -m tcp -j DNAT --to-destination 10.244.0.10:80
+
+-A KUBE-SEP-BSP7ITGKKKE54DZJ -s 10.244.0.11/32 -m comment --comment "default/nginx-service:http" -j KUBE-MARK-MASQ
+-A KUBE-SEP-BSP7ITGKKKE54DZJ -p tcp -m comment --comment "default/nginx-service:http" -m tcp -j DNAT --to-destination 10.244.0.11:80
+
+-A KUBE-SEP-5AGZ67ZS4PKMABRU -s 10.244.0.9/32 -m comment --comment "default/nginx-service:http" -j KUBE-MARK-MASQ
+-A KUBE-SEP-5AGZ67ZS4PKMABRU -p tcp -m comment --comment "default/nginx-service:http" -m tcp -j DNAT --to-destination 10.244.0.9:80<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
 <h4 id="IPVS"><a href="#IPVS" class="headerlink" title="IPVS"></a>IPVS</h4><p><a target="_blank" rel="noopener" href="https://github.com/kubernetes/kubernetes/blob/master/pkg/proxy/ipvs/README.md">https://github.com/kubernetes/kubernetes/blob/master/pkg/proxy/ipvs/README.md</a></p>
 <p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/IPVS.png" alt="IPVS"></p>
 <h4 id="IPVS-支持的锚点和核心函数"><a href="#IPVS-支持的锚点和核心函数" class="headerlink" title="IPVS 支持的锚点和核心函数"></a>IPVS 支持的锚点和核心函数</h4><p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/IPVS支持的锚点和核心函数.png" alt="IPVS支持的锚点和核心函数"></p>
@@ -5252,7 +5292,7 @@ nginx-deployment-77b4fdf86c-wplrw   <span class="token number">1</span>/1     Ru
 <p>ipvs 的做法是在本机虚拟出一个新的网卡（一般叫 <code>kube-ipvs0</code>），然后把所有的 cluster ip 都绑定到这个网卡上，但是不接受 arp 的请求，所以依然不能 ping 通（ping 时会返回错误 <code>Destination Port Unreachable</code>）。随后当访问 cluster ip 时，kernel 就可以在 LOCAL_IN 做转发规则了。</p>
 <p>因为 ipvs 在 POSTROUTING 是没有 hook 的，当需要做数据包转发 IP 伪装（IP 伪装指的是网络包从 pod 发出时，需要伪装成从 node 发出的，不然就可能收不到发回的数据包）时，即在数据包离开当前 Node 时需要进行处理，而由于 ipvs 在 POSTROUTING 是没有 hook 的，所以即使开启了 ipvs ，也需要通过配置一条 iptables 规则来完成 IP 伪装。</p>
 <p>那么具体是如何用一条规则来完成 IP 伪装呢？通过使用 <code>ipset</code> 来完成。它会把那些一系列相同类型的 ip 归为一类来一起操作。</p>
-<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ kubectl get svc nginx-service
+<h5 id="ipvs-的分析"><a href="#ipvs-的分析" class="headerlink" title="ipvs 的分析"></a>ipvs 的分析</h5><pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ kubectl get svc nginx-service
 NAME            TYPE        CLUSTER-IP     EXTERNAL-IP   PORT<span class="token punctuation">(</span>S<span class="token punctuation">)</span>   AGE
 nginx-service   ClusterIP   <span class="token number">10.96</span>.57.249   <span class="token operator">&lt;</span>none<span class="token operator">&gt;</span>        <span class="token number">80</span>/TCP    20m
 
@@ -5323,6 +5363,9 @@ Members:
 
 -A KUBE-IPVS-FILTER -m set --match-set KUBE-CLUSTER-IP dst,dst -j RETURN
 -A KUBE-IPVS-FILTER -m conntrack --ctstate NEW -m set --match-set KUBE-IPVS-IPS dst -j REJECT --reject-with icmp-port-unreachable<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<blockquote>
+<p>这也是为什么在 ipvs 模式下，ping cluster ip 会返回错误 <code>icmp-port-unreachable</code>。</p>
+</blockquote>
 <pre class="line-numbers language-txt" data-language="txt"><code class="language-txt">*nat
 -A PREROUTING -m comment --comment "kubernetes service portals" -j KUBE-SERVICES
 -A OUTPUT -m comment --comment "kubernetes service portals" -j KUBE-SERVICES
@@ -5410,14 +5453,104 @@ TCP  <span class="token number">10.96</span>.57.249:80 rr
 <blockquote>
 <p>从 ClusterIP 到 nodePort 到 LoadBalancer，后一个类型都包含前一个类型的内容。比如 NodePort 也会有一个 ClusterIP。</p>
 </blockquote>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ <span class="token function">dig</span> @10.96.0.10 nginx-headless-service.default.svc.cluster.local
+<span class="token punctuation">;</span> <span class="token operator">&lt;&lt;</span><span class="token operator">&gt;&gt;</span> DiG <span class="token number">9.18</span>.24-1-Debian <span class="token operator">&lt;&lt;</span><span class="token operator">&gt;&gt;</span> @10.96.0.10 nginx-headless-service.default.svc.cluster.local
+<span class="token punctuation">;</span> <span class="token punctuation">(</span><span class="token number">1</span> server found<span class="token punctuation">)</span>
+<span class="token punctuation">;</span><span class="token punctuation">;</span> global options: +cmd
+<span class="token punctuation">;</span><span class="token punctuation">;</span> Got answer:
+<span class="token punctuation">;</span><span class="token punctuation">;</span> WARNING: .local is reserved <span class="token keyword">for</span> Multicast DNS
+<span class="token punctuation">;</span><span class="token punctuation">;</span> You are currently testing what happens when an mDNS query is leaked to DNS
+<span class="token punctuation">;</span><span class="token punctuation">;</span> -<span class="token operator">&gt;&gt;</span>HEADER<span class="token operator">&lt;&lt;-</span> opcode: QUERY, status: NOERROR, id: <span class="token number">20453</span>
+<span class="token punctuation">;</span><span class="token punctuation">;</span> flags: qr aa rd<span class="token punctuation">;</span> QUERY: <span class="token number">1</span>, ANSWER: <span class="token number">3</span>, AUTHORITY: <span class="token number">0</span>, ADDITIONAL: <span class="token number">1</span>
+<span class="token punctuation">;</span><span class="token punctuation">;</span> WARNING: recursion requested but not available
+
+<span class="token punctuation">;</span><span class="token punctuation">;</span> OPT PSEUDOSECTION:
+<span class="token punctuation">;</span> EDNS: version: <span class="token number">0</span>, flags:<span class="token punctuation">;</span> udp: <span class="token number">1232</span>
+<span class="token punctuation">;</span> COOKIE: 6958770a033fcd30 <span class="token punctuation">(</span>echoed<span class="token punctuation">)</span>
+<span class="token punctuation">;</span><span class="token punctuation">;</span> QUESTION SECTION:
+<span class="token punctuation">;</span>nginx-headless-service.default.svc.cluster.local. IN A
+
+<span class="token punctuation">;</span><span class="token punctuation">;</span> ANSWER SECTION:
+nginx-headless-service.default.svc.cluster.local. <span class="token number">30</span> IN A <span class="token number">10.244</span>.0.13
+nginx-headless-service.default.svc.cluster.local. <span class="token number">30</span> IN A <span class="token number">10.244</span>.0.12
+nginx-headless-service.default.svc.cluster.local. <span class="token number">30</span> IN A <span class="token number">10.244</span>.0.14
+
+<span class="token punctuation">;</span><span class="token punctuation">;</span> Query time: <span class="token number">10</span> msec
+<span class="token punctuation">;</span><span class="token punctuation">;</span> SERVER: <span class="token number">10.96</span>.0.10<span class="token comment">#53(10.96.0.10) (UDP)</span>
+<span class="token punctuation">;</span><span class="token punctuation">;</span> WHEN: Thu May <span class="token number">16</span> <span class="token number">10</span>:29:47 UTC <span class="token number">2024</span>
+<span class="token punctuation">;</span><span class="token punctuation">;</span> MSG SIZE  rcvd: <span class="token number">281</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
 <h4 id="Kubernetes-中的域名解析"><a href="#Kubernetes-中的域名解析" class="headerlink" title="Kubernetes 中的域名解析"></a>Kubernetes 中的域名解析</h4><p>Kubernetes Pod 有一个与 DNS 策略相关的属性 DNSPolicy，默认值是 ClusterFirst。</p>
+<blockquote>
+<p><a target="_blank" rel="noopener" href="https://kubernetes.io/docs/concepts/services-networking/dns-pod-service/#pod-s-dns-policy">Pod’s DNS Policy</a></p>
+</blockquote>
 <p>Pod启动后的 <code>/etc/resolv.conf</code> 会被改写，所有的地址解析优先发送至 CoreDNS</p>
 <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ <span class="token function">cat</span> /etc/resolv.conf
 search ns1.svc.cluster.local svc.cluster.local cluster.local
 nameserver <span class="token number">192.168</span>.0.10
 options ndots:4<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span></span></code></pre>
-<p>当 Pod 启动时，同一 Namespace 的所有 Service 都会以环境变量的形式设置到容器内</p>
+<blockquote>
+<p>ndots 的意思是如果待查询的域名中点 “.” 的数量小于 ndots 的数量，那么解析这个域名时就是尝试将 search 后配置的域名按顺序添加到带解析的域名后，直到成功。</p>
+<p>比如：解析域名 nginx-service 时，因为域名中的点 “.” 的个数为 0，小于配置的 ndots 数，就会依次尝试解析域名 <code>nginx-service.ns1.svc.cluster.local</code>，<code>nginx-service.svc.cluster.local</code> 和 <code>nginx-service.cluster.local</code>。</p>
+</blockquote>
+<p>当 Pod 启动时，同一 Namespace 的所有 Service 都会以环境变量的形式设置到容器内（更准确的来说是能只用 service name 解析出同一 namespace 中的所有 service 的 IP）</p>
 <p>影响?</p>
+<h4 id="自定义-DNSPolicy"><a href="#自定义-DNSPolicy" class="headerlink" title="自定义 DNSPolicy"></a>自定义 DNSPolicy</h4><p><a target="_blank" rel="noopener" href="https://kubernetes.io/docs/concepts/services-networking/dns-pod-service/#pod-dns-config">Pod’s DNS Config</a></p>
+<pre class="line-numbers language-yaml" data-language="yaml"><code class="language-yaml"><span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> v1
+<span class="token key atrule">kind</span><span class="token punctuation">:</span> Pod
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+  <span class="token key atrule">namespace</span><span class="token punctuation">:</span> default
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> dns<span class="token punctuation">-</span>example
+<span class="token key atrule">spec</span><span class="token punctuation">:</span>
+  <span class="token key atrule">containers</span><span class="token punctuation">:</span>
+    <span class="token punctuation">-</span> <span class="token key atrule">name</span><span class="token punctuation">:</span> test
+      <span class="token key atrule">image</span><span class="token punctuation">:</span> nginx
+  <span class="token key atrule">dnsPolicy</span><span class="token punctuation">:</span> <span class="token string">"None"</span>
+  <span class="token key atrule">dnsConfig</span><span class="token punctuation">:</span>
+    <span class="token key atrule">nameservers</span><span class="token punctuation">:</span>
+      <span class="token punctuation">-</span> 192.0.2.1 <span class="token comment"># this is an example</span>
+    <span class="token key atrule">searches</span><span class="token punctuation">:</span>
+      <span class="token punctuation">-</span> ns1.svc.cluster<span class="token punctuation">-</span>domain.example
+      <span class="token punctuation">-</span> my.dns.search.suffix
+    <span class="token key atrule">options</span><span class="token punctuation">:</span>
+      <span class="token punctuation">-</span> <span class="token key atrule">name</span><span class="token punctuation">:</span> ndots
+        <span class="token key atrule">value</span><span class="token punctuation">:</span> <span class="token string">"2"</span>
+      <span class="token punctuation">-</span> <span class="token key atrule">name</span><span class="token punctuation">:</span> edns0<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<h4 id="CoreDNS-的配置"><a href="#CoreDNS-的配置" class="headerlink" title="CoreDNS 的配置"></a>CoreDNS 的配置</h4><pre class="line-numbers language-yaml" data-language="yaml"><code class="language-yaml">$ kubectl <span class="token punctuation">-</span>n kube<span class="token punctuation">-</span>system get configmap coredns <span class="token punctuation">-</span>oyaml
+<span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> v1
+<span class="token key atrule">data</span><span class="token punctuation">:</span>
+  <span class="token key atrule">Corefile</span><span class="token punctuation">:</span> <span class="token punctuation">|</span><span class="token scalar string">
+    .:53 {
+        log
+        errors
+        health {
+           lameduck 5s
+        }
+        ready
+        kubernetes cluster.local in-addr.arpa ip6.arpa {
+           pods insecure
+           fallthrough in-addr.arpa ip6.arpa
+           ttl 30
+        }
+        prometheus :9153
+        hosts {
+           192.168.49.1 host.minikube.internal
+           fallthrough
+        }
+        forward . /etc/resolv.conf {
+           max_concurrent 1000
+        }
+        cache 30
+        loop
+        reload
+        loadbalance
+    }</span>
+<span class="token key atrule">kind</span><span class="token punctuation">:</span> ConfigMap
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+  <span class="token key atrule">creationTimestamp</span><span class="token punctuation">:</span> <span class="token string">"2024-05-16T09:16:06Z"</span>
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> coredns
+  <span class="token key atrule">namespace</span><span class="token punctuation">:</span> kube<span class="token punctuation">-</span>system
+  <span class="token key atrule">resourceVersion</span><span class="token punctuation">:</span> <span class="token string">"253"</span>
+  <span class="token key atrule">uid</span><span class="token punctuation">:</span> aabafb2b<span class="token punctuation">-</span>f121<span class="token punctuation">-</span>4a2f<span class="token punctuation">-</span>896b<span class="token punctuation">-</span>89be5142d4d5<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
 <h4 id="关于-DNS-的落地实践"><a href="#关于-DNS-的落地实践" class="headerlink" title="关于 DNS 的落地实践"></a>关于 DNS 的落地实践</h4><p>Kubernetes 作为企业基础架构的一部分，Kubernetes 服务也需要发布到企业 DNS，需要定制企业 DNS 控制器</p>
 <ul>
 <li>对于 Kubernetes 中的服务，在企业 DNS 同样创建 A/PTR/SRV records (通常解析地址是 LoadBalancer VIP)</li>
