@@ -406,14 +406,14 @@
                 
                 <div class="info-break-policy">
                     <i class="far fa-file-word fa-fw"></i>文章字数:&nbsp;&nbsp;
-                    57.3k
+                    57.2k
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-clock fa-fw"></i>阅读时长:&nbsp;&nbsp;
-                    241 分
+                    240 分
                 </div>
                 
 
@@ -5609,23 +5609,13 @@ options ndots:4<span aria-hidden="true" class="line-numbers-rows"><span></span><
 <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token comment"># 生成 key 和 cert</span>
 $ openssl req -x509 -nodes -days <span class="token number">365</span> -newkey rsa:2048 -keyout tls.key -out tls.crt <span class="token punctuation">\</span>
   -subj <span class="token string">'/CN=*/O=kiba'</span> <span class="token punctuation">\</span>
-  -addext <span class="token string">'keyUsage = digitalSignature,keyEncipherment'</span> <span class="token punctuation">\</span>
-  -addext <span class="token string">'extendedKeyUsage = serverAuth,clientAuth'</span> <span class="token punctuation">\</span>
   -addext <span class="token string">'subjectAltName = DNS:kiba.zen'</span>
 <span class="token comment"># OR</span>
 $ mkcert -key-file tls.key -cert-file tls.crt -- kiba.zen
 
 <span class="token comment"># 创建 secret</span>
 $ kubectl create secret tls kiba-tls --cert<span class="token operator">=</span>./tls.crt --key<span class="token operator">=</span>./tls.key
-
-<span class="token comment"># 让 minikube 的 ingress 使用刚刚创建的 cert</span>
-<span class="token comment"># https://minikube.sigs.k8s.io/docs/tutorials/custom_cert_ingress/</span>
-$ minikube addons configure ingress
--- Enter custom cert<span class="token punctuation">(</span>format is <span class="token string">"namespace/secret"</span><span class="token punctuation">)</span>: default/kiba-tls
-✅  ingress was successfully configured
-
-$ kubectl -n ingress-nginx get deployment ingress-nginx-controller -o yaml <span class="token operator">|</span> <span class="token function">grep</span> <span class="token string">"default-ssl-certificate"</span>
-- --default-ssl-certificate<span class="token operator">=</span>default/kiba-tls<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+secret/kiba-tls created<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
 <pre class="line-numbers language-yaml" data-language="yaml"><code class="language-yaml"><span class="token comment"># filename: nginx.yaml</span>
 <span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> apps/v1
 <span class="token key atrule">kind</span><span class="token punctuation">:</span> Deployment
@@ -5686,6 +5676,7 @@ ingress.networking.k8s.io/nginx-ingress created
 $ minikube <span class="token function">ip</span>
 <span class="token number">192.168</span>.49.2
 
+<span class="token comment"># 确保没有代理，HTTP_PROXY,HTTPS_PROXY...</span>
 $ <span class="token function">curl</span> --resolve <span class="token string">"kiba.zen:443:192.168.49.2"</span> --cacert ./tls.crt https://kiba.zen
 <span class="token operator">&lt;</span><span class="token operator">!</span>DOCTYPE html<span class="token operator">&gt;</span>
 <span class="token operator">&lt;</span>html<span class="token operator">&gt;</span>
@@ -5709,7 +5700,7 @@ Commercial support is available at
 
 <span class="token operator">&lt;</span>p<span class="token operator">&gt;</span><span class="token operator">&lt;</span>em<span class="token operator">&gt;</span>Thank you <span class="token keyword">for</span> using nginx.<span class="token operator">&lt;</span>/em<span class="token operator">&gt;</span><span class="token operator">&lt;</span>/p<span class="token operator">&gt;</span>
 <span class="token operator">&lt;</span>/body<span class="token operator">&gt;</span>
-<span class="token operator">&lt;</span>/html<span class="token operator">&gt;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<span class="token operator">&lt;</span>/html<span class="token operator">&gt;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
 <h4 id="传统应用网络拓扑"><a href="#传统应用网络拓扑" class="headerlink" title="传统应用网络拓扑"></a>传统应用网络拓扑</h4><p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/传统应用网络拓扑.png" alt="传统应用网络拓扑"></p>
 <h4 id="三步构建-Ingress-Controller"><a href="#三步构建-Ingress-Controller" class="headerlink" title="三步构建 Ingress Controller"></a>三步构建 Ingress Controller</h4><p>复用 Kubernetes LoadBalancer 接口</p>
 <pre class="line-numbers language-go" data-language="go"><code class="language-go"><span class="token function">GetLoadBalancer</span><span class="token punctuation">(</span>clusterName <span class="token builtin">string</span><span class="token punctuation">,</span> service <span class="token operator">*</span>api<span class="token punctuation">.</span>Service<span class="token punctuation">)</span> <span class="token punctuation">(</span><span class="token operator">*</span>api<span class="token punctuation">.</span>LoadBalancerStatus<span class="token punctuation">,</span> <span class="token builtin">bool</span><span class="token punctuation">,</span> <span class="token builtin">error</span><span class="token punctuation">)</span>
