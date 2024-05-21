@@ -406,14 +406,14 @@
                 
                 <div class="info-break-policy">
                     <i class="far fa-file-word fa-fw"></i>文章字数:&nbsp;&nbsp;
-                    56.9k
+                    57.3k
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-clock fa-fw"></i>阅读时长:&nbsp;&nbsp;
-                    238 分
+                    241 分
                 </div>
                 
 
@@ -5603,6 +5603,113 @@ options ndots:4<span aria-hidden="true" class="line-numbers-rows"><span></span><
 <li>DNS 配置</li>
 </ul>
 <p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/ingress.png" alt="ingress"></p>
+<p><a target="_blank" rel="noopener" href="https://github.com/kibaamor/101/blob/master/module8/ingress/ingress.MD">https://github.com/kibaamor/101/blob/master/module8/ingress/ingress.MD</a></p>
+<p><a target="_blank" rel="noopener" href="https://cert-manager.io/docs/configuration/ca/">https://cert-manager.io/docs/configuration/ca/</a></p>
+<p><a target="_blank" rel="noopener" href="https://cert-manager.io/docs/configuration/selfsigned/">https://cert-manager.io/docs/configuration/selfsigned/</a></p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token comment"># 生成 key 和 cert</span>
+$ openssl req -x509 -nodes -days <span class="token number">365</span> -newkey rsa:2048 -keyout tls.key -out tls.crt <span class="token punctuation">\</span>
+  -subj <span class="token string">'/CN=*/O=kiba'</span> <span class="token punctuation">\</span>
+  -addext <span class="token string">'keyUsage = digitalSignature,keyEncipherment'</span> <span class="token punctuation">\</span>
+  -addext <span class="token string">'extendedKeyUsage = serverAuth,clientAuth'</span> <span class="token punctuation">\</span>
+  -addext <span class="token string">'subjectAltName = DNS:kiba.zen'</span>
+<span class="token comment"># OR</span>
+$ mkcert -key-file tls.key -cert-file tls.crt -- kiba.zen
+
+<span class="token comment"># 创建 secret</span>
+$ kubectl create secret tls kiba-tls --cert<span class="token operator">=</span>./tls.crt --key<span class="token operator">=</span>./tls.key
+
+<span class="token comment"># 让 minikube 的 ingress 使用刚刚创建的 cert</span>
+<span class="token comment"># https://minikube.sigs.k8s.io/docs/tutorials/custom_cert_ingress/</span>
+$ minikube addons configure ingress
+-- Enter custom cert<span class="token punctuation">(</span>format is <span class="token string">"namespace/secret"</span><span class="token punctuation">)</span>: default/kiba-tls
+✅  ingress was successfully configured
+
+$ kubectl -n ingress-nginx get deployment ingress-nginx-controller -o yaml <span class="token operator">|</span> <span class="token function">grep</span> <span class="token string">"default-ssl-certificate"</span>
+- --default-ssl-certificate<span class="token operator">=</span>default/kiba-tls<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<pre class="line-numbers language-yaml" data-language="yaml"><code class="language-yaml"><span class="token comment"># filename: nginx.yaml</span>
+<span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> apps/v1
+<span class="token key atrule">kind</span><span class="token punctuation">:</span> Deployment
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> nginx<span class="token punctuation">-</span>deploy
+<span class="token key atrule">spec</span><span class="token punctuation">:</span>
+  <span class="token key atrule">selector</span><span class="token punctuation">:</span>
+    <span class="token key atrule">matchLabels</span><span class="token punctuation">:</span>
+      <span class="token key atrule">app</span><span class="token punctuation">:</span> nginx<span class="token punctuation">-</span>pod
+  <span class="token key atrule">replicas</span><span class="token punctuation">:</span> <span class="token number">3</span>
+  <span class="token key atrule">template</span><span class="token punctuation">:</span>
+    <span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+      <span class="token key atrule">labels</span><span class="token punctuation">:</span>
+        <span class="token key atrule">app</span><span class="token punctuation">:</span> nginx<span class="token punctuation">-</span>pod
+    <span class="token key atrule">spec</span><span class="token punctuation">:</span>
+      <span class="token key atrule">containers</span><span class="token punctuation">:</span>
+      <span class="token punctuation">-</span> <span class="token key atrule">name</span><span class="token punctuation">:</span> nginx
+        <span class="token key atrule">image</span><span class="token punctuation">:</span> nginx
+<span class="token punctuation">---</span>
+<span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> v1
+<span class="token key atrule">kind</span><span class="token punctuation">:</span> Service
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> nginx<span class="token punctuation">-</span>svc
+<span class="token key atrule">spec</span><span class="token punctuation">:</span>
+  <span class="token key atrule">selector</span><span class="token punctuation">:</span>
+    <span class="token key atrule">app</span><span class="token punctuation">:</span> nginx<span class="token punctuation">-</span>pod
+  <span class="token key atrule">ports</span><span class="token punctuation">:</span>
+    <span class="token punctuation">-</span> <span class="token key atrule">port</span><span class="token punctuation">:</span> <span class="token number">80</span>
+      <span class="token key atrule">targetPort</span><span class="token punctuation">:</span> <span class="token number">80</span>
+<span class="token punctuation">---</span>
+<span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> networking.k8s.io/v1
+<span class="token key atrule">kind</span><span class="token punctuation">:</span> Ingress
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> nginx<span class="token punctuation">-</span>ingress
+<span class="token key atrule">spec</span><span class="token punctuation">:</span>
+  <span class="token key atrule">ingressClassName</span><span class="token punctuation">:</span> nginx
+  <span class="token key atrule">tls</span><span class="token punctuation">:</span>
+  <span class="token punctuation">-</span> <span class="token key atrule">hosts</span><span class="token punctuation">:</span>
+    <span class="token punctuation">-</span> kiba.zen
+    <span class="token key atrule">secretName</span><span class="token punctuation">:</span> kiba<span class="token punctuation">-</span>tls
+  <span class="token key atrule">rules</span><span class="token punctuation">:</span>
+    <span class="token punctuation">-</span> <span class="token key atrule">host</span><span class="token punctuation">:</span> kiba.zen
+      <span class="token key atrule">http</span><span class="token punctuation">:</span>
+        <span class="token key atrule">paths</span><span class="token punctuation">:</span>
+        <span class="token punctuation">-</span> <span class="token key atrule">path</span><span class="token punctuation">:</span> /
+          <span class="token key atrule">pathType</span><span class="token punctuation">:</span> Prefix
+          <span class="token key atrule">backend</span><span class="token punctuation">:</span>
+            <span class="token key atrule">service</span><span class="token punctuation">:</span>
+              <span class="token key atrule">name</span><span class="token punctuation">:</span> nginx<span class="token punctuation">-</span>svc
+              <span class="token key atrule">port</span><span class="token punctuation">:</span>
+                <span class="token key atrule">number</span><span class="token punctuation">:</span> <span class="token number">80</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token comment"># 创建 nginx</span>
+$ kubectl apply -f nginx.yaml
+deployment.apps/nginx-deploy created
+service/nginx-svc created
+ingress.networking.k8s.io/nginx-ingress created
+
+$ minikube <span class="token function">ip</span>
+<span class="token number">192.168</span>.49.2
+
+$ <span class="token function">curl</span> --resolve <span class="token string">"kiba.zen:443:192.168.49.2"</span> --cacert ./tls.crt https://kiba.zen
+<span class="token operator">&lt;</span><span class="token operator">!</span>DOCTYPE html<span class="token operator">&gt;</span>
+<span class="token operator">&lt;</span>html<span class="token operator">&gt;</span>
+<span class="token operator">&lt;</span>head<span class="token operator">&gt;</span>
+<span class="token operator">&lt;</span>title<span class="token operator">&gt;</span>Welcome to nginx<span class="token operator">!</span><span class="token operator">&lt;</span>/title<span class="token operator">&gt;</span>
+<span class="token operator">&lt;</span>style<span class="token operator">&gt;</span>
+html <span class="token punctuation">{</span> color-scheme: light dark<span class="token punctuation">;</span> <span class="token punctuation">}</span>
+body <span class="token punctuation">{</span> width: 35em<span class="token punctuation">;</span> margin: <span class="token number">0</span> auto<span class="token punctuation">;</span>
+font-family: Tahoma, Verdana, Arial, sans-serif<span class="token punctuation">;</span> <span class="token punctuation">}</span>
+<span class="token operator">&lt;</span>/style<span class="token operator">&gt;</span>
+<span class="token operator">&lt;</span>/head<span class="token operator">&gt;</span>
+<span class="token operator">&lt;</span>body<span class="token operator">&gt;</span>
+<span class="token operator">&lt;</span>h<span class="token operator"><span class="token file-descriptor important">1</span>&gt;</span>Welcome to nginx<span class="token operator">!</span><span class="token operator">&lt;</span>/h<span class="token operator"><span class="token file-descriptor important">1</span>&gt;</span>
+<span class="token operator">&lt;</span>p<span class="token operator">&gt;</span>If you see this page, the nginx web server is successfully installed and
+working. Further configuration is required.<span class="token operator">&lt;</span>/p<span class="token operator">&gt;</span>
+
+<span class="token operator">&lt;</span>p<span class="token operator">&gt;</span>For online documentation and support please refer to
+<span class="token operator">&lt;</span>a <span class="token assign-left variable">href</span><span class="token operator">=</span><span class="token string">"http://nginx.org/"</span><span class="token operator">&gt;</span>nginx.org<span class="token operator">&lt;</span>/a<span class="token operator">&gt;</span>.<span class="token operator">&lt;</span>br/<span class="token operator">&gt;</span>
+Commercial support is available at
+<span class="token operator">&lt;</span>a <span class="token assign-left variable">href</span><span class="token operator">=</span><span class="token string">"http://nginx.com/"</span><span class="token operator">&gt;</span>nginx.com<span class="token operator">&lt;</span>/a<span class="token operator">&gt;</span>.<span class="token operator">&lt;</span>/p<span class="token operator">&gt;</span>
+
+<span class="token operator">&lt;</span>p<span class="token operator">&gt;</span><span class="token operator">&lt;</span>em<span class="token operator">&gt;</span>Thank you <span class="token keyword">for</span> using nginx.<span class="token operator">&lt;</span>/em<span class="token operator">&gt;</span><span class="token operator">&lt;</span>/p<span class="token operator">&gt;</span>
+<span class="token operator">&lt;</span>/body<span class="token operator">&gt;</span>
+<span class="token operator">&lt;</span>/html<span class="token operator">&gt;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
 <h4 id="传统应用网络拓扑"><a href="#传统应用网络拓扑" class="headerlink" title="传统应用网络拓扑"></a>传统应用网络拓扑</h4><p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/传统应用网络拓扑.png" alt="传统应用网络拓扑"></p>
 <h4 id="三步构建-Ingress-Controller"><a href="#三步构建-Ingress-Controller" class="headerlink" title="三步构建 Ingress Controller"></a>三步构建 Ingress Controller</h4><p>复用 Kubernetes LoadBalancer 接口</p>
 <pre class="line-numbers language-go" data-language="go"><code class="language-go"><span class="token function">GetLoadBalancer</span><span class="token punctuation">(</span>clusterName <span class="token builtin">string</span><span class="token punctuation">,</span> service <span class="token operator">*</span>api<span class="token punctuation">.</span>Service<span class="token punctuation">)</span> <span class="token punctuation">(</span><span class="token operator">*</span>api<span class="token punctuation">.</span>LoadBalancerStatus<span class="token punctuation">,</span> <span class="token builtin">bool</span><span class="token punctuation">,</span> <span class="token builtin">error</span><span class="token punctuation">)</span>
