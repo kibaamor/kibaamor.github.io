@@ -399,21 +399,21 @@
                 
                 <div class="post-date info-break-policy">
                     <i class="far fa-calendar-check fa-fw"></i>更新日期:&nbsp;&nbsp;
-                    2024-05-21
+                    2024-05-22
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-file-word fa-fw"></i>文章字数:&nbsp;&nbsp;
-                    57.3k
+                    60.2k
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-clock fa-fw"></i>阅读时长:&nbsp;&nbsp;
-                    241 分
+                    252 分
                 </div>
                 
 
@@ -5815,6 +5815,301 @@ Commercial support is available at
 <li>如何确保整个应用的高可用</li>
 <li>如何通过证书保证 httpServer 的通讯安全</li>
 </ul>
+<h2 id="生产化集群的管理"><a href="#生产化集群的管理" class="headerlink" title="生产化集群的管理"></a>生产化集群的管理</h2><h3 id="计算节点相关"><a href="#计算节点相关" class="headerlink" title="计算节点相关"></a>计算节点相关</h3><h4 id="生产化集群的考量"><a href="#生产化集群的考量" class="headerlink" title="生产化集群的考量"></a>生产化集群的考量</h4><p>计算节点:</p>
+<ul>
+<li>如何批量安装和升级计算节点的操作系统?</li>
+<li>如何管理配置计算节点的网络信息?</li>
+<li>如何管理不同 SKU(Stock Keeping Unit) 的计算节点?</li>
+<li>如何快速下架故障的计算节点?</li>
+<li>如何快速扩缩集群的规模?</li>
+</ul>
+<p>控制平面:</p>
+<ul>
+<li>如何在主节点上下载、安装和升级控制平面组件及其所需的配置文件?</li>
+<li>如何确保集群所需的其他插件，例如 CoreDNS、监控系统等部署完成?</li>
+<li>如何准备控制平面组件的各种安全证书?</li>
+<li>如何快速升级或回滚控制平面组件的版本?</li>
+</ul>
+<h3 id="操作系统选择"><a href="#操作系统选择" class="headerlink" title="操作系统选择"></a>操作系统选择</h3><h4 id="操作系统的评估与选择"><a href="#操作系统的评估与选择" class="headerlink" title="操作系统的评估与选择"></a>操作系统的评估与选择</h4><p>通用操作系统</p>
+<ul>
+<li>Ubuntu</li>
+<li>CentOs</li>
+<li>Fedora</li>
+</ul>
+<p>专为容器优化的操作系统</p>
+<ul>
+<li>最小化操作系统<ul>
+<li>CoreOS</li>
+<li>RedHat Atomic</li>
+<li>Snappy Ubuntu core</li>
+<li>RancherOS</li>
+</ul>
+</li>
+</ul>
+<p>操作系统评估和选型的标准</p>
+<ul>
+<li>是否有生态系统</li>
+<li>成熟度</li>
+<li>内核版本</li>
+<li>对运行时的支持</li>
+<li>Init System</li>
+<li>包管理和系统升级</li>
+<li>安全</li>
+</ul>
+<h4 id="生态系统与成熟度"><a href="#生态系统与成熟度" class="headerlink" title="生态系统与成熟度"></a>生态系统与成熟度</h4><p>容器优化操作系统的优势</p>
+<p>原子级升级和回退更高的安全性</p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/生态系统与成熟度.png" alt="生态系统与成熟度"></p>
+<h4 id="云原生的原则"><a href="#云原生的原则" class="headerlink" title="云原生的原则"></a>云原生的原则</h4><p>可变基础设施的风险</p>
+<ul>
+<li>在灾难发生的时候，难以重新构建服务。持续过多的手工操作，缺乏记录，会导致很难由标准初始化后的服务器来重新构建起等效的服务。</li>
+<li>在服务运行过程中，持续的修改服务器，就犹如程序中的可变变量的值发生变化而引入的状态不一致的并发风险。这些对于服务器的修改，同样会引入中间状态，从而导致不可预知的问题。</li>
+</ul>
+<p>不可变基础设施 (immutable infrastructure)</p>
+<ul>
+<li>不可变的容器镜像</li>
+<li>不可变的主机操作系统</li>
+</ul>
+<h4 id="Atomic"><a href="#Atomic" class="headerlink" title="Atomic"></a>Atomic</h4><p>由 Red Hat 支持的软件包安装系统</p>
+<p>多种 Distro</p>
+<ul>
+<li>Fedora</li>
+<li>CentOS</li>
+<li>RHEL</li>
+</ul>
+<p>优势</p>
+<ul>
+<li>不可变操作系统，面向容器优化的基础设施<ul>
+<li>灵活和安全性较好</li>
+<li>只有 /etc 和 /var 可以修改，其他目录均为只读</li>
+</ul>
+</li>
+<li>基于 rpm-ostree 管理系统包<ul>
+<li>rpm-ostree 是一个开源项目，使得生产系统中构建镜像非常简单</li>
+<li>支持操作系统升级和回滚的原子操作</li>
+</ul>
+</li>
+</ul>
+<h4 id="最小化主机操作系统"><a href="#最小化主机操作系统" class="headerlink" title="最小化主机操作系统"></a>最小化主机操作系统</h4><p>原则:</p>
+<ul>
+<li>最小化主机操作系统。</li>
+<li>只安装必要的工具<ul>
+<li>必要:支持系统运行的最小工具集</li>
+<li>任何调试工具，比如性能排查，网络排查工具，均可以后期以容器形式运行。</li>
+</ul>
+</li>
+<li>意义<ul>
+<li>性能</li>
+<li>稳定性</li>
+<li>安全保障</li>
+</ul>
+</li>
+</ul>
+<h4 id="操作系统构建流程"><a href="#操作系统构建流程" class="headerlink" title="操作系统构建流程"></a>操作系统构建流程</h4><p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/操作系统构建流程.png" alt="操作系统构建流程"></p>
+<h4 id="ostree"><a href="#ostree" class="headerlink" title="ostree"></a>ostree</h4><p>提供一个共享库(libostree)和一些列命令行</p>
+<p>提供与 git 命令行一致的体验，可以提交或者下载一个完整的可启动的文件系统树</p>
+<p>提供将 ostree 部署进 bootloader 的机制</p>
+<p><a target="_blank" rel="noopener" href="https://github.com/ostreedev/ostree/blob/main/src/boot/dracut/module-setup.sh">https://github.com/ostreedev/ostree/blob/main/src/boot/dracut/module-setup.sh</a></p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token function-name function">install</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+    dracut_install /usr/lib/ostree/ostree-prepare-root
+    <span class="token keyword">for</span> <span class="token for-or-select variable">r</span> <span class="token keyword">in</span> /usr/lib /etc<span class="token punctuation">;</span> <span class="token keyword">do</span>
+        <span class="token keyword">if</span> <span class="token builtin class-name">test</span> -f <span class="token string">"<span class="token variable">$r</span>/ostree/prepare-root.conf"</span><span class="token punctuation">;</span> <span class="token keyword">then</span>
+            inst_simple <span class="token string">"<span class="token variable">$r</span>/ostree/prepare-root.conf"</span>
+        <span class="token keyword">fi</span>
+    <span class="token keyword">done</span>
+    <span class="token keyword">if</span> <span class="token builtin class-name">test</span> -f <span class="token string">"/etc/ostree/initramfs-root-binding.key"</span><span class="token punctuation">;</span> <span class="token keyword">then</span>
+        inst_simple <span class="token string">"/etc/ostree/initramfs-root-binding.key"</span>
+    <span class="token keyword">fi</span>
+    inst_simple <span class="token string">"<span class="token variable">${systemdsystemunitdir}</span>/ostree-prepare-root.service"</span>
+    <span class="token function">mkdir</span> -p <span class="token string">"<span class="token variable">${initdir}</span><span class="token variable">${systemdsystemconfdir}</span>/initrd-root-fs.target.wants"</span>
+    ln_r <span class="token string">"<span class="token variable">${systemdsystemunitdir}</span>/ostree-prepare-root.service"</span> <span class="token punctuation">\</span>
+        <span class="token string">"<span class="token variable">${systemdsystemconfdir}</span>/initrd-root-fs.target.wants/ostree-prepare-root.service"</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<h5 id="构建-ostree"><a href="#构建-ostree" class="headerlink" title="构建 ostree"></a>构建 ostree</h5><p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/构建ostree.png" alt="构建ostree"></p>
+<p>rpm-ostree</p>
+<ul>
+<li>基于 treefile 将 rpm 包构建成为 ostree</li>
+<li>管理 ostree 以及 bootloader 配置</li>
+</ul>
+<p>treefile</p>
+<ul>
+<li>refer: 分支名(版本，cpu 架构)</li>
+<li>repo: rpm package repositories</li>
+<li>packages: 待安装组件</li>
+</ul>
+<p>将 rpm 构建成 ostree</p>
+<ul>
+<li><code>rpm-ostree compose tree --unified-core --cachedir=cache --repo=./build-repo/path/to/treefile.json</code></li>
+</ul>
+<h5 id="加载-ostree"><a href="#加载-ostree" class="headerlink" title="加载 ostree"></a>加载 ostree</h5><p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/加载ostree.png" alt="加载ostree"></p>
+<p>初始化项目</p>
+<ul>
+<li><code>ostree admin os-init centos-atomic-host</code></li>
+</ul>
+<p>导入 ostree repo</p>
+<ul>
+<li><code>ostree remote add atomic http://ostree.svr/ostree</code></li>
+</ul>
+<p>拉取ostree</p>
+<ul>
+<li><code>ostree pull atomic centos-atomic-host/8/x86 64/standard</code></li>
+</ul>
+<p>部署 os</p>
+<ul>
+<li><code>ostree admin deploy --os=centos-atomic-hostcentos-atomic-host/8/x86_64/standard --karg='root=/dev/atomicos/root</code></li>
+</ul>
+<h5 id="操作系统加载"><a href="#操作系统加载" class="headerlink" title="操作系统加载"></a>操作系统加载</h5><p>物理机</p>
+<ul>
+<li>物理机通常需要通过 foreman 启动，foreman 通过 pxe boot，并加载 kickstart</li>
+<li>kickstart 通过 ostree deploy 即可完成操作系统的部署</li>
+</ul>
+<p>虚拟机</p>
+<ul>
+<li>需要通过镜像工具将 ostree 构建成 qcow2 格式，vhd，raw 等模式</li>
+</ul>
+<h4 id="生产环境遭遇过的陷阱"><a href="#生产环境遭遇过的陷阱" class="headerlink" title="生产环境遭遇过的陷阱"></a>生产环境遭遇过的陷阱</h4><p>cloud-init 0.7.7 bug</p>
+<ul>
+<li>阻止 node 在初始化过程中的静态网络配置</li>
+</ul>
+<p>Docker 1.9.1 bug</p>
+<ul>
+<li>当 docker 实例日志快速输出时，会发生内存泄漏</li>
+</ul>
+<p>Kernel panic in 4.4.6</p>
+<ul>
+<li>Cgroup 创建和销毁过程中，会产生kernel panic</li>
+</ul>
+<p>rootfs 分区太小</p>
+<ul>
+<li>rootfs 无空间会导致 docker 无法启动<ul>
+<li>导致 rootfs 占满的情况<ul>
+<li>CICD 中的 Maven build 会把下载的 lib 放在 /tmp</li>
+<li>用户 Docker logs 日志过快，导致一个 log rotation 周期内日志文件撑爆硬盘</li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+<p>需要定制化的操作系统参数</p>
+<ul>
+<li>比如 Elasticsearch 需要 max_map_count &gt;= 262144，但操作系统默认值为 65535，我们需要在创建 Node 的时候就 apply 这个配置</li>
+</ul>
+<h3 id="节点资源管理"><a href="#节点资源管理" class="headerlink" title="节点资源管理"></a>节点资源管理</h3><h4 id="NUMA-Node"><a href="#NUMA-Node" class="headerlink" title="NUMA Node"></a>NUMA Node</h4><p>Non-Uniform Memory Access是一种内存访问方式，是为多处理器计算机设计的内存架构。</p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/NUMANode.png" alt="NUMANode"></p>
+<h4 id="节点资源管理-1"><a href="#节点资源管理-1" class="headerlink" title="节点资源管理"></a>节点资源管理</h4><p>状态汇报</p>
+<p>资源预留</p>
+<p>防止节点资源耗尽的防御机制驱逐</p>
+<p>容器和系统资源的配置</p>
+<h4 id="状态上报"><a href="#状态上报" class="headerlink" title="状态上报"></a>状态上报</h4><p>kubelet 周期性地向 APIServer 进行汇报，并更新节点的相关健康和资源使用信息</p>
+<ul>
+<li>节点基础信息，包括 IP 地址、操作系统、内核、运行时、kubelet、kube-proxy版本信息。</li>
+<li><p>节点资源信息包括 CPU、内存、HugePage、临时存储、GPU 等注册设备，以及这些资源中可以分配给容器使用的部分。</p>
+</li>
+<li><p>调度器在为 Pod 选择节点时会将机器的状态信息作为依据。</p>
+</li>
+</ul>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/状态上报.png" alt="状态上报"></p>
+<h5 id="Lease"><a href="#Lease" class="headerlink" title="Lease"></a>Lease</h5><p>在早期版本 kubelet 的状态上报直接更新 node 对象，而上报的信息包含状态信息和资源信息，因此需要传输的数据包较大，给 APIServer 和 etcd 造成的压力较大。</p>
+<p>后引入 Lease 对象用来保存健康信息，在默认 40s 的 nodeLeaseDurationSeconds 周期内，若 Lease 对象没有被更新，则对应节点可以被判定为不健康。</p>
+<pre class="line-numbers language-yaml" data-language="yaml"><code class="language-yaml"><span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> coordination.k8s.io/v1
+<span class="token key atrule">kind</span><span class="token punctuation">:</span> Lease
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+  <span class="token key atrule">creationTimestamp</span><span class="token punctuation">:</span> <span class="token string">"2021-08-19T02:50:09Z"</span>
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> k8snode
+  <span class="token key atrule">namespace</span><span class="token punctuation">:</span> kube<span class="token punctuation">-</span>node<span class="token punctuation">-</span>lease
+  ownerReferences
+  <span class="token punctuation">-</span> apiVersion<span class="token punctuation">:</span>v1
+    <span class="token key atrule">kind</span><span class="token punctuation">:</span> Node
+    <span class="token key atrule">name</span><span class="token punctuation">:</span> k8snode
+    <span class="token key atrule">uid</span><span class="token punctuation">:</span> 58679942<span class="token punctuation">-</span>e2dd<span class="token punctuation">-</span>4ead<span class="token punctuation">-</span>aada<span class="token punctuation">-</span>385f099d5f56
+  <span class="token key atrule">resourceVersion</span><span class="token punctuation">:</span> <span class="token string">"1293702"</span>
+  <span class="token key atrule">uid</span><span class="token punctuation">:</span> 1bf51951<span class="token punctuation">-</span>b832<span class="token punctuation">-</span>49da<span class="token punctuation">-</span>8708<span class="token punctuation">-</span>4b224b1ec3ed
+<span class="token key atrule">spec</span><span class="token punctuation">:</span>
+  <span class="token key atrule">holderIdentity</span><span class="token punctuation">:</span> k8snode
+  <span class="token key atrule">leaseDurationSeconds</span><span class="token punctuation">:</span> <span class="token number">40</span>
+  <span class="token key atrule">renewTime</span><span class="token punctuation">:</span> <span class="token string">"2021-09-08T01:34:16.489589Z"</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<h4 id="资源预留"><a href="#资源预留" class="headerlink" title="资源预留"></a>资源预留</h4><p>计算节点除用户容器外，还存在很多支撑系统运行的基础服务，譬如 systemd、journald、sshd、dockerd、Containerd、kubelet 等。</p>
+<p>为了使服务进程能够正常运行，要确保它们在任何时候都可以获取足够的系统资源，所以我们要为这些系统进程预留资源。</p>
+<p>kubelet 可以通过众多启动参数为系统预留 CPU、内存、PID 等资源，比如 SystemReserved、KubeReserved 等。</p>
+<h5 id="Capacity-和-Allocatable"><a href="#Capacity-和-Allocatable" class="headerlink" title="Capacity 和 Allocatable"></a>Capacity 和 Allocatable</h5><p>容量资源 (Capacity) 是指 kubelet 获取的计算节点当前的资源信息。</p>
+<ul>
+<li>CPU是从 /proc/cpuinfo 文件中获取的节点 CPU 核数;</li>
+<li>memory 是从 /proc/memoryinfo 中获取的节点内存大小;</li>
+<li>ephemeral-storage 是指节点根分区的大小。</li>
+</ul>
+<p>资源可分配额 (Allocatable) 是用户 Pod 可用的资源，是资源容量减去分配给系统的资源的剩余部分。</p>
+<pre class="line-numbers language-yaml" data-language="yaml"><code class="language-yaml"><span class="token key atrule">allocatable</span><span class="token punctuation">:</span>
+  <span class="token key atrule">cpu</span><span class="token punctuation">:</span> <span class="token string">"24"</span>
+  <span class="token key atrule">ephemeral-storage</span><span class="token punctuation">:</span> 205838Mi
+  <span class="token key atrule">memory</span><span class="token punctuation">:</span> 177304536Ki
+  <span class="token key atrule">pods</span><span class="token punctuation">:</span> <span class="token string">"110"</span>
+<span class="token key atrule">capacity</span><span class="token punctuation">:</span>
+  <span class="token key atrule">cpu</span><span class="token punctuation">:</span> <span class="token string">"24"</span>
+  <span class="token key atrule">ephemeral-storage</span><span class="token punctuation">:</span> 205838Mi
+  <span class="token key atrule">memory</span><span class="token punctuation">:</span> 179504088Ki
+  <span class="token key atrule">pods</span><span class="token punctuation">:</span> <span class="token string">"110"</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/节点的资源容量.png" alt="节点的资源容量"></p>
+<h5 id="节点磁盘管理"><a href="#节点磁盘管理" class="headerlink" title="节点磁盘管理"></a>节点磁盘管理</h5><p>系统分区 nodefs</p>
+<pre><code>- 工作目录和容器日志
+</code></pre><p>容器运行时分区 imagefs</p>
+<pre><code>- 用户镜像和容器可写层
+- 容器运行时分区是可选的，可以合并到系统分区中
+</code></pre><h4 id="驱逐管理"><a href="#驱逐管理" class="headerlink" title="驱逐管理"></a>驱逐管理</h4><p>kubelet 会在系统资源不够时中止一些容器进程，以空出系统资源，保证节点的稳定性。</p>
+<p>但由 kubelet 发起的驱逐只停止 Pod 的所有容器进程，并不会直接删除Pod。</p>
+<pre><code>- Pod 的 status.phase 会被标记为 Failed
+- status.reason 会被设置为 Evicted
+- status.message 则会记录被驱逐的原因
+</code></pre><h5 id="资源可用额监控"><a href="#资源可用额监控" class="headerlink" title="资源可用额监控"></a>资源可用额监控</h5><p>kubelet 依赖内嵌的开源软件 cAdvisor，周期性检查节点资源使用情况</p>
+<p>CPU 是可压缩资源，根据不同进程分配时间配额和权重，CPU 可被多个进程竞相使用</p>
+<p>驱逐策略是基于磁盘和内存资源用量进行的，因为两者属于不可压缩的资源，当此类资源使用耗尽时将无法再申请</p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/资源可用额监控.png" alt="资源可用额监控"></p>
+<h5 id="驱逐策略"><a href="#驱逐策略" class="headerlink" title="驱逐策略"></a>驱逐策略</h5><p>kubelet 获得节点的可用额信息后，会结合节点的容量信息来判断当前节点运行的 Pod 是否满足驱逐条件。</p>
+<p>驱逐条件可以是绝对值或百分比，当监资源的可使用额少于设定的数值或百分比时，kubelet 就会发起驱逐操作。</p>
+<p>kubelet 参数 evictionMinimumReclaim 可以设置每次回收的资源的最小值，以防止小资源的多次回收。</p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/驱逐策略.png" alt="驱逐策略"></p>
+<h5 id="基于内存压力的驱逐"><a href="#基于内存压力的驱逐" class="headerlink" title="基于内存压力的驱逐"></a>基于内存压力的驱逐</h5><p>memory.avaiable 表示当前系统的可用内存情况。<br>kubelet 默认设置了 memory.avaiable&lt;100Mi 的硬驱逐条件</p>
+<p>当 kubelet 检测到当前节点可用内存资源紧张并满足驱逐条件时，会将节点的 MemoryPressure 状态设置为 True，调度器会阻止 BestEffortPod 调度到内存承压的节点。</p>
+<p>kubelet 启动对内存不足的驱逐操作时，会依照如下的顺序选取目标 Pod:</p>
+<ol>
+<li>判断 Pod 所有容器的内存使用量总和是否超出了请求的内存量，超出请求资源的 Pod 会成为备选目标</li>
+<li>查询 Pod 的调度优先级，低优先级的 Pod 被优先驱逐</li>
+<li>计算 Pod 所有容器的内存使用量和 Pod 请求的内存量的差值，差值越小，越不容易被驱逐</li>
+</ol>
+<h5 id="基于磁盘压力的驱逐"><a href="#基于磁盘压力的驱逐" class="headerlink" title="基于磁盘压力的驱逐"></a>基于磁盘压力的驱逐</h5><p>以下任何一项满足驱逐条件时，它会将节点的 DiskPressure 状态设置为 True，调度器不会再调度任何 Pod 到该节点上</p>
+<ul>
+<li>nodefs.available</li>
+<li>nodefs.inodesFree</li>
+<li>imagefs.available</li>
+<li>imagefs.inodesFree</li>
+</ul>
+<p>驱逐行为</p>
+<ul>
+<li>有容器运行时分区<ul>
+<li>nodefs 达到驱逐阈值，那么 kubelet 删除已经退出的容器</li>
+<li>imagefs 达到驱逐阈值，那么 kubelet 删除所有未使用的镜像</li>
+</ul>
+</li>
+<li>无容器运行时分区<ul>
+<li>kubelet 同时删除未运行的容器和未使用的镜像</li>
+</ul>
+</li>
+</ul>
+<p>回收已经退出的容器和未使用的镜像后，如果节点依然满足驱逐条件，kubelet 就会开始驱逐正在运行的 Pod，进一步释放磁盘空间。</p>
+<ul>
+<li>判断 Pod 的磁盘使用量是否超过请求的大小，超出请求资源的 Pod 会成为备选目标</li>
+<li>查询Pod的调度优先级，低优先级的 Pod 优先驱逐</li>
+<li>根据磁盘使用超过请求的数量进行排序，差值越小，越不容易被驱逐</li>
+</ul>
+<h4 id="容器和资源配置"><a href="#容器和资源配置" class="headerlink" title="容器和资源配置"></a>容器和资源配置</h4><h5 id="CPU-CGroup-配置"><a href="#CPU-CGroup-配置" class="headerlink" title="CPU CGroup 配置"></a>CPU CGroup 配置</h5><p>针对不同 QoS Class 的 Pod，Kubneretes 按如下 Hierarchy 组织 cgroup 中的 CPU 子系统</p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/CPUCGroup层级.png" alt="CPUCGroup层级"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/CPUCGroup配置.png" alt="CPUCGroup配置"></p>
+<h5 id="内存-CGroup-配置"><a href="#内存-CGroup-配置" class="headerlink" title="内存 CGroup 配置"></a>内存 CGroup 配置</h5><p>针对不同 QoS Class 的Pod，Kubneretes 按如下 Hierarchy 组织 cgroup 中的 Memory 子系统</p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/内存CGroup层级.png" alt="内存CGroup层级"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/内存CGroup配置.png" alt="内存CGroup配置"></p>
+<h5 id="OOM-Killer-行为"><a href="#OOM-Killer-行为" class="headerlink" title="OOM Killer 行为"></a>OOM Killer 行为</h5><p>系统的 OOM Killer 可能会采取 OOM 的方式来中止某些容器的进程，进行必要的内存回收操作</p>
+<p>而系统根据进程的 oom_score 来进行优先级排序，选择待终止的进程，且进程的 oom_score 越高，越容易被终止</p>
+<p>进程的 oom_score 是根据当前进程使用的内存占节点总内存的比例值乘以 10，再加上 oom_score_adj 综合得到的</p>
+<p>而容器进程的 oom_score_adj 正是 kubelet 根据 memory.request 进行设置的</p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/oom_score_adj.png" alt="oom_score_adj"></p>
 
                 
             </div>
