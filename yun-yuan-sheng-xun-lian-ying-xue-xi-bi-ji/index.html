@@ -406,14 +406,14 @@
                 
                 <div class="info-break-policy">
                     <i class="far fa-file-word fa-fw"></i>文章字数:&nbsp;&nbsp;
-                    60.2k
+                    66k
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-clock fa-fw"></i>阅读时长:&nbsp;&nbsp;
-                    252 分
+                    275 分
                 </div>
                 
 
@@ -6114,7 +6114,570 @@ Commercial support is available at
 <p>进程的 oom_score 是根据当前进程使用的内存占节点总内存的比例值乘以 10，再加上 oom_score_adj 综合得到的</p>
 <p>而容器进程的 oom_score_adj 正是 kubelet 根据 memory.request 进行设置的</p>
 <p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/oom_score_adj.png" alt="oom_score_adj"></p>
+<h4 id="日志管理"><a href="#日志管理" class="headerlink" title="日志管理"></a>日志管理</h4><p>节点上需要通过运行 logrotate 的定时任务对系统服务日志进行 rotate 清理，以防止系统服务日志占用大量的磁盘空间。</p>
+<ul>
+<li>logrotate 的执行周期不能过长，以防日志短时间内大量增长，</li>
+<li>同时配置日志的 rotate 条件，在日志不占用太多空间的情况下，保证有足够的日志可供查看，</li>
+<li>Docker<ul>
+<li>除了基于系统 loarotate 管理日志，还可以依赖 Docker 自带的日志管理功能来设置容器日志的数量和每个日志文件的大小。</li>
+<li>Docker 写入数据之前会对日志大小进行检查和 rotate 操作，确保日志文件不会超过配置的数量和大小。</li>
+</ul>
+</li>
+<li>Containerd<ul>
+<li>日志的管理是通过 kubelet 定期(默认为10s)执行 <code>du</code> 命令，来检查容器日志的数量和文件的大小的。</li>
+<li>每个容器日志的大小和可以保留的文件个数，可以通过 kubelet 的配置参数 <code>container-log-max-size</code> 和 <code>container-log-max-files</code> 进行调整。</li>
+</ul>
+</li>
+</ul>
+<h4 id="Docker卷管理"><a href="#Docker卷管理" class="headerlink" title="Docker卷管理"></a>Docker卷管理</h4><p>在构建容器镜像时，可以在 Dockerfile 中通过 VOLUME 指令声明一个存储卷，目前 Kubernetes 尚未将其纳入管控范围，不建议使用。</p>
+<p>如果容器进程在可写层或 emptyDir 卷进行大量读写操作，就会导致磁盘 I/O 过高，从而影响其他容器进程甚至系统进程。</p>
+<p>Docker 和 Containerd 运行时都基于 CGroupv1 。对于块设备，只支持对 Direct I/O 限速，而对于 Buffer I/O 还不具备有效的支持。因此，针对设备限速的问题，目前还没有完美的解决方案对于有特殊 I/O 需求的容器，建议使用独立的磁盘空间。</p>
+<h4 id="网络资源"><a href="#网络资源" class="headerlink" title="网络资源"></a>网络资源</h4><p>由网络插件通过 LinuxTraffic control 为 Pod 限制带宽</p>
+<p>可利用 CNI 社区提供的 bandwidth 插件</p>
+<pre class="line-numbers language-yaml" data-language="yaml"><code class="language-yaml"><span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> v1
+<span class="token key atrule">kind</span><span class="token punctuation">:</span> Pod
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+  <span class="token key atrule">annotations</span><span class="token punctuation">:</span>
+    <span class="token key atrule">kubernetes.io/ingress-bandwidth</span><span class="token punctuation">:</span> 10MB
+    <span class="token key atrule">kubernetes.io/egress-bandwidth</span><span class="token punctuation">:</span> 10MB
+<span class="token punctuation">...</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<h4 id="进程数"><a href="#进程数" class="headerlink" title="进程数"></a>进程数</h4><p>kubelet 默认不限制 Pod 可以创建的子进程数量，但可以通过启动参数 podPidsLimit 开启限制，还可以由 reserved 参数为系统进程预留进程数。</p>
+<ul>
+<li>kubelet 通过系统调用周期性地获取当前系统的 PID 的使用量，并读取 <code>/proc/sys/kernel/pid_max</code> 获取系统支持的 PID 上限。</li>
+<li>如果当前的可用进程数少于设定阈值，那么 kubelet 会将节点对象的 PIDPressure 标记为 True</li>
+<li>kube-scheduler 在进行调度时，会从备选节点中对处于 NodeUnderPIDPressure 状态的节点进行过滤。</li>
+</ul>
+<h3 id="节点异常检测"><a href="#节点异常检测" class="headerlink" title="节点异常检测"></a>节点异常检测</h3><h4 id="Kubernetes集群可能存在的问题"><a href="#Kubernetes集群可能存在的问题" class="headerlink" title="Kubernetes集群可能存在的问题"></a>Kubernetes集群可能存在的问题</h4><p>基础架构守护程序问题: NTP服务关闭;</p>
+<p>硬件问题: CPU，内存或磁盘损坏;</p>
+<p>内核问题: 内核死锁，文件系统损坏;</p>
+<p>容器运行时问题: 运行时守护程序无响应</p>
+<p>…</p>
+<p>当 kubernetes 中节点发生上述问题，在整个集群中，k8s 服务组件并不会感知以上问题，就会导致 pod 仍会调度至问题节点。</p>
+<h4 id="node-problem-detector"><a href="#node-problem-detector" class="headerlink" title="node-problem-detector"></a>node-problem-detector</h4><p>为了解决这个问题，社区引入了守护进程 node-problem-detector，从各个守护进程收集节点问题，并使它们对上游层可见。</p>
+<p>Kubernetes 节点诊断的工具，可以将节点的异常，例如</p>
+<ul>
+<li>Runtime 无响应</li>
+<li>Linux Kernel 无响应</li>
+<li>网络异常</li>
+<li>文件描述符异常</li>
+<li>硬件问题如 CPU，内存或者磁盘故障</li>
+</ul>
+<h4 id="故障分类"><a href="#故障分类" class="headerlink" title="故障分类"></a>故障分类</h4><p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/故障分类.png" alt="故障分类"></p>
+<h4 id="问题汇报手段"><a href="#问题汇报手段" class="headerlink" title="问题汇报手段"></a>问题汇报手段</h4><p>node-problem-detector 通过设置 NodeCondition 或者创建 Event 对象来汇报问题</p>
+<ul>
+<li>NodeCondition: 针对永久性故障，会通过设置 Nodecondition 来改变节点状态</li>
+<li>Event: 临时故障通过 Event 来提醒相关对象，比如通知当前节点运行的所有 Pod</li>
+</ul>
+<h4 id="上手实践"><a href="#上手实践" class="headerlink" title="上手实践"></a>上手实践</h4><p>代码 <a target="_blank" rel="noopener" href="https://github.com/kubernetes/node-problem-detector">https://github.com/kubernetes/node-problem-detector</a></p>
+<p>安装</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">helm repo <span class="token function">add</span> deliveryhero https://charts.deliveryhero.io
+helm <span class="token function">install</span> deliveryhero/node-problem-detector<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre>
+<h4 id="使用插件-pod-启用-NPD"><a href="#使用插件-pod-启用-NPD" class="headerlink" title="使用插件 pod 启用 NPD"></a>使用插件 pod 启用 NPD</h4><p>如果你使用的是自定义集群引导解决方案，不需要覆盖默认配置，可以利用插件 Pod 进一步自动化部署。</p>
+<p>创建 node-strick-detector.yaml，并在控制平面节点上保存配置到插件 Pod 的目录 <code>/etc/kubernetes/addons/node-problem-detector</code>。</p>
+<h4 id="NPD-的异常处理行为"><a href="#NPD-的异常处理行为" class="headerlink" title="NPD 的异常处理行为"></a>NPD 的异常处理行为</h4><p>NPD 只负责获取异常事件，并修改 node condition，不会对节点状态和调度产生影响</p>
+<pre class="line-numbers language-yaml" data-language="yaml"><code class="language-yaml"><span class="token key atrule">lastHeartbeatTime</span><span class="token punctuation">:</span> <span class="token string">"2021-11-06T15:44:46Z"</span>
+<span class="token key atrule">lastTransitionTime</span><span class="token punctuation">:</span> <span class="token string">"2021-11-06T15:29:43Z"</span>
+<span class="token key atrule">message</span><span class="token punctuation">:</span> <span class="token string">'kernel: INFO: task docker:20744 blocked for more than 120 seconds.'</span>
+<span class="token key atrule">reason</span><span class="token punctuation">:</span> DockerHung
+<span class="token key atrule">status</span><span class="token punctuation">:</span> <span class="token string">"True"</span>
+<span class="token key atrule">type</span><span class="token punctuation">:</span> KernelDeadlock<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>需要自定义控制器，监听 NPD 汇报的 condition，taint node，阻止 pod 调度到故障节点</p>
+<p>问题修复后，重启 NPD Pod 来清理错误事件</p>
+<h3 id="常用节点问题排查手段"><a href="#常用节点问题排查手段" class="headerlink" title="常用节点问题排查手段"></a>常用节点问题排查手段</h3><h4 id="ssh-到内网节点"><a href="#ssh-到内网节点" class="headerlink" title="ssh 到内网节点"></a>ssh 到内网节点</h4><p>创建一个支持 ssh 的 pod</p>
+<p>并通过负载均衡器转发 ssh 请求</p>
+<h4 id="查看日志"><a href="#查看日志" class="headerlink" title="查看日志"></a>查看日志</h4><p>针对使用 systemd 拉起的服务</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">journalctl -afu kubelet-S <span class="token string">"2019-08-26 15:00:00"</span>
+<span class="token comment"># -u unit，对应的 systemd 拉起的组件，如 kubelet</span>
+<span class="token comment"># -f follow，跟踪最新日志</span>
+<span class="token comment"># -a show all，显示所有日志列</span>
+<span class="token comment"># -S since，从某一时间开始 -S "2019-08-26 15:00:00"</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>对于标准的容器日志</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">kubectl logs -f -c <span class="token operator">&lt;</span>containername<span class="token operator">&gt;</span> <span class="token operator">&lt;</span>podname<span class="token operator">&gt;</span>
+kubectl logs -f --all-containers <span class="token operator">&lt;</span>podname<span class="token operator">&gt;</span>
+kubectl logs -f -c <span class="token operator">&lt;</span>podname<span class="token operator">&gt;</span> --previous<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span></span></code></pre>
+<p>如果容器日志被 shell 转储到文件，则需通过 <code>exec kubectl exec -it xxx --tail -f /path/to/log</code></p>
+<h3 id="基于-extended-resource-扩展节点资源"><a href="#基于-extended-resource-扩展节点资源" class="headerlink" title="基于 extended resource 扩展节点资源"></a>基于 extended resource 扩展节点资源</h3><h4 id="扩展资源"><a href="#扩展资源" class="headerlink" title="扩展资源"></a>扩展资源</h4><p>扩展资源是 kubernetes.io 域名之外的标准资源名称。它们使得集群管理员能够颁布非 Kubernetes 内置资源，而用户可以使用他们。</p>
+<p>自定义扩展资源无法使用 kubernetes.io 作为资源域名</p>
+<h4 id="管理扩展资源"><a href="#管理扩展资源" class="headerlink" title="管理扩展资源"></a>管理扩展资源</h4><p>节点级扩展资源</p>
+<ul>
+<li>节点级扩展资源绑定到节点</li>
+</ul>
+<p>设备插件管理的资源</p>
+<ul>
+<li>发布在各节点上由设备插件所管理的资源，如GPU，智能网卡等</li>
+</ul>
+<h4 id="为节点配置资源"><a href="#为节点配置资源" class="headerlink" title="为节点配置资源"></a>为节点配置资源</h4><p>集群操作员可以向 API 服务器提交 PATCH HTTP 请求，以在集群中节点的 status.capacity 中为其配置可用数量。</p>
+<p>完成此操作后，节点的 status.capacity 字段中将包含新资源。</p>
+<p>kubelet 会异步地对 status.allocatable 字段执行自动更新操作，使之包含新资源</p>
+<p>调度器在评估 Pod 是否适合在某节点上执行时会使用节点的 status.allocatable 值，在更新节点容量使之包含新资源之后和请求该资源的第一个 Pod 被调度到该节点之间，可能会有短暂的延迟。</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token function">curl</span> <span class="token punctuation">\</span>
+    --key admin.key <span class="token punctuation">\</span>
+    --cert admin.crt <span class="token punctuation">\</span>
+    --header <span class="token string">"Content-Type: application/json-patch+ison"</span> <span class="token punctuation">\</span>
+    --request PATCH <span class="token punctuation">\</span>
+    -k <span class="token punctuation">\</span>
+    --data <span class="token string">'"{"op": "add", "path": "/status/capacity/cncamp.com~1reclaimed-cpu", "value": "2"}]'</span> <span class="token punctuation">\</span>
+    https://192.168.34.2:6443/api/v1/nodes/cadmin/status<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<h4 id="使用扩展资源"><a href="#使用扩展资源" class="headerlink" title="使用扩展资源"></a>使用扩展资源</h4><pre class="line-numbers language-yaml" data-language="yaml"><code class="language-yaml"><span class="token key atrule">spec</span><span class="token punctuation">:</span>
+  <span class="token key atrule">containers</span><span class="token punctuation">:</span>
+  <span class="token punctuation">-</span> <span class="token key atrule">name</span><span class="token punctuation">:</span> nginx
+    <span class="token key atrule">image</span><span class="token punctuation">:</span> nginx
+    <span class="token key atrule">resources</span><span class="token punctuation">:</span>
+      <span class="token key atrule">limits</span><span class="token punctuation">:</span>
+        <span class="token key atrule">cncamp.com/reclaimed-cpu</span><span class="token punctuation">:</span> <span class="token number">3</span>
+      <span class="token key atrule">reguests</span><span class="token punctuation">:</span>
+        <span class="token key atrule">cncamp.com/reclaimed-cpu</span><span class="token punctuation">:</span> <span class="token number">3</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<h4 id="集群层面的扩展资源"><a href="#集群层面的扩展资源" class="headerlink" title="集群层面的扩展资源"></a>集群层面的扩展资源</h4><p>可选择由默认调度器管理资源，默认调度器像管理其他资源一样管理扩展资源</p>
+<ul>
+<li>Request 与 Limit 必须一致，因为 Kubernetes 无法确保扩展资源的超售</li>
+</ul>
+<p>更常见的场景是，由调度器扩展程序 (SchedulerExtenders) 管理，这些程序处理资源消耗和资源配额</p>
+<p>修改调度器策略配置 ignoredByScheduler 字段可配置调度器不要检查自定义资源</p>
+<pre class="line-numbers language-json" data-language="json"><code class="language-json"><span class="token punctuation">{</span>
+  <span class="token property">"kind"</span><span class="token operator">:</span> <span class="token string">"Policy"</span><span class="token punctuation">,</span>
+  <span class="token property">"apiVersion"</span><span class="token operator">:</span> <span class="token string">"V1"</span><span class="token punctuation">,</span>
+  <span class="token property">"extenders"</span><span class="token operator">:</span> <span class="token punctuation">[</span>
+    <span class="token punctuation">{</span>
+      <span class="token property">"urlPrefix"</span><span class="token operator">:</span> <span class="token string">"&lt;extender-endpoint&gt;"</span><span class="token punctuation">,</span>
+      <span class="token property">"bindVerb"</span><span class="token operator">:</span> <span class="token string">"bind"</span><span class="token punctuation">,</span>
+      <span class="token property">"managedResources"</span><span class="token operator">:</span> <span class="token punctuation">[</span>
+        <span class="token punctuation">{</span>
+          <span class="token property">"name"</span><span class="token operator">:</span> <span class="token string">"example.com/foo"</span><span class="token punctuation">,</span>
+          <span class="token property">"ignoredByScheduler"</span><span class="token operator">:</span> <span class="token boolean">true</span>
+        <span class="token punctuation">}</span>
+      <span class="token punctuation">]</span>
+    <span class="token punctuation">}</span>
+  <span class="token punctuation">]</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<h3 id="构建和管理高可用集群"><a href="#构建和管理高可用集群" class="headerlink" title="构建和管理高可用集群"></a>构建和管理高可用集群</h3><h4 id="Kubernetes-高可用层级"><a href="#Kubernetes-高可用层级" class="headerlink" title="Kubernetes 高可用层级"></a>Kubernetes 高可用层级</h4><p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/Kubernetes高可用层级.png" alt="Kubernetes高可用层级"></p>
+<h4 id="高可用的数据中心"><a href="#高可用的数据中心" class="headerlink" title="高可用的数据中心"></a>高可用的数据中心</h4><p>多地部署</p>
+<p>每个数据中心需要划分成具有独立供电、制冷、网络设备的高可用区</p>
+<p>每个高可用区管理独立的硬件资产，包括机架、计算节点、存储、负载均衡器、防火墙等硬件设备</p>
+<h4 id="Node-的生命周期管理"><a href="#Node-的生命周期管理" class="headerlink" title="Node 的生命周期管理"></a>Node 的生命周期管理</h4><p>运营 Kubernetes 集群，不仅仅是集群搭建那么简单，运营需要对集群中所有节点的完整申明周期负责。</p>
+<ul>
+<li>集群搭建</li>
+<li>集群扩容/缩容</li>
+<li>集群销毁(很少)</li>
+<li>无论是集群搭建还是扩容，核心是 Node 的生命周期管理<ul>
+<li>Onboard<ul>
+<li>物理资产上架</li>
+<li>操作系统安装</li>
+<li>网络配置</li>
+<li>Kubernetes 组件安装</li>
+<li>创建 Node 对象</li>
+</ul>
+</li>
+<li>故障处理<ul>
+<li>临时故障?重启大法好</li>
+<li>永久故障?机器下架</li>
+</ul>
+</li>
+<li>Offboard<ul>
+<li>删除 Node 对象</li>
+<li>物理资产下架，送修/报废</li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+<h4 id="主机管理"><a href="#主机管理" class="headerlink" title="主机管理"></a>主机管理</h4><p>选定哪个版本的系统内核、哪个发行版、安装哪些工具集、主机网络如何规划等。</p>
+<p>日常的主机镜像升级更新也可能是造成服务不可用的因素之一。</p>
+<ul>
+<li>主机镜像更新可以通过 A/B 系统 OTA(OverThe Air) 升级方式进行。<ul>
+<li>分别使用 A、B 两个存储空间，共享一份用户数据。在升级过程中，OTA 更新即往其中一个存储空间写入升级包，同时保证了另一个系统可以正常运行，而不会打断用户。如果 OTA 失败，那么设备会启动到 OTA 之前的磁盘分区，并且仍然可以使用。</li>
+</ul>
+</li>
+</ul>
+<h4 id="生产化集群管理"><a href="#生产化集群管理" class="headerlink" title="生产化集群管理"></a>生产化集群管理</h4><p>如何设定单个集群规模</p>
+<ul>
+<li>社区声明单一集群可支持 5000 节点，在如此规模的集群中，大规模部署应用是有诸多挑战的。应该更多还是更少?如何权衡?</li>
+</ul>
+<p>如何根据地域划分集群</p>
+<ul>
+<li>不同地域的计算节点划分到同一集群</li>
+<li>将同一地域的节点划分到同一集群</li>
+</ul>
+<p>如何规划集群的网络</p>
+<ul>
+<li>企业办公环境、测试环境、预生产环境和生产环境应如何进行网络分离</li>
+<li>不同租户之间应如何进行网络隔离</li>
+</ul>
+<p>如何自动化搭建集群</p>
+<ul>
+<li>如何自动化搭建和升级集群，包括自动化部署控制平面和数据平面的核心组件</li>
+<li>如何与企业的公共服务集成</li>
+</ul>
+<h4 id="企业公共服务"><a href="#企业公共服务" class="headerlink" title="企业公共服务"></a>企业公共服务</h4><p>需要与企业认证平台集成，这样企业用户就能通过统一认证平台接入 Kubernetes 集群，而无须重新设计和管理一套用户系统。</p>
+<p>集成企业的域名服务、负载均衡服务，提供集群服务对企业外发布的访问入口</p>
+<p>在与企业的公共服务集成时，需要考虑它们的服务是否可靠</p>
+<p>对于不能异步调用的请求，采用同步调用需要设置合理的超时时间</p>
+<p>过长的超时时间，会延迟结果等待时间，导致整体的链路调用时间延长，从而降低整体的 TPS</p>
+<p>有些失败是短暂的、偶然的(比如网络抖动)，进行重试即可。而有些失败是必然的，重试反而会造成调用请求量放大，加重对调用系统的负担</p>
+<h4 id="控制平面的高可用保证"><a href="#控制平面的高可用保证" class="headerlink" title="控制平面的高可用保证"></a>控制平面的高可用保证</h4><p>针对大规模的集群，应该为控制平面组件划分单独节点，减少业务容器对控制平面容器或守护进程的干扰和资源抢占</p>
+<p>控制平面所在的节点，应确保在不同机架上，以防止因为某些机架的交换机或电源出问题，造成所有的控制面节点都无法工作</p>
+<p>保证控制平面的每个组件有足够的 CPU、内存和磁盘资源，过于严苛的资源限制会导致系统效率低下，降低集群可用性</p>
+<p>应尽可能地减少或消除外部依赖。在 Kubneretes 初期版本中存在较多 Cloud Provider API 的调用，导致在运营过程中，当 Cloud Provider API 出现故障时，会使得 Kubernetes 集群也无法正常工作。</p>
+<p>应尽可能地将控制平面和数据平面解耦，确保控制平面组件出现故障时，将业务影响降到最低。</p>
+<p>Kubernetes 还有一些核心插件，是以普通的 Pod 形式加载运行的，可能会被调度到任意工作节点，与普通应用竞争资源。这些插件是否正常运行也决定了集群的可用性。</p>
+<h4 id="高可用集群"><a href="#高可用集群" class="headerlink" title="高可用集群"></a>高可用集群</h4><p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/高可用集群.png" alt="高可用集群"></p>
+<h4 id="集群安装方法比较"><a href="#集群安装方法比较" class="headerlink" title="集群安装方法比较"></a>集群安装方法比较</h4><p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/集群安装方法比较.png" alt="集群安装方法比较"></p>
+<h4 id="用-Kubespray-搭建高可用集群搭建"><a href="#用-Kubespray-搭建高可用集群搭建" class="headerlink" title="用 Kubespray 搭建高可用集群搭建"></a>用 Kubespray 搭建高可用集群搭建</h4><p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/用Kubespray搭建高可用集群搭建.png" alt="用Kubespray搭建高可用集群搭建"></p>
+<h4 id="练习：使用-Kubespray-安装集群"><a href="#练习：使用-Kubespray-安装集群" class="headerlink" title="练习：使用 Kubespray 安装集群"></a>练习：使用 Kubespray 安装集群</h4><p><a target="_blank" rel="noopener" href="https://cncamp.notion.site/Install-HA-cluster-using-kubespray-e398756229a649b8adc7338788df4672">https://cncamp.notion.site/Install-HA-cluster-using-kubespray-e398756229a649b8adc7338788df4672</a></p>
+<h4 id="基于声明式-API-管理集群"><a href="#基于声明式-API-管理集群" class="headerlink" title="基于声明式 API 管理集群"></a>基于声明式 API 管理集群</h4><p>集群管理不仅仅包括集群搭建，还有更多功能需要支持</p>
+<ul>
+<li>集群扩缩容</li>
+<li>节点健康检查和自动修复</li>
+<li>Kubernetes 升级</li>
+<li>操作系统升级</li>
+</ul>
+<p>云原生场景中集群应该按照我们的期望的状态运行，这意味着我们应该将集群管理建立在声明式 API 的基础之上</p>
+<h4 id="Kubernetes-Cluster-API"><a href="#Kubernetes-Cluster-API" class="headerlink" title="Kubernetes Cluster API"></a>Kubernetes Cluster API</h4><p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/KubernetesClusterAPI.png" alt="KubernetesClusterAPI"></p>
+<h4 id="参与角色"><a href="#参与角色" class="headerlink" title="参与角色"></a>参与角色</h4><p>管理集群</p>
+<ul>
+<li>管理 workload 集群的集群，用来存放 Cluster API 对象的地方</li>
+</ul>
+<p>Workload 集群</p>
+<ul>
+<li>真正开放给用户用来运行应用的集群，由管理集群管理</li>
+</ul>
+<p>Infrastructure provider</p>
+<ul>
+<li>提供不同云的基础架构管理，包括计算节点，网络等。目前流行的公有云多与 Cluster API 集成了。</li>
+</ul>
+<p>Bootstrap provider</p>
+<ul>
+<li>证书生成</li>
+<li>控制面组件安装和初始化，监控节点的创建</li>
+<li>将主节点和计算节点加入集群</li>
+</ul>
+<p>Control plane</p>
+<ul>
+<li>Kubernetes 控制平面组件</li>
+</ul>
+<h4 id="涉及模型"><a href="#涉及模型" class="headerlink" title="涉及模型"></a>涉及模型</h4><p>Machine</p>
+<ul>
+<li>计算节点，用来描述可以运行 Kubernetes 组件的机器对象(注意与 Kubernetes Node )的差异</li>
+<li>一个新 Machine 被创建以后，对应的控制器会创建一个计算节点，安装好操作系统并更新 Machine 的状态</li>
+<li>当一个 Machine 被删除后，对应的控制器会删除掉该节点并回收计算资源。</li>
+<li>当 Machine 属性被更新以后(比如 Kubernetes 版本更新)，对应的控制器会删除旧节点并创建新书点</li>
+</ul>
+<p>Machine Immutability(In-place Upgrade vs. Replace)</p>
+<ul>
+<li>不可变基础架构</li>
+</ul>
+<p>MachineDeployment</p>
+<ul>
+<li>提供针对 Machine 和 MachineSet 的声明式更新，类似于 Kubernetes Deployment</li>
+</ul>
+<p>MachineSet</p>
+<ul>
+<li>维护一个稳定的机器集合，类似 Kubernetes ReplicaSet</li>
+</ul>
+<p>MachineHealthcheck</p>
+<ul>
+<li>定义节点应该被标记为不可用的条件</li>
+</ul>
+<h4 id="用-cluster-api-管理集群"><a href="#用-cluster-api-管理集群" class="headerlink" title="用 cluster api 管理集群"></a>用 cluster api 管理集群</h4><pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token comment">### create host cluster</span>
+./create cluster.sh
 
+<span class="token comment">### generate cluster specs</span>
+<span class="token builtin class-name">cd</span> cluster-api
+./generate_workload_cluster.sh
+
+<span class="token comment">### replace image repository</span>
+<span class="token function">vi</span> capi-quickstart.yaml
+replace KubeadmConfigTemplate
+
+<span class="token comment">### apply cluster spec</span>
+kubectl apply-f capi-quickstart.yaml<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<pre class="line-numbers language-yaml" data-language="yaml"><code class="language-yaml"><span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> bootstrap.cluster.x<span class="token punctuation">-</span>k8s.io/v1alpha4
+<span class="token key atrule">kind</span><span class="token punctuation">:</span> KubeadmConfigTemplate
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> capi<span class="token punctuation">-</span>quickstart<span class="token punctuation">-</span>md<span class="token punctuation">-</span><span class="token number">0</span>
+  <span class="token key atrule">namespace</span><span class="token punctuation">:</span> default
+<span class="token key atrule">spec</span><span class="token punctuation">:</span>
+  <span class="token key atrule">template</span><span class="token punctuation">:</span>
+    <span class="token key atrule">spec</span><span class="token punctuation">:</span>
+      <span class="token key atrule">joinConfiguration</span><span class="token punctuation">:</span>
+        <span class="token key atrule">nodeRegistration</span><span class="token punctuation">:</span>
+          <span class="token key atrule">kubeletExtraArgs</span><span class="token punctuation">:</span>
+            <span class="token key atrule">cgroup-driver</span><span class="token punctuation">:</span> cgroupfs
+            <span class="token key atrule">eviction-hard</span><span class="token punctuation">:</span> nodefs.available&lt;0%<span class="token punctuation">,</span>nodefs.inodesFree&lt;0%<span class="token punctuation">,</span>imagefs.available&lt;0%
+          <span class="token key atrule">clusterconfiguration</span><span class="token punctuation">:</span>
+            <span class="token key atrule">imageRepository</span><span class="token punctuation">:</span> registry.aliyuncs.com/google containers<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<h4 id="KubeadmControlPlane"><a href="#KubeadmControlPlane" class="headerlink" title="KubeadmControlPlane"></a>KubeadmControlPlane</h4><pre class="line-numbers language-yaml" data-language="yaml"><code class="language-yaml"><span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> controlplane.cluster.x<span class="token punctuation">-</span>k8s.io/v1alpha4
+<span class="token key atrule">kind</span><span class="token punctuation">:</span> KubeadmControlPlane
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> capi<span class="token punctuation">-</span>quickstart<span class="token punctuation">-</span>control<span class="token punctuation">-</span>plane
+<span class="token key atrule">spec</span><span class="token punctuation">:</span>
+  <span class="token key atrule">kubeadmConfigspec</span><span class="token punctuation">:</span>
+
+  <span class="token key atrule">clusterConfiguration</span><span class="token punctuation">:</span>
+    <span class="token key atrule">apiserver</span><span class="token punctuation">:</span>
+      <span class="token key atrule">certSANs</span><span class="token punctuation">:</span>
+      <span class="token punctuation">-</span> localhost
+      <span class="token punctuation">-</span> 127.0.0.1
+    <span class="token key atrule">controllerManager</span><span class="token punctuation">:</span>
+      <span class="token key atrule">extraArgs</span><span class="token punctuation">:</span>
+        <span class="token key atrule">enable-hostpath-provisioner</span><span class="token punctuation">:</span> <span class="token string">"true"</span>
+    <span class="token key atrule">dns</span><span class="token punctuation">:</span> <span class="token punctuation">{</span><span class="token punctuation">}</span>
+    <span class="token key atrule">etcd</span><span class="token punctuation">:</span> <span class="token punctuation">{</span><span class="token punctuation">}</span>
+    <span class="token key atrule">networking</span><span class="token punctuation">:</span> <span class="token punctuation">{</span><span class="token punctuation">}</span>
+    <span class="token key atrule">scheduler</span><span class="token punctuation">:</span> <span class="token punctuation">{</span><span class="token punctuation">}</span>
+
+    <span class="token key atrule">joinConfiguration</span><span class="token punctuation">:</span>
+      <span class="token key atrule">discovery</span><span class="token punctuation">:</span> <span class="token punctuation">{</span><span class="token punctuation">}</span>
+      <span class="token key atrule">nodeRegistration</span><span class="token punctuation">:</span>
+        <span class="token key atrule">criSocket</span><span class="token punctuation">:</span> /var/run/containerd/containerd.sock
+        <span class="token key atrule">kubeletExtraArgs</span><span class="token punctuation">:</span>
+          <span class="token key atrule">cgroup-driver</span><span class="token punctuation">:</span> cgroupfs
+          <span class="token key atrule">eviction-hard</span><span class="token punctuation">:</span> nodefs.available&lt;0%<span class="token punctuation">,</span>nodefs.inodesFree&lt;0%<span class="token punctuation">,</span>imagefs.available&lt;0%
+
+    <span class="token key atrule">initConfiguration</span><span class="token punctuation">:</span>
+      <span class="token key atrule">localAPlEndpoint</span><span class="token punctuation">:</span> <span class="token punctuation">{</span><span class="token punctuation">}</span>
+      <span class="token key atrule">nodeRegistration</span><span class="token punctuation">:</span>
+        <span class="token key atrule">criSocket</span><span class="token punctuation">:</span> /var/run/containerd/containerd.sock
+        <span class="token key atrule">kubeletExtraArgs</span><span class="token punctuation">:</span>
+          <span class="token key atrule">cgroup-driver</span><span class="token punctuation">:</span> cgroupfs
+          <span class="token key atrule">eviction-hard</span><span class="token punctuation">:</span> nodefs.available&lt;0%<span class="token punctuation">,</span>nodefs.inodesFree&lt;0%<span class="token punctuation">,</span>imagefs.available&lt;0%
+
+    <span class="token key atrule">machineTemplate</span><span class="token punctuation">:</span>
+      <span class="token key atrule">infrastructureRef</span><span class="token punctuation">:</span>
+        <span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> infrastructure.cluster.x<span class="token punctuation">-</span>k8s.io/v1alpha4
+        <span class="token key atrule">kind</span><span class="token punctuation">:</span> DockerMachineTemplate
+        <span class="token key atrule">name</span><span class="token punctuation">:</span> capi<span class="token punctuation">-</span>quickstart<span class="token punctuation">-</span>control<span class="token punctuation">-</span>plane
+        <span class="token key atrule">namespace</span><span class="token punctuation">:</span> default
+      metadata<span class="token punctuation">:</span><span class="token punctuation">{</span><span class="token punctuation">}</span>
+    <span class="token key atrule">replicas</span><span class="token punctuation">:</span> <span class="token number">1</span>
+    <span class="token key atrule">rolloutStrategy</span><span class="token punctuation">:</span>
+      <span class="token key atrule">rollingUpdate</span><span class="token punctuation">:</span>
+        <span class="token key atrule">maxSurge</span><span class="token punctuation">:</span> <span class="token number">1</span>
+      <span class="token key atrule">type</span><span class="token punctuation">:</span> RollingUpdate
+    <span class="token key atrule">version</span><span class="token punctuation">:</span> v1.22.0<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<h4 id="MachineDeployment"><a href="#MachineDeployment" class="headerlink" title="MachineDeployment"></a>MachineDeployment</h4><pre class="line-numbers language-yaml" data-language="yaml"><code class="language-yaml"><span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> cluster.x<span class="token punctuation">-</span>k8s.io/v1alpha4
+<span class="token key atrule">kind</span><span class="token punctuation">:</span> MachineDeployment
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+  name<span class="token punctuation">:</span>capi<span class="token punctuation">-</span>quickstart<span class="token punctuation">-</span>md<span class="token punctuation">-</span><span class="token number">0</span>
+<span class="token key atrule">spec</span><span class="token punctuation">:</span>
+  <span class="token key atrule">strategy</span><span class="token punctuation">:</span>
+    <span class="token key atrule">rollingUpdate</span><span class="token punctuation">:</span>
+      <span class="token key atrule">maxSurge</span><span class="token punctuation">:</span> <span class="token number">1</span>
+      <span class="token key atrule">maxUnavailable</span><span class="token punctuation">:</span> <span class="token number">0</span>
+    <span class="token key atrule">type</span><span class="token punctuation">:</span> Rollingupdate
+  <span class="token key atrule">template</span><span class="token punctuation">:</span>
+    <span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+      <span class="token key atrule">labels</span><span class="token punctuation">:</span>
+        <span class="token key atrule">cluster.x-k8s.io/cluster-name</span><span class="token punctuation">:</span> capi<span class="token punctuation">-</span>quickstart
+        <span class="token key atrule">cluster.x-k8s.io/deployment-name</span><span class="token punctuation">:</span> capi<span class="token punctuation">-</span>quickstart<span class="token punctuation">-</span>md<span class="token punctuation">-</span><span class="token number">0</span>
+    <span class="token key atrule">spec</span><span class="token punctuation">:</span>
+      <span class="token key atrule">bootstrap</span><span class="token punctuation">:</span>
+        <span class="token key atrule">configRef</span><span class="token punctuation">:</span>
+          <span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> bootstrap.cluster.x<span class="token punctuation">-</span>k8s.io/v1alpha4
+          <span class="token key atrule">kind</span><span class="token punctuation">:</span> KubeadmconfigTemplate
+          <span class="token key atrule">name</span><span class="token punctuation">:</span> capi<span class="token punctuation">-</span>quickstart<span class="token punctuation">-</span>md<span class="token punctuation">-</span><span class="token number">0</span>
+          <span class="token key atrule">namespace</span><span class="token punctuation">:</span> default
+        <span class="token key atrule">clusterName</span><span class="token punctuation">:</span> capi<span class="token punctuation">-</span>quickstart
+        <span class="token key atrule">infrastructureRef</span><span class="token punctuation">:</span>
+          <span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> infrastructure.cluster.x<span class="token punctuation">-</span>k8s.io/v1alpha4
+          <span class="token key atrule">kind</span><span class="token punctuation">:</span> DockerMachineTemplate
+          <span class="token key atrule">name</span><span class="token punctuation">:</span> capi<span class="token punctuation">-</span>quickstart<span class="token punctuation">-</span>md<span class="token punctuation">-</span><span class="token number">0</span>
+          <span class="token key atrule">namespace</span><span class="token punctuation">:</span> default
+        <span class="token key atrule">version</span><span class="token punctuation">:</span> v1.22.0<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<h4 id="MachineHealthCheck"><a href="#MachineHealthCheck" class="headerlink" title="MachineHealthCheck"></a>MachineHealthCheck</h4><pre class="line-numbers language-yaml" data-language="yaml"><code class="language-yaml"><span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> cluster.x<span class="token punctuation">-</span>k8s.io/v1alpha3
+<span class="token key atrule">kind</span><span class="token punctuation">:</span> MachineHealthCheck
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> capi<span class="token punctuation">-</span>quickstart<span class="token punctuation">-</span>node<span class="token punctuation">-</span>unhealthy<span class="token punctuation">-</span>5m
+<span class="token key atrule">spec</span><span class="token punctuation">:</span>
+  <span class="token key atrule">clusterName</span><span class="token punctuation">:</span> capi<span class="token punctuation">-</span>quickstart
+  <span class="token key atrule">maxUnhealthy</span><span class="token punctuation">:</span> 40% <span class="token comment"># 自动修复节点数的上限，默认行为是替换该节点，云提供商可自定义</span>
+  <span class="token key atrule">nodeStartupTimeout</span><span class="token punctuation">:</span> 10m
+  <span class="token key atrule">selector</span><span class="token punctuation">:</span>
+    <span class="token key atrule">matchLabels</span><span class="token punctuation">:</span> <span class="token comment"># 健康检查的目标节点</span>
+      <span class="token key atrule">nodepool</span><span class="token punctuation">:</span> nodepool<span class="token punctuation">-</span><span class="token number">0</span>
+  <span class="token key atrule">unhealthyConditions</span><span class="token punctuation">:</span> <span class="token comment"># 认定节点不健康的条件</span>
+  <span class="token punctuation">-</span> <span class="token key atrule">type</span><span class="token punctuation">:</span> Ready
+    <span class="token key atrule">status</span><span class="token punctuation">:</span> Unknown
+    <span class="token key atrule">timeout</span><span class="token punctuation">:</span> 300s
+  <span class="token punctuation">-</span> <span class="token key atrule">type</span><span class="token punctuation">:</span> Ready
+    <span class="token key atrule">status</span><span class="token punctuation">:</span> <span class="token string">"False"</span>
+    <span class="token key atrule">timeout</span><span class="token punctuation">:</span> 300s<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<h4 id="日常运营中的节点问题归类"><a href="#日常运营中的节点问题归类" class="headerlink" title="日常运营中的节点问题归类"></a>日常运营中的节点问题归类</h4><p>可自动修复的问题</p>
+<ul>
+<li>计算节点 down<ul>
+<li>Ping不通</li>
+<li>TCP probe 失败</li>
+<li>节点上的所有应用都不可达</li>
+</ul>
+</li>
+</ul>
+<p>不可自动修复的问题</p>
+<ul>
+<li>文件系统坏</li>
+<li>磁盘阵列故障</li>
+<li>网盘挂载问题</li>
+<li>其他硬件故障</li>
+<li>Kernel出错，core dumps</li>
+</ul>
+<p>其他问题</p>
+<ul>
+<li>软件Bug</li>
+<li>进程锁死，或者 memory/CPU 竞争问题</li>
+<li>Kubernetes 组件出问题<ul>
+<li>Kubelet/Kube-proxy/Docker/Salt</li>
+</ul>
+</li>
+</ul>
+<h4 id="故障监测和自动恢复"><a href="#故障监测和自动恢复" class="headerlink" title="故障监测和自动恢复"></a>故障监测和自动恢复</h4><p>当创建 Compute 节点时，允许定义 LivenessProbe</p>
+<ul>
+<li>当 livenessProbe 失败时，ComputeNode 的 ProbePassed 设置为 false</li>
+</ul>
+<p>在 Prometheus 中，已经有 Node level 的 alert，抓取 Prometheus 中的 alert</p>
+<p>设定自动恢复规则</p>
+<ul>
+<li>大多数情况下，重启大法好(人人都是 Restartoperator)</li>
+<li>如果重启不行就重装。(reprovision)</li>
+<li>重装不行就重修。(breakfix)</li>
+</ul>
+<h3 id="Cluster-Autoscaler"><a href="#Cluster-Autoscaler" class="headerlink" title="Cluster Autoscaler"></a>Cluster Autoscaler</h3><h4 id="工作机制"><a href="#工作机制" class="headerlink" title="工作机制"></a>工作机制</h4><p>扩容</p>
+<ul>
+<li>由于资源不足，pod 调度失败，即有 pod 一直处于 Pending 状态</li>
+</ul>
+<p>缩容</p>
+<ul>
+<li>node 的资源利用率较低时，持续 10 分钟低于 50%</li>
+<li>此 node 上存在的 pod 都能被重新调度到其他 node 上运行</li>
+</ul>
+<h4 id="Cluster-Autoscaler-架构"><a href="#Cluster-Autoscaler-架构" class="headerlink" title="Cluster Autoscaler 架构"></a>Cluster Autoscaler 架构</h4><p>Autoscaler: 核心模块，负责整体扩缩容功能<br>Estimator: 负责评估计算扩容节点<br>Simulator: 负责模拟调度，计算缩容节点<br>Cloud-Provider: 与云交互进行节点的增删操作，每个支持 CA 的主流厂商都实现自己的 plugin 实现动态缩放</p>
+<h4 id="ClusterAutoscaler-架构"><a href="#ClusterAutoscaler-架构" class="headerlink" title="ClusterAutoscaler 架构"></a>ClusterAutoscaler 架构</h4><p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/ClusterAutoscaler架构.png" alt="ClusterAutoscaler架构"></p>
+<h4 id="ClusterAutoscaler-的扩展机制"><a href="#ClusterAutoscaler-的扩展机制" class="headerlink" title="ClusterAutoscaler 的扩展机制"></a>ClusterAutoscaler 的扩展机制</h4><p>为了自动创建和初始化 Node，Cluster Autoscaler 要求 Node 必须属于某个 Node Group，比如</p>
+<ul>
+<li>GCE/GKE 中的 Managed instance groups(MIG)</li>
+<li>AWS 中的 Autoscaling Groups</li>
+<li>Cluster API Node</li>
+</ul>
+<p>当集群中有多个 Node Group 时，可以通过 <code>--expander=&lt;option&gt;</code> 选项配置选择 Node Group 的策略，支持如下四种方式</p>
+<ul>
+<li>random: 随机选择</li>
+<li>most-pods: 选择容量最大(可以创建最多 Pod)的 Node Group</li>
+<li>least-waste: 以最小浪费原则选择，即选择有最少可用资源的 Node Group</li>
+<li>price: 选择最便宜的 Node Group</li>
+</ul>
+<h4 id="附加资料"><a href="#附加资料" class="headerlink" title="附加资料"></a>附加资料</h4><p>代码走读 <a target="_blank" rel="noopener" href="https://cncamp.notion.site/CA-204f3767ba8d4ed0a464d2ea6ac2abca">https://cncamp.notion.site/CA-204f3767ba8d4ed0a464d2ea6ac2abca</a></p>
+<pre class="line-numbers language-go" data-language="go"><code class="language-go"><span class="token function">buildAutoscaler</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token operator">--</span><span class="token operator">&gt;</span>
+    core<span class="token punctuation">.</span><span class="token function">NewAutoscaler</span><span class="token punctuation">(</span>opts<span class="token punctuation">)</span>
+    autoscaler<span class="token punctuation">.</span><span class="token function">Start</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token operator">--</span><span class="token operator">&gt;</span>
+        a<span class="token punctuation">.</span>clusterStateRegistry<span class="token punctuation">.</span><span class="token function">Start</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token operator">--</span><span class="token operator">&gt;</span>
+            csr<span class="token punctuation">.</span>cloudProviderNodeInstancesCache<span class="token punctuation">.</span><span class="token function">Start</span><span class="token punctuation">(</span>csr<span class="token punctuation">.</span>interrupt<span class="token punctuation">)</span><span class="token operator">--</span><span class="token operator">&gt;</span>
+                cache<span class="token punctuation">.</span>cloudProvider<span class="token punctuation">.</span><span class="token function">NodeGroups</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token comment">// load provider specified group</span>
+                    nodeGroupInstances<span class="token punctuation">,</span> err <span class="token operator">:=</span> nodeGroup<span class="token punctuation">.</span><span class="token function">Nodes</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token operator">--</span><span class="token operator">&gt;</span>
+                        cache<span class="token punctuation">.</span><span class="token function">updateCacheEntryLocked</span><span class="token punctuation">(</span>nodeGroup<span class="token punctuation">,</span> <span class="token operator">&amp;</span>cloudProviderNodeInstancesCacheEntry<span class="token punctuation">{</span>nodeGroupInstances<span class="token punctuation">,</span> time<span class="token punctuation">.</span><span class="token function">Now</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">}</span><span class="token punctuation">)</span>
+    <span class="token keyword">for</span> <span class="token punctuation">{</span> <span class="token comment">// interval 10s</span>
+        autoscaler<span class="token punctuation">.</span><span class="token function">RunOnce</span><span class="token punctuation">(</span>loopStart<span class="token punctuation">)</span><span class="token operator">--</span><span class="token operator">&gt;</span>
+            unschedulablePodLister <span class="token operator">:=</span> a<span class="token punctuation">.</span><span class="token function">UnschedulablePodLister</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token comment">// phase != succeeded and != failed</span>
+            scheduledPodLister <span class="token operator">:=</span> a<span class="token punctuation">.</span><span class="token function">ScheduledPodLister</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+            pdbLister <span class="token operator">:=</span> a<span class="token punctuation">.</span><span class="token function">PodDisruptionBudgetLister</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+            allNodes<span class="token punctuation">,</span> readyNodes<span class="token punctuation">,</span> typedErr <span class="token operator">:=</span> a<span class="token punctuation">.</span><span class="token function">obtainNodeLists</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token comment">// Get nodes and pods currently living on cluster</span>
+            <span class="token comment">// Update cluster resource usage metrics</span>
+            coresTotal<span class="token punctuation">,</span> memoryTotal <span class="token operator">:=</span> <span class="token function">calculateCoresMemoryTotal</span><span class="token punctuation">(</span>allNodes<span class="token punctuation">,</span> currentTime<span class="token punctuation">)</span>
+            daemonsets<span class="token punctuation">,</span> err <span class="token operator">:=</span> a<span class="token punctuation">.</span>ListerRegistry<span class="token punctuation">.</span><span class="token function">DaemonSetLister</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">List</span><span class="token punctuation">(</span>labels<span class="token punctuation">.</span><span class="token function">Everything</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span>
+            err <span class="token operator">=</span> a<span class="token punctuation">.</span>AutoscalingContext<span class="token punctuation">.</span>CloudProvider<span class="token punctuation">.</span><span class="token function">Refresh</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+                cache<span class="token punctuation">.</span>cloudProvider<span class="token punctuation">.</span><span class="token function">NodeGroups</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token comment">// load provider specified group</span>
+                nodeGroupInstances<span class="token punctuation">,</span> err <span class="token operator">:=</span> nodeGroup<span class="token punctuation">.</span><span class="token function">Nodes</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+            a<span class="token punctuation">.</span><span class="token function">initializeClusterSnapshot</span><span class="token punctuation">(</span>allNodes<span class="token punctuation">,</span> nonExpendableScheduledPods<span class="token punctuation">)</span> <span class="token comment">// exclude low priority pods</span>
+            a<span class="token punctuation">.</span>processors<span class="token punctuation">.</span>TemplateNodeInfoProvider<span class="token punctuation">.</span><span class="token function">Process</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token operator">--</span><span class="token operator">&gt;</span>
+                <span class="token function">processNode</span><span class="token punctuation">(</span>node<span class="token punctuation">)</span><span class="token operator">--</span><span class="token operator">&gt;</span>
+                    simulator<span class="token punctuation">.</span><span class="token function">BuildNodeInfoForNode</span><span class="token punctuation">(</span>node<span class="token punctuation">,</span> podsForNodes<span class="token punctuation">)</span> <span class="token comment">// simulate scheduled pods right after node is created</span>
+                    sanitizedNodeInfo<span class="token punctuation">,</span> err <span class="token operator">:=</span> utils<span class="token punctuation">.</span><span class="token function">SanitizeNodeInfo</span><span class="token punctuation">(</span>nodeInfo<span class="token punctuation">,</span> id<span class="token punctuation">,</span> ignoredTaints<span class="token punctuation">)</span> <span class="token comment">// modify node name</span>
+                    a<span class="token punctuation">.</span><span class="token function">updateClusterState</span><span class="token punctuation">(</span>allNodes<span class="token punctuation">,</span> nodeInfosForGroups<span class="token punctuation">,</span> currentTime<span class="token punctuation">)</span>
+            a<span class="token punctuation">.</span><span class="token function">updateClusterState</span><span class="token punctuation">(</span>allNodes<span class="token punctuation">,</span> nodeInfosForGroups<span class="token punctuation">,</span> currentTime<span class="token punctuation">)</span>
+            <span class="token function">ScaleUp</span><span class="token punctuation">(</span>autoscalingContext<span class="token punctuation">,</span> a<span class="token punctuation">.</span>processors<span class="token punctuation">,</span> a<span class="token punctuation">.</span>clusterStateRegistry<span class="token punctuation">,</span> unschedulablePodsToHelp<span class="token punctuation">,</span> readyNodes<span class="token punctuation">,</span> daemonsets<span class="token punctuation">,</span> nodeInfosForGroups<span class="token punctuation">,</span> a<span class="token punctuation">.</span>ignoredTaints<span class="token punctuation">)</span><span class="token operator">--</span><span class="token operator">&gt;</span>
+                <span class="token comment">// filter out virtual kubelet</span>
+                nodesFromNotAutoscaledGroups<span class="token punctuation">,</span> err <span class="token operator">:=</span> utils<span class="token punctuation">.</span><span class="token function">FilterOutNodesFromNotAutoscaledGroups</span><span class="token punctuation">(</span>nodes<span class="token punctuation">,</span> context<span class="token punctuation">.</span>CloudProvider<span class="token punctuation">)</span>
+                <span class="token function">computeScaleUpResourcesLeftLimits</span><span class="token punctuation">(</span>context<span class="token punctuation">,</span> processors<span class="token punctuation">,</span> nodeGroups<span class="token punctuation">,</span> nodeInfos<span class="token punctuation">,</span> nodesFromNotAutoscaledGroups<span class="token punctuation">,</span> resourceLimiter<span class="token punctuation">)</span><span class="token operator">--</span><span class="token operator">&gt;</span>
+                    <span class="token function">calculateScaleUpCoresMemoryTotal</span><span class="token punctuation">(</span>nodeGroups<span class="token punctuation">,</span> nodeInfos<span class="token punctuation">,</span> nodesFromNotAutoscaledGroups<span class="token punctuation">)</span> <span class="token comment">// sum totoal cpu and mem resource of the node group</span>
+                    <span class="token function">calculateScaleUpCustomResourcesTotal</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token comment">// sum allocable gpu of the node group</span>
+                clusterStateRegistry<span class="token punctuation">.</span><span class="token function">GetUpcomingNodes</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token operator">--</span><span class="token operator">&gt;</span>
+                    newNodes <span class="token operator">:=</span> ar<span class="token punctuation">.</span>CurrentTarget <span class="token operator">-</span> <span class="token punctuation">(</span>readiness<span class="token punctuation">.</span>Ready <span class="token operator">+</span> readiness<span class="token punctuation">.</span>Unready <span class="token operator">+</span> readiness<span class="token punctuation">.</span>LongUnregistered<span class="token punctuation">)</span>
+                upcomingNodes <span class="token operator">=</span> <span class="token function">append</span><span class="token punctuation">(</span>upcomingNodes<span class="token punctuation">,</span> nodeTemplate<span class="token punctuation">)</span> <span class="token comment">// build node template for each node group</span>
+                <span class="token function">computeScaleUpResourcesDelta</span><span class="token punctuation">(</span>context<span class="token punctuation">,</span> processors<span class="token punctuation">,</span> nodeInfo<span class="token punctuation">,</span> nodeGroup<span class="token punctuation">,</span> resourceLimiter<span class="token punctuation">)</span>
+                context<span class="token punctuation">.</span>ExpanderStrategy<span class="token punctuation">.</span><span class="token function">BestOption</span><span class="token punctuation">(</span>options<span class="token punctuation">,</span> nodeInfos<span class="token punctuation">)</span> <span class="token comment">// different strategy, e.g.leastwaste, mostpods, priceBased</span>
+                processors<span class="token punctuation">.</span>NodeGroupManager<span class="token punctuation">.</span><span class="token function">CreateNodeGroup</span><span class="token punctuation">(</span>context<span class="token punctuation">,</span> bestOption<span class="token punctuation">.</span>NodeGroup<span class="token punctuation">)</span>
+                <span class="token comment">// calculate node numbers</span>
+                newNodes<span class="token punctuation">,</span> err <span class="token operator">=</span> <span class="token function">applyScaleUpResourcesLimits</span><span class="token punctuation">(</span>context<span class="token punctuation">,</span> processors<span class="token punctuation">,</span> newNodes<span class="token punctuation">,</span> scaleUpResourcesLeft<span class="token punctuation">,</span> nodeInfo<span class="token punctuation">,</span> bestOption<span class="token punctuation">.</span>NodeGroup<span class="token punctuation">,</span> resourceLimiter<span class="token punctuation">)</span>
+                <span class="token comment">// find similar group</span>
+                processors<span class="token punctuation">.</span>NodeGroupSetProcessor<span class="token punctuation">.</span><span class="token function">FindSimilarNodeGroups</span><span class="token punctuation">(</span>context<span class="token punctuation">,</span> bestOption<span class="token punctuation">.</span>NodeGroup<span class="token punctuation">,</span> nodeInfos<span class="token punctuation">)</span>
+                processors<span class="token punctuation">.</span>NodeGroupSetProcessor<span class="token punctuation">.</span><span class="token function">BalanceScaleUpBetweenGroups</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+                <span class="token function">executeScaleUp</span><span class="token punctuation">(</span>context<span class="token punctuation">,</span> clusterStateRegistry<span class="token punctuation">,</span> info<span class="token punctuation">,</span> gpu<span class="token punctuation">.</span><span class="token function">GetGpuTypeForMetrics</span><span class="token punctuation">(</span>gpuLabel<span class="token punctuation">,</span> availableGPUTypes<span class="token punctuation">,</span> nodeInfo<span class="token punctuation">.</span><span class="token function">Node</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">,</span> <span class="token boolean">nil</span><span class="token punctuation">)</span><span class="token punctuation">,</span> now<span class="token punctuation">)</span><span class="token operator">--</span><span class="token operator">&gt;</span>
+                    info<span class="token punctuation">.</span>Group<span class="token punctuation">.</span><span class="token function">IncreaseSize</span><span class="token punctuation">(</span>increase<span class="token punctuation">)</span>
+    <span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>ClusterAPI 与 ClusterAutoscaler 的整合</p>
+<p><a target="_blank" rel="noopener" href="https://cluster-api.sigs.k8s.io/tasks/cluster-autoscaler.html">https://cluster-api.sigs.k8s.io/tasks/cluster-autoscaler.html</a></p>
+<h3 id="集群管理实践案例分享"><a href="#集群管理实践案例分享" class="headerlink" title="集群管理实践案例分享"></a>集群管理实践案例分享</h3><h4 id="集群管理实践案例分享-1"><a href="#集群管理实践案例分享-1" class="headerlink" title="集群管理实践案例分享"></a>集群管理实践案例分享</h4><p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/集群管理实践案例分享.png" alt="集群管理实践案例分享"></p>
+<h4 id="声明式集群配置"><a href="#声明式集群配置" class="headerlink" title="声明式集群配置"></a>声明式集群配置</h4><p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/声明式集群配置.png" alt="声明式集群配置"></p>
+<h4 id="声明式扩容"><a href="#声明式扩容" class="headerlink" title="声明式扩容"></a>声明式扩容</h4><p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/声明式扩容.png" alt="声明式扩容"></p>
+<h4 id="声明式持续发布"><a href="#声明式持续发布" class="headerlink" title="声明式持续发布"></a>声明式持续发布</h4><p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/声明式持续发布.png" alt="声明式持续发布"></p>
+<h4 id="自定义插件-声明式集群管理对象"><a href="#自定义插件-声明式集群管理对象" class="headerlink" title="自定义插件 - 声明式集群管理对象"></a>自定义插件 - 声明式集群管理对象</h4><p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/声明式集群管理对象.png" alt="声明式集群管理对象"></p>
+<h3 id="多租户集群管理"><a href="#多租户集群管理" class="headerlink" title="多租户集群管理"></a>多租户集群管理</h3><h4 id="租户"><a href="#租户" class="headerlink" title="租户"></a>租户</h4><p>租户是指一组拥有访问特定软件资源权限的用户集合，在多租户环境中，它还包括共享的应用服务、数据和各项配置等</p>
+<p>多租户集群必须将租户彼此隔离，以最大限度地减少租户与租户、租户与集群之间的影响</p>
+<p>集群须在租户之间公平地分配集群资源。通过多租户共享集群资源，可以有效地降低集群管理成本，提高整体集群的资源利用率</p>
+<h4 id="认证-实现多租户的基础"><a href="#认证-实现多租户的基础" class="headerlink" title="认证 - 实现多租户的基础"></a>认证 - 实现多租户的基础</h4><p>租户管理首先需要识别访问的用户是谁，因此用户身份认证是多租户的基础</p>
+<p>权限控制，如允许合法登录的用户访问、拒绝非法登录的用户访问或提供有限的匿名访问</p>
+<p>Kubernetes 可管理两类用户</p>
+<ul>
+<li>用来标识和管理系统组件的 ServiceAccount</li>
+<li>外部用户的认证，需要通过 Kubernetes 的认证扩展来对接企业、供应商的认证服务，为用户验证、操作授权、资源隔离等提供基础</li>
+</ul>
+<h4 id="隔离"><a href="#隔离" class="headerlink" title="隔离"></a>隔离</h4><p>除认证、授权这些基础条件外，还要能够保证用户的工作负载彼此之间有尽可能安全的隔离，减少用户工作负载之间的影响。通常从权限、网络、数据三个方面对不同用户进行隔离</p>
+<ul>
+<li>权限隔离<ul>
+<li>普通用户的容器默认不具有 priviledqed、sys admin、net admin 等高级管理权限，以阻止对宿主机及其他用户的容器进行读取、写入等操作。</li>
+</ul>
+</li>
+<li>网络隔离<ul>
+<li>不同的 Pod，运行在不同的 Network Namespace 中，拥有独立的网络协议。Pod 之间只能通过容器开放的端口进行通信，不能通过其他方式进行访问。</li>
+</ul>
+</li>
+<li>数据隔离<ul>
+<li>容器之间利用 Namespace 进行隔离，在第 2 章中我们已经对不同的 Namespace 进行了详细描述。不同 Pod 的容器，运行在不同的 MNT、UTS、PID、IPC Namespace 上，相互之间无法访问对方的文件系统、进程、IPC等信息；同一个Pod的容器，其 mnt、PID Namespace 也不共享。</li>
+</ul>
+</li>
+</ul>
+<h4 id="租户隔离手段"><a href="#租户隔离手段" class="headerlink" title="租户隔离手段"></a>租户隔离手段</h4><p>Namespace: Namespace 属于且仅属于一个租户</p>
+<p>权限定义: 定义内容包括命名空间中的 Role 与 RoleBinding 。这些资源表示目前租户在归属于自己的命名空间中定义了什么权限授权给了哪些租户的成员。</p>
+<p>Pod 安全策略: 特殊权限指集群级的特定资源定义 —— PodSecurityPolicy。它定义了一系列工作负载与基础设施之间，工作负载与工作负载之间的关联关系，并通过命名空间的 RoleBinding 完成授权。</p>
+<p>网络策略: 基础设施层面为保障租户网络的隔离机制提供了一系列默认策略，以及租户自己定制的用于租户应用彼此访问的策略。</p>
+<p>Pod、Service、PersistentVolumeClaim 等命名空间资源: 这些定义表示租户的应用落地到 Kubernetes 中的实体。</p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/租户隔离手段.png" alt="租户隔离手段"></p>
+<h4 id="权限隔离"><a href="#权限隔离" class="headerlink" title="权限隔离"></a>权限隔离</h4><p>基于 Namespace 的权限隔离</p>
+<ul>
+<li>创建一个 namespace-admin ClusterRole，拥有所有对象的所有权限</li>
+<li>为用户开辟新 namespace，并在该 namespace 创建 rolebinding 绑定 namespace-admin ClusterRole，用户即可拥有当前 namespace 所有对象操作权限</li>
+</ul>
+<p>自动化解决方案</p>
+<ul>
+<li>当 Namespace 创建时，通过 mutatingwebhook 将 namespace 变形，将用户信息记录至 namespace annotation</li>
+<li>创建一个控制器，监控 namespace，创建 rolebinding 为该用户绑定 namespace-admin 的权限</li>
+</ul>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/权限隔离.png" alt="权限隔离"></p>
+<h4 id="Quota-管理"><a href="#Quota-管理" class="headerlink" title="Quota 管理"></a>Quota 管理</h4><p>开启 ResourceQuota 准入插件。</p>
+<p>在用户 namespace 创建 ResourceQuota 对象进行限额配置。</p>
+<pre class="line-numbers language-yaml" data-language="yaml"><code class="language-yaml"><span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> v1
+<span class="token key atrule">kind</span><span class="token punctuation">:</span> ResourceQuota
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> high<span class="token punctuation">-</span>gos<span class="token punctuation">-</span>limit<span class="token punctuation">-</span>requests
+<span class="token key atrule">spec</span><span class="token punctuation">:</span>
+  <span class="token key atrule">hard</span><span class="token punctuation">:</span>
+    <span class="token key atrule">limits.cpu</span><span class="token punctuation">:</span> <span class="token number">8</span>
+    <span class="token key atrule">limits.memory</span><span class="token punctuation">:</span> 24Gi
+    <span class="token key atrule">pods</span><span class="token punctuation">:</span> <span class="token number">10</span>
+    <span class="token key atrule">requests.cpu</span><span class="token punctuation">:</span> <span class="token number">4</span>
+    <span class="token key atrule">requests.memory</span><span class="token punctuation">:</span> 12Gi
+  <span class="token key atrule">scopes</span><span class="token punctuation">:</span>
+  <span class="token punctuation">-</span> NotBestEffort<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/Quota管理.png" alt="Quota管理"></p>
+<h4 id="节点资源隔离"><a href="#节点资源隔离" class="headerlink" title="节点资源隔离"></a>节点资源隔离</h4><p>通过为节点设置不同 taint 来识别不同租户的计算资源。</p>
+<p>不同租户在创建 Pod 时，增加 Toleration 关键字，确保其能调度至某个 taint 的节点。</p>
+<h4 id="练习：基于-Cluster-API-搭建一个集群"><a href="#练习：基于-Cluster-API-搭建一个集群" class="headerlink" title="练习：基于 Cluster API 搭建一个集群"></a>练习：基于 Cluster API 搭建一个集群</h4>
                 
             </div>
             <hr/>
