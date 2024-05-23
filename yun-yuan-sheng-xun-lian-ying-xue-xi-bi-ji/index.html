@@ -399,21 +399,21 @@
                 
                 <div class="post-date info-break-policy">
                     <i class="far fa-calendar-check fa-fw"></i>更新日期:&nbsp;&nbsp;
-                    2024-05-22
+                    2024-05-23
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-file-word fa-fw"></i>文章字数:&nbsp;&nbsp;
-                    66k
+                    66.2k
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-clock fa-fw"></i>阅读时长:&nbsp;&nbsp;
-                    275 分
+                    276 分
                 </div>
                 
 
@@ -6006,10 +6006,8 @@ Commercial support is available at
 <h4 id="状态上报"><a href="#状态上报" class="headerlink" title="状态上报"></a>状态上报</h4><p>kubelet 周期性地向 APIServer 进行汇报，并更新节点的相关健康和资源使用信息</p>
 <ul>
 <li>节点基础信息，包括 IP 地址、操作系统、内核、运行时、kubelet、kube-proxy版本信息。</li>
-<li><p>节点资源信息包括 CPU、内存、HugePage、临时存储、GPU 等注册设备，以及这些资源中可以分配给容器使用的部分。</p>
-</li>
-<li><p>调度器在为 Pod 选择节点时会将机器的状态信息作为依据。</p>
-</li>
+<li>节点资源信息包括 CPU、内存、HugePage、临时存储、GPU 等注册设备，以及这些资源中可以分配给容器使用的部分。</li>
+<li>调度器在为 Pod 选择节点时会将机器的状态信息作为依据。</li>
 </ul>
 <p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/状态上报.png" alt="状态上报"></p>
 <h5 id="Lease"><a href="#Lease" class="headerlink" title="Lease"></a>Lease</h5><p>在早期版本 kubelet 的状态上报直接更新 node 对象，而上报的信息包含状态信息和资源信息，因此需要传输的数据包较大，给 APIServer 和 etcd 造成的压力较大。</p>
@@ -6020,7 +6018,7 @@ Commercial support is available at
   <span class="token key atrule">creationTimestamp</span><span class="token punctuation">:</span> <span class="token string">"2021-08-19T02:50:09Z"</span>
   <span class="token key atrule">name</span><span class="token punctuation">:</span> k8snode
   <span class="token key atrule">namespace</span><span class="token punctuation">:</span> kube<span class="token punctuation">-</span>node<span class="token punctuation">-</span>lease
-  ownerReferences
+  <span class="token key atrule">ownerReferences</span><span class="token punctuation">:</span>
   <span class="token punctuation">-</span> apiVersion<span class="token punctuation">:</span>v1
     <span class="token key atrule">kind</span><span class="token punctuation">:</span> Node
     <span class="token key atrule">name</span><span class="token punctuation">:</span> k8snode
@@ -6036,7 +6034,7 @@ Commercial support is available at
 <p>kubelet 可以通过众多启动参数为系统预留 CPU、内存、PID 等资源，比如 SystemReserved、KubeReserved 等。</p>
 <h5 id="Capacity-和-Allocatable"><a href="#Capacity-和-Allocatable" class="headerlink" title="Capacity 和 Allocatable"></a>Capacity 和 Allocatable</h5><p>容量资源 (Capacity) 是指 kubelet 获取的计算节点当前的资源信息。</p>
 <ul>
-<li>CPU是从 /proc/cpuinfo 文件中获取的节点 CPU 核数;</li>
+<li>CPU 是从 /proc/cpuinfo 文件中获取的节点 CPU 核数;</li>
 <li>memory 是从 /proc/memoryinfo 中获取的节点内存大小;</li>
 <li>ephemeral-storage 是指节点根分区的大小。</li>
 </ul>
@@ -6052,17 +6050,27 @@ Commercial support is available at
   <span class="token key atrule">memory</span><span class="token punctuation">:</span> 179504088Ki
   <span class="token key atrule">pods</span><span class="token punctuation">:</span> <span class="token string">"110"</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
 <p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/节点的资源容量.png" alt="节点的资源容量"></p>
-<h5 id="节点磁盘管理"><a href="#节点磁盘管理" class="headerlink" title="节点磁盘管理"></a>节点磁盘管理</h5><p>系统分区 nodefs</p>
-<pre><code>- 工作目录和容器日志
-</code></pre><p>容器运行时分区 imagefs</p>
-<pre><code>- 用户镜像和容器可写层
-- 容器运行时分区是可选的，可以合并到系统分区中
-</code></pre><h4 id="驱逐管理"><a href="#驱逐管理" class="headerlink" title="驱逐管理"></a>驱逐管理</h4><p>kubelet 会在系统资源不够时中止一些容器进程，以空出系统资源，保证节点的稳定性。</p>
-<p>但由 kubelet 发起的驱逐只停止 Pod 的所有容器进程，并不会直接删除Pod。</p>
-<pre><code>- Pod 的 status.phase 会被标记为 Failed
-- status.reason 会被设置为 Evicted
-- status.message 则会记录被驱逐的原因
-</code></pre><h5 id="资源可用额监控"><a href="#资源可用额监控" class="headerlink" title="资源可用额监控"></a>资源可用额监控</h5><p>kubelet 依赖内嵌的开源软件 cAdvisor，周期性检查节点资源使用情况</p>
+<h5 id="节点磁盘管理"><a href="#节点磁盘管理" class="headerlink" title="节点磁盘管理"></a>节点磁盘管理</h5><p><a target="_blank" rel="noopener" href="https://github.com/kibaamor/101/blob/master/module9/node/readme.MD">https://github.com/kibaamor/101/blob/master/module9/node/readme.MD</a></p>
+<p><a target="_blank" rel="noopener" href="https://kubernetes.io/docs/concepts/scheduling-eviction/node-pressure-eviction/#eviction-signals">https://kubernetes.io/docs/concepts/scheduling-eviction/node-pressure-eviction/#eviction-signals</a></p>
+<p>系统分区 nodefs</p>
+<ul>
+<li>工作目录和容器日志</li>
+<li>The node’s main filesystem, used for local disk volumes, emptyDir volumes not backed by memory, log storage, and more. For example, nodefs contains /var/lib/kubelet/.</li>
+</ul>
+<p>容器运行时分区 imagefs</p>
+<ul>
+<li>用户镜像和容器可写层</li>
+<li>容器运行时分区是可选的，可以合并到系统分区中</li>
+<li>An optional filesystem that container runtimes use to store container images and container writable layers.</li>
+</ul>
+<h4 id="驱逐管理"><a href="#驱逐管理" class="headerlink" title="驱逐管理"></a>驱逐管理</h4><p>kubelet 会在系统资源不够时中止一些容器进程，以空出系统资源，保证节点的稳定性。</p>
+<p>但由 kubelet 发起的驱逐只停止 Pod 的所有容器进程，并不会直接删除Pod（便于查看原因）。</p>
+<ul>
+<li>Pod 的 status.phase 会被标记为 Failed</li>
+<li>status.reason 会被设置为 Evicted</li>
+<li>status.message 则会记录被驱逐的原因</li>
+</ul>
+<h5 id="资源可用额监控"><a href="#资源可用额监控" class="headerlink" title="资源可用额监控"></a>资源可用额监控</h5><p>kubelet 依赖内嵌的开源软件 cAdvisor，周期性检查节点资源使用情况</p>
 <p>CPU 是可压缩资源，根据不同进程分配时间配额和权重，CPU 可被多个进程竞相使用</p>
 <p>驱逐策略是基于磁盘和内存资源用量进行的，因为两者属于不可压缩的资源，当此类资源使用耗尽时将无法再申请</p>
 <p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/资源可用额监控.png" alt="资源可用额监控"></p>
@@ -6106,10 +6114,17 @@ Commercial support is available at
 <h4 id="容器和资源配置"><a href="#容器和资源配置" class="headerlink" title="容器和资源配置"></a>容器和资源配置</h4><h5 id="CPU-CGroup-配置"><a href="#CPU-CGroup-配置" class="headerlink" title="CPU CGroup 配置"></a>CPU CGroup 配置</h5><p>针对不同 QoS Class 的 Pod，Kubneretes 按如下 Hierarchy 组织 cgroup 中的 CPU 子系统</p>
 <p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/CPUCGroup层级.png" alt="CPUCGroup层级"></p>
 <p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/CPUCGroup配置.png" alt="CPUCGroup配置"></p>
+<blockquote>
+<p>实际测试发现：burstable 容器的 cpu.cfs_quota_us 如果没配就是 -1，如果配置了就是实际的值。</p>
+</blockquote>
 <h5 id="内存-CGroup-配置"><a href="#内存-CGroup-配置" class="headerlink" title="内存 CGroup 配置"></a>内存 CGroup 配置</h5><p>针对不同 QoS Class 的Pod，Kubneretes 按如下 Hierarchy 组织 cgroup 中的 Memory 子系统</p>
 <p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/内存CGroup层级.png" alt="内存CGroup层级"></p>
 <p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/内存CGroup配置.png" alt="内存CGroup配置"></p>
-<h5 id="OOM-Killer-行为"><a href="#OOM-Killer-行为" class="headerlink" title="OOM Killer 行为"></a>OOM Killer 行为</h5><p>系统的 OOM Killer 可能会采取 OOM 的方式来中止某些容器的进程，进行必要的内存回收操作</p>
+<blockquote>
+<p>实际测试发现：burstable 容器的 memory.limit_in_bytes 如果没配就是 9223372036854771712（即未限制），如果配置了就是实际的值。。 </p>
+</blockquote>
+<h5 id="OOM-Killer-行为"><a href="#OOM-Killer-行为" class="headerlink" title="OOM Killer 行为"></a>OOM Killer 行为</h5><p><a target="_blank" rel="noopener" href="https://github.com/kibaamor/101/blob/master/module9/oom_score/oom_score.md">https://github.com/kibaamor/101/blob/master/module9/oom_score/oom_score.md</a></p>
+<p>系统的 OOM Killer 可能会采取 OOM 的方式来中止某些容器的进程，进行必要的内存回收操作</p>
 <p>而系统根据进程的 oom_score 来进行优先级排序，选择待终止的进程，且进程的 oom_score 越高，越容易被终止</p>
 <p>进程的 oom_score 是根据当前进程使用的内存占节点总内存的比例值乘以 10，再加上 oom_score_adj 综合得到的</p>
 <p>而容器进程的 oom_score_adj 正是 kubelet 根据 memory.request 进行设置的</p>
@@ -6185,6 +6200,28 @@ helm <span class="token function">install</span> deliveryhero/node-problem-detec
 <p>问题修复后，重启 NPD Pod 来清理错误事件</p>
 <h3 id="常用节点问题排查手段"><a href="#常用节点问题排查手段" class="headerlink" title="常用节点问题排查手段"></a>常用节点问题排查手段</h3><h4 id="ssh-到内网节点"><a href="#ssh-到内网节点" class="headerlink" title="ssh 到内网节点"></a>ssh 到内网节点</h4><p>创建一个支持 ssh 的 pod</p>
 <p>并通过负载均衡器转发 ssh 请求</p>
+<p><a target="_blank" rel="noopener" href="https://github.com/kibaamor/101/blob/master/module9/node-problem-detector/ssh-pod.yaml">https://github.com/kibaamor/101/blob/master/module9/node-problem-detector/ssh-pod.yaml</a></p>
+<pre class="line-numbers language-yaml" data-language="yaml"><code class="language-yaml"><span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> apps/v1
+<span class="token key atrule">kind</span><span class="token punctuation">:</span> Deployment
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> ssh
+<span class="token key atrule">spec</span><span class="token punctuation">:</span>
+  <span class="token key atrule">replicas</span><span class="token punctuation">:</span> <span class="token number">1</span>
+  <span class="token key atrule">selector</span><span class="token punctuation">:</span>
+    <span class="token key atrule">matchLabels</span><span class="token punctuation">:</span>
+      <span class="token key atrule">app</span><span class="token punctuation">:</span> ssh
+  <span class="token key atrule">template</span><span class="token punctuation">:</span>
+    <span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+      <span class="token key atrule">labels</span><span class="token punctuation">:</span>
+        <span class="token key atrule">app</span><span class="token punctuation">:</span> ssh
+    <span class="token key atrule">spec</span><span class="token punctuation">:</span>
+      <span class="token key atrule">containers</span><span class="token punctuation">:</span>
+        <span class="token punctuation">-</span> <span class="token key atrule">name</span><span class="token punctuation">:</span> alpine
+          <span class="token key atrule">image</span><span class="token punctuation">:</span> alpine
+          <span class="token key atrule">stdin</span><span class="token punctuation">:</span> <span class="token boolean important">true</span>
+          <span class="token key atrule">tty</span><span class="token punctuation">:</span> <span class="token boolean important">true</span>
+      <span class="token key atrule">hostNetwork</span><span class="token punctuation">:</span> <span class="token boolean important">true</span>
+      <span class="token key atrule">nodeName</span><span class="token punctuation">:</span> cadmin<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
 <h4 id="查看日志"><a href="#查看日志" class="headerlink" title="查看日志"></a>查看日志</h4><p>针对使用 systemd 拉起的服务</p>
 <pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">journalctl -afu kubelet-S <span class="token string">"2019-08-26 15:00:00"</span>
 <span class="token comment"># -u unit，对应的 systemd 拉起的组件，如 kubelet</span>
