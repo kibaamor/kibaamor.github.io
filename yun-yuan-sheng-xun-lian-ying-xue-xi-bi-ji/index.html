@@ -399,21 +399,21 @@
                 
                 <div class="post-date info-break-policy">
                     <i class="far fa-calendar-check fa-fw"></i>更新日期:&nbsp;&nbsp;
-                    2024-05-24
+                    2024-05-27
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-file-word fa-fw"></i>文章字数:&nbsp;&nbsp;
-                    66.4k
+                    68.5k
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-clock fa-fw"></i>阅读时长:&nbsp;&nbsp;
-                    277 分
+                    289 分
                 </div>
                 
 
@@ -6394,6 +6394,299 @@ status:
 <p>Kubernetes 还有一些核心插件，是以普通的 Pod 形式加载运行的，可能会被调度到任意工作节点，与普通应用竞争资源。这些插件是否正常运行也决定了集群的可用性。</p>
 <h4 id="高可用集群"><a href="#高可用集群" class="headerlink" title="高可用集群"></a>高可用集群</h4><p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/高可用集群.png" alt="高可用集群"></p>
 <h4 id="集群安装方法比较"><a href="#集群安装方法比较" class="headerlink" title="集群安装方法比较"></a>集群安装方法比较</h4><p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/集群安装方法比较.png" alt="集群安装方法比较"></p>
+<h4 id="用-Kubeadmin-搭建集群"><a href="#用-Kubeadmin-搭建集群" class="headerlink" title="用 Kubeadmin 搭建集群"></a>用 Kubeadmin 搭建集群</h4><p><a target="_blank" rel="noopener" href="https://medium.com/@rabbi.cse.sust.bd/kubernetes-cluster-setup-on-ubuntu-24-04-lts-server-c17be85e49d1">Kubernetes Cluster Setup on Ubuntu 24.04 LTS Server</a></p>
+<p><a target="_blank" rel="noopener" href="https://github.com/kubernetes/dashboard/blob/master/docs/user/access-control/creating-sample-user.md">Creating sample user</a></p>
+<p>测试时使用了的是下面的这些电脑（Ubuntu 24.04 Server）：</p>
+<div class="table-container">
+<table>
+<thead>
+<tr>
+<th style="text-align:center">Server Role</th>
+<th style="text-align:center">Host Name</th>
+<th style="text-align:center">Configuration</th>
+<th style="text-align:center">IP Address</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:center">Master</td>
+<td style="text-align:center">ubuntu2404-1</td>
+<td style="text-align:center">8GB Ram, 4vcpus</td>
+<td style="text-align:center">172.31.203.100</td>
+</tr>
+<tr>
+<td style="text-align:center">Worker</td>
+<td style="text-align:center">ubuntu2404-2</td>
+<td style="text-align:center">8GB Ram, 4vcpus</td>
+<td style="text-align:center">172.31.203.101</td>
+</tr>
+<tr>
+<td style="text-align:center">Worker</td>
+<td style="text-align:center">ubuntu2404-3</td>
+<td style="text-align:center">8GB Ram, 4vcpus</td>
+<td style="text-align:center">172.31.203.102</td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>计划使用的 POD CIDR 网段是 <code>10.244.0.0/16</code>。</p>
+<h5 id="安装容器运行时-containerd"><a href="#安装容器运行时-containerd" class="headerlink" title="安装容器运行时 containerd"></a>安装容器运行时 containerd</h5><p><a target="_blank" rel="noopener" href="https://docs.docker.com/engine/install/ubuntu/">https://docs.docker.com/engine/install/ubuntu/</a></p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token comment"># Add Docker's official GPG key:</span>
+<span class="token function">sudo</span> <span class="token function">apt-get</span> update
+<span class="token function">sudo</span> <span class="token function">apt-get</span> <span class="token function">install</span> apt-transport-https ca-certificates <span class="token function">curl</span> gpg
+<span class="token function">sudo</span> <span class="token function">install</span> -m 0755 -d /etc/apt/keyrings
+<span class="token function">sudo</span> <span class="token function">curl</span> -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+<span class="token function">sudo</span> <span class="token function">chmod</span> a+r /etc/apt/keyrings/docker.asc
+
+<span class="token comment"># Add the repository to Apt sources:</span>
+<span class="token builtin class-name">echo</span> <span class="token punctuation">\</span>
+  <span class="token string">"deb [arch=<span class="token variable"><span class="token variable">$(</span>dpkg --print-architecture<span class="token variable">)</span></span> signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu \
+  <span class="token variable"><span class="token variable">$(</span><span class="token builtin class-name">.</span> /etc/os-release <span class="token operator">&amp;&amp;</span> <span class="token builtin class-name">echo</span> <span class="token string">"<span class="token variable">$VERSION_CODENAME</span>"</span><span class="token variable">)</span></span> stable"</span> <span class="token operator">|</span> <span class="token punctuation">\</span>
+  <span class="token function">sudo</span> <span class="token function">tee</span> /etc/apt/sources.list.d/docker.list <span class="token operator">&gt;</span> /dev/null
+<span class="token function">sudo</span> <span class="token function">apt-get</span> update
+
+<span class="token function">sudo</span> <span class="token function">apt-get</span> <span class="token function">install</span> containerd.io
+
+<span class="token function">sudo</span> <span class="token function">mkdir</span> -p /etc/containerd
+<span class="token function">sudo</span> containerd config default <span class="token operator">|</span> <span class="token function">sudo</span> <span class="token function">tee</span> /etc/containerd/config.toml<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p><a target="_blank" rel="noopener" href="https://kubernetes.io/docs/setup/production-environment/container-runtimes/#containerd-systemd">https://kubernetes.io/docs/setup/production-environment/container-runtimes/#containerd-systemd</a></p>
+<p>需要确认生成的配置文件 <code>/etc/containerd/config.toml</code> 中部分字段的内容如下：</p>
+<pre class="line-numbers language-toml" data-language="toml"><code class="language-toml"><span class="token punctuation">[</span><span class="token table class-name">plugins."io.containerd.grpc.v1.cri".containerd</span><span class="token punctuation">]</span>
+  <span class="token key property">snapshotter</span> <span class="token punctuation">=</span> <span class="token string">"overlayfs"</span>
+<span class="token punctuation">[</span><span class="token table class-name">plugins."io.containerd.grpc.v1.cri".containerd.runtimes.runc.options</span><span class="token punctuation">]</span>
+  <span class="token key property">SystemdCgroup</span> <span class="token punctuation">=</span> <span class="token boolean">true</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span></span></code></pre>
+<blockquote>
+<p>另外，可以通过修改配置文件中 <code>sandbox_image</code> 字段的值来调整 pause 镜像的地址。</p>
+</blockquote>
+<p>重启 contained</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token function">sudo</span> systemctl restart containerd
+<span class="token function">sudo</span> systemctl <span class="token builtin class-name">enable</span> containerd
+systemctl status containerd<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span></span></code></pre>
+<h5 id="关闭交换分区"><a href="#关闭交换分区" class="headerlink" title="关闭交换分区"></a>关闭交换分区</h5><pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token function">sudo</span> swapoff -a<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>然后编辑文件 <code>/etc/fstab</code> ，永久的关闭 Swap</p>
+<pre class="line-numbers language-diff" data-language="diff"><code class="language-diff"><span class="token deleted-sign deleted"><span class="token prefix deleted">-</span><span class="token line">/swap.img  none    swap    sw  0   0
+</span></span><span class="token inserted-sign inserted"><span class="token prefix inserted">+</span><span class="token line">#/swap.img  none    swap    sw  0   0</span></span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre>
+<h5 id="确认每个节点的-MAC-地址和-product-uuid-都是唯一的以及端口-6443-未被使用"><a href="#确认每个节点的-MAC-地址和-product-uuid-都是唯一的以及端口-6443-未被使用" class="headerlink" title="确认每个节点的 MAC 地址和 product_uuid 都是唯一的以及端口 6443 未被使用"></a>确认每个节点的 MAC 地址和 product_uuid 都是唯一的以及端口 6443 未被使用</h5><pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ <span class="token function">ip</span> <span class="token function">link</span> show dev eth0
+<span class="token number">2</span>: eth0: <span class="token operator">&lt;</span>BROADCAST,MULTICAST,UP,LOWER_UP<span class="token operator">&gt;</span> mtu <span class="token number">1500</span> qdisc mq state UP mode DEFAULT group default qlen <span class="token number">1000</span>
+    link/ether 00:15:5d:a0:01:07 brd ff:ff:ff:ff:ff:ff
+
+$ <span class="token function">sudo</span> <span class="token function">cat</span> /sys/class/dmi/id/product_uuid
+1b653aa4-67b4-473b-8626-37b9cf1140ab
+
+$ <span class="token function">nc</span> <span class="token number">127.0</span>.0.1 <span class="token number">6443</span> -v
+nc: connect to <span class="token number">127.0</span>.0.1 port <span class="token number">6443</span> <span class="token punctuation">(</span>tcp<span class="token punctuation">)</span> failed: Connection refused<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<h5 id="加载内核模块和配置-sysctl"><a href="#加载内核模块和配置-sysctl" class="headerlink" title="加载内核模块和配置 sysctl"></a>加载内核模块和配置 sysctl</h5><p>加载内核模块</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token function">sudo</span> modprobe overlay
+<span class="token function">sudo</span> modprobe br_netfilter
+
+<span class="token function">sudo</span> <span class="token function">tee</span> /etc/modules-load.d/k8s.conf <span class="token operator">&lt;&lt;</span><span class="token string">EOF
+overlay
+br_netfilter
+EOF</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>配置 sysctl</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token function">sudo</span> <span class="token function">tee</span> /etc/sysctl.d/kubernetes.conf<span class="token operator">&lt;&lt;</span><span class="token string">EOF
+net.bridge.bridge-nf-call-ip6tables = 1
+net.bridge.bridge-nf-call-iptables = 1
+net.ipv4.ip_forward = 1
+EOF</span>
+
+<span class="token function">sudo</span> sysctl --system
+
+<span class="token function">sudo</span> <span class="token function">sh</span> -c <span class="token string">"echo 'net.ipv4.ip_forward = 1' &gt;&gt; /etc/sysctl.conf"</span>
+
+<span class="token function">sudo</span> sysctl -p<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>确实配置生效</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ <span class="token function">sudo</span> lsmod <span class="token operator">|</span> <span class="token function">egrep</span> <span class="token string">'^(overlay|br_netfilter)'</span>
+br_netfilter           <span class="token number">32768</span>  <span class="token number">0</span>
+overlay               <span class="token number">212992</span>  <span class="token number">22</span>
+
+$ <span class="token function">cat</span> /proc/sys/net/ipv4/ip_forward
+<span class="token number">1</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<h5 id="安装Kubeadm、Kubectl和Kubelet"><a href="#安装Kubeadm、Kubectl和Kubelet" class="headerlink" title="安装Kubeadm、Kubectl和Kubelet"></a>安装Kubeadm、Kubectl和Kubelet</h5><p><a target="_blank" rel="noopener" href="https://kubernetes.io/docs/setup/production-environment/tools/kubeadm/install-kubeadm/#installing-kubeadm-kubelet-and-kubectl">Installing kubeadm, kubelet and kubectl</a></p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token function">sudo</span> <span class="token function">mkdir</span> -p -m <span class="token number">755</span> /etc/apt/keyrings
+
+<span class="token function">curl</span> -fsSL https://pkgs.k8s.io/core:/stable:/v1.30/deb/Release.key <span class="token operator">|</span> <span class="token function">sudo</span> gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+
+<span class="token builtin class-name">echo</span> <span class="token string">'deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.30/deb/ /'</span> <span class="token operator">|</span> <span class="token function">sudo</span> <span class="token function">tee</span> /etc/apt/sources.list.d/kubernetes.list
+
+<span class="token function">sudo</span> <span class="token function">apt-get</span> update
+<span class="token function">sudo</span> <span class="token function">apt-get</span> <span class="token function">install</span> -y kubelet kubeadm kubectl
+<span class="token function">sudo</span> apt-mark hold kubelet kubeadm kubectl
+
+<span class="token function">sudo</span> systemctl <span class="token builtin class-name">enable</span> --now kubelet<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<h5 id="网络设置"><a href="#网络设置" class="headerlink" title="网络设置"></a>网络设置</h5><p>Kubernetes 使用与电脑默认网关关联的网络接口上的 IP。也就是使用命令 <code>ip route show</code> 输出中以 <code>default via</code> 开头的行包含的网口。</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ <span class="token function">ip</span> route show
+default via <span class="token number">172.31</span>.192.1 dev eth0 proto static
+<span class="token number">10.244</span>.17.128/26 via <span class="token number">172.31</span>.203.100 dev eth0 proto <span class="token number">80</span> onlink<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span></span></code></pre>
+<p>如果命令 <code>ip route show</code> 的输出像上面那样，则 Kubernetes 使用网口 <code>eth0</code>，即 IP 地址为 <code>172.31.203.101</code>。</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ <span class="token function">ip</span> address show dev eth0
+<span class="token number">2</span>: eth0: <span class="token operator">&lt;</span>BROADCAST,MULTICAST,UP,LOWER_UP<span class="token operator">&gt;</span> mtu <span class="token number">1500</span> qdisc mq state UP group default qlen <span class="token number">1000</span>
+    link/ether 00:15:5d:a0:01:08 brd ff:ff:ff:ff:ff:ff
+    inet <span class="token number">172.31</span>.203.101/20 brd <span class="token number">172.31</span>.207.255 scope global eth0
+       valid_lft forever preferred_lft forever
+    inet6 fe80::215:5dff:fea0:108/64 scope <span class="token function">link</span>
+       valid_lft forever preferred_lft forever<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<h5 id="初始化控制平面节点"><a href="#初始化控制平面节点" class="headerlink" title="初始化控制平面节点"></a>初始化控制平面节点</h5><blockquote>
+<p>本小节的内容仅在 Master 节点执行。</p>
+</blockquote>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token comment"># 使用网段 10.244.0.0/16</span>
+$ <span class="token function">sudo</span> kubeadm init --pod-network-cidr<span class="token operator">=</span><span class="token number">10.244</span>.0.0/16 --cri-socket<span class="token operator">=</span>/var/run/containerd/containerd.sock --v<span class="token operator">=</span><span class="token number">5</span>
+<span class="token punctuation">..</span>.
+Your Kubernetes control-plane has initialized successfully<span class="token operator">!</span>
+
+To start using your cluster, you need to run the following as a regular user:
+
+  <span class="token function">mkdir</span> -p <span class="token environment constant">$HOME</span>/.kube
+  <span class="token function">sudo</span> <span class="token function">cp</span> -i /etc/kubernetes/admin.conf <span class="token environment constant">$HOME</span>/.kube/config
+  <span class="token function">sudo</span> <span class="token function">chown</span> <span class="token variable"><span class="token variable">$(</span><span class="token function">id</span> -u<span class="token variable">)</span></span><span class="token builtin class-name">:</span><span class="token variable"><span class="token variable">$(</span><span class="token function">id</span> -g<span class="token variable">)</span></span> <span class="token environment constant">$HOME</span>/.kube/config
+
+Alternatively, <span class="token keyword">if</span> you are the root user, you can run:
+
+  <span class="token builtin class-name">export</span> <span class="token assign-left variable">KUBECONFIG</span><span class="token operator">=</span>/etc/kubernetes/admin.conf
+
+You should now deploy a pod network to the cluster.
+Run <span class="token string">"kubectl apply -f [podnetwork].yaml"</span> with one of the options listed at:
+  https://kubernetes.io/docs/concepts/cluster-administration/addons/
+
+Then you can <span class="token function">join</span> any number of worker nodes by running the following on each as root:
+
+kubeadm <span class="token function">join</span> <span class="token number">172.31</span>.203.100:6443 --token pl635t.48ykxo7y0xv7r5my <span class="token punctuation">\</span>
+        --discovery-token-ca-cert-hash sha256:54259333f53f52e6304d0cabfe0ec3f4e85333295a9d48f8161752d4ff0c64c5<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>配置 kubectl 命令</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token function">mkdir</span> -p <span class="token environment constant">$HOME</span>/.kube
+<span class="token function">sudo</span> <span class="token function">cp</span> -i /etc/kubernetes/admin.conf <span class="token environment constant">$HOME</span>/.kube/config
+<span class="token function">sudo</span> <span class="token function">chown</span> <span class="token variable"><span class="token variable">$(</span><span class="token function">id</span> -u<span class="token variable">)</span></span><span class="token builtin class-name">:</span><span class="token variable"><span class="token variable">$(</span><span class="token function">id</span> -g<span class="token variable">)</span></span> <span class="token environment constant">$HOME</span>/.kube/config<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span></span></code></pre>
+<h5 id="安装-Pod-使用的网络插件-calico"><a href="#安装-Pod-使用的网络插件-calico" class="headerlink" title="安装 Pod 使用的网络插件 calico"></a>安装 Pod 使用的网络插件 calico</h5><blockquote>
+<p>本小节的内容仅在 Master 节点执行。</p>
+</blockquote>
+<p><a target="_blank" rel="noopener" href="https://docs.tigera.io/calico/latest/getting-started/kubernetes/quickstart">https://docs.tigera.io/calico/latest/getting-started/kubernetes/quickstart</a></p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">kubectl create -f https://raw.githubusercontent.com/projectcalico/calico/v3.28.0/manifests/tigera-operator.yaml
+<span class="token function">wget</span> https://raw.githubusercontent.com/projectcalico/calico/v3.28.0/manifests/custom-resources.yaml<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre>
+<p>因为之前安装 Kubernetes 集群是使用的 Pod CIDR 网段不是默认的 <code>192.168.0.0/16</code>，所以需要修改 <code>custom-resources.yaml</code>。</p>
+<pre class="line-numbers language-diff" data-language="diff"><code class="language-diff"><span class="token deleted-sign deleted"><span class="token prefix deleted">-</span><span class="token line">       cidr: 192.168.0.0/16
+</span></span><span class="token inserted-sign inserted"><span class="token prefix inserted">+</span><span class="token line">       cidr: 10.244.0.0/16</span></span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre>
+<p>然后再继续安装</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">kubectl create -f ./custom-resources.yaml<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>确认安装成功</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ kubectl get pods -n calico-system
+NAME                                       READY   STATUS    RESTARTS      AGE
+calico-kube-controllers-67d57d8448-p9jcx   <span class="token number">1</span>/1     Running   <span class="token number">0</span>             10h
+calico-node-2b2c2                          <span class="token number">1</span>/1     Running   <span class="token number">1</span> <span class="token punctuation">(</span>10h ago<span class="token punctuation">)</span>   10h
+calico-node-lcmn6                          <span class="token number">1</span>/1     Running   <span class="token number">0</span>             10h
+calico-node-npzmt                          <span class="token number">1</span>/1     Running   <span class="token number">0</span>             10h
+calico-typha-7bc67d4678-fc2f6              <span class="token number">1</span>/1     Running   <span class="token number">0</span>             10h
+calico-typha-7bc67d4678-ks8gm              <span class="token number">1</span>/1     Running   <span class="token number">0</span>             10h
+csi-node-driver-rzw2b                      <span class="token number">2</span>/2     Running   <span class="token number">0</span>             10h
+csi-node-driver-tnst9                      <span class="token number">2</span>/2     Running   <span class="token number">0</span>             10h
+csi-node-driver-wcglz                      <span class="token number">2</span>/2     Running   <span class="token number">0</span>             10h<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<h5 id="配置从节点加入集群"><a href="#配置从节点加入集群" class="headerlink" title="配置从节点加入集群"></a>配置从节点加入集群</h5><blockquote>
+<p>本小节的内容仅在 Worker 节点执行。</p>
+</blockquote>
+<p>执行在安装 Master 节点时提示的加入集群的命令</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ kubeadm <span class="token function">join</span> <span class="token number">172.31</span>.203.100:6443 --token pl635t.48ykxo7y0xv7r5my <span class="token punctuation">\</span>
+        --discovery-token-ca-cert-hash sha256:54259333f53f52e6304d0cabfe0ec3f4e85333295a9d48f8161752d4ff0c64c5
+This node has joined the cluster:
+* Certificate signing request was sent to apiserver and a response was received.
+* The Kubelet was informed of the new secure connection details.
+
+Run <span class="token string">'kubectl get nodes'</span> on the control-plane to see this node <span class="token function">join</span> the cluster.<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<h5 id="确认集群状态"><a href="#确认集群状态" class="headerlink" title="确认集群状态"></a>确认集群状态</h5><blockquote>
+<p>本小节的内容仅在 Master 节点执行。</p>
+</blockquote>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ kubectl cluster-info
+Kubernetes control plane is running at https://172.31.203.100:6443
+CoreDNS is running at https://172.31.203.100:6443/api/v1/namespaces/kube-system/services/kube-dns:dns/proxy
+
+To further debug and diagnose cluster problems, use <span class="token string">'kubectl cluster-info dump'</span><span class="token builtin class-name">.</span>
+
+$ kubectl get nodes -o wide
+NAME           STATUS   ROLES           AGE   VERSION   INTERNAL-IP      EXTERNAL-IP   OS-IMAGE           KERNEL-VERSION     CONTAINER-RUNTIME
+ubuntu2404-1   Ready    control-plane   11h   v1.30.1   <span class="token number">172.31</span>.203.100   <span class="token operator">&lt;</span>none<span class="token operator">&gt;</span>        Ubuntu <span class="token number">24.04</span> LTS   <span class="token number">6.8</span>.0-31-generic   containerd://1.6.32
+ubuntu2404-2   Ready    <span class="token operator">&lt;</span>none<span class="token operator">&gt;</span>          10h   v1.30.1   <span class="token number">172.31</span>.203.101   <span class="token operator">&lt;</span>none<span class="token operator">&gt;</span>        Ubuntu <span class="token number">24.04</span> LTS   <span class="token number">6.8</span>.0-31-generic   containerd://1.6.32
+ubuntu2404-3   Ready    <span class="token operator">&lt;</span>none<span class="token operator">&gt;</span>          10h   v1.30.1   <span class="token number">172.31</span>.203.102   <span class="token operator">&lt;</span>none<span class="token operator">&gt;</span>        Ubuntu <span class="token number">24.04</span> LTS   <span class="token number">6.8</span>.0-31-generic   containerd://1.6.32<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<h5 id="安装-Kubernetes-Dashboard"><a href="#安装-Kubernetes-Dashboard" class="headerlink" title="安装 Kubernetes Dashboard"></a>安装 Kubernetes Dashboard</h5><blockquote>
+<p>本小节的内容仅在 Master 节点执行。</p>
+</blockquote>
+<p>安装 Helm</p>
+<p><a target="_blank" rel="noopener" href="https://helm.sh/docs/intro/install/">https://helm.sh/docs/intro/install/</a></p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token function">curl</span> https://baltocdn.com/helm/signing.asc <span class="token operator">|</span> gpg --dearmor <span class="token operator">|</span> <span class="token function">sudo</span> <span class="token function">tee</span> /usr/share/keyrings/helm.gpg <span class="token operator">&gt;</span> /dev/null
+<span class="token function">sudo</span> <span class="token function">apt-get</span> <span class="token function">install</span> apt-transport-https --yes
+<span class="token builtin class-name">echo</span> <span class="token string">"deb [arch=<span class="token variable"><span class="token variable">$(</span>dpkg --print-architecture<span class="token variable">)</span></span> signed-by=/usr/share/keyrings/helm.gpg] https://baltocdn.com/helm/stable/debian/ all main"</span> <span class="token operator">|</span> <span class="token function">sudo</span> <span class="token function">tee</span> /etc/apt/sources.list.d/helm-stable-debian.list
+<span class="token function">sudo</span> <span class="token function">apt-get</span> update
+<span class="token function">sudo</span> <span class="token function">apt-get</span> <span class="token function">install</span> helm<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>安装 Dashboard</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ helm repo <span class="token function">add</span> kubernetes-dashboard https://kubernetes.github.io/dashboard/
+
+$ helm upgrade --install kubernetes-dashboard kubernetes-dashboard/kubernetes-dashboard --create-namespace --namespace kubernetes-dashboard
+Release <span class="token string">"kubernetes-dashboard"</span> does not exist. Installing it now.
+NAME: kubernetes-dashboard
+LAST DEPLOYED: Mon May <span class="token number">27</span> <span class="token number">13</span>:13:39 <span class="token number">2024</span>
+NAMESPACE: kubernetes-dashboard
+STATUS: deployed
+REVISION: <span class="token number">1</span>
+TEST SUITE: None
+NOTES:
+*************************************************************************************************
+*** PLEASE BE PATIENT: Kubernetes Dashboard may need a few minutes to get up and become ready ***
+*************************************************************************************************
+
+Congratulations<span class="token operator">!</span> You have just installed Kubernetes Dashboard <span class="token keyword">in</span> your cluster.
+
+To access Dashboard run:
+  kubectl -n kubernetes-dashboard port-forward svc/kubernetes-dashboard-kong-proxy <span class="token number">8443</span>:443
+
+NOTE: In <span class="token keyword">case</span> port-forward <span class="token builtin class-name">command</span> does not work, <span class="token function">make</span> sure that kong <span class="token function">service</span> name is correct.
+      Check the services <span class="token keyword">in</span> Kubernetes Dashboard namespace using:
+        kubectl -n kubernetes-dashboard get svc
+
+Dashboard will be available at:
+  https://localhost:8443<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>为 Kubernetes Dashboard 开启端口转发</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token function">nohup</span> kubectl -n kubernetes-dashboard port-forward --address <span class="token number">0.0</span>.0.0 svc/kubernetes-dashboard-kong-proxy <span class="token number">8443</span>:443 <span class="token operator"><span class="token file-descriptor important">2</span>&gt;</span><span class="token file-descriptor important">&amp;1</span> <span class="token operator"><span class="token file-descriptor important">1</span>&gt;</span>/dev/null <span class="token operator">&amp;</span><span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>然后访问 Master 节点（172.31.203.100）的 8443 端口即可访问到 Kubernetes Dashboard。</p>
+<p><a target="_blank" rel="noopener" href="https://172.31.203.100:8443/">https://172.31.203.100:8443/</a></p>
+<h5 id="创建一个用于访问-dashboard-的账号"><a href="#创建一个用于访问-dashboard-的账号" class="headerlink" title="创建一个用于访问 dashboard 的账号"></a>创建一个用于访问 dashboard 的账号</h5><blockquote>
+<p>本小节的内容仅在 Master 节点执行。</p>
+</blockquote>
+<p><a target="_blank" rel="noopener" href="https://github.com/kubernetes/dashboard/blob/master/docs/user/access-control/creating-sample-user.md">https://github.com/kubernetes/dashboard/blob/master/docs/user/access-control/creating-sample-user.md</a></p>
+<p><a target="_blank" rel="noopener" href="https://kubernetes.io/docs/tasks/configure-pod-container/configure-service-account/#manually-create-an-api-token-for-a-serviceaccount">https://kubernetes.io/docs/tasks/configure-pod-container/configure-service-account/#manually-create-an-api-token-for-a-serviceaccount</a></p>
+<p>创建 Service Account</p>
+<pre class="line-numbers language-yaml" data-language="yaml"><code class="language-yaml"><span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> v1
+<span class="token key atrule">kind</span><span class="token punctuation">:</span> ServiceAccount
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> admin<span class="token punctuation">-</span>user
+  <span class="token key atrule">namespace</span><span class="token punctuation">:</span> kubernetes<span class="token punctuation">-</span>dashboard<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>绑定用户到 cluster-admin</p>
+<pre class="line-numbers language-yaml" data-language="yaml"><code class="language-yaml"><span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> rbac.authorization.k8s.io/v1
+<span class="token key atrule">kind</span><span class="token punctuation">:</span> ClusterRoleBinding
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> admin<span class="token punctuation">-</span>user
+<span class="token key atrule">roleRef</span><span class="token punctuation">:</span>
+  <span class="token key atrule">apiGroup</span><span class="token punctuation">:</span> rbac.authorization.k8s.io
+  <span class="token key atrule">kind</span><span class="token punctuation">:</span> ClusterRole
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> cluster<span class="token punctuation">-</span>admin
+<span class="token key atrule">subjects</span><span class="token punctuation">:</span>
+<span class="token punctuation">-</span> <span class="token key atrule">kind</span><span class="token punctuation">:</span> ServiceAccount
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> admin<span class="token punctuation">-</span>user
+  <span class="token key atrule">namespace</span><span class="token punctuation">:</span> kubernetes<span class="token punctuation">-</span>dashboard<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>获取一个用于临时访问 Kubernetes Dashboard 的 Bearer Token</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ kubectl -n kubernetes-dashboard create token admin-user
+eyJhbGciOiJSUzI1NiIsImtpZCI6IjFsdnJlVk84Z1BOckwzQ2NyTHVxeUZWeUhpZjNHRUxDQjg3c3MxRUV1TmsifQ.eyJhdWQiOlsiaHR0cHM6Ly9rdWJlcm5ldGVzLmRlZmF1bHQuc3ZjLmNsdXN0ZXIubG9jYWwiXSwiZXhwIjoxNzE2ODI0ODY0LCJpYXQiOjE3MTY4MjEyNjQsImlzcyI6Imh0dHBzOi8va3ViZXJuZXRlcy5kZWZhdWx0LnN2Yy5jbHVzdGVyLmxvY2FsIiwianRpIjoiNzA1NGI0MWEtMWI3OC00NDlmLWJkZDQtNjAxODdhYzBkYmU5Iiwia3ViZXJuZXRlcy5pbyI6eyJuYW1lc3BhY2UiOiJrdWJlcm5ldGVzLWRhc2hib2FyZCIsInNlcnZpY2VhY2NvdW50Ijp7Im5hbWUiOiJhZG1pbi11c2VyIiwidWlkIjoiMWEwYWNmM2EtMzFiOC00ZTFlLTgxNzMtODg2NDY2MGE4NmM2In19LCJuYmYiOjE3MTY4MjEyNjQsInN1YiI6InN5c3RlbTpzZXJ2aWNlYWNjb3VudDprdWJlcm5ldGVzLWRhc2hib2FyZDphZG1pbi11c2VyIn0.IyoiZzuXQE-5P1OEPWwIWjI5dbHDe0BbdUjXaP1ML3137eTX-sOR__hs2cyv_1MwGLbUXipRl7NLDTY2qF359rcd4UZC5wjJKZE7WEVf8DQJgr1X4SiTYdmFeRp-JKb27oO7_jwWGlGJb1nY8t7exdvqSzbXWiuwDdc2Z52cXwP5n3sGErFXmchdZDV7Ims-1vF3_g_tKzxUBRe2bu0jfrQEqbUv_hLiEX7Ke1n6URGi1znEIs6tfSnhEOZ40JWvb5w0-bf1tx4qGFfhhVdzB16xMLGQNs4vrfekMvwXfzNNt5qTk2PX4olU9TG4OZofAWSCDAyJSLuYIXOtQUXn-g<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre>
+<p>为 admin-user 创建一个长期有效的 Bearer Token</p>
+<pre class="line-numbers language-yaml" data-language="yaml"><code class="language-yaml"><span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> v1
+<span class="token key atrule">kind</span><span class="token punctuation">:</span> Secret
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> admin<span class="token punctuation">-</span>user
+  <span class="token key atrule">namespace</span><span class="token punctuation">:</span> kubernetes<span class="token punctuation">-</span>dashboard
+  <span class="token key atrule">annotations</span><span class="token punctuation">:</span>
+    <span class="token key atrule">kubernetes.io/service-account.name</span><span class="token punctuation">:</span> <span class="token string">"admin-user"</span>
+<span class="token key atrule">type</span><span class="token punctuation">:</span> kubernetes.io/service<span class="token punctuation">-</span>account<span class="token punctuation">-</span>token<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>获取长期有效的 Token</p>
+<blockquote>
+<p>需要使用临时 Token 访问过一次 Dashboard 后才能获取到长期有效的 Token。</p>
+</blockquote>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ kubectl get secret admin-user -n kubernetes-dashboard -o <span class="token assign-left variable">jsonpath</span><span class="token operator">=</span><span class="token punctuation">{</span><span class="token string">".data.token"</span><span class="token punctuation">}</span> <span class="token operator">|</span> base64 -d
+eyJhbGciOiJSUzI1NiIsImtpZCI6IjFsdnJlVk84Z1BOckwzQ2NyTHVxeUZWeUhpZjNHRUxDQjg3c3MxRUV1TmsifQ.eyJpc3MiOiJrdWJlcm5ldGVzL3NlcnZpY2VhY2NvdW50Iiwia3ViZXJuZXRlcy5pby9zZXJ2aWNlYWNjb3VudC9uYW1lc3BhY2UiOiJrdWJlcm5ldGVzLWRhc2hib2FyZCIsImt1YmVybmV0ZXMuaW8vc2VydmljZWFjY291bnQvc2VjcmV0Lm5hbWUiOiJhZG1pbi11c2VyIiwia3ViZXJuZXRlcy5pby9zZXJ2aWNlYWNjb3VudC9zZXJ2aWNlLWFjY291bnQubmFtZSI6ImFkbWluLXVzZXIiLCJrdWJlcm5ldGVzLmlvL3NlcnZpY2VhY2NvdW50L3NlcnZpY2UtYWNjb3VudC51aWQiOiIxYTBhY2YzYS0zMWI4LTRlMWUtODE3My04ODY0NjYwYTg2YzYiLCJzdWIiOiJzeXN0ZW06c2VydmljZWFjY291bnQ6a3ViZXJuZXRlcy1kYXNoYm9hcmQ6YWRtaW4tdXNlciJ9.dkfNd1OyFYq0SdzC_mdgA7BT7ODQDfpAeBFC4XXN-O0kRT9qywnIkHckXMCfpZvFU3veIO4HoXuEOattlf1Hg3NtchtiUReonIb2h90feVNxnUqp1b6iy1JohRhQi-VpE8-b5L80BRy1AP-ovMLAdg61g9F5FBQ9tQPJu8CRnc64CXBmFS-VL7Wi-7yXkhSRB1MDvmT7FQW12gkpQ1R2LrMoRjX65TcFkWw89SibvOfLLwsZ1XJRBK_CGhSi55mebiEWOrFkg-dAQibMoDMKFp_yCvV2oz4vX-r3Ni_mQS7nvDKECFqYgVXPMSdUbX5HdCZxKlgZdHuokzBEsjoOzw<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre>
 <h4 id="用-Kubespray-搭建高可用集群搭建"><a href="#用-Kubespray-搭建高可用集群搭建" class="headerlink" title="用 Kubespray 搭建高可用集群搭建"></a>用 Kubespray 搭建高可用集群搭建</h4><p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/用Kubespray搭建高可用集群搭建.png" alt="用Kubespray搭建高可用集群搭建"></p>
 <h4 id="练习：使用-Kubespray-安装集群"><a href="#练习：使用-Kubespray-安装集群" class="headerlink" title="练习：使用 Kubespray 安装集群"></a>练习：使用 Kubespray 安装集群</h4><p><a target="_blank" rel="noopener" href="https://cncamp.notion.site/Install-HA-cluster-using-kubespray-e398756229a649b8adc7338788df4672">https://cncamp.notion.site/Install-HA-cluster-using-kubespray-e398756229a649b8adc7338788df4672</a></p>
 <h4 id="基于声明式-API-管理集群"><a href="#基于声明式-API-管理集群" class="headerlink" title="基于声明式 API 管理集群"></a>基于声明式 API 管理集群</h4><p>集群管理不仅仅包括集群搭建，还有更多功能需要支持</p>
