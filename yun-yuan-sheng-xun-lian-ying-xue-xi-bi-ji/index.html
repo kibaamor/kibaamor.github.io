@@ -399,21 +399,21 @@
                 
                 <div class="post-date info-break-policy">
                     <i class="far fa-calendar-check fa-fw"></i>更新日期:&nbsp;&nbsp;
-                    2024-05-27
+                    2024-05-30
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-file-word fa-fw"></i>文章字数:&nbsp;&nbsp;
-                    68.5k
+                    69.2k
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-clock fa-fw"></i>阅读时长:&nbsp;&nbsp;
-                    289 分
+                    293 分
                 </div>
                 
 
@@ -6771,6 +6771,102 @@ kubectl apply-f capi-quickstart.yaml<span aria-hidden="true" class="line-numbers
             <span class="token key atrule">eviction-hard</span><span class="token punctuation">:</span> nodefs.available&lt;0%<span class="token punctuation">,</span>nodefs.inodesFree&lt;0%<span class="token punctuation">,</span>imagefs.available&lt;0%
           <span class="token key atrule">clusterconfiguration</span><span class="token punctuation">:</span>
             <span class="token key atrule">imageRepository</span><span class="token punctuation">:</span> registry.aliyuncs.com/google containers<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<h4 id="用-kind-和-cluster-API-搭建集群"><a href="#用-kind-和-cluster-API-搭建集群" class="headerlink" title="用 kind 和 cluster API 搭建集群"></a>用 kind 和 cluster API 搭建集群</h4><p><a target="_blank" rel="noopener" href="https://github.com/kibaamor/101/blob/master/module9/kind/readme.MD">https://github.com/kibaamor/101/blob/master/module9/kind/readme.MD</a></p>
+<p><a href="mailto:https://medium.com/@dipendra.chaudhary/kubernetes-74a5d6bd4bdb">https://medium.com/@dipendra.chaudhary/kubernetes-74a5d6bd4bdb</a></p>
+<p><a target="_blank" rel="noopener" href="https://cluster-api.sigs.k8s.io/user/quick-start.html#install-andor-configure-a-kubernetes-cluster">https://cluster-api.sigs.k8s.io/user/quick-start.html#install-andor-configure-a-kubernetes-cluster</a></p>
+<h5 id="创建管理集群"><a href="#创建管理集群" class="headerlink" title="创建管理集群"></a>创建管理集群</h5><pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ <span class="token function">cat</span> <span class="token operator">&gt;</span> cluster-mgmt.yaml <span class="token operator">&lt;&lt;</span><span class="token string">EOF
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+networking:
+  ipFamily: dual
+nodes:
+- role: control-plane
+  extraMounts:
+  - hostPath: /var/run/docker.sock
+    containerPath: /var/run/docker.sock
+EOF</span>
+
+$ kind create cluster --config cluster-mgmt.yaml --name mgmt
+Creating cluster <span class="token string">"mgmt"</span> <span class="token punctuation">..</span>.
+ ✓ Ensuring node image <span class="token punctuation">(</span>kindest/node:v1.30.0<span class="token punctuation">)</span> 🖼
+ ✓ Preparing nodes 📦
+ ✓ Writing configuration 📜
+ ✓ Starting control-plane 🕹️
+ ✓ Installing CNI 🔌
+ ✓ Installing StorageClass 💾
+Set kubectl context to <span class="token string">"kind-mgmt"</span>
+You can now use your cluster with:
+
+kubectl cluster-info --context kind-mgmt
+
+Have a question, bug, or feature request? Let us know<span class="token operator">!</span> https://kind.sigs.k8s.io/<span class="token comment">#community 🙂</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<h5 id="创建工作集群"><a href="#创建工作集群" class="headerlink" title="创建工作集群"></a>创建工作集群</h5><pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ <span class="token builtin class-name">export</span> <span class="token assign-left variable">CLUSTER_TOPOLOGY</span><span class="token operator">=</span>true
+
+$ clusterctl init --infrastructure docker --target-namespace capi-docker
+Fetching providers
+Installing cert-manager <span class="token assign-left variable">Version</span><span class="token operator">=</span><span class="token string">"v1.14.5"</span>
+Waiting <span class="token keyword">for</span> cert-manager to be available<span class="token punctuation">..</span>.
+Installing <span class="token assign-left variable">Provider</span><span class="token operator">=</span><span class="token string">"cluster-api"</span> <span class="token assign-left variable">Version</span><span class="token operator">=</span><span class="token string">"v1.7.2"</span> <span class="token assign-left variable">TargetNamespace</span><span class="token operator">=</span><span class="token string">"capi-system"</span>
+Installing <span class="token assign-left variable">Provider</span><span class="token operator">=</span><span class="token string">"bootstrap-kubeadm"</span> <span class="token assign-left variable">Version</span><span class="token operator">=</span><span class="token string">"v1.7.2"</span> <span class="token assign-left variable">TargetNamespace</span><span class="token operator">=</span><span class="token string">"capi-kubeadm-bootstrap-system"</span>
+Installing <span class="token assign-left variable">Provider</span><span class="token operator">=</span><span class="token string">"control-plane-kubeadm"</span> <span class="token assign-left variable">Version</span><span class="token operator">=</span><span class="token string">"v1.7.2"</span> <span class="token assign-left variable">TargetNamespace</span><span class="token operator">=</span><span class="token string">"capi-kubeadm-control-plane-system"</span>
+Installing <span class="token assign-left variable">Provider</span><span class="token operator">=</span><span class="token string">"infrastructure-docker"</span> <span class="token assign-left variable">Version</span><span class="token operator">=</span><span class="token string">"v1.7.2"</span> <span class="token assign-left variable">TargetNamespace</span><span class="token operator">=</span><span class="token string">"capd-system"</span>
+
+Your management cluster has been initialized successfully<span class="token operator">!</span>
+
+You can now create your first workload cluster by running the following:
+
+  clusterctl generate cluster <span class="token punctuation">[</span>name<span class="token punctuation">]</span> --kubernetes-version <span class="token punctuation">[</span>version<span class="token punctuation">]</span> <span class="token operator">|</span> kubectl apply -f -
+
+<span class="token comment"># 确定所有的资源都ready</span>
+$ kubectl -n capi-docker get all -owide
+
+<span class="token comment"># 建议 kubernetes-version 使用的版本与 kind create cluster 时输出的 kindest/node 版本相同</span>
+$ clusterctl generate cluster capi-quickstart --flavor development <span class="token punctuation">\</span>
+  --kubernetes-version v1.30.0 <span class="token punctuation">\</span>
+  --control-plane-machine-count<span class="token operator">=</span><span class="token number">1</span> <span class="token punctuation">\</span>
+  --worker-machine-count<span class="token operator">=</span><span class="token number">1</span> <span class="token punctuation">\</span>
+  --target-namespace capi-docker <span class="token punctuation">\</span>
+  <span class="token operator">&gt;</span> capi-quickstart.yaml
+
+$ kubectl apply -f capi-quickstart.yaml
+clusterclass.cluster.x-k8s.io/quick-start created
+dockerclustertemplate.infrastructure.cluster.x-k8s.io/quick-start-cluster created
+kubeadmcontrolplanetemplate.controlplane.cluster.x-k8s.io/quick-start-control-plane created
+dockermachinetemplate.infrastructure.cluster.x-k8s.io/quick-start-control-plane created
+dockermachinetemplate.infrastructure.cluster.x-k8s.io/quick-start-default-worker-machinetemplate created
+dockermachinepooltemplate.infrastructure.cluster.x-k8s.io/quick-start-default-worker-machinepooltemplate created
+kubeadmconfigtemplate.bootstrap.cluster.x-k8s.io/quick-start-default-worker-bootstraptemplate created
+
+$ kubectl get cluster
+NAME              CLUSTERCLASS   PHASE         AGE   VERSION
+capi-quickstart   quick-start    Provisioned   25s   v1.30.0
+
+<span class="token comment"># controlplane 还未 ready 是因为还未安装 CNI 插件</span>
+$ kubectl get kubeadmcontrolplane
+NAME                    CLUSTER           INITIALIZED   API SERVER AVAILABLE   REPLICAS   READY   UPDATED   UNAVAILABLE   AGE   VERSION
+capi-quickstart-xrg9s   capi-quickstart   <span class="token boolean">true</span>                                 <span class="token number">1</span>                  <span class="token number">1</span>         <span class="token number">1</span>             99s   v1.30.0
+
+<span class="token comment"># 获取 workload 集群的kubeconfig</span>
+$ clusterctl get kubeconfig capi-quickstart <span class="token operator">&gt;</span> capi-quickstart.kubeconfig
+
+<span class="token comment"># 确认没有代理</span>
+$ <span class="token assign-left variable">https_proxy</span><span class="token operator">=</span> <span class="token assign-left variable">HTTPS_PROXY</span><span class="token operator">=</span> kubectl --kubeconfig ./capi-quickstart.kubeconfig get nodes
+NAME                                     STATUS     ROLES           AGE   VERSION
+capi-quickstart-md-0-6c9b6-wcx8l-8qsql   NotReady   <span class="token operator">&lt;</span>none<span class="token operator">&gt;</span>          93m   v1.30.0
+capi-quickstart-worker-6g0j6q            NotReady   <span class="token operator">&lt;</span>none<span class="token operator">&gt;</span>          93m   v1.30.0
+capi-quickstart-xrg9s-4xcdb              NotReady   control-plane   93m   v1.30.0<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<h5 id="安装-CNI-插件"><a href="#安装-CNI-插件" class="headerlink" title="安装 CNI 插件"></a>安装 CNI 插件</h5><pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ <span class="token assign-left variable">https_proxy</span><span class="token operator">=</span> <span class="token assign-left variable">HTTPS_PROXY</span><span class="token operator">=</span> kubectl --kubeconfig<span class="token operator">=</span>./capi-quickstart.kubeconfig create -f https://raw.githubusercontent.com/projectcalico/calico/v3.28.0/manifests/tigera-operator.yaml
+deployment.apps/tigera-operator created
+
+$ <span class="token assign-left variable">https_proxy</span><span class="token operator">=</span> <span class="token assign-left variable">HTTPS_PROXY</span><span class="token operator">=</span> kubectl --kubeconfig<span class="token operator">=</span>./capi-quickstart.kubeconfig create -f https://raw.githubusercontent.com/projectcalico/calico/v3.28.0/manifests/custom-resources.yaml
+installation.operator.tigera.io/default created
+apiserver.operator.tigera.io/default created
+
+$ <span class="token assign-left variable">https_proxy</span><span class="token operator">=</span> <span class="token assign-left variable">HTTPS_PROXY</span><span class="token operator">=</span> kubectl --kubeconfig<span class="token operator">=</span>./capi-quickstart.kubeconfig get nodes
+NAME                                     STATUS   ROLES           AGE   VERSION
+capi-quickstart-md-0-6c9b6-wcx8l-8qsql   Ready    <span class="token operator">&lt;</span>none<span class="token operator">&gt;</span>          97m   v1.30.0
+capi-quickstart-worker-6g0j6q            Ready    <span class="token operator">&lt;</span>none<span class="token operator">&gt;</span>          97m   v1.30.0
+capi-quickstart-xrg9s-4xcdb              Ready    control-plane   97m   v1.30.0<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
 <h4 id="KubeadmControlPlane"><a href="#KubeadmControlPlane" class="headerlink" title="KubeadmControlPlane"></a>KubeadmControlPlane</h4><pre class="line-numbers language-yaml" data-language="yaml"><code class="language-yaml"><span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> controlplane.cluster.x<span class="token punctuation">-</span>k8s.io/v1alpha4
 <span class="token key atrule">kind</span><span class="token punctuation">:</span> KubeadmControlPlane
 <span class="token key atrule">metadata</span><span class="token punctuation">:</span>
