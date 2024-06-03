@@ -406,14 +406,14 @@
                 
                 <div class="info-break-policy">
                     <i class="far fa-file-word fa-fw"></i>文章字数:&nbsp;&nbsp;
-                    74.1k
+                    76.1k
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-clock fa-fw"></i>阅读时长:&nbsp;&nbsp;
-                    311 分
+                    319 分
                 </div>
                 
 
@@ -7616,7 +7616,162 @@ kubectl apply -f sa.yaml<span aria-hidden="true" class="line-numbers-rows"><span
             <span class="token key atrule">value</span><span class="token punctuation">:</span> $(tt.params.gitrepositoryurl)<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
 <h5 id="GitLab-webhook"><a href="#GitLab-webhook" class="headerlink" title="GitLab webhook"></a>GitLab webhook</h5><p>只需在 GitLab 中的被管理项目中设置一个 Webhook，以确保该项目中的事件通知会发送至 EventListener 的服务地址即可。</p>
 <p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/GitLabWebhook.png" alt="GitLabWebhook"></p>
+<h3 id="Argocd"><a href="#Argocd" class="headerlink" title="Argocd"></a>Argocd</h3><p>ArgoCD 是用于 Kubernetes 的声明性 GitOps 连续交付工具。</p>
+<p>为什么选择 Argo CD?</p>
+<p>应用程序定义，配置和环境应为声明性的，并受版本控制。</p>
+<p>应用程序部署和生命周期管理应该是自动化的，可审核的且易于理解的。</p>
+<h4 id="argo-cd-架构"><a href="#argo-cd-架构" class="headerlink" title="argo cd 架构"></a>argo cd 架构</h4><p>Argo CD 被实现为 kubernetes 控制器，该控制器连续监视正在运行的应用程序，并将当前的活动状态与所需的目标状态(在Git存储库中指定)进行比较。</p>
+<p>其活动状态偏离目标状态的已部署应用程序被标记为 OutOfSync。</p>
+<p>Argo CD 报告并可视化差异，同时提供了自动或手动将实时状态同步回所需目标状态的功能。</p>
+<p>在 Git 存储库中对所需目标状态所做的任何修改都可以自动应用并反映在指定的目标环境中。</p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/argocd架构.png" alt="argocd架构"></p>
+<h4 id="安装-argocd"><a href="#安装-argocd" class="headerlink" title="安装 argocd"></a>安装 argocd</h4><pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">kubectl create namespace argocd
+kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre>
+<p>确保 argocd-serverservice 类型为 NodePort</p>
+<p>访问 argocd 控制台</p>
+<ul>
+<li>用户名: admin</li>
+<li>密码: <code>kget secret -n argocd argocd-initial-admin-secret -oyaml</code></li>
+</ul>
+<h4 id="argocd-的适用场景"><a href="#argocd-的适用场景" class="headerlink" title="argocd 的适用场景"></a>argocd 的适用场景</h4><ol>
+<li>低成本的 Gitops 利器</li>
+<li>多集群管理<ol>
+<li>不同目的集群: 测试，集成，预生产，生产</li>
+<li>多生产集群管理</li>
+</ol>
+</li>
+</ol>
+<h3 id="监控和日志"><a href="#监控和日志" class="headerlink" title="监控和日志"></a>监控和日志</h3><h4 id="数据系统构建"><a href="#数据系统构建" class="headerlink" title="数据系统构建"></a>数据系统构建</h4><p>日志收集与分析</p>
+<p>监控系统构建</p>
+<h4 id="日志系统的价值"><a href="#日志系统的价值" class="headerlink" title="日志系统的价值"></a>日志系统的价值</h4><p>分布式系统的日志查看比较复杂，因为多对节点的系统，要先找到正确的节点，才能看到想看的日志。日志系统把整个集群的日志汇总在一起，方便查看</p>
+<p>因为节点上的日志滚动机制，如果有应用打印太多日志，如果没有日志系统，会导致关键日志丢失。</p>
+<p>日志系统的重要意义在于解决，节点出错导致不可访问，进而丢失日志的情况，</p>
+<h4 id="常用数据系统构建模式"><a href="#常用数据系统构建模式" class="headerlink" title="常用数据系统构建模式"></a>常用数据系统构建模式</h4><p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/常用数据系统构建模式.png" alt="常用数据系统构建模式"></p>
+<h4 id="日志收集系统-Loki"><a href="#日志收集系统-Loki" class="headerlink" title="日志收集系统 Loki"></a>日志收集系统 Loki</h4><p>Grafana Loki 是可以组成功能齐全的日志记录堆栈的一组组件，</p>
+<ul>
+<li>与其他日志记录系统不同，Loki 是基于仅索引有关日志的元数据的想法而构建的:标签。</li>
+<li>日志数据本身被压缩并存储在对象存储(例如 S3 或 GCS )中的块中，甚至存储在文件系统本地。</li>
+<li>小索引和高度压缩的块简化了操作，并大大降低了 Loki 的成本。</li>
+</ul>
+<h4 id="基于-Loki-的日志收集系统"><a href="#基于-Loki-的日志收集系统" class="headerlink" title="基于 Loki 的日志收集系统"></a>基于 Loki 的日志收集系统</h4><p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/基于Loki的日志收集系统.png" alt="基于Loki的日志收集系统"></p>
+<h4 id="Loki-stack-子系统"><a href="#Loki-stack-子系统" class="headerlink" title="Loki-stack 子系统"></a>Loki-stack 子系统</h4><p>Promtail</p>
+<ul>
+<li>将容器日志发送到 Loki 或者 Grafana 服务上的日志收集工具</li>
+<li>发现采集目标以及给日志流添加上 Label，然后发送给 Loki</li>
+<li>Promtail 的服务发现是基于 Prometheus 的服务发现机制实现的，可以查看configmap lokipromtail了解细节</li>
+</ul>
+<p>Loki</p>
+<ul>
+<li>Loki 是可以水平扩展、高可用以及支持多租户的日志聚合系统</li>
+<li>使用和 Prometheus 相同的服务发现机制，将标签添加到日志流中而不是构建全文索引</li>
+<li>Promtail 接收到的日志和应用的 metrics 指标就具有相同的标签集</li>
+</ul>
+<p>Grafana</p>
+<ul>
+<li>Grafana 是一个用于监控和可视化观测的开源平台，支持非常丰富的数据源</li>
+<li>在 Loki 技术栈中它专门用来展示来自 Prometheus 和 Loki 等数据源的时间序列数据</li>
+<li>允许进行查询、可视化、报警等操作，可以用于创建、探索和共享数据 Dashboard</li>
+</ul>
+<h4 id="Loki-架构"><a href="#Loki-架构" class="headerlink" title="Loki 架构"></a>Loki 架构</h4><p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/Loki架构.png" alt="Loki架构"></p>
+<h4 id="Loki-组件"><a href="#Loki-组件" class="headerlink" title="Loki 组件"></a>Loki 组件</h4><p>Distributor(分配器)</p>
+<ul>
+<li>分配器服务负责处理客户端写入的日志。</li>
+<li>一旦分配器接收到日志数据，它就会把它们分成若干批次，并将它们并行地发送到多个采集器去。</li>
+<li>分配器通过 RPC 和采集器进行通信。</li>
+<li>它们是无状态的，基于一致性哈希，我们可以根据实际需要对他们进行扩缩容。</li>
+</ul>
+<p>Ingester(采集器)</p>
+<ul>
+<li>采集器服务负责将日志数据写入长期存储的后端(DvnamoDB、S3、Cassandra 等等)</li>
+<li>采集器会校验采集的日志是否乱序。</li>
+<li>采集器验证接收到的日志行是按照时间戳递增的顺序接收的，否则日志行将被拒绝并返回错误。</li>
+</ul>
+<p>Querier(查询器)</p>
+<ul>
+<li>查询器服务负责处理 LogQL 查询语句来评估存储在长期存储中的日志数据</li>
+</ul>
+<h4 id="安装-Loki-stack"><a href="#安装-Loki-stack" class="headerlink" title="安装 Loki stack"></a>安装 Loki stack</h4><pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">helm repo <span class="token function">add</span> grafana https://grafana.github.io/helm-charts
 
+helm repo update
+
+helm upgrade --install lokigrafana/loki-stack --set grafana.enabled<span class="token operator">=</span>true,prometheus.enabled<span class="token operator">=</span>true,prometheus.alertmanager.persistentVolume.enabled<span class="token operator">=</span>false,prometheus.server.persistentVolume.enabled<span class="token operator">=</span>false<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<h4 id="在-Kubernetes-集群中的日志系统"><a href="#在-Kubernetes-集群中的日志系统" class="headerlink" title="在 Kubernetes 集群中的日志系统"></a>在 Kubernetes 集群中的日志系统</h4><p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/在Kubernetes集群中的日志系统.png" alt="在Kubernetes集群中的日志系统"></p>
+<h4 id="在生产中的问题"><a href="#在生产中的问题" class="headerlink" title="在生产中的问题"></a>在生产中的问题</h4><p>利用率低</p>
+<ul>
+<li>日志大多数目的是给管理员做问题分析用的，但管理员更多的是登陆到节点或者 pod 里做分析，因为日志分析只是整个分析过程中的一部分，所以很多时候顺手就把日志看了</li>
+</ul>
+<p>Beats 出现过锁住文件系统，docker container 无法删除的情况</p>
+<p>与监控系统相比，日志系统的重要度稍低</p>
+<p>出现过多次因为日志滚动太快而使得日志收集占用太大网络带宽的情况</p>
+<h4 id="监控系统"><a href="#监控系统" class="headerlink" title="监控系统"></a>监控系统</h4><p>为什么监控，监控什么内容?</p>
+<ul>
+<li>对自己系统的运行状态了如指掌，有问题及时发现，而不让用户先发现我们系统不能使用。</li>
+<li>我们也需要知道我们的服务运行情况。例如，slowsql 处于什么水平，平均响应时间超过 200ms 的占比有百分之多少?</li>
+</ul>
+<p>我们为什么需要监控我们的服务?</p>
+<ul>
+<li>需要监控工具来提醒我服务出现了故障，比如通过监控服务的负载来决定扩容或缩容。如果机器普遍负载不高，则可以考虑是否缩减一下机器规模，如果数据库经常维持在一个高位水平，则可以考虑一下是否可以进行拆库处理，优化一下架构。</li>
+<li>监控还可以帮助进行内部统制，尤其是对安全比较敏感的行业比如证券银行等。比如服务器受到攻击时我们需要分析事件，找到根本原因，识别类似攻击，发现没有发现的被攻的系统，甚完成取证等工作</li>
+</ul>
+<p>监控目的</p>
+<ul>
+<li>减少宕机时间</li>
+<li>扩展和性能管理</li>
+<li>资源计划</li>
+<li>识别异常事件</li>
+<li>故障排除、分析</li>
+</ul>
+<h4 id="在-Kubernetes-集群中的监控系统"><a href="#在-Kubernetes-集群中的监控系统" class="headerlink" title="在 Kubernetes 集群中的监控系统"></a>在 Kubernetes 集群中的监控系统</h4><p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/在Kubernetes集群中的监控系统.png" alt="在Kubernetes集群中的监控系统"></p>
+<p>每个节点的 kubelet(集成了 cAdvisor)会收集当前节点 host 上所有信息，包括 cpu、内存、磁盘等。Prometheus 会 pull 这些信息，给每个节点打上标签来区分不同的节点。</p>
+<pre class="line-numbers language-txt" data-language="txt"><code class="language-txt">HELP container cpu system seconds total Cumulative system cpu time consumed in seconds.
+# TYPE container cpu system seconds total counter
+container_cpu_system_seconds_total{id="/"} 735292
+container_cpu_system_seconds_total{id="/system.slice"} 710067.82
+container_cpu_system_seconds_total{id="/system.slice/atd.service"} 0.04
+container_cpu_system_seconds_total{id="/system.slice/auditd.service"} 652.29
+container_cpu_system_seconds_total{id="/system.slice/cloud-config.seryice"} 0
+container_cpu_system_seconds_total{id=""/system.slice/cloud-final.service"} 0
+container_cpu_system_seconds_total{id="/system.slice/cloud-init-local.service"} 0
+container_cpu_system_seconds_totalfid="/system,slice/cloud-init.seryice"} 0
+container_cpu_system_seconds_total{id="/system.slice/crond.service"} 4267.6
+container_cpu_system_seconds_totallid="/system.slice/dbus.service"} 3.44
+container_cpu_system_seconds_total{id="/system,slice/dm-event.service"} 428.39
+container_cpu_system_seconds_total{id="/system.slice/docker.seryice"} 55096.24
+container_cpu_svstem_seconds_totallid="/system,slice/dracut-shutdown,service"} 0
+container_cpu_system_seconds_total{id="/system,slice/fedora-autorelabel-mark.service"} 0
+container_cpu_system_seconds_total{id="/system,slice/fedora-import-state.service"} 0
+container_cpu_svstem_seconds_totallid"/svstem,slice/fedora-readonly.seryice"} 0
+container_cpu_system_seconds_totalfid="/system,slice/assproxy,seryice"} 27.07
+container_cpu_system_seconds_total{id="/system.slice/iscsi-shutdown.service"} 0<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<h4 id="在-Kubernetes-中汇报指标"><a href="#在-Kubernetes-中汇报指标" class="headerlink" title="在 Kubernetes 中汇报指标"></a>在 Kubernetes 中汇报指标</h4><p>应用 Pod 需要声明上报指标端口和地址</p>
+<pre class="line-numbers language-yaml" data-language="yaml"><code class="language-yaml"><span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> v1
+<span class="token key atrule">kind</span><span class="token punctuation">:</span> Pod
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+  <span class="token key atrule">annotations</span><span class="token punctuation">:</span>
+    <span class="token key atrule">prometheus.io/port</span><span class="token punctuation">:</span> http<span class="token punctuation">-</span>metrics
+    prometheus.io/scrape<span class="token punctuation">:</span>"true
+<span class="token key atrule">name</span><span class="token punctuation">:</span> loki<span class="token punctuation">-</span><span class="token number">0</span>
+  <span class="token key atrule">namespace</span><span class="token punctuation">:</span> default
+<span class="token key atrule">spec</span><span class="token punctuation">:</span>
+  <span class="token key atrule">ports</span><span class="token punctuation">:</span>
+  <span class="token punctuation">-</span> <span class="token key atrule">containerPort</span><span class="token punctuation">:</span> <span class="token number">3100</span>
+      <span class="token key atrule">name</span><span class="token punctuation">:</span> http<span class="token punctuation">-</span>metrics
+      <span class="token key atrule">protocol</span><span class="token punctuation">:</span> TCP<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>应用启动时，需要注册 metrics</p>
+<pre class="line-numbers language-go" data-language="go"><code class="language-go">http<span class="token punctuation">.</span><span class="token function">Handle</span><span class="token punctuation">(</span><span class="token string">"/metrics"</span><span class="token punctuation">,</span>promhttp<span class="token punctuation">.</span><span class="token function">Handler</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span>
+http<span class="token punctuation">.</span><span class="token function">ListenAndServe</span><span class="token punctuation">(</span>sever<span class="token punctuation">.</span>MetricsBindAddress<span class="token punctuation">,</span><span class="token boolean">nil</span><span class="token punctuation">)</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre>
+<p>注册指标</p>
+<pre class="line-numbers language-go" data-language="go"><code class="language-go"><span class="token keyword">func</span> <span class="token function">RegisterMetrics</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">{</span>
+    registerMetricOnce<span class="token punctuation">.</span><span class="token function">Do</span><span class="token punctuation">(</span><span class="token keyword">func</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">{</span>
+        prometheus<span class="token punctuation">.</span><span class="token function">MustRegister</span><span class="token punctuation">(</span>APiServerRequests<span class="token punctuation">)</span>
+        prometheus<span class="token punctuation">.</span><span class="token function">MustRegister</span><span class="token punctuation">(</span>WorkQueueSize<span class="token punctuation">)</span>
+    <span class="token punctuation">}</span><span class="token punctuation">)</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>代码中输出指标</p>
+<pre class="line-numbers language-go" data-language="go"><code class="language-go">metrics<span class="token punctuation">.</span><span class="token function">AddAPServerRequest</span><span class="token punctuation">(</span>controllerName<span class="token punctuation">,</span> constants<span class="token punctuation">.</span>CoreAPlGroup<span class="token punctuation">,</span> constants<span class="token punctuation">.</span>SecretResourceconstants<span class="token punctuation">.</span>Get<span class="token punctuation">,</span> cn<span class="token punctuation">.</span>Namespace<span class="token punctuation">)</span><span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<h4 id="Kubernetes-集群中的监控系统"><a href="#Kubernetes-集群中的监控系统" class="headerlink" title="Kubernetes 集群中的监控系统"></a>Kubernetes 集群中的监控系统</h4><p>Kubernetes 的 controlpanel，包括各种 controller 都原生的暴露 Prometheus 格式的 metrics。</p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/Kubernetes集群中的监控系统.png" alt="Kubernetes集群中的监控系统.png"></p>
+<h4 id="Prometheus-中的指标类型"><a href="#Prometheus-中的指标类型" class="headerlink" title="Prometheus 中的指标类型"></a>Prometheus 中的指标类型</h4>
                 
             </div>
             <hr/>
