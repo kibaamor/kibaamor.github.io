@@ -399,21 +399,21 @@
                 
                 <div class="post-date info-break-policy">
                     <i class="far fa-calendar-check fa-fw"></i>更新日期:&nbsp;&nbsp;
-                    2024-05-30
+                    2024-06-03
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-file-word fa-fw"></i>文章字数:&nbsp;&nbsp;
-                    69.2k
+                    70.9k
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-clock fa-fw"></i>阅读时长:&nbsp;&nbsp;
-                    293 分
+                    299 分
                 </div>
                 
 
@@ -7143,7 +7143,133 @@ capi-quickstart-xrg9s-4xcdb              Ready    control-plane   97m   v1.30.0<
 <p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/Quota管理.png" alt="Quota管理"></p>
 <h4 id="节点资源隔离"><a href="#节点资源隔离" class="headerlink" title="节点资源隔离"></a>节点资源隔离</h4><p>通过为节点设置不同 taint 来识别不同租户的计算资源。</p>
 <p>不同租户在创建 Pod 时，增加 Toleration 关键字，确保其能调度至某个 taint 的节点。</p>
-<h4 id="练习：基于-Cluster-API-搭建一个集群"><a href="#练习：基于-Cluster-API-搭建一个集群" class="headerlink" title="练习：基于 Cluster API 搭建一个集群"></a>练习：基于 Cluster API 搭建一个集群</h4>
+<h4 id="练习：基于-Cluster-API-搭建一个集群"><a href="#练习：基于-Cluster-API-搭建一个集群" class="headerlink" title="练习：基于 Cluster API 搭建一个集群"></a>练习：基于 Cluster API 搭建一个集群</h4><h2 id="Kubernetes-的生产化运维"><a href="#Kubernetes-的生产化运维" class="headerlink" title="Kubernetes 的生产化运维"></a>Kubernetes 的生产化运维</h2><h3 id="镜像仓库-1"><a href="#镜像仓库-1" class="headerlink" title="镜像仓库"></a>镜像仓库</h3><p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/镜像仓库.png" alt="镜像仓库.png"></p>
+<p>镜像仓库(Docker Registry)负责存储、管理和分发镜像。</p>
+<p>镜像仓库管理多个 Repository，Repository 通过命名来区分。 每个 Repository 包含一个或多个镜像，镜像通过镜像名称和标签( Tag )来区分。</p>
+<p>客户端拉取镜像时，要指定三要素:</p>
+<ul>
+<li>镜像仓库：要从哪一个镜像仓库拉取镜像，通常通过 DNS 或 IP 地址来确定一个镜像仓库，如 <hub.docker.com></hub.docker.com></li>
+<li>Repository：组织名，如 cncamp</li>
+<li>镜像名称+标签：如 nginx:latest</li>
+</ul>
+<h4 id="镜像仓库遵循-OCI-的-Distribution-Spec"><a href="#镜像仓库遵循-OCI-的-Distribution-Spec" class="headerlink" title="镜像仓库遵循 OCI 的 Distribution Spec"></a>镜像仓库遵循 OCI 的 Distribution Spec</h4><p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/镜像仓库遵循OCI的DistributionSpec.png" alt="镜像仓库遵循OCI的DistributionSpec"></p>
+<h4 id="数据和块文件"><a href="#数据和块文件" class="headerlink" title="数据和块文件"></a>数据和块文件</h4><p>镜像由元数据和块文件两部分组成，镜像仓库的核心职能就是管理这两项数据。</p>
+<p>元数据:</p>
+<ul>
+<li>元数据用于描述一个镜像的核心信息，包含镜像的镜像仓库、仓库、标签、校验码、文件层镜像构建描述等信息。</li>
+<li>通过这些信息，可以从抽象层面完整地描述一个镜像:它是如何构建出来的、运行过什么构建命令、构建的每一个文件层的校验码、打的标签、镜像的校验码等。</li>
+</ul>
+<p>块文件(blob)</p>
+<ul>
+<li>块文件是组成镜像的联合文件层的实体，每一个块文件是一个文件层，内部包含对应文件层的变更。</li>
+</ul>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/数据和块文件.png" alt="数据和块文件"></p>
+<h4 id="镜像仓库-2"><a href="#镜像仓库-2" class="headerlink" title="镜像仓库"></a>镜像仓库</h4><p>公有镜像仓库优势</p>
+<ul>
+<li>开放:任何开发者都可以上传、分享镜像到公有镜像仓库中。</li>
+<li>便捷:开发者可以非常方便地搜索、拉取其他开发者的镜像，避免重复造轮子。</li>
+<li>免运维:开发者只需要关注应用开发，不必关心镜像仓库的更新、升级、维护等。</li>
+<li>成本低:企业或开发者不需要购买硬件、解决方案来搭建镜像仓库，也不需要团队来维护。</li>
+</ul>
+<p>私有镜像仓库优势</p>
+<ul>
+<li>隐私性:企业的代码和数据是企业的私有资产，不允许随意共享到公共平台。</li>
+<li>敏感性:企业的镜像会包含一些敏感信息，如密钥信息、令牌信息等。这些敏感信息严禁暴露到企业外部,网络连通性:企业的网络结构多种多样，并非所有环境都可以访问互联网，</li>
+<li>安全性:而在企业环境中，若使用一些含有漏洞的依赖包，则会引入安全隐患。</li>
+</ul>
+<h4 id="Harbor"><a href="#Harbor" class="headerlink" title="Harbor"></a>Harbor</h4><p>Harbor是VMware开源的企业级镜像仓库，目前已是CNCF的毕业项目。它拥有完整的仓库管理镜像管理、基于角色的权限控制、镜像安全扫描集成、镜像签名等。</p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/Harbor.png" alt="Harbor"></p>
+<h5 id="Harbor-提供的服务"><a href="#Harbor-提供的服务" class="headerlink" title="Harbor 提供的服务"></a>Harbor 提供的服务</h5><p>Harbor 核心服务: 提供 Harbor 的核心管理服务 API，包括仓库管理、认证管理、授权管理配置管理、项目管理、配额管理、签名管理、副本管理等。</p>
+<p>Harbor Portal: Harbor 的 Web 界面。</p>
+<p>Reqistry: Registry 负责接收客户端的 pull/push 请求，其核心为 docker/Distribution。</p>
+<p>副本控制器: Harbor 可以以主从模式来部署镜像仓库，副本控制器将镜像从主镜像服务分发到从镜像服务。</p>
+<p>日志收集器:收集各模块的日志。</p>
+<p>垃圾回收控制器:回收日常操作中删除镜像记录后遗留在块存储中的孤立块文件。</p>
+<h5 id="Harbor-架构"><a href="#Harbor-架构" class="headerlink" title="Harbor 架构"></a>Harbor 架构</h5><p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/Harbor架构.png" alt="Harbor架构"></p>
+<h5 id="Harbor-安装"><a href="#Harbor-安装" class="headerlink" title="Harbor 安装"></a>Harbor 安装</h5><pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">helm repo <span class="token function">add</span> harbor https://helm.goharbor.io
+helm fetch harbor/harbor --untar
+k create ns harbor
+helm install-n harbor harbor<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span></span></code></pre>
+<h5 id="Harbor-Demo-Server"><a href="#Harbor-Demo-Server" class="headerlink" title="Harbor Demo Server"></a>Harbor Demo Server</h5><p>Demo Server</p>
+<ul>
+<li>2 天清理一次数据</li>
+<li>不能 push 超过 100Mb 的镜像</li>
+<li>不能使用管理功能</li>
+</ul>
+<p>Portal</p>
+<p><a target="_blank" rel="noopener" href="https://demo.goharbor.io/harbor/projects">https://demo.goharbor.io/harbor/projects</a></p>
+<p>镜像使用</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">docker login demo.goharbor.io
+docker build -t demo.goharbor.io/your-project/test-image
+docker push demo.goharbor.io/your-project/test-image<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span></span></code></pre>
+<h5 id="Harbor-高可用架构"><a href="#Harbor-高可用架构" class="headerlink" title="Harbor 高可用架构"></a>Harbor 高可用架构</h5><p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/Harbor高可用架构.png" alt="Harbor高可用架构"></p>
+<h5 id="Harbor-的用户管理"><a href="#Harbor-的用户管理" class="headerlink" title="Harbor 的用户管理"></a>Harbor 的用户管理</h5><p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/Harbor的用户管理.png" alt="Harbor的用户管理"></p>
+<h5 id="垃圾回收"><a href="#垃圾回收" class="headerlink" title="垃圾回收"></a>垃圾回收</h5><p>镜像删除时，blob 文件不会被删除。(你能想起来为什么吗)</p>
+<p>需要通过垃圾回收机制来删除不用的 blob，进而回收存储空间。</p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/harbor垃圾回收.png" alt="harbor垃圾回收"></p>
+<h4 id="本地镜像加速-Dragonfly"><a href="#本地镜像加速-Dragonfly" class="headerlink" title="本地镜像加速 Dragonfly"></a>本地镜像加速 Dragonfly</h4><p>Dragonfly 是一款基于 P2P 的智能镜像和文件分发工具</p>
+<p>它旨在提高文件传输的效率和速率，最大限度地利用网络带宽，尤其是在分发大量数据时</p>
+<ul>
+<li>应用分发</li>
+<li>缓存分发</li>
+<li>日志分发</li>
+<li>镜像分发</li>
+</ul>
+<p>优势</p>
+<ul>
+<li>基于 P2P 的文件分发</li>
+<li>非侵入式支持所有类型的容器技术</li>
+<li>机器级别的限速</li>
+<li>被动式 CDN</li>
+<li>高度一致性磁盘保护和高效 IO</li>
+<li>高性能</li>
+<li>自动隔离异常</li>
+<li>对文件源无压力</li>
+<li>支持标准 HTTP 头文件</li>
+<li>有效的 Registry 鉴权并发控制</li>
+<li>简单易用</li>
+</ul>
+<h5 id="镜像下载流程"><a href="#镜像下载流程" class="headerlink" title="镜像下载流程"></a>镜像下载流程</h5><p>dfget proxy 也称为 dfdaemon，会拦截来自 docker pull或 docker push 的 HTTP 请求，然后使用 dfget 来处理那些跟镜像分层相关的请求。</p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/镜像下载流程.png" alt="镜像下载流程"></p>
+<p>每个文件会被分成多个分块，并在对等节点之间传输</p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/镜像下载流程2.png" alt="镜像下载流程2"></p>
+<h3 id="镜像安全"><a href="#镜像安全" class="headerlink" title="镜像安全"></a>镜像安全</h3><h4 id="镜像安全的最佳实践"><a href="#镜像安全的最佳实践" class="headerlink" title="镜像安全的最佳实践"></a>镜像安全的最佳实践</h4><p>构建指令问题</p>
+<ul>
+<li>避免在构建竟像时添加密钥，Token 等敏感信息(配置与代码应分离)</li>
+</ul>
+<p>应用依赖问题</p>
+<ul>
+<li>应尽量避免安装不必要的依赖</li>
+<li>确保依赖无安全风险，，一些长时间不更新的基础镜像的可能面临安全风险，比如基于 openssl1.0，只支持 tls1.0 等</li>
+</ul>
+<p>文件问题</p>
+<ul>
+<li>在构建镜像时，除应用本身外，还会添加应用需要的配置文件、模板等，在添加这些文件时，会无意间添加一些包含敏感信息或不符合安全策略的文件到镜像中。</li>
+<li>当镜像中存在文件问题时，需要通过引入该文件的构建指令行进行修复，而不是通过追加一条删除指令来修复</li>
+</ul>
+<h4 id="镜像扫描-Vulnerability-Scanning"><a href="#镜像扫描-Vulnerability-Scanning" class="headerlink" title="镜像扫描(Vulnerability Scanning)"></a>镜像扫描(Vulnerability Scanning)</h4><p>镜像扫描通过扫描工具或扫描服务对镜像进行扫描，来确定镜像是否安全</p>
+<ul>
+<li>分析构建指令、应用、文件、依赖包</li>
+<li>查询CVE库、安全策略</li>
+<li>检测镜像是否安全，是否符合企业的安全标准</li>
+</ul>
+<h4 id="镜像策略准入控制"><a href="#镜像策略准入控制" class="headerlink" title="镜像策略准入控制"></a>镜像策略准入控制</h4><p>镜像准入控制是在部署 Pod、更新 Pod 时，对 Pod 中的所有镜像进行安全验证以放行或拦截对Pod的操作:</p>
+<ul>
+<li>放行: Pod 中所有的镜像都安全，允许此次的操作，Pod 成功被创建或更新。</li>
+<li>拦截: Pod 中的镜像未扫描，或已经扫描但存在安全漏洞，或不符合安全策略，Pod 无法被创建或更新。</li>
+</ul>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/镜像策略准入控制.png" alt="镜像策略准入控制"></p>
+<h4 id="扫描镜像"><a href="#扫描镜像" class="headerlink" title="扫描镜像"></a>扫描镜像</h4><ol>
+<li>镜像扫描服务从镜像仓库拉取镜像。</li>
+<li>解析镜像的元数据。</li>
+<li>解压镜像的每一个文件层。</li>
+<li>提取每一层所包含的依赖包、可运行程序、文件列表、文件内容扫描</li>
+<li>将扫描结果与 CVE 字典、安全策略字典进行匹配，以确认最终镜像是否安全</li>
+</ol>
+<h4 id="镜像扫描服务"><a href="#镜像扫描服务" class="headerlink" title="镜像扫描服务"></a>镜像扫描服务</h4><p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/镜像扫描服务.png" alt="镜像扫描服务"></p>
+<h5 id="Clair-架构"><a href="#Clair-架构" class="headerlink" title="Clair 架构"></a>Clair 架构</h5><p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/Clair架构.png" alt="Clair架构"></p>
+<h4 id="课后练习"><a href="#课后练习" class="headerlink" title="课后练习"></a>课后练习</h4><p>将 Nginx 容器镜像上传至 Harbor Demo server 并运行在测试环境中。</p>
+
                 
             </div>
             <hr/>
