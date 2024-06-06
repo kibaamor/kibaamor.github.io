@@ -399,7 +399,7 @@
                 
                 <div class="post-date info-break-policy">
                     <i class="far fa-calendar-check fa-fw"></i>更新日期:&nbsp;&nbsp;
-                    2024-06-05
+                    2024-06-06
                 </div>
                 
 
@@ -413,7 +413,7 @@
                 
                 <div class="info-break-policy">
                     <i class="far fa-clock fa-fw"></i>阅读时长:&nbsp;&nbsp;
-                    322 分
+                    323 分
                 </div>
                 
 
@@ -7691,11 +7691,20 @@ kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/st
 <ul>
 <li>查询器服务负责处理 LogQL 查询语句来评估存储在长期存储中的日志数据</li>
 </ul>
-<h4 id="安装-Loki-stack"><a href="#安装-Loki-stack" class="headerlink" title="安装 Loki stack"></a>安装 Loki stack</h4><pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">helm repo <span class="token function">add</span> grafana https://grafana.github.io/helm-charts
+<h4 id="安装-Loki-stack"><a href="#安装-Loki-stack" class="headerlink" title="安装 Loki stack"></a>安装 Loki stack</h4><p><a target="_blank" rel="noopener" href="https://github.com/kibaamor/101/blob/master/module10/loki-stack/readme.MD">https://github.com/kibaamor/101/blob/master/module10/loki-stack/readme.MD</a></p>
+<p><a target="_blank" rel="noopener" href="https://github.com/grafana/helm-charts/blob/main/charts/loki-stack/README.md">https://github.com/grafana/helm-charts/blob/main/charts/loki-stack/README.md</a></p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">helm repo <span class="token function">add</span> grafana https://grafana.github.io/helm-charts
 
 helm repo update
 
-helm upgrade --install lokigrafana/loki-stack --set grafana.enabled<span class="token operator">=</span>true,prometheus.enabled<span class="token operator">=</span>true,prometheus.alertmanager.persistentVolume.enabled<span class="token operator">=</span>false,prometheus.server.persistentVolume.enabled<span class="token operator">=</span>false<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+kubectl create namespace loki-stack
+
+helm upgrade --install --namespace<span class="token operator">=</span>loki-stack --set grafana.enabled<span class="token operator">=</span>true,prometheus.enabled<span class="token operator">=</span>true,prometheus.alertmanager.persistentVolume.enabled<span class="token operator">=</span>false,prometheus.server.persistentVolume.enabled<span class="token operator">=</span>false loki grafana/loki-stack
+
+kubectl get secret --namespace loki-stack loki-grafana -o <span class="token assign-left variable">jsonpath</span><span class="token operator">=</span><span class="token string">"{.data.admin-password}"</span> <span class="token operator">|</span> base64 --decode <span class="token punctuation">;</span> <span class="token builtin class-name">echo</span>
+
+kubectl port-forward --namespace loki-stack service/loki-grafana <span class="token number">3000</span>:80
+<span class="token comment"># username: admin</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
 <h4 id="在-Kubernetes-集群中的日志系统"><a href="#在-Kubernetes-集群中的日志系统" class="headerlink" title="在 Kubernetes 集群中的日志系统"></a>在 Kubernetes 集群中的日志系统</h4><p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/在Kubernetes集群中的日志系统.png" alt="在Kubernetes集群中的日志系统"></p>
 <h4 id="在生产中的问题"><a href="#在生产中的问题" class="headerlink" title="在生产中的问题"></a>在生产中的问题</h4><p>利用率低</p>
 <ul>
