@@ -382,7 +382,7 @@
                 
                 <div class="post-date info-break-policy">
                     <i class="far fa-calendar-check fa-fw"></i>更新日期:&nbsp;&nbsp;
-                    2024-06-13
+                    2024-06-14
                 </div>
                 
 
@@ -627,31 +627,38 @@ pip3 <span class="token function">install</span> podman-compose
 </li>
 <li><details><summary>Caddy</summary>
 
- <pre class="line-numbers language-text" data-language="text"><code class="language-text"># https://caddyserver.com/docs/caddyfile/options
+ <pre class="line-numbers language-text" data-language="text"><code class="language-text"># To install cloudflare, run the following command
+# caddy add-package github.com/caddy-dns/cloudflare
+
+# https://caddyserver.com/docs/caddyfile/options
 {
     #debug
     log {
         output file /var/log/caddy/caddy.log
         format json
+        level ERROR
     }
 }
 
 # default directives order: https://caddyserver.com/docs/caddyfile/directives#directive-order
 site {
-    rewrite /xxx /xxx/
-    handle_path /xxx/* {
-        reverse_proxy localhost:8080 {
-            header_down Location login.html ad/login.html
-        }
-    }
-    handle_path /yyy {
-        rewrite * /dns-query
-        reverse_proxy http://localhost:8080
+    tls !!!email
+    tls {
+        dns cloudflare !!!key
     }
 
     root * /usr/share/caddy
     file_server
-}<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+    #reverse_proxy 127.0.0.1:8080
+
+    @websockets {
+        path /ws
+        header Connection upgrade
+        header Upgrade websocket
+    }
+    #reverse_proxy @websockets unix//dev/shm/ws.sock
+    reverse_proxy @websockets 127.0.0.1:9090
+}<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
  </details>
 </li>
 <li><details><summary>Windows11 开启 DoH</summary>
