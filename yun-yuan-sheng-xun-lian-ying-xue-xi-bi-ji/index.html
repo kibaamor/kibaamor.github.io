@@ -406,14 +406,14 @@
                 
                 <div class="info-break-policy">
                     <i class="far fa-file-word fa-fw"></i>文章字数:&nbsp;&nbsp;
-                    77.2k
+                    79.1k
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-clock fa-fw"></i>阅读时长:&nbsp;&nbsp;
-                    323 分
+                    331 分
                 </div>
                 
 
@@ -7811,7 +7811,7 @@ http<span class="token punctuation">.</span><span class="token function">ListenA
 <li><code>0.95</code> 是取 95 分位</li>
 </ul>
 <p>综上：上述表达式计算的是 httpserver 处理请求时，95% 的请求在五分钟内，在不同响应时间区间的处理的数量的变化情况</p>
-<h4 id="Grafana-Dashboard"><a href="#Grafana-Dashboard" class="headerlink" title="Grafana Dashboard"></a>Grafana Dashboard</h4><p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记GrafanaDashboard.png" alt="GrafanaDashboard"></p>
+<h4 id="Grafana-Dashboard"><a href="#Grafana-Dashboard" class="headerlink" title="Grafana Dashboard"></a>Grafana Dashboard</h4><p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/GrafanaDashboard.png" alt="GrafanaDashboard"></p>
 <h4 id="开启告警"><a href="#开启告警" class="headerlink" title="开启告警"></a>开启告警</h4><p>修改 Prometheus 配置文件 prometheus.yml，添加以下配置:</p>
 <pre class="line-numbers language-yaml" data-language="yaml"><code class="language-yaml"><span class="token key atrule">rule files</span><span class="token punctuation">:</span>
 <span class="token punctuation">-</span> /etc/prometheus/rules/<span class="token important">*.rules</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre>
@@ -7927,6 +7927,291 @@ http<span class="token punctuation">.</span><span class="token function">ListenA
 </li>
 </ul>
 <p>思考：GOMAXPROCS 会如何设置？</p>
+<h5 id="容器额外开销和风险"><a href="#容器额外开销和风险" class="headerlink" title="容器额外开销和风险"></a>容器额外开销和风险</h5><p>Log driver</p>
+<ul>
+<li>Blocking mode</li>
+<li>Non blocking mode</li>
+</ul>
+<p>共用 kernel 所以</p>
+<ul>
+<li>系统参数配置共享</li>
+<li>进程数共享 - Fork bomb</li>
+<li>fd 数共享</li>
+<li>主机磁盘共享</li>
+</ul>
+<h5 id="容器化应用的资源监控"><a href="#容器化应用的资源监控" class="headerlink" title="容器化应用的资源监控"></a>容器化应用的资源监控</h5><p>容器中看到的资源是主机资源</p>
+<ul>
+<li>Top</li>
+<li>Java <code>runtime.GetAvailableProcesses()</code></li>
+<li><code>cat /proc/cpuinfo</code></li>
+<li><code>cat /proc/meminfo</code></li>
+<li><code>df -k</code></li>
+</ul>
+<p>解决方案</p>
+<ul>
+<li><p>查询 <code>/proc/1/cgroup</code> 是否包含 <code>kubepods</code> 关键字(docker 关键字不可靠)。</p>
+<ul>
+<li><code>11:cpu,cpuacct:/kubepods.slice/kubepods-besteffort.slice/kubepods-besteffort-pod521722c3 85a8 11e9 87fc 3cfdfe57c998.slice/9568cc0d8ae182395e1ce172e2cac723c4781a999e89e0f9f10d33af079a56e9</code></li>
+</ul>
+</li>
+<li><p>包含此关键字，则表明是运行在 Kubernetes 之上。</p>
+</li>
+</ul>
+<h5 id="内存开销"><a href="#内存开销" class="headerlink" title="内存开销"></a>内存开销</h5><pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token comment"># 配额</span>
+$ <span class="token function">cat</span> /sys/fs/cgroup/memory/memory.limit_in_bytes
+<span class="token number">36854771712</span>
+
+<span class="token comment"># 用量</span>
+$ <span class="token function">cat</span> /sys/fs/cgroup/memory/memory.usage_in_bytes
+<span class="token number">448450560</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<h5 id="CPU"><a href="#CPU" class="headerlink" title="CPU"></a>CPU</h5><pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token comment"># 配额，分配的CPU个数 = quota/period，quota = -1 代表 besteffort</span>
+$ <span class="token function">cat</span> /sys/fs/cgroup/cpu/cpu.cfs_quota_us
+-1
+$ <span class="token function">cat</span> /sys/fs/cgroup/cpu/cpu.cfs_period_us
+<span class="token number">100000</span>
+
+<span class="token comment"># 用量 (按CPU区分)</span>
+$ <span class="token function">cat</span> /sys/fs/cgroup/cpuacct/cpuacct.usage_percpu
+<span class="token number">8081106980</span> <span class="token number">4323359623</span> <span class="token number">4636995549</span> <span class="token number">3325343025</span> <span class="token number">4953653066</span> <span class="token number">3540876400</span> <span class="token number">5181477709</span> <span class="token number">4144887674</span> <span class="token number">10399151669</span> <span class="token number">2410161200</span> <span class="token number">8233879500</span> <span class="token number">3909704000</span> <span class="token number">6805757900</span> <span class="token number">2647133700</span> <span class="token number">7813652536</span> <span class="token number">2739789424</span>
+$ <span class="token function">cat</span> /sys/fs/cgroup/cpuacct/cpuacct.usage
+<span class="token number">83905685155</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<h5 id="其他方案"><a href="#其他方案" class="headerlink" title="其他方案"></a>其他方案</h5><p>lxcfs</p>
+<ul>
+<li>通过 so 挂载的方式，使容器获得正确的资源信息</li>
+</ul>
+<p>Kata</p>
+<ul>
+<li>VM 中跑 container</li>
+</ul>
+<p>Virtlet</p>
+<ul>
+<li>直接启动 VM</li>
+</ul>
+<h5 id="对应用造成的影响"><a href="#对应用造成的影响" class="headerlink" title="对应用造成的影响"></a>对应用造成的影响</h5><p>Java</p>
+<ul>
+<li>Concurrent GC Thread;</li>
+<li>Heap Size;</li>
+<li>线程数不可控。</li>
+</ul>
+<p>Node.js</p>
+<ul>
+<li>多线程模式启动的 Thread 数量过多，导致 OOM Kill。</li>
+</ul>
+<h4 id="将应用迁移至-Kubernetes"><a href="#将应用迁移至-Kubernetes" class="headerlink" title="将应用迁移至 Kubernetes"></a>将应用迁移至 Kubernetes</h4><h5 id="Pod-spec"><a href="#Pod-spec" class="headerlink" title="Pod spec"></a>Pod spec</h5><p>初始化需求(init container)</p>
+<p>需要几个主 container</p>
+<p>权限?Privilege 和 Securitycontext(PSP)</p>
+<p>共享哪些 Namespace(PID,IPC, NET, UTS, MNT)</p>
+<p>配置管理</p>
+<p>优雅终止</p>
+<p>健康检查</p>
+<ul>
+<li>Liveness Probe</li>
+<li>Readiness Probe</li>
+</ul>
+<p>DNS 策略以及对 resolv.conf 的影响imagePullPolicylmage 拉取策略</p>
+<h5 id="Probe-误用会造成严重后果"><a href="#Probe-误用会造成严重后果" class="headerlink" title="Probe 误用会造成严重后果"></a>Probe 误用会造成严重后果</h5><p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/Probe误用会造成严重后果.png" alt="Probe误用会造成严重后果"></p>
+<h5 id="如何防止-PID-泄露"><a href="#如何防止-PID-泄露" class="headerlink" title="如何防止 PID 泄露"></a>如何防止 PID 泄露</h5><p>单进程容器</p>
+<p>合理的处理多进程容器</p>
+<ul>
+<li>容器的初始化进程必须负责清理 fork 出来的所有子进程</li>
+<li><p>开源方案</p>
+<ul>
+<li>Tini <a target="_blank" rel="noopener" href="https://github.com/krallin/tini">https://github.com/krallin/tini</a></li>
+<li>采用 Tini 作为容器的初始化进程 (PID=1) 容器中僵尸进程的父进程会被置为 1</li>
+</ul>
+</li>
+</ul>
+<p>如果不采用特殊初始化进程</p>
+<ul>
+<li>建议采用 HTTPCheck 作为 Probe</li>
+<li>为 exec Probe 设置合理的超时时间</li>
+</ul>
+<h5 id="在-Kubernetes-上部署应用的挑战-1"><a href="#在-Kubernetes-上部署应用的挑战-1" class="headerlink" title="在 Kubernetes 上部署应用的挑战"></a>在 Kubernetes 上部署应用的挑战</h5><p>资源规划</p>
+<ul>
+<li><p>每个实例需要多少计算资源</p>
+<ul>
+<li>CPU/GPU?</li>
+<li>Memory</li>
+</ul>
+</li>
+<li><p>超售需求</p>
+</li>
+<li><p>每个实例需要多少存储资源</p>
+<ul>
+<li>大小</li>
+<li>本地还是网盘</li>
+<li>读写性能</li>
+<li>DiskIO</li>
+</ul>
+</li>
+<li><p>网络需求</p>
+<ul>
+<li>整个应用总体 OPS 和带宽</li>
+</ul>
+</li>
+</ul>
+<h5 id="Pod-的数据管理"><a href="#Pod-的数据管理" class="headerlink" title="Pod 的数据管理"></a>Pod 的数据管理</h5><ul>
+<li>local-ssd：独占的本地磁盘，独占IO，固定大小，读写性能高。</li>
+<li>Local-dynamic：基于LVM，动态分配空间，效率低。</li>
+</ul>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/Pod的数据管理.png" alt="Pod的数据管理"></p>
+<h5 id="我的数据应该保存在哪里"><a href="#我的数据应该保存在哪里" class="headerlink" title="我的数据应该保存在哪里"></a>我的数据应该保存在哪里</h5><p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/我的数据应该保存在哪里.png" alt="我的数据应该保存在哪里"></p>
+<h5 id="应用配置-1"><a href="#应用配置-1" class="headerlink" title="应用配置"></a>应用配置</h5><p>传入方式</p>
+<ul>
+<li>Environment Variables</li>
+<li>Volume Mount</li>
+</ul>
+<p>数据来源</p>
+<ul>
+<li>Configmap</li>
+<li>Secret</li>
+<li>Downward API</li>
+</ul>
+<h5 id="高可用部署"><a href="#高可用部署" class="headerlink" title="高可用部署"></a>高可用部署</h5><p>需要多少实例?</p>
+<p>如何控制失败域，部署在几个地区，AZ，集群?</p>
+<p>如何进行精细的流量控制?</p>
+<p>如何做按地域的顺序更新?</p>
+<p>如何回滚?</p>
+<h5 id="如何应对基础架构的影响"><a href="#如何应对基础架构的影响" class="headerlink" title="如何应对基础架构的影响"></a>如何应对基础架构的影响</h5><p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/如何应对基础架构的影响.png" alt="如何应对基础架构的影响"></p>
+<h5 id="PodDisruptionBudget"><a href="#PodDisruptionBudget" class="headerlink" title="PodDisruptionBudget"></a>PodDisruptionBudget</h5><p>PDB 是为了自主中断时保障应用的高可用。</p>
+<p>在使用 PDB 时，你需要弄清楚你的应用类型以及你想要的应对措施:</p>
+<ul>
+<li><p>无状态应用:</p>
+<ul>
+<li>目标:至少有60%的副本 Available。</li>
+<li>方案:创建 PDB Object，指定 minAvailable为 60%，或者 maxUnavailable 为 40%。</li>
+</ul>
+</li>
+<li><p>单实例的有状态应用:</p>
+<ul>
+<li>目标:终止这个实例之前必须提前通知客户并取得同意。</li>
+<li>方案:创建 PDB Object，并设置 maxUnavailable 为 0。</li>
+</ul>
+</li>
+<li><p>多实例的有状态应用:</p>
+</li>
+<li><p>目标最少可用的实例数不能少于某个数 N，例如 etcd。</p>
+</li>
+<li>方案:设置 maxUnavailable=1或者 minAvailable=N，分别允许每次只删除一个实例和每次删除 expected_replicas - minAvailable 个实例。</li>
+</ul>
+<h5 id="基础架构与应用团队的约束"><a href="#基础架构与应用团队的约束" class="headerlink" title="基础架构与应用团队的约束"></a>基础架构与应用团队的约束</h5><p>基础架构团队在移除一个节点时，应遵循如下流程：</p>
+<ol>
+<li><code>将node置为不可调度</code>kubectl cordon <node name="">`</node></li>
+<li>执行 node drain 排空节点，将其上运行的Pod平滑迁移至其他节点 <code>kubectl drain &lt;node name&gt;</code></li>
+</ol>
+<p>应用开发人员针对敏感应用，可定义 PDB 来确保应用不会被意外中断</p>
+<pre class="line-numbers language-yaml" data-language="yaml"><code class="language-yaml"><span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> policy/v1beta1
+<span class="token key atrule">kind</span><span class="token punctuation">:</span> PodDisruptionBudget
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> zk<span class="token punctuation">-</span>pdb
+<span class="token key atrule">spec</span><span class="token punctuation">:</span>
+  <span class="token key atrule">minAvailable</span><span class="token punctuation">:</span> <span class="token number">2</span>
+  <span class="token key atrule">selector</span><span class="token punctuation">:</span>
+    <span class="token key atrule">matchLabels</span><span class="token punctuation">:</span>
+      <span class="token key atrule">app</span><span class="token punctuation">:</span> zookeeper<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<h5 id="部署方式"><a href="#部署方式" class="headerlink" title="部署方式"></a>部署方式</h5><p>多少实例</p>
+<p>更新策略</p>
+<ul>
+<li>Maxsurge</li>
+<li>MaxUnavailable(需要考虑 ResourceQuota 的限制)</li>
+</ul>
+<p>深入理解 PodTemplateHash 导致的应用的易变性</p>
+<h5 id="服务发布-1"><a href="#服务发布-1" class="headerlink" title="服务发布"></a>服务发布</h5><p>需要把服务发布至集群内部或者外部，服务的不同类型:</p>
+<ul>
+<li>Clusterlp(Headless)</li>
+<li>NodePort</li>
+<li>LoadBalancer</li>
+<li>ExternalName</li>
+</ul>
+<p>证书管理和七层负载均衡的需求</p>
+<p>需要 RPC 负载均衡如何做?</p>
+<p>DNS 需求</p>
+<p>与上下游服务的关系</p>
+<h5 id="服务发布的挑战-1"><a href="#服务发布的挑战-1" class="headerlink" title="服务发布的挑战"></a>服务发布的挑战</h5><p>kube-dns</p>
+<ul>
+<li>DNS TTL 问题</li>
+</ul>
+<p>Service</p>
+<ul>
+<li>ClusterlP 只能对内.</li>
+<li>Kube-proxy 支持的 iptables/ipvs 规模有限.</li>
+<li>IPVS 的性能和生产化问题。</li>
+<li>kube-proxy 的 drift 问题</li>
+<li>频繁的 Pod 变动(specchange，failover，crashLoop)导致LB 频繁变更</li>
+<li>对外发布的 Service 需要与企业 ELB 即成。.</li>
+<li>不支持 gRPC</li>
+<li>不支持自定义 DNS 和高级路由功能</li>
+</ul>
+<p>Ingress</p>
+<ul>
+<li>Spec 要 deprecate</li>
+</ul>
+<p>其他可选方案?</p>
+<h5 id="无状态应用管理"><a href="#无状态应用管理" class="headerlink" title="无状态应用管理"></a>无状态应用管理</h5><p>Replicaset 副本集</p>
+<ul>
+<li>用什么 Pod 模版创建多少个实例。</li>
+<li><code>replicas:2</code></li>
+</ul>
+<p>Deployment</p>
+<p>描述的是部署过程</p>
+<p>版本管理</p>
+<pre class="line-numbers language-yaml" data-language="yaml"><code class="language-yaml">annotations.
+  deployment.kubernetes.io/revision<span class="token punctuation">:</span><span class="token string">"1"</span>
+<span class="token key atrule">spec</span><span class="token punctuation">:</span>
+  revisionHistoryLimit<span class="token punctuation">:</span><span class="token number">10</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span></span></code></pre>
+<p>滚动升级策略</p>
+<pre class="line-numbers language-yaml" data-language="yaml"><code class="language-yaml"><span class="token key atrule">strategy</span><span class="token punctuation">:</span>
+  <span class="token key atrule">rollingUpdate</span><span class="token punctuation">:</span>
+    <span class="token key atrule">maxSurge</span><span class="token punctuation">:</span> 25%
+    <span class="token key atrule">maxUnavailable</span><span class="token punctuation">:</span> <span class="token number">1</span>
+<span class="token key atrule">type</span><span class="token punctuation">:</span> RollingUpdate<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<h5 id="有状态应用管理"><a href="#有状态应用管理" class="headerlink" title="有状态应用管理"></a>有状态应用管理</h5><p>Statefulset</p>
+<p>与 deployment相比，多了</p>
+<pre class="line-numbers language-yaml" data-language="yaml"><code class="language-yaml"><span class="token key atrule">serviceName</span><span class="token punctuation">:</span> nginx<span class="token punctuation">-</span>ss<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>Volume claim template</p>
+<pre class="line-numbers language-yaml" data-language="yaml"><code class="language-yaml"><span class="token key atrule">volumeClaimTemplates</span><span class="token punctuation">:</span>
+<span class="token punctuation">-</span> <span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+  <span class="token key atrule">creationTimestamp</span><span class="token punctuation">:</span> <span class="token null important">null</span>
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> www
+  <span class="token key atrule">spec</span><span class="token punctuation">:</span>
+    <span class="token key atrule">accessModes</span><span class="token punctuation">:</span>
+    <span class="token punctuation">-</span> ReadWriteOnce
+    <span class="token key atrule">resources</span><span class="token punctuation">:</span>
+      <span class="token key atrule">requests</span><span class="token punctuation">:</span>
+        <span class="token key atrule">storage</span><span class="token punctuation">:</span> 1Gi
+    <span class="token key atrule">volumeMode</span><span class="token punctuation">:</span> Filesystem<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<h5 id="有状态应用-Operator"><a href="#有状态应用-Operator" class="headerlink" title="有状态应用 Operator"></a>有状态应用 Operator</h5><p>创建 Operator 的关键是 CRD (自定义资源)的设计</p>
+<p>Kubernetes 对象是可扩展的，扩展的方式有</p>
+<ul>
+<li><p>基于原生对象</p>
+<ul>
+<li>生成 types 对象，并通过 client-go 生成相应的 clientset, lister, informer。</li>
+<li>实现对象的 registery backend，即定义对象任何存储进 etcd。</li>
+<li>注册对象的 scheme 至 apiserver。</li>
+<li><p>创建该对象的 apiservice 生命，注册该对象所对应的 api handler。</p>
+<p>基于原生对象往往需要通过 aggregation apiserver把不同对象组合起来，</p>
+</li>
+</ul>
+</li>
+<li><p>基于 CRD</p>
+<ul>
+<li>在不同应用业务环境下，对于平台可能有一些特殊的需求，这些需求可以抽象为 Kubernetes 的扩展资源，而 Kubernetes 的 CRD(CustomResourceDefinition) 为这样的需求提供了轻量级的机制，保证新的资源的快速注册和使用。</li>
+<li>在更老的版本中，TPR(ThirdPartyResource)是与CRD类似的概念，但是在1.9以上的版本中被弃用而 CRD 则进入的 beta 状态。</li>
+</ul>
+</li>
+</ul>
+<h5 id="如何使用-CRD"><a href="#如何使用-CRD" class="headerlink" title="如何使用 CRD"></a>如何使用 CRD</h5><p>用户向 Kubernetes API 服务注册一个带特定 schema 的资源，并定义相关 API</p>
+<ul>
+<li>注册一系列该资源的实例</li>
+<li>在 Kubernetes 的其它资源对象中引用这个新注册资源的对象实例</li>
+<li>用户自定义的 controller 例程需要对这个引用进行释义和实施，让新的资源对象达到预期的状态</li>
+</ul>
+<h5 id="基于-CRD-的开发过程"><a href="#基于-CRD-的开发过程" class="headerlink" title="基于 CRD 的开发过程"></a>基于 CRD 的开发过程</h5><p>借助 Kubernetes RBAC和 authentication 机制来保证该扩展资源的 security、access control、authentication 和multitenancy.</p>
+<p>将扩展资源的数据存储到 Kubernetes 的 etcd 集群。</p>
+<p>借助 Kubernetes 提供的 controller 模式开发框架，实现新的 controller，并借助 APIServer 监听etcd 集群关于该资源的状态并定义状态变化的处理逻辑。</p>
+<p>该功能可以让开发人员扩展添加新功能，更新现有的功能，并且可以自动执行一些管理任务，这些自定义的控制器就像 Kubernetes 原生的组件一样，Operator 直接使用 Kubernetes API 进行开发，也就是说他们可以根据这些控制器内部编写的自定义规则来监控集群、更改 Pods/Services、对正在运行的应用进行扩缩容。</p>
+<h5 id="控制器模式"><a href="#控制器模式" class="headerlink" title="控制器模式"></a>控制器模式</h5><p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/控制器的工作流程.png" alt="控制器的工作流程"></p>
+<h5 id="控制器代码示例"><a href="#控制器代码示例" class="headerlink" title="控制器代码示例"></a>控制器代码示例</h5><p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/控制器代码示例.png" alt="控制器代码示例"></p>
 
                 
             </div>
