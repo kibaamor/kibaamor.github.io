@@ -399,21 +399,21 @@
                 
                 <div class="post-date info-break-policy">
                     <i class="far fa-calendar-check fa-fw"></i>更新日期:&nbsp;&nbsp;
-                    2024-06-14
+                    2024-06-17
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-file-word fa-fw"></i>文章字数:&nbsp;&nbsp;
-                    79.1k
+                    79.5k
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-clock fa-fw"></i>阅读时长:&nbsp;&nbsp;
-                    331 分
+                    333 分
                 </div>
                 
 
@@ -8010,6 +8010,7 @@ $ <span class="token function">cat</span> /sys/fs/cgroup/cpuacct/cpuacct.usage
 </ul>
 <p>DNS 策略以及对 resolv.conf 的影响imagePullPolicylmage 拉取策略</p>
 <h5 id="Probe-误用会造成严重后果"><a href="#Probe-误用会造成严重后果" class="headerlink" title="Probe 误用会造成严重后果"></a>Probe 误用会造成严重后果</h5><p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/Probe误用会造成严重后果.png" alt="Probe误用会造成严重后果"></p>
+<p>probe 其实就是通过 entrypoint fork 一个进程来执行的，probe 脚本的父进程是 entrypoint。脚本超时后 kubernetes 就会把进程强制杀死，被杀死的进程需要等待父进程（即 entrypoint）清理（waitpid/wait）后才会释放资源。如果entrypoint 不具备清理子进程的能力就会出现僵尸进程。</p>
 <h5 id="如何防止-PID-泄露"><a href="#如何防止-PID-泄露" class="headerlink" title="如何防止 PID 泄露"></a>如何防止 PID 泄露</h5><p>单进程容器</p>
 <p>合理的处理多进程容器</p>
 <ul>
@@ -8109,6 +8110,111 @@ $ <span class="token function">cat</span> /sys/fs/cgroup/cpuacct/cpuacct.usage
   <span class="token key atrule">selector</span><span class="token punctuation">:</span>
     <span class="token key atrule">matchLabels</span><span class="token punctuation">:</span>
       <span class="token key atrule">app</span><span class="token punctuation">:</span> zookeeper<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<h5 id="测试-PodDisruptionBudget"><a href="#测试-PodDisruptionBudget" class="headerlink" title="测试 PodDisruptionBudget"></a>测试 PodDisruptionBudget</h5><p><a target="_blank" rel="noopener" href="https://github.com/kibaamor/101/blob/master/module11/drain-node/drain.MD">https://github.com/kibaamor/101/blob/master/module11/drain-node/drain.MD</a></p>
+<p><a target="_blank" rel="noopener" href="https://kubernetes.io/docs/concepts/scheduling-eviction/api-eviction/">https://kubernetes.io/docs/concepts/scheduling-eviction/api-eviction/</a></p>
+<p>部署文件</p>
+<pre class="line-numbers language-yaml" data-language="yaml"><code class="language-yaml"><span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> apps/v1
+<span class="token key atrule">kind</span><span class="token punctuation">:</span> Deployment
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> nginx<span class="token punctuation">-</span>deployment
+<span class="token key atrule">spec</span><span class="token punctuation">:</span>
+  <span class="token key atrule">replicas</span><span class="token punctuation">:</span> <span class="token number">2</span>
+  <span class="token key atrule">selector</span><span class="token punctuation">:</span>
+    <span class="token key atrule">matchLabels</span><span class="token punctuation">:</span>
+      <span class="token key atrule">app</span><span class="token punctuation">:</span> nginx
+  <span class="token key atrule">template</span><span class="token punctuation">:</span>
+    <span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+      <span class="token key atrule">labels</span><span class="token punctuation">:</span>
+        <span class="token key atrule">app</span><span class="token punctuation">:</span> nginx
+    <span class="token key atrule">spec</span><span class="token punctuation">:</span>
+      <span class="token key atrule">containers</span><span class="token punctuation">:</span>
+        <span class="token punctuation">-</span> <span class="token key atrule">name</span><span class="token punctuation">:</span> nginx
+          <span class="token key atrule">image</span><span class="token punctuation">:</span> nginx
+<span class="token punctuation">---</span>
+<span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> policy/v1
+<span class="token key atrule">kind</span><span class="token punctuation">:</span> PodDisruptionBudget
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> nginx<span class="token punctuation">-</span>pdb
+<span class="token key atrule">spec</span><span class="token punctuation">:</span>
+  <span class="token key atrule">minAvailable</span><span class="token punctuation">:</span> <span class="token number">1</span>
+  <span class="token key atrule">selector</span><span class="token punctuation">:</span>
+    <span class="token key atrule">matchLabels</span><span class="token punctuation">:</span>
+      <span class="token key atrule">app</span><span class="token punctuation">:</span> nginx<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>测试过程</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ kubectl apply -f <span class="token builtin class-name">.</span>
+deployment.apps/nginx-deployment created
+poddisruptionbudget.policy/nginx-pdb created
+
+$ kubectl get pdb
+NAME        MIN AVAILABLE   MAX UNAVAILABLE   ALLOWED DISRUPTIONS   AGE
+nginx-pdb   <span class="token number">1</span>               N/A               <span class="token number">1</span>                     102s
+
+$ kubectl scale deployment nginx-deployment --replicas <span class="token number">1</span>
+deployment.apps/nginx-deployment scaled
+
+$ kubectl get pdb
+NAME        MIN AVAILABLE   MAX UNAVAILABLE   ALLOWED DISRUPTIONS   AGE
+nginx-pdb   <span class="token number">1</span>               N/A               <span class="token number">0</span>                     4m11s
+
+$ kubectl get pods
+NAME                               READY   STATUS    RESTARTS   AGE
+nginx-deployment-bf5d5cf98-54d9q   <span class="token number">1</span>/1     Running   <span class="token number">0</span>          16m
+
+$ <span class="token function">cat</span> eviction.json
+<span class="token punctuation">{</span>
+  <span class="token string">"apiVersion"</span><span class="token builtin class-name">:</span> <span class="token string">"policy/v1"</span>,
+  <span class="token string">"kind"</span><span class="token builtin class-name">:</span> <span class="token string">"Eviction"</span>,
+  <span class="token string">"metadata"</span><span class="token builtin class-name">:</span> <span class="token punctuation">{</span>
+    <span class="token string">"name"</span><span class="token builtin class-name">:</span> <span class="token string">"nginx-deployment-bf5d5cf98-54d9q"</span>,
+    <span class="token string">"namespace"</span><span class="token builtin class-name">:</span> <span class="token string">"default"</span>
+  <span class="token punctuation">}</span>
+<span class="token punctuation">}</span>
+
+$ <span class="token function">curl</span> -H <span class="token string">'Content-type: application/json'</span> <span class="token punctuation">\</span>
+  --cacert ~/.minikube/ca.crt <span class="token punctuation">\</span>
+  --key ~/.minikube/profiles/minikube/client.key <span class="token punctuation">\</span>
+  --cert ~/.minikube/profiles/minikube/client.crt <span class="token punctuation">\</span>
+  https://127.0.0.1:32779/api/v1/namespaces/default/pods/nginx-deployment-bf5d5cf98-54d9q/eviction <span class="token punctuation">\</span>
+  -d @eviction.json
+<span class="token punctuation">{</span>
+  <span class="token string">"kind"</span><span class="token builtin class-name">:</span> <span class="token string">"Status"</span>,
+  <span class="token string">"apiVersion"</span><span class="token builtin class-name">:</span> <span class="token string">"v1"</span>,
+  <span class="token string">"metadata"</span><span class="token builtin class-name">:</span> <span class="token punctuation">{</span><span class="token punctuation">}</span>,
+  <span class="token string">"status"</span><span class="token builtin class-name">:</span> <span class="token string">"Failure"</span>,
+  <span class="token string">"message"</span><span class="token builtin class-name">:</span> <span class="token string">"Cannot evict pod as it would violate the pod's disruption budget."</span>,
+  <span class="token string">"reason"</span><span class="token builtin class-name">:</span> <span class="token string">"TooManyRequests"</span>,
+  <span class="token string">"details"</span><span class="token builtin class-name">:</span> <span class="token punctuation">{</span>
+    <span class="token string">"causes"</span><span class="token builtin class-name">:</span> <span class="token punctuation">[</span>
+      <span class="token punctuation">{</span>
+        <span class="token string">"reason"</span><span class="token builtin class-name">:</span> <span class="token string">"DisruptionBudget"</span>,
+        <span class="token string">"message"</span><span class="token builtin class-name">:</span> <span class="token string">"The disruption budget nginx-pdb needs 1 healthy pods and has 1 currently"</span>
+      <span class="token punctuation">}</span>
+    <span class="token punctuation">]</span>
+  <span class="token punctuation">}</span>,
+  <span class="token string">"code"</span><span class="token builtin class-name">:</span> <span class="token number">429</span>
+<span class="token punctuation">}</span>
+
+$ kubectl scale deployment nginx-deployment --replicas <span class="token number">2</span>
+deployment.apps/nginx-deployment scaled
+
+$ kubectl get pods
+NAME                               READY   STATUS    RESTARTS   AGE
+nginx-deployment-bf5d5cf98-54d9q   <span class="token number">1</span>/1     Running   <span class="token number">0</span>          20m
+nginx-deployment-bf5d5cf98-v4p9b   <span class="token number">1</span>/1     Running   <span class="token number">0</span>          104s
+
+$ <span class="token function">curl</span> -H <span class="token string">'Content-type: application/json'</span> <span class="token punctuation">\</span>
+  --cacert ~/.minikube/ca.crt <span class="token punctuation">\</span>
+  --key ~/.minikube/profiles/minikube/client.key <span class="token punctuation">\</span>
+  --cert ~/.minikube/profiles/minikube/client.crt <span class="token punctuation">\</span>
+  https://127.0.0.1:32779/api/v1/namespaces/default/pods/nginx-deployment-bf5d5cf98-54d9q/eviction <span class="token punctuation">\</span>
+  -d @eviction.json
+<span class="token punctuation">{</span>
+  <span class="token string">"kind"</span><span class="token builtin class-name">:</span> <span class="token string">"Status"</span>,
+  <span class="token string">"apiVersion"</span><span class="token builtin class-name">:</span> <span class="token string">"v1"</span>,
+  <span class="token string">"metadata"</span><span class="token builtin class-name">:</span> <span class="token punctuation">{</span><span class="token punctuation">}</span>,
+  <span class="token string">"status"</span><span class="token builtin class-name">:</span> <span class="token string">"Success"</span>,
+  <span class="token string">"code"</span><span class="token builtin class-name">:</span> <span class="token number">201</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
 <h5 id="部署方式"><a href="#部署方式" class="headerlink" title="部署方式"></a>部署方式</h5><p>多少实例</p>
 <p>更新策略</p>
 <ul>
