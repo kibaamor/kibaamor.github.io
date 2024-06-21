@@ -406,7 +406,7 @@
                 
                 <div class="info-break-policy">
                     <i class="far fa-file-word fa-fw"></i>文章字数:&nbsp;&nbsp;
-                    84.3k
+                    84.4k
                 </div>
                 
 
@@ -8483,7 +8483,7 @@ helm upgrade --install loki ./lock-stack<span aria-hidden="true" class="line-num
 <p>Pod/Node 指标需要由 Summary API 通过 kubelet 公开。</p>
 <p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/MetricsServer.png" alt="MetricsServer"></p>
 <h4 id="metrics-server-的本质"><a href="#metrics-server-的本质" class="headerlink" title="metrics-server 的本质"></a>metrics-server 的本质</h4><p>将指标数据转换成 metrics.k8s.io 的 api 调用返回值</p>
-<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ kubectl get --raw "/api/v1/nodes/node1/proxy/metrics/resource
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ kubectl get --raw <span class="token string">"/api/v1/nodes/node1/proxy/metrics/resource"</span>
 
 $ kubectl <span class="token function">top</span> node
 NAME    CPU<span class="token punctuation">(</span>cores<span class="token punctuation">)</span>  CPU%    MEMORY<span class="token punctuation">(</span>bytes<span class="token punctuation">)</span>   MEMORY%
@@ -8510,7 +8510,8 @@ nginx-deployment-6799fc88d8-zkf9d       0m          5Mi<span aria-hidden="true" 
 <p>因节点计算资源固定，当 Pod 调度完成并运行以后，动态调整计算资源变得较为困难，因为横向扩展具有更大优势，HPA是扩展应用能力的第一选择，</p>
 <p>多个冲突的 HPA 同时创建到同一个应用的时候会有无法预期的行为，因此需要小心维护 HPA 规则。</p>
 <p>HPA 依赖于 Metrics-Server.</p>
-<h4 id="HPA-Spec"><a href="#HPA-Spec" class="headerlink" title="HPA Spec"></a>HPA Spec</h4><pre class="line-numbers language-yaml" data-language="yaml"><code class="language-yaml"><span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> autoscaling/v2beta2
+<h4 id="HPA-Spec"><a href="#HPA-Spec" class="headerlink" title="HPA Spec"></a>HPA Spec</h4><p><a target="_blank" rel="noopener" href="https://github.com/kibaamor/101/tree/master/module11/hpa">https://github.com/kibaamor/101/tree/master/module11/hpa</a></p>
+<pre class="line-numbers language-yaml" data-language="yaml"><code class="language-yaml"><span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> autoscaling/v2beta2
 <span class="token key atrule">kind</span><span class="token punctuation">:</span> HorizontalPodAutoscaler
 <span class="token key atrule">metadata</span><span class="token punctuation">:</span>
   <span class="token key atrule">name</span><span class="token punctuation">:</span> mynginx
@@ -8528,11 +8529,11 @@ metrics<span class="token punctuation">:</span><span aria-hidden="true" class="l
 <h4 id="HPA-支持的指标类型"><a href="#HPA-支持的指标类型" class="headerlink" title="HPA 支持的指标类型"></a>HPA 支持的指标类型</h4><p>对于按 Pod 统计的资源指标(如 CPU)，控制器从资源指标API中获取每一个 <strong>HorizontalPodAutoscaler 指定的 Pod 的度量值</strong>，如果设置了目标使用率，控制器获取每个 Pod 中的容器资源使用情况，并计算资源使用率。如果设置了target值，将直接使用原始数据(不再计算百分比)。</p>
 <p>如果 Pod 使用自定义指示，控制器机制与资源指标类似，区别在于自定义指标只使用原始值，而不是使用率。</p>
 <p>如果 Pod 使用对象指标和外部指标(每个指标描述一个对象信息)。这个指标将直接根据目标设定值相比较，并生成一个上面提到的扩缩比例。 <strong>在 autoscaling/v2beta2 版本 API中，这个指标也可以根据 Pod 数量平分后再计算。</strong></p>
-<h4 id="HPA-指标"><a href="#HPA-指标" class="headerlink" title="HPA 指标"></a>HPA 指标</h4><p>Resource 类型的指标</p>
+<h4 id="HPA-指标"><a href="#HPA-指标" class="headerlink" title="HPA 指标"></a>HPA 指标</h4><p>Resource 类型的指标（k8s自己支持的指标）</p>
 <pre class="line-numbers language-yaml" data-language="yaml"><code class="language-yaml"><span class="token punctuation">-</span> <span class="token key atrule">type</span><span class="token punctuation">:</span> Resource
   <span class="token key atrule">resource</span><span class="token punctuation">:</span>
     <span class="token key atrule">name</span><span class="token punctuation">:</span> cpu
-    <span class="token comment"># Utilization 类型的目标值，Resource 类型的指标只支持 Utilization 和AverageValue 类型的目标值</span>
+    <span class="token comment"># Utilization 类型的目标值，Resource 类型的指标只支持 Utilization 和 AverageValue 类型的目标值</span>
     <span class="token key atrule">target</span><span class="token punctuation">:</span>
       <span class="token key atrule">type</span><span class="token punctuation">:</span> Utilization
       <span class="token key atrule">averageUtilization</span><span class="token punctuation">:</span> <span class="token number">50</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
@@ -8644,6 +8645,7 @@ php-apache-6cd4b65f7b-p878h 488m1       2Mi        <span aria-hidden="true" clas
 <li>CPU 使用量样本对应的权重是基于容器 CPUrequest 值确定的。当 CPUrequest 增加时对应的权重也随之增加。</li>
 <li>而 Memory 使用量样本对应的权重固定为 1.0。</li>
 </ul>
+<p><a target="_blank" rel="noopener" href="https://github.com/kibaamor/101/blob/master/module11/vpa/readme.MD">https://github.com/kibaamor/101/blob/master/module11/vpa/readme.MD</a></p>
 <h4 id="VPA-1"><a href="#VPA-1" class="headerlink" title="VPA"></a>VPA</h4><p>VPA 的成熟度还不足</p>
 <ul>
 <li>更新正在运行的 Pod 资源配置是 VPA的一项试验性功能，会导致 Pod 的重建和重启，而且有可能被调度到其他的节点上。</li>
