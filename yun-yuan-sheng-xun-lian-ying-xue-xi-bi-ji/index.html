@@ -399,21 +399,21 @@
                 
                 <div class="post-date info-break-policy">
                     <i class="far fa-calendar-check fa-fw"></i>更新日期:&nbsp;&nbsp;
-                    2024-06-23
+                    2024-06-24
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-file-word fa-fw"></i>文章字数:&nbsp;&nbsp;
-                    91.9k
+                    92.3k
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-clock fa-fw"></i>阅读时长:&nbsp;&nbsp;
-                    382 分
+                    384 分
                 </div>
                 
 
@@ -8910,6 +8910,154 @@ php-apache-6cd4b65f7b-p878h 488m1       2Mi        <span aria-hidden="true" clas
 <li>总的来说，Envoy 的设计是最终一致的。这意味着默认情况下，每个管理 API 都并发运行并且不会相互交互。在某些情况下，一次一个管理服务器处理单个 Envoy 的所有更新是有益的(例如，如果需要对更新进行排序以避免流量下降)。此API允许通过单个管理服务器的单个 gRPC 双向流对所有其他 API 进行编组，从而实现确定性排序。</li>
 </ul>
 <h4 id="Envoy-的过滤器模式"><a href="#Envoy-的过滤器模式" class="headerlink" title="Envoy 的过滤器模式"></a>Envoy 的过滤器模式</h4><p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/Envoy的过滤器模式.png" alt="Envoy的过滤器模式"></p>
+<h4 id="Envoy-实验"><a href="#Envoy-实验" class="headerlink" title="Envoy 实验"></a>Envoy 实验</h4><p><a target="_blank" rel="noopener" href="https://cncamp.notion.site/Envoy-Doc-notes-4f1d50edbd414c78a2943239dd5f5d0d">Envoy Doc notes</a></p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token comment"># simple 的配置</span>
+$ <span class="token function">cat</span> simple.yaml -p
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: simple
+spec:
+  replicas: <span class="token number">1</span>
+  selector:
+    matchLabels:
+      app: simple
+  template:
+    metadata:
+      annotations:
+        prometheus.io/scrape: <span class="token string">"true"</span>
+        prometheus.io/port: <span class="token string">"80"</span>
+      labels:
+        app: simple
+    spec:
+      containers:
+        - name: simple
+          imagePullPolicy: Always
+          image: cncamp/httpserver:v1.0-metrics
+          ports:
+            - containerPort: <span class="token number">80</span>
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: simple
+spec:
+  ports:
+    - name: http
+      port: <span class="token number">80</span>
+      protocol: TCP
+      targetPort: <span class="token number">80</span>
+  selector:
+    app: simple
+
+<span class="token comment"># 创建 simple</span>
+$ kubectl apply -f ./simple.yaml
+deployment.apps/simple created
+service/simple created
+
+$ kubectl get svc simple
+NAME     TYPE        CLUSTER-IP      EXTERNAL-IP   PORT<span class="token punctuation">(</span>S<span class="token punctuation">)</span>   AGE
+simple   ClusterIP   <span class="token number">10.108</span>.197.81   <span class="token operator">&lt;</span>none<span class="token operator">&gt;</span>        <span class="token number">80</span>/TCP    15m
+
+$ <span class="token function">curl</span> <span class="token number">10.108</span>.197.81/hello
+hello <span class="token punctuation">[</span>stranger<span class="token punctuation">]</span>
+<span class="token operator">==</span><span class="token operator">==</span><span class="token operator">==</span><span class="token operator">==</span><span class="token operator">==</span><span class="token operator">==</span><span class="token operator">==</span><span class="token operator">==</span><span class="token operator">==</span><span class="token operator">=</span>Details of the http request header:<span class="token operator">==</span><span class="token operator">==</span><span class="token operator">==</span><span class="token operator">==</span><span class="token operator">==</span><span class="token operator">==</span>
+User-Agent<span class="token operator">=</span><span class="token punctuation">[</span>curl/7.81.0<span class="token punctuation">]</span>
+<span class="token assign-left variable">Accept</span><span class="token operator">=</span><span class="token punctuation">[</span>*/*<span class="token punctuation">]</span>
+
+<span class="token comment"># envoy的配置</span>
+$ <span class="token function">cat</span> envoy.yaml
+admin:
+  address:
+    socket_address: <span class="token punctuation">{</span> address: <span class="token number">127.0</span>.0.1, port_value: <span class="token number">9901</span> <span class="token punctuation">}</span>
+
+static_resources:
+  listeners:
+    - name: listener_0
+      address:
+        socket_address: <span class="token punctuation">{</span> address: <span class="token number">0.0</span>.0.0, port_value: <span class="token number">10000</span> <span class="token punctuation">}</span>
+      filter_chains:
+        - filters:
+            - name: envoy.filters.network.http_connection_manager
+              typed_config:
+                <span class="token string">"@type"</span><span class="token builtin class-name">:</span> type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
+                stat_prefix: ingress_http
+                codec_type: AUTO
+                route_config:
+                  name: local_route
+                  virtual_hosts:
+                    - name: local_service
+                      domains: <span class="token punctuation">[</span><span class="token string">"*"</span><span class="token punctuation">]</span>
+                      routes:
+                        - match: <span class="token punctuation">{</span> prefix: <span class="token string">"/"</span> <span class="token punctuation">}</span>
+                          route: <span class="token punctuation">{</span> cluster: some_service <span class="token punctuation">}</span>
+                http_filters:
+                  - name: envoy.filters.http.router
+                    typed_config:
+                      <span class="token string">"@type"</span><span class="token builtin class-name">:</span> type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
+  clusters:
+    - name: some_service
+      connect_timeout: <span class="token number">0</span>.25s
+      type: LOGICAL_DNS
+      lb_policy: ROUND_ROBIN
+      load_assignment:
+        cluster_name: some_service
+        endpoints:
+          - lb_endpoints:
+              - endpoint:
+                  address:
+                    socket_address:
+                      address: simple
+                      port_value: <span class="token number">80</span>
+
+$ kubectl create configmap envoy-config --from-file envoy.yaml
+configmap/envoy-config created
+
+$ <span class="token function">cat</span> envoy-deploy.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    run: envoy
+  name: envoy
+spec:
+  replicas: <span class="token number">1</span>
+  selector:
+    matchLabels:
+      run: envoy
+  template:
+    metadata:
+      labels:
+        run: envoy
+    spec:
+      containers:
+        - image: envoyproxy/envoy-dev
+          name: envoy
+          volumeMounts:
+            - name: envoy-config
+              mountPath: <span class="token string">"/etc/envoy"</span>
+              readOnly: <span class="token boolean">true</span>
+      volumes:
+        - name: envoy-config
+          configMap:
+            name: envoy-config
+
+$ kubectl apply -f ./envoy-deploy.yaml
+deployment.apps/envoy created
+
+$ kubectl get pods -owide
+NAME                      READY   STATUS    RESTARTS   AGE   IP           NODE           NOMINATED NODE   READINESS GATES
+envoy-7c8f878d77-f8mg7    <span class="token number">1</span>/1     Running   <span class="token number">0</span>          13m   <span class="token number">10.244</span>.1.4   minikube-m02   <span class="token operator">&lt;</span>none<span class="token operator">&gt;</span>           <span class="token operator">&lt;</span>none<span class="token operator">&gt;</span>
+simple-7b4d48d56b-lp8dq   <span class="token number">1</span>/1     Running   <span class="token number">0</span>          20m   <span class="token number">10.244</span>.1.2   minikube-m02   <span class="token operator">&lt;</span>none<span class="token operator">&gt;</span>           <span class="token operator">&lt;</span>none<span class="token operator">&gt;</span>
+
+$ <span class="token function">curl</span> <span class="token number">10.244</span>.1.4:10000/hello
+hello <span class="token punctuation">[</span>stranger<span class="token punctuation">]</span>
+<span class="token operator">==</span><span class="token operator">==</span><span class="token operator">==</span><span class="token operator">==</span><span class="token operator">==</span><span class="token operator">==</span><span class="token operator">==</span><span class="token operator">==</span><span class="token operator">==</span><span class="token operator">=</span>Details of the http request header:<span class="token operator">==</span><span class="token operator">==</span><span class="token operator">==</span><span class="token operator">==</span><span class="token operator">==</span><span class="token operator">==</span>
+X-Envoy-Expected-Rq-Timeout-Ms<span class="token operator">=</span><span class="token punctuation">[</span><span class="token number">15000</span><span class="token punctuation">]</span>
+User-Agent<span class="token operator">=</span><span class="token punctuation">[</span>curl/7.81.0<span class="token punctuation">]</span>
+<span class="token assign-left variable">Accept</span><span class="token operator">=</span><span class="token punctuation">[</span>*/*<span class="token punctuation">]</span>
+X-Forwarded-Proto<span class="token operator">=</span><span class="token punctuation">[</span>http<span class="token punctuation">]</span>
+X-Request-Id<span class="token operator">=</span><span class="token punctuation">[</span>4048f3e2-2e03-4900-a3fa-76eee47a6fc4<span class="token punctuation">]</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
 <h3 id="Isito-流量管理"><a href="#Isito-流量管理" class="headerlink" title="Isito 流量管理"></a>Isito 流量管理</h3><h4 id="流量管理-1"><a href="#流量管理-1" class="headerlink" title="流量管理"></a>流量管理</h4><p>Gateway</p>
 <p>Virtualservice</p>
 <p>DestinationRule</p>
