@@ -406,14 +406,14 @@
                 
                 <div class="info-break-policy">
                     <i class="far fa-file-word fa-fw"></i>文章字数:&nbsp;&nbsp;
-                    96.6k
+                    97.8k
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-clock fa-fw"></i>阅读时长:&nbsp;&nbsp;
-                    409 分
+                    416 分
                 </div>
                 
 
@@ -9811,6 +9811,196 @@ tcp6    <span class="token number">0</span>   <span class="token number">0</span
 <p>DestinationRule 是 Virtualservice 路由生效后，配置应用与请求的策略集</p>
 <p>ServiceEntry 是通常用于在 Istio 服务网格之外启用对服务的请求。</p>
 <p>Gateway 为 HTTP/TCP 流量配置负载均衡器，最常见的是在网格的边缘的操作，以启用应用程序的入口流量。</p>
+<h5 id="简单测试-Gateway-和-VirtualService"><a href="#简单测试-Gateway-和-VirtualService" class="headerlink" title="简单测试 Gateway 和 VirtualService"></a>简单测试 Gateway 和 VirtualService</h5><h6 id="测试过程"><a href="#测试过程" class="headerlink" title="测试过程"></a>测试过程</h6><pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ <span class="token function">git</span> clone git@github.com:kibaamor/101.git
+$ <span class="token builtin class-name">cd</span> module12/istio/1.http-gw
+
+$ kubectl create ns simple
+$ kubectl create -f simple.yaml -n simple
+$ kubectl create -f istio-specs.yaml -n simple
+
+$ kubectl -n istio-system get svc -l <span class="token assign-left variable">istio</span><span class="token operator">=</span>ingressgateway
+NAME                   TYPE           CLUSTER-IP     EXTERNAL-IP   PORT<span class="token punctuation">(</span>S<span class="token punctuation">)</span>                                                                      AGE
+istio-ingressgateway   LoadBalancer   <span class="token number">10.111</span>.255.7   <span class="token operator">&lt;</span>pending<span class="token operator">&gt;</span>     <span class="token number">15021</span>:30940/TCP,80:30265/TCP,443:32345/TCP,31400:31186/TCP,15443:30180/TCP   23h
+
+$ <span class="token function">curl</span> <span class="token number">10.111</span>.255.7/hello -v
+*   Trying <span class="token number">10.111</span>.255.7:80<span class="token punctuation">..</span>.
+* Connected to <span class="token number">10.111</span>.255.7 <span class="token punctuation">(</span><span class="token number">10.111</span>.255.7<span class="token punctuation">)</span> port <span class="token number">80</span> <span class="token punctuation">(</span><span class="token comment">#0)</span>
+<span class="token operator">&gt;</span> GET /hello HTTP/1.1
+<span class="token operator">&gt;</span> Host: <span class="token number">10.111</span>.255.7
+<span class="token operator">&gt;</span> User-Agent: curl/7.81.0
+<span class="token operator">&gt;</span> Accept: */*
+<span class="token operator">&gt;</span>
+* Mark bundle as not supporting multiuse
+<span class="token operator">&lt;</span> HTTP/1.1 <span class="token number">404</span> Not Found
+<span class="token operator">&lt;</span> date: Wed, <span class="token number">10</span> Jul <span class="token number">2024</span> <span class="token number">11</span>:01:54 GMT
+<span class="token operator">&lt;</span> server: istio-envoy
+<span class="token operator">&lt;</span> content-length: <span class="token number">0</span>
+<span class="token operator">&lt;</span>
+* Connection <span class="token comment">#0 to host 10.111.255.7 left intact</span>
+
+$ <span class="token function">curl</span> -H <span class="token string">"Host: simple.cncamp.io"</span> <span class="token number">10.111</span>.255.7/hello
+hello <span class="token punctuation">[</span>stranger<span class="token punctuation">]</span>
+<span class="token operator">==</span><span class="token operator">==</span><span class="token operator">==</span><span class="token operator">==</span><span class="token operator">==</span><span class="token operator">==</span><span class="token operator">==</span><span class="token operator">==</span><span class="token operator">==</span><span class="token operator">=</span>Details of the http request header:<span class="token operator">==</span><span class="token operator">==</span><span class="token operator">==</span><span class="token operator">==</span><span class="token operator">==</span><span class="token operator">==</span>
+X-Envoy-Internal<span class="token operator">=</span><span class="token punctuation">[</span>true<span class="token punctuation">]</span>
+X-Envoy-Decorator-Operation<span class="token operator">=</span><span class="token punctuation">[</span>simple.simple.svc.cluster.local:80/*<span class="token punctuation">]</span>
+X-Envoy-Peer-Metadata<span class="token operator">=</span><span class="token punctuation">[</span>ChoKCkNMVVNURVJfSUQSDBoKS3ViZXJuZXRlcwocCgxJTlNUQU5DRV9JUFMSDBoKMTAuMjQ0LjAuNAoZCg1JU1RJT19WRVJTSU9OEggaBjEuMjIuMgqcAwoGTEFCRUxTEpEDKo4DCh0KA2FwcBIWGhRpc3Rpby1pbmdyZXNzZ2F0ZXdheQoTCgVjaGFydBIKGghnYXRld2F5cwoUCghoZXJpdGFnZRIIGgZUaWxsZXIKNgopaW5zdGFsbC5vcGVyYXRvci5pc3Rpby5pby9vd25pbmctcmVzb3VyY2USCRoHdW5rbm93bgoZCgVpc3RpbxIQGg5pbmdyZXNzZ2F0ZXdheQoZCgxpc3Rpby5pby9yZXYSCRoHZGVmYXVsdAowChtvcGVyYXRvci5pc3Rpby5pby9jb21wb25lbnQSERoPSW5ncmVzc0dhdGV3YXlzChIKB3JlbGVhc2USBxoFaXN0aW8KOQofc2VydmljZS5pc3Rpby5pby9jYW5vbmljYWwtbmFtZRIWGhRpc3Rpby1pbmdyZXNzZ2F0ZXdheQovCiNzZXJ2aWNlLmlzdGlvLmlvL2Nhbm9uaWNhbC1yZXZpc2lvbhIIGgZsYXRlc3QKIgoXc2lkZWNhci5pc3Rpby5pby9pbmplY3QSBxoFZmFsc2UKGgoHTUVTSF9JRBIPGg1jbHVzdGVyLmxvY2FsCi4KBE5BTUUSJhokaXN0aW8taW5ncmVzc2dhdGV3YXktNWM1ODk5NTY3LTQ5MnJ6ChsKCU5BTUVTUEFDRRIOGgxpc3Rpby1zeXN0ZW0KXQoFT1dORVISVBpSa3ViZXJuZXRlczovL2FwaXMvYXBwcy92MS9uYW1lc3BhY2VzL2lzdGlvLXN5c3RlbS9kZXBsb3ltZW50cy9pc3Rpby1pbmdyZXNzZ2F0ZXdheQonCg1XT1JLTE9BRF9OQU1FEhYaFGlzdGlvLWluZ3Jlc3NnYXRld2F5<span class="token punctuation">]</span>
+X-Envoy-Attempt-Count<span class="token operator">=</span><span class="token punctuation">[</span><span class="token number">1</span><span class="token punctuation">]</span>
+X-Forwarded-Proto<span class="token operator">=</span><span class="token punctuation">[</span>http<span class="token punctuation">]</span>
+X-Forwarded-For<span class="token operator">=</span><span class="token punctuation">[</span><span class="token number">10.244</span>.0.1<span class="token punctuation">]</span>
+X-Request-Id<span class="token operator">=</span><span class="token punctuation">[</span>8ab668b4-4da9-9ae2-9ffc-6e2580b0c5a1<span class="token punctuation">]</span>
+X-Envoy-Peer-Metadata-Id<span class="token operator">=</span><span class="token punctuation">[</span>router~10.244.0.4~istio-ingressgateway-5c5899567-492rz.istio-system~istio-system.svc.cluster.local<span class="token punctuation">]</span>
+User-Agent<span class="token operator">=</span><span class="token punctuation">[</span>curl/7.81.0<span class="token punctuation">]</span>
+<span class="token assign-left variable">Accept</span><span class="token operator">=</span><span class="token punctuation">[</span>*/*<span class="token punctuation">]</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<h6 id="simple-yaml"><a href="#simple-yaml" class="headerlink" title="simple.yaml"></a>simple.yaml</h6><pre class="line-numbers language-yaml" data-language="yaml"><code class="language-yaml"><span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> apps/v1
+<span class="token key atrule">kind</span><span class="token punctuation">:</span> Deployment
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> simple
+<span class="token key atrule">spec</span><span class="token punctuation">:</span>
+  <span class="token key atrule">replicas</span><span class="token punctuation">:</span> <span class="token number">1</span>
+  <span class="token key atrule">selector</span><span class="token punctuation">:</span>
+    <span class="token key atrule">matchLabels</span><span class="token punctuation">:</span>
+      <span class="token key atrule">app</span><span class="token punctuation">:</span> simple
+  <span class="token key atrule">template</span><span class="token punctuation">:</span>
+    <span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+      <span class="token key atrule">annotations</span><span class="token punctuation">:</span>
+        <span class="token key atrule">prometheus.io/scrape</span><span class="token punctuation">:</span> <span class="token string">"true"</span>
+        <span class="token key atrule">prometheus.io/port</span><span class="token punctuation">:</span> <span class="token string">"80"</span>
+      <span class="token key atrule">labels</span><span class="token punctuation">:</span>
+        <span class="token key atrule">app</span><span class="token punctuation">:</span> simple
+    <span class="token key atrule">spec</span><span class="token punctuation">:</span>
+      <span class="token key atrule">containers</span><span class="token punctuation">:</span>
+        <span class="token punctuation">-</span> <span class="token key atrule">name</span><span class="token punctuation">:</span> simple
+          <span class="token key atrule">imagePullPolicy</span><span class="token punctuation">:</span> Always
+          <span class="token key atrule">image</span><span class="token punctuation">:</span> cncamp/httpserver<span class="token punctuation">:</span>v1.0<span class="token punctuation">-</span>metrics
+          <span class="token key atrule">ports</span><span class="token punctuation">:</span>
+            <span class="token punctuation">-</span> <span class="token key atrule">containerPort</span><span class="token punctuation">:</span> <span class="token number">80</span>
+<span class="token punctuation">---</span>
+<span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> v1
+<span class="token key atrule">kind</span><span class="token punctuation">:</span> Service
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> simple
+<span class="token key atrule">spec</span><span class="token punctuation">:</span>
+  <span class="token key atrule">ports</span><span class="token punctuation">:</span>
+    <span class="token punctuation">-</span> <span class="token key atrule">name</span><span class="token punctuation">:</span> http
+      <span class="token key atrule">port</span><span class="token punctuation">:</span> <span class="token number">80</span>
+      <span class="token key atrule">protocol</span><span class="token punctuation">:</span> TCP
+      <span class="token key atrule">targetPort</span><span class="token punctuation">:</span> <span class="token number">80</span>
+  <span class="token key atrule">selector</span><span class="token punctuation">:</span>
+    <span class="token key atrule">app</span><span class="token punctuation">:</span> simple<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<h6 id="istio-specs-yaml"><a href="#istio-specs-yaml" class="headerlink" title="istio-specs.yaml"></a>istio-specs.yaml</h6><pre class="line-numbers language-yaml" data-language="yaml"><code class="language-yaml"><span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> networking.istio.io/v1beta1
+<span class="token key atrule">kind</span><span class="token punctuation">:</span> VirtualService
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> simple
+<span class="token key atrule">spec</span><span class="token punctuation">:</span>
+  <span class="token key atrule">gateways</span><span class="token punctuation">:</span>
+    <span class="token punctuation">-</span> simple
+  <span class="token key atrule">hosts</span><span class="token punctuation">:</span>
+    <span class="token punctuation">-</span> simple.cncamp.io
+  <span class="token key atrule">http</span><span class="token punctuation">:</span>
+    <span class="token punctuation">-</span> <span class="token key atrule">match</span><span class="token punctuation">:</span>
+        <span class="token punctuation">-</span> <span class="token key atrule">port</span><span class="token punctuation">:</span> <span class="token number">80</span>
+      <span class="token key atrule">route</span><span class="token punctuation">:</span>
+        <span class="token punctuation">-</span> <span class="token key atrule">destination</span><span class="token punctuation">:</span>
+            <span class="token key atrule">host</span><span class="token punctuation">:</span> simple.simple.svc.cluster.local
+            <span class="token key atrule">port</span><span class="token punctuation">:</span>
+              <span class="token key atrule">number</span><span class="token punctuation">:</span> <span class="token number">80</span>
+<span class="token punctuation">---</span>
+<span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> networking.istio.io/v1beta1
+<span class="token key atrule">kind</span><span class="token punctuation">:</span> Gateway
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> simple
+<span class="token key atrule">spec</span><span class="token punctuation">:</span>
+  <span class="token key atrule">selector</span><span class="token punctuation">:</span>
+    <span class="token key atrule">istio</span><span class="token punctuation">:</span> ingressgateway
+  <span class="token key atrule">servers</span><span class="token punctuation">:</span>
+    <span class="token punctuation">-</span> <span class="token key atrule">hosts</span><span class="token punctuation">:</span>
+        <span class="token punctuation">-</span> simple.cncamp.io
+      <span class="token key atrule">port</span><span class="token punctuation">:</span>
+        <span class="token key atrule">name</span><span class="token punctuation">:</span> http<span class="token punctuation">-</span>simple
+        <span class="token key atrule">number</span><span class="token punctuation">:</span> <span class="token number">80</span>
+        <span class="token key atrule">protocol</span><span class="token punctuation">:</span> HTTP<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>在文件 <code>istio-specs.yaml</code> 中，<code>Gateway</code> 对应 Envoy 中 <code>listener</code> 的配置。</p>
+<p><code>Gateway</code> 的 <code>spec</code> 中的 <code>selector</code> 表示将使用什么 selector 选择 <code>istio-system</code> 命名空间中的 pod。</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ kubectl -n istio-system get deploy --show-labels
+NAME                   READY   UP-TO-DATE   AVAILABLE   AGE   LABELS
+istio-egressgateway    <span class="token number">1</span>/1     <span class="token number">1</span>            <span class="token number">1</span>           28h   <span class="token assign-left variable">app</span><span class="token operator">=</span>istio-egressgateway,install.operator.istio.io/owning-resource-namespace<span class="token operator">=</span>istio-system,install.operator.istio.io/owning-resource<span class="token operator">=</span>installed-state,istio.io/rev<span class="token operator">=</span>default,istio<span class="token operator">=</span>egressgateway,operator.istio.io/component<span class="token operator">=</span>EgressGateways,operator.istio.io/managed<span class="token operator">=</span>Reconcile,operator.istio.io/version<span class="token operator">=</span><span class="token number">1.22</span>.2,release<span class="token operator">=</span>istio
+istio-ingressgateway   <span class="token number">1</span>/1     <span class="token number">1</span>            <span class="token number">1</span>           28h   <span class="token assign-left variable">app</span><span class="token operator">=</span>istio-ingressgateway,install.operator.istio.io/owning-resource-namespace<span class="token operator">=</span>istio-system,install.operator.istio.io/owning-resource<span class="token operator">=</span>installed-state,istio.io/rev<span class="token operator">=</span>default,istio<span class="token operator">=</span>ingressgateway,operator.istio.io/component<span class="token operator">=</span>IngressGateways,operator.istio.io/managed<span class="token operator">=</span>Reconcile,operator.istio.io/version<span class="token operator">=</span><span class="token number">1.22</span>.2,release<span class="token operator">=</span>istio
+istiod                 <span class="token number">1</span>/1     <span class="token number">1</span>            <span class="token number">1</span>           28h   <span class="token assign-left variable">app</span><span class="token operator">=</span>istiod,install.operator.istio.io/owning-resource-namespace<span class="token operator">=</span>istio-system,install.operator.istio.io/owning-resource<span class="token operator">=</span>installed-state,istio.io/rev<span class="token operator">=</span>default,istio<span class="token operator">=</span>pilot,operator.istio.io/component<span class="token operator">=</span>Pilot,operator.istio.io/managed<span class="token operator">=</span>Reconcile,operator.istio.io/version<span class="token operator">=</span><span class="token number">1.22</span>.2,release<span class="token operator">=</span>istio<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>可以看到，label <code>istio=ingressgateway</code> 将会选中 pod <code>istio-ingressgateway-5c5899567-492rz</code> 。即 Gateway 中的配置将会添加到 deploy istio-ingressgateway 的所有 pod 中。</p>
+<pre class="line-numbers language-yaml" data-language="yaml"><code class="language-yaml"><span class="token key atrule">servers</span><span class="token punctuation">:</span>
+  <span class="token punctuation">-</span> <span class="token key atrule">hosts</span><span class="token punctuation">:</span>
+      <span class="token punctuation">-</span> simple.cncamp.io
+    <span class="token key atrule">port</span><span class="token punctuation">:</span>
+      <span class="token key atrule">name</span><span class="token punctuation">:</span> http<span class="token punctuation">-</span>simple
+      <span class="token key atrule">number</span><span class="token punctuation">:</span> <span class="token number">80</span>
+      <span class="token key atrule">protocol</span><span class="token punctuation">:</span> HTTP<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>则表示对 istio-ingressgateway 中的 envoy 添加一个处理监听在 80 端口，域名为 simple.cncamp.io 的 listener 配置。</p>
+<p>而监听成功后，具体的配置则由 <code>VirtualService</code> 来指定。 <code>Gateway</code> 和 <code>VirtualService</code> 之间的关联是通过 <code>VirtualService</code> 中 <code>spec</code> 中 <code>gateways</code> 字段来指定的。</p>
+<pre class="line-numbers language-yaml" data-language="yaml"><code class="language-yaml"><span class="token key atrule">hosts</span><span class="token punctuation">:</span>
+  <span class="token punctuation">-</span> simple.cncamp.io
+<span class="token key atrule">http</span><span class="token punctuation">:</span>
+  <span class="token punctuation">-</span> <span class="token key atrule">match</span><span class="token punctuation">:</span>
+      <span class="token punctuation">-</span> <span class="token key atrule">port</span><span class="token punctuation">:</span> <span class="token number">80</span>
+    <span class="token key atrule">route</span><span class="token punctuation">:</span>
+      <span class="token punctuation">-</span> <span class="token key atrule">destination</span><span class="token punctuation">:</span>
+          <span class="token key atrule">host</span><span class="token punctuation">:</span> simple.simple.svc.cluster.local
+          <span class="token key atrule">port</span><span class="token punctuation">:</span>
+            <span class="token key atrule">number</span><span class="token punctuation">:</span> <span class="token number">80</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>上面配置作用就是在设置在访问 host 是 simple.cncamp.io，端口是 80 时，将流量转发给 simple.simple.svc.cluster.local （即 simple namespace 中的 simple service） 的 80 端口。</p>
+<h6 id="分析流量转发过程"><a href="#分析流量转发过程" class="headerlink" title="分析流量转发过程"></a>分析流量转发过程</h6><p>测试时，我们访问的是 istio-ingressgateway 的 clusterip 的 80 端口。</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ kubectl -n istio-system get svc istio-ingressgateway -o yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: istio-ingressgateway
+  namespace: istio-system
+  <span class="token punctuation">..</span>.
+spec:
+  allocateLoadBalancerNodePorts: <span class="token boolean">true</span>
+  clusterIP: <span class="token number">10.111</span>.255.7
+  clusterIPs:
+  - <span class="token number">10.111</span>.255.7
+  externalTrafficPolicy: Cluster
+  internalTrafficPolicy: Cluster
+  ipFamilies:
+  - IPv4
+  ipFamilyPolicy: SingleStack
+  ports:
+  - name: http2
+    nodePort: <span class="token number">30265</span>
+    port: <span class="token number">80</span>
+    protocol: TCP
+    targetPort: <span class="token number">8080</span>
+  - <span class="token punctuation">..</span>.
+  selector:
+    app: istio-ingressgateway
+    istio: ingressgateway
+  sessionAffinity: None
+  type: LoadBalancer
+status:
+  loadBalancer: <span class="token punctuation">{</span><span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>可以看到访问 cluster ip 的 80 端口，实际会转发到 pod 中的 8080 端口。</p>
+<p>再来看看 pod 中 8080 端口的配置。</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ kubectl -n istio-system get pod -l <span class="token assign-left variable">istio</span><span class="token operator">=</span>ingressgateway
+NAME                                   READY   STATUS    RESTARTS   AGE
+istio-ingressgateway-5c5899567-492rz   <span class="token number">1</span>/1     Running   <span class="token number">0</span>          28h
+
+$ kubectl -n istio-system <span class="token builtin class-name">exec</span> pod/istio-ingressgateway-5c5899567-492rz -- ss -antp <span class="token operator">|</span> <span class="token function">grep</span> <span class="token number">8080</span>
+LISTEN    <span class="token number">0</span>      <span class="token number">4096</span>              <span class="token number">0.0</span>.0.0:8080             <span class="token number">0.0</span>.0.0:*     users:<span class="token variable"><span class="token punctuation">((</span>"envoy"<span class="token punctuation">,</span>pid<span class="token operator">=</span><span class="token number">23</span><span class="token punctuation">,</span>fd<span class="token operator">=</span><span class="token number">37</span><span class="token punctuation">))</span></span>
+LISTEN    <span class="token number">0</span>      <span class="token number">4096</span>              <span class="token number">0.0</span>.0.0:8080             <span class="token number">0.0</span>.0.0:*     users:<span class="token variable"><span class="token punctuation">((</span>"envoy"<span class="token punctuation">,</span>pid<span class="token operator">=</span><span class="token number">23</span><span class="token punctuation">,</span>fd<span class="token operator">=</span><span class="token number">35</span><span class="token punctuation">))</span></span>
+
+$ istioctl pc listener pod/istio-ingressgateway-5c5899567-492rz -n istio-system
+ADDRESSES PORT  MATCH DESTINATION
+<span class="token number">0.0</span>.0.0   <span class="token number">8080</span>  ALL   Route: http.8080
+<span class="token number">0.0</span>.0.0   <span class="token number">15021</span> ALL   Inline Route: /healthz/ready*
+<span class="token number">0.0</span>.0.0   <span class="token number">15090</span> ALL   Inline Route: /stats/prometheus*<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>可以看到，pod 中 8080 端口由进程 envoy 监听，而 envoy 在 8080 端口的流量会根据路由 <code>http.8080</code> 来确定。</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ istioctl pc route pod/istio-ingressgateway-5c5899567-492rz -n istio-system
+NAME          VHOST NAME              DOMAINS              MATCH                  VIRTUAL SERVICE
+http.8080     simple.cncamp.io:80     simple.cncamp.io     /*                     simple.simple
+              backend                 *                    /stats/prometheus*
+              backend                 *                    /healthz/ready*<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>查看路由规则就会发现，当访问目标是 <code>simple.cncamp.io:80</code> 时，流量就会被路由到 service <code>simple.simple</code>。这和yaml配置中一样。</p>
 <h4 id="VirtualService"><a href="#VirtualService" class="headerlink" title="VirtualService"></a>VirtualService</h4><p>是在 Istio 服务网格内对服务的请求如何进行路由控制。</p>
 <h5 id="规则的目标描述"><a href="#规则的目标描述" class="headerlink" title="规则的目标描述"></a>规则的目标描述</h5><p><strong>路由规则对应着一或多个用 Virtualservice 配置指定的请求目的主机。</strong>这些主机可以是也可以不是实际的目标负载，甚至可以不是同一网格内可路由的服务。例如要给到 reviews 服务的请求定义路由规则，可以使用内部的名称 reviews，也可以用域名 bookinfo.com，VirtualService 可以定义这样的 host 字段:</p>
 <p>host 字段用显示或者隐式的方式定义了一或多个完全限定名(FQDN)。上面的 reviews，会隐式的扩展成为特定的 FODN，例如在 Kubernetes 环境中，全名会从 VirtualService 所在的集群和命名空间中继承而来(比如说reviews.default.svc.cluster.local)。</p>
