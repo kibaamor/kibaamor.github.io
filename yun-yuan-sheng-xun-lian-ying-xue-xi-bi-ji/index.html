@@ -406,14 +406,14 @@
                 
                 <div class="info-break-policy">
                     <i class="far fa-file-word fa-fw"></i>文章字数:&nbsp;&nbsp;
-                    101.7k
+                    103.2k
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-clock fa-fw"></i>阅读时长:&nbsp;&nbsp;
-                    431 分
+                    437 分
                 </div>
                 
 
@@ -10834,6 +10834,254 @@ $ kubectl clusternet version<span aria-hidden="true" class="line-numbers-rows"><
 <h5 id="更多示例"><a href="#更多示例" class="headerlink" title="更多示例"></a>更多示例</h5><p>注册一个集群 <a target="_blank" rel="noopener" href="https://github.com/clusternet/clusternet/blob/main/docs/tutorials/installing.clusternet-with-helm.md">https://github.com/clusternet/clusternet/blob/main/docs/tutorials/installing.clusternet-with-helm.md</a></p>
 <p>部署一个完整的多集群应用 <a target="_blank" rel="noopener" href="https://github.com/clusternet/clusternet/blob/main/docs/tutorials/deploying-applications-to-multiple-clusters.md">https://github.com/clusternet/clusternet/blob/main/docs/tutorials/deploying-applications-to-multiple-clusters.md</a></p>
 <p>如何使用 client-go 创建多集群应用 <a target="_blank" rel="noopener" href="https://github.com/clusternet/clusternet/blob/main/examples/clientgo/READEMEmd">https://github.com/clusternet/clusternet/blob/main/examples/clientgo/READEMEmd</a></p>
+<h3 id="Istio-多集群"><a href="#Istio-多集群" class="headerlink" title="Istio 多集群"></a>Istio 多集群</h3><h4 id="跨地域流量管理的挑战"><a href="#跨地域流量管理的挑战" class="headerlink" title="跨地域流量管理的挑战"></a>跨地域流量管理的挑战</h4><p>采用多活数据中心的网络拓扑，任何生产应用都需要完成跨三个数据中心的部署。</p>
+<p>为满足单集群的高可用，针对每个数据中心，任何应用都需进行多副本部署，并配置负载均衡。</p>
+<p>以实现全站微服务化，但为保证高可用服务之间的调用仍以南北流量为主。</p>
+<p>针对核心应用，除集群本地负载均衡配置以外，还需配置跨数据中心负载均衡并通过权重控制将 99% 的请求转入本地数据中心，将1%的流量转向跨地域的数据中心。</p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/跨地域流量管理的挑战.png" alt="跨地域流量管理的挑战"></p>
+<h4 id="规模化带来的挑战"><a href="#规模化带来的挑战" class="headerlink" title="规模化带来的挑战"></a>规模化带来的挑战</h4><p>3 主数据中心，20 边缘数据中心，100+Kubernetes 集群</p>
+<p>规模化运营 Kubernetes 集群</p>
+<ul>
+<li>总计 100,000 物理节点</li>
+<li>单集群物理机节点规模高达5,000</li>
+</ul>
+<p>业务服务全面容器化，单集群</p>
+<ul>
+<li>Pod 实例可达 100,000</li>
+<li>发布服务 5,000-10000</li>
+</ul>
+<p>单集群多环境支持</p>
+<ul>
+<li>功能测试、集成测试、压力测试共用单集群</li>
+<li>不同环境需要彼此隔离</li>
+</ul>
+<p>异构应用</p>
+<ul>
+<li>云业务，大数据，搜索服务</li>
+<li>多种应用协议</li>
+<li>灰度发布</li>
+</ul>
+<p>日益增长的安全需求</p>
+<ul>
+<li>全链路 TLS</li>
+</ul>
+<p>可见性需求</p>
+<ul>
+<li>访问日志</li>
+<li>Tracing</li>
+</ul>
+<h4 id="多集群部署"><a href="#多集群部署" class="headerlink" title="多集群部署"></a>多集群部署</h4><p>Kubernetes 集群联邦</p>
+<ul>
+<li>集群联邦 APIServer作为用户访问 Kubernetes 集群入口</li>
+<li>所有 Kubernetes 集群注册至集群联邦</li>
+</ul>
+<p>可用区</p>
+<ul>
+<li>数据中心中具有独立供电制冷设备的故障域</li>
+<li>同一可用区有较小网络延迟</li>
+<li>同一可用区部署了多个 Kubernetes 集群</li>
+</ul>
+<p>多集群部署</p>
+<ul>
+<li>同一可用区设定一个网关集群</li>
+<li>网关集群中部署 lstio Primary</li>
+<li>同一可用区的其他集群中部署 lstio Remote</li>
+<li>所有集群采用相同 RootCA</li>
+<li>相同环境 TrustDomain 相同</li>
+</ul>
+<p>东西南北流量统一管控</p>
+<ul>
+<li>同一可用区的服务调用基于 Sidecar</li>
+<li>跨可用区的服务调用基于Istio Gateway</li>
+</ul>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/多集群部署.png" alt="多集群部署"></p>
+<h4 id="入站流量架构-L4-L7"><a href="#入站流量架构-L4-L7" class="headerlink" title="入站流量架构 L4+L7"></a>入站流量架构 L4+L7</h4><p>为不同应用配置独立的网关服务以方便网络隔离。</p>
+<p>基于IPVS/xDP 的 Service controller:</p>
+<ul>
+<li>四层网关调度;</li>
+<li>虚拟 IP 地址分配;</li>
+<li>基于 IPIP 协议的转发规则配置，</li>
+<li>基于 BGP 的 IP 路由宣告,</li>
+<li>在 Ingress Pod 中配置 Tunnel 设备并绑定虚拟 IP 地址以卸载 IPIP 包。</li>
+</ul>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/入站流量架构.png" alt="入站流量架构"></p>
+<h4 id="单网关集群多环境支持"><a href="#单网关集群多环境支持" class="headerlink" title="单网关集群多环境支持"></a>单网关集群多环境支持</h4><p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/单网关集群多环境支持.png" alt="单网关集群多环境支持"></p>
+<h4 id="应用高可用接入方案"><a href="#应用高可用接入方案" class="headerlink" title="应用高可用接入方案"></a>应用高可用接入方案</h4><p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/应用高可用接入方案.png" alt="应用高可用接入方案"></p>
+<h4 id="为应用发布服务"><a href="#为应用发布服务" class="headerlink" title="为应用发布服务"></a>为应用发布服务</h4><p>定义 LoadBalancer Type Service，提供集群外可访问的 LoadBalancerIP.</p>
+<p>其他集群可通过定义 WorkloadEntry 指向该 LoadBalancerlP，以实现故障转移目的。</p>
+<h5 id="创建-WorkloadEntry"><a href="#创建-WorkloadEntry" class="headerlink" title="创建 WorkloadEntry"></a>创建 WorkloadEntry</h5><p>创建 WorkloadEntry 指向其他数据中心 LoadBalancerIP</p>
+<pre class="line-numbers language-yaml" data-language="yaml"><code class="language-yaml"><span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> networking.istio.io/v1beta1
+<span class="token key atrule">kind</span><span class="token punctuation">:</span> WorkloadEntry
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> foo
+<span class="token key atrule">spec</span><span class="token punctuation">:</span>
+  <span class="token key atrule">address</span><span class="token punctuation">:</span> foo.bar.svc.cluster2
+  <span class="token key atrule">labels</span><span class="token punctuation">:</span>
+    <span class="token key atrule">run</span><span class="token punctuation">:</span> foo
+  <span class="token key atrule">locality</span><span class="token punctuation">:</span> region1/zone1<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<h5 id="定义-ServiceEntry"><a href="#定义-ServiceEntry" class="headerlink" title="定义 ServiceEntry"></a>定义 ServiceEntry</h5><p>同时选择 WorkloadEntry 和本地 Pod。</p>
+<p>ServiceEntry 对象可以将本地 Pod 和具有相同 Label的 WorkloadEntry定义成相同的Envoy Cluster。</p>
+<pre class="line-numbers language-yaml" data-language="yaml"><code class="language-yaml"><span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> networking.istio.io/v1beta1
+<span class="token key atrule">kind</span><span class="token punctuation">:</span> ServiceEntry
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> foo
+<span class="token key atrule">spec</span><span class="token punctuation">:</span>
+  <span class="token key atrule">hosts</span><span class="token punctuation">:</span>
+  <span class="token punctuation">-</span> foo.com
+  <span class="token key atrule">ports</span><span class="token punctuation">:</span>
+  <span class="token punctuation">-</span> <span class="token key atrule">name</span><span class="token punctuation">:</span> http<span class="token punctuation">-</span>default
+    <span class="token key atrule">number</span><span class="token punctuation">:</span> <span class="token number">80</span>
+    <span class="token key atrule">protocol</span><span class="token punctuation">:</span> HTTP
+    <span class="token key atrule">targetPort</span><span class="token punctuation">:</span> <span class="token number">80</span>
+  <span class="token key atrule">resolution</span><span class="token punctuation">:</span> STATIC
+  <span class="token key atrule">workloadselector</span><span class="token punctuation">:</span>
+    <span class="token key atrule">labels</span><span class="token punctuation">:</span>
+      <span class="token key atrule">run</span><span class="token punctuation">:</span> foo<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<h5 id="在-VirtualService-中引用-ServiceEntry"><a href="#在-VirtualService-中引用-ServiceEntry" class="headerlink" title="在 VirtualService 中引用 ServiceEntry"></a>在 VirtualService 中引用 ServiceEntry</h5><pre class="line-numbers language-yaml" data-language="yaml"><code class="language-yaml"><span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> networking.istio.io/v1beta1
+<span class="token key atrule">kind</span><span class="token punctuation">:</span> VirtualService
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> foo
+<span class="token key atrule">spec</span><span class="token punctuation">:</span>
+  <span class="token key atrule">gateways</span><span class="token punctuation">:</span>
+  <span class="token punctuation">-</span> foo
+  <span class="token key atrule">hosts</span><span class="token punctuation">:</span>
+  <span class="token punctuation">-</span> foo.com
+  <span class="token key atrule">http</span><span class="token punctuation">:</span>
+  <span class="token punctuation">-</span> <span class="token key atrule">match</span><span class="token punctuation">:</span>
+    <span class="token punctuation">-</span> <span class="token key atrule">port</span><span class="token punctuation">:</span> <span class="token number">80</span>
+      <span class="token key atrule">route</span><span class="token punctuation">:</span>
+      <span class="token punctuation">-</span> <span class="token key atrule">destination</span><span class="token punctuation">:</span>
+        <span class="token key atrule">host</span><span class="token punctuation">:</span> foo.com
+        <span class="token key atrule">port</span><span class="token punctuation">:</span>
+          <span class="token key atrule">number</span><span class="token punctuation">:</span> <span class="token number">80</span>
+<span class="token punctuation">---</span>
+<span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> networking.istio.io/v1beta1
+<span class="token key atrule">kind</span><span class="token punctuation">:</span> Gateway
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> foo
+<span class="token key atrule">spec</span><span class="token punctuation">:</span>
+  <span class="token key atrule">selector</span><span class="token punctuation">:</span>
+    <span class="token key atrule">istio</span><span class="token punctuation">:</span> ingressgateway
+  <span class="token key atrule">servers</span><span class="token punctuation">:</span>
+    <span class="token punctuation">-</span> <span class="token key atrule">hosts</span><span class="token punctuation">:</span>
+      <span class="token punctuation">-</span> foo.com
+      <span class="token key atrule">port</span><span class="token punctuation">:</span>
+        <span class="token key atrule">name</span><span class="token punctuation">:</span> http<span class="token punctuation">-</span>default
+        <span class="token key atrule">number</span><span class="token punctuation">:</span> <span class="token number">80</span>
+        <span class="token key atrule">protocol</span><span class="token punctuation">:</span> HTTP<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<h5 id="为-workload-添加-Locality-信息"><a href="#为-workload-添加-Locality-信息" class="headerlink" title="为 workload 添加 Locality 信息"></a>为 workload 添加 Locality 信息</h5><p>Istio 从如下配置中读取，基于这些配置，我们可以为lstio 中运行的所有 workload 添加地域属性。</p>
+<p>Kubernetes Node 对象中的地域信息，所有 Pod 自动继承该 Locality 信息</p>
+<ul>
+<li>region: topology.kubernetes.io/region</li>
+<li>zone: topology.kubernetes.io/zone</li>
+<li>subzone: topology.istio.io/subzone</li>
+</ul>
+<p>Kubernetes Pod 的 istio-locality 标签，可覆盖节点 Locality 信息</p>
+<ul>
+<li>istio-locality:”region/zone/subzone”</li>
+</ul>
+<p>WorkloadEntry 的 Locality 属性</p>
+<ul>
+<li>locality:region/zone/subzone</li>
+</ul>
+<h5 id="定义基于-Locality-的流量转发规则"><a href="#定义基于-Locality-的流量转发规则" class="headerlink" title="定义基于 Locality 的流量转发规则"></a>定义基于 Locality 的流量转发规则</h5><p>Distribute</p>
+<pre class="line-numbers language-yaml" data-language="yaml"><code class="language-yaml"><span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> networking.istio.io/v1beta1
+<span class="token key atrule">kind</span><span class="token punctuation">:</span> DestinationRule
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> foo
+<span class="token key atrule">spec</span><span class="token punctuation">:</span>
+  <span class="token key atrule">host</span><span class="token punctuation">:</span> foo.com
+  <span class="token key atrule">trafficPolicy</span><span class="token punctuation">:</span>
+    <span class="token key atrule">loadBalancer</span><span class="token punctuation">:</span>
+      <span class="token key atrule">localityLbsetting</span><span class="token punctuation">:</span>
+        <span class="token key atrule">distribute</span><span class="token punctuation">:</span>
+        <span class="token punctuation">-</span> <span class="token key atrule">from</span><span class="token punctuation">:</span> <span class="token string">"*/*"</span>
+          <span class="token key atrule">to</span><span class="token punctuation">:</span>
+            <span class="token key atrule">region1/zone1/*</span><span class="token punctuation">:</span> <span class="token number">99</span>
+            <span class="token key atrule">region2/zone2/*</span><span class="token punctuation">:</span> <span class="token number">1</span>
+          <span class="token key atrule">enabled</span><span class="token punctuation">:</span> <span class="token boolean important">true</span>
+        <span class="token key atrule">outlierDetection</span><span class="token punctuation">:</span>
+          <span class="token key atrule">baseEjectionTime</span><span class="token punctuation">:</span> 10s
+          <span class="token key atrule">consecutive5xxErrors</span><span class="token punctuation">:</span> <span class="token number">100</span>
+          <span class="token key atrule">interval</span><span class="token punctuation">:</span> 10s
+  <span class="token key atrule">tls</span><span class="token punctuation">:</span>
+    <span class="token key atrule">mode</span><span class="token punctuation">:</span> ISTIO_MUTUAL<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>Failover</p>
+<pre class="line-numbers language-yaml" data-language="yaml"><code class="language-yaml"><span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> networking.istio.io/v1beta1
+<span class="token key atrule">kind</span><span class="token punctuation">:</span> DestinationRule
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> foo
+<span class="token key atrule">spec</span><span class="token punctuation">:</span>
+  <span class="token key atrule">host</span><span class="token punctuation">:</span> foo.com
+  <span class="token key atrule">trafficPolicy</span><span class="token punctuation">:</span>
+    <span class="token key atrule">loadBalancer</span><span class="token punctuation">:</span>
+      <span class="token key atrule">localityLbsetting</span><span class="token punctuation">:</span>
+        <span class="token key atrule">enabled</span><span class="token punctuation">:</span> <span class="token boolean important">true</span>
+        <span class="token key atrule">failover</span><span class="token punctuation">:</span>
+        <span class="token punctuation">-</span> <span class="token key atrule">from</span><span class="token punctuation">:</span> region1/zone1
+          <span class="token key atrule">to</span><span class="token punctuation">:</span> region2/zone2
+        <span class="token key atrule">outlierDetection</span><span class="token punctuation">:</span>
+          <span class="token key atrule">baseEjectionTime</span><span class="token punctuation">:</span> 10m
+          <span class="token key atrule">consecutive5xxErrors</span><span class="token punctuation">:</span> <span class="token number">1</span>
+          <span class="token key atrule">interval</span><span class="token punctuation">:</span> 2s
+  <span class="token key atrule">tls</span><span class="token punctuation">:</span>
+    mode<span class="token punctuation">:</span>ISTIO_MUTUAL<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<h4 id="应对规模化集群挑战"><a href="#应对规模化集群挑战" class="headerlink" title="应对规模化集群挑战"></a>应对规模化集群挑战</h4><p>Istio xDs 默认发现集群中所有的配置和服务状态，在超大规模集群中，lstiod 或者 Envoy 都承受比较大的压力。</p>
+<ul>
+<li>集群中的有 10000 Service，每个Service 开放 80 和 443 两个端口，lstio 的 CDS 会 discover出 20000 个 Envoy Cluster。</li>
+<li>如果开启多集群，Istio 还会为每个 cluster 创建符合域名规范的集群。</li>
+<li>Istio 还需要发现 remote cluster 中的 Service，Endpoint和 Pod 信息，而这些信息的频繁变更，会导致网络带宽占用和控制面板的压力都很大。</li>
+</ul>
+<p>meshconfig 中控制可见性:</p>
+<pre class="line-numbers language-yaml" data-language="yaml"><code class="language-yaml"><span class="token key atrule">defaultServiceExportTo</span><span class="token punctuation">:</span>
+<span class="token punctuation">-</span> <span class="token string">"."</span>
+<span class="token key atrule">defaultVirtualServiceExportTo</span><span class="token punctuation">:</span>
+<span class="token punctuation">-</span> <span class="token string">"."</span>
+<span class="token key atrule">defaultDestinationRuleExportTo</span><span class="token punctuation">:</span>
+<span class="token punctuation">-</span> <span class="token string">"."</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>通过 Istio 对象中的 exportTo 属性覆盖默认配置。</p>
+<h4 id="Istiod-自身的规模控制"><a href="#Istiod-自身的规模控制" class="headerlink" title="Istiod 自身的规模控制"></a>Istiod 自身的规模控制</h4><p>社区新增加了 discoverySelector 的支持，允许 Istiod 只发现添加了特定 label的 namespaces下的 lstio 以及 Kubernetes 对象</p>
+<p>但因为 Kubernetes 框架的限制，改功能依然要让 lstiod 接收所有配置和状态变更新细，并且在Istiod 中进行对象过滤。在超大集群规模中，并未降低网络带宽占用和 lstiod 的处理压力。</p>
+<p>需要继续寻求从 Kubernetes Server端过滤的解决方案。</p>
+<h4 id="基于联邦的统一流量模型"><a href="#基于联邦的统一流量模型" class="headerlink" title="基于联邦的统一流量模型"></a>基于联邦的统一流量模型</h4><p>Spec</p>
+<ul>
+<li>Scope</li>
+<li><p>TrafficTemplate</p>
+<ul>
+<li>Istio models</li>
+<li>Kubernetes Services</li>
+</ul>
+</li>
+<li><p>Override</p>
+<ul>
+<li>可为不同目标集群修改模板属性值</li>
+<li>支持多种 override 方法<ul>
+<li>jsonPatch</li>
+<li>mergePatch</li>
+</ul>
+</li>
+</ul>
+</li>
+<li><p>Policy</p>
+<ul>
+<li>PlacementPolicy</li>
+<li>RolloutPolicy</li>
+<li>RuntimePolicy</li>
+</ul>
+</li>
+</ul>
+<p>Status</p>
+<ul>
+<li><p>Conditions</p>
+<ul>
+<li>四层网关状态</li>
+<li>七层网关配置完成度</li>
+<li>证书版本</li>
+<li>网关服务 IP 和 FODN</li>
+</ul>
+</li>
+</ul>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/基于联邦的统一流量模型.png" alt="基于联邦的统一流量模型"></p>
 
                 
             </div>
