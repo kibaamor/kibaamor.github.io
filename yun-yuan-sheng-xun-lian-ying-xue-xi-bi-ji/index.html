@@ -399,21 +399,21 @@
                 
                 <div class="post-date info-break-policy">
                     <i class="far fa-calendar-check fa-fw"></i>更新日期:&nbsp;&nbsp;
-                    2024-07-11
+                    2024-07-12
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-file-word fa-fw"></i>文章字数:&nbsp;&nbsp;
-                    97.8k
+                    101.7k
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-clock fa-fw"></i>阅读时长:&nbsp;&nbsp;
-                    416 分
+                    431 分
                 </div>
                 
 
@@ -10393,6 +10393,447 @@ http.8080     simple.cncamp.io:80     simple.cncamp.io     /*                   
 <li>七层路由规则;</li>
 <li>考虑 open tracing 的接入。</li>
 </ul>
+<h2 id="Kubernetes-集群联邦和-Istio-多集群管理"><a href="#Kubernetes-集群联邦和-Istio-多集群管理" class="headerlink" title="Kubernetes 集群联邦和 Istio 多集群管理"></a>Kubernetes 集群联邦和 Istio 多集群管理</h2><ol>
+<li><p>分布式云是未来</p>
+<ul>
+<li>成本优化(Cost Effective)</li>
+<li>更好的弹性及灵活性(Elasticity&amp; Flexibility)</li>
+<li>避免厂商锁定(Avoid Vendor Lock-in)</li>
+<li>第一时间获取云上的新功能(Innovation)</li>
+<li>容灾(Resilience&amp;Recovery)</li>
+<li>数据保护及风险管理(Data Protection&amp;Risk Management)</li>
+<li>提升响应速度(NetworkPerformancelmprovements)</li>
+</ul>
+</li>
+<li><p>分布式云的挑战</p>
+<ul>
+<li>Kubernetes 单集群承载能力有限</li>
+<li>异构的基础设施</li>
+<li>存量资源接入</li>
+<li>配置变更及下发</li>
+<li>跨地域、跨机房应用部署及管理</li>
+<li>容灾与隔离性，异地多活</li>
+<li>弹性调度及自动伸缩</li>
+<li>监控告警</li>
+</ul>
+</li>
+<li><p>如何应对</p>
+<ul>
+<li>通过 Kubernetes 屏蔽底层基础设施，提供统一的接入层</li>
+<li>多云架构<ul>
+<li>多集群 ≠ 多云。</li>
+<li>多集群管控</li>
+</ul>
+</li>
+<li>统一的管控面</li>
+<li>方便接入，降低使用门槛</li>
+</ul>
+</li>
+<li><p>跨地域的集群管理</p>
+<p> <img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/跨地域的集群管理.png" alt="跨地域的集群管理.png"></p>
+</li>
+</ol>
+<pre class="line-numbers language-yaml" data-language="yaml"><code class="language-yaml"><span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> v1
+<span class="token key atrule">kind</span><span class="token punctuation">:</span> Pod
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> with<span class="token punctuation">-</span>pod<span class="token punctuation">-</span>affinity
+<span class="token key atrule">spec</span><span class="token punctuation">:</span>
+  <span class="token key atrule">affinity</span><span class="token punctuation">:</span>
+    <span class="token key atrule">podAffinity</span><span class="token punctuation">:</span>
+      <span class="token key atrule">requiredDuringSchedulingIgnoredDuringExecution</span><span class="token punctuation">:</span>
+      <span class="token punctuation">-</span> <span class="token key atrule">labelSelector</span><span class="token punctuation">:</span>
+          <span class="token key atrule">matchExpressions</span><span class="token punctuation">:</span>
+          <span class="token punctuation">-</span> <span class="token key atrule">key</span><span class="token punctuation">:</span> region
+            <span class="token key atrule">operator</span><span class="token punctuation">:</span> In
+            <span class="token key atrule">values</span><span class="token punctuation">:</span>
+            <span class="token punctuation">-</span> beijing
+        <span class="token key atrule">topologyKey</span><span class="token punctuation">:</span> topology.kubernetes.io/zone
+<span class="token punctuation">---</span>
+<span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> v1
+<span class="token key atrule">kind</span><span class="token punctuation">:</span> Service
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> my<span class="token punctuation">-</span>service
+<span class="token key atrule">spec</span><span class="token punctuation">:</span>
+  <span class="token key atrule">selector</span><span class="token punctuation">:</span>
+    <span class="token key atrule">app</span><span class="token punctuation">:</span> my<span class="token punctuation">-</span>app
+  <span class="token key atrule">ports</span><span class="token punctuation">:</span>
+  <span class="token punctuation">-</span> <span class="token key atrule">protocol</span><span class="token punctuation">:</span> TCP
+    <span class="token key atrule">port</span><span class="token punctuation">:</span> <span class="token number">80</span>
+    <span class="token key atrule">targetPort</span><span class="token punctuation">:</span> <span class="token number">9376</span>
+  <span class="token key atrule">topologyKeys</span><span class="token punctuation">:</span>
+  <span class="token punctuation">-</span> topology.kubernetes.io/zone
+  <span class="token punctuation">-</span> topology.kubernetes.io/region<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<h3 id="集群联邦"><a href="#集群联邦" class="headerlink" title="集群联邦"></a>集群联邦</h3><h4 id="集群联邦的必要性"><a href="#集群联邦的必要性" class="headerlink" title="集群联邦的必要性"></a>集群联邦的必要性</h4><p>单一集群的管理规模有上限</p>
+<ul>
+<li><p>数据库存储</p>
+<ul>
+<li>etcd 作为 Kubernetes 集群的后端存储数据库，对空间大小的要求比较苛刻，这限制了集群能存储的对象数量和大小。</li>
+</ul>
+</li>
+<li><p>内存占用</p>
+<ul>
+<li>为提高系统效率，Kubernetes 的 APIServer 作为 API 网关，会对该集群的所有对象做缓存。集群越大，缓存需要的内存空间就越大。</li>
+<li>其他 Kubernetes 控制器也需要对侦听的对象构建客户端缓存，这些都需要占用系统内存。这些内存需求都要求对系统的规模有所限制。</li>
+</ul>
+</li>
+<li><p>控制器复杂度</p>
+<ul>
+<li>Kubernetes 的一个业务流程是由多个对象和控制器联动完成的，即使控制器遵循了设计原则，随着对象数量的增长，控制器的处理耗时也会越来越长，</li>
+</ul>
+</li>
+</ul>
+<p>单个计算节点资源上限</p>
+<ul>
+<li>单个计算节点的资源，不仅仅是 CPU、内存等可量化资源，</li>
+<li>还有端口、进程数量等不可量化资源。比如 Linux 支持的TCP 端口上限是 65535，去除常用端口和程序源端口后，留给 Service nodePort 的端口数量是有限的，这限制了集群支持的 Service 的数量。</li>
+</ul>
+<p>故障域控制</p>
+<ul>
+<li>集群规模越大，控制平面组件出现故障时的影响范围就越大。为了更好地控制故障域(FaultDomain)，需要将大规模的数据中心切分成多个规模相对较小的集群，每个集群控制在一定规模。</li>
+</ul>
+<p>应用高可用部署</p>
+<ul>
+<li>生产应用通常需要多数据中心部署来保障跨地域高可用，以确保当其中一个数据中心出现故障，或者集群做技术迭代更新时，其他数据中心可以继续提供服务。</li>
+</ul>
+<p>混合云</p>
+<ul>
+<li>私有云加公有云的混合云模式逐渐成为企业的主流架构。</li>
+</ul>
+<h4 id="集群联邦的职责"><a href="#集群联邦的职责" class="headerlink" title="集群联邦的职责"></a>集群联邦的职责</h4><p>跨集群同步资源</p>
+<ul>
+<li>联邦可以将资源同步到多个集群并协调资源的分配。例如，联邦可以保证一个应用的Deployment 被部署到多个集群中，同时能够满足全局的调度策略。</li>
+</ul>
+<p>跨集群服务发现</p>
+<ul>
+<li>联邦汇总各个集群的服务和 Ingress，并暴露到全局 DNS 服务中。</li>
+</ul>
+<p>高可用</p>
+<ul>
+<li>联邦可以动态地调整每个集群的应用实例，且隐藏了具体的集群信息。</li>
+</ul>
+<p>避免厂商锁定</p>
+<ul>
+<li>每个集群都是部署在真实的硬件或云供应商提供的硬件(或虚拟硬件)之上的，若要更换供应商，只需在新供应商提供的硬件上部署新的集群，并加入联邦。联邦可以几乎透明地将应用从原集群迁移到新集群而无须对应用做更改。</li>
+</ul>
+<h4 id="混合云"><a href="#混合云" class="headerlink" title="混合云"></a>混合云</h4><p>混合云是指将公有云和私有云整合在一起的统一云平台。</p>
+<p>用户业务可灵活部署或扩容在不同云中。</p>
+<p>混合云避免厂商锁定。</p>
+<p>混合云可支持更多复杂业务场景:</p>
+<ul>
+<li>Cloud Burst.</li>
+<li>如 12306，低流量时运行在本地数据中心，当请求量突然爆发的时候，可以直接在公有云扩容，节省数据中心成本。</li>
+<li>可将业务分为包含敏感数据和不包含敏感数据的业务，将敏感数据业务运行在私有云，将非敏感数据业务运行在公有云，</li>
+<li>可重复利用公有云提供商数据中心靠近边缘的能力。</li>
+</ul>
+<h4 id="集群联邦-1"><a href="#集群联邦-1" class="headerlink" title="集群联邦"></a>集群联邦</h4><p>集群联邦(Federation)是将多个Kubernetes 集群注册到统一控制平面为用户提供统一 API 入口的多集群解决方案。</p>
+<p>集群联邦设计的核心是提供在全局层面对应用的描述能力，并将联邦对象实例化为 Kubernetes 对象，分发到联邦下辖的各个成员集群中。</p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/集群联邦.png" alt="集群联邦"></p>
+<h4 id="基于集群联邦的高可用应用部署"><a href="#基于集群联邦的高可用应用部署" class="headerlink" title="基于集群联邦的高可用应用部署"></a>基于集群联邦的高可用应用部署</h4><p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/基于集群联邦的高可用应用部署.png" alt="基于集群联邦的高可用应用部署"></p>
+<h4 id="集群联邦核心架构"><a href="#集群联邦核心架构" class="headerlink" title="集群联邦核心架构"></a>集群联邦核心架构</h4><p>etcd 作为分布式存储后端存储所有对象</p>
+<p>APIServer作为 API网关，接收所有来自用户及控制平面组件的请求</p>
+<p>不同的控制器对联邦层面的对象进行管理协调等</p>
+<p>调度控制器在联邦层面对应用进行调度分配。</p>
+<p>集群联邦支持灵活的对象扩展，允许将基本 Kubernetes 对象扩展为集群联邦对象并通过统一的联邦控制器推送和收集状态</p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/集群联邦核心架构.png" alt="集群联邦核心架构"></p>
+<h4 id="集群联邦管理的对象"><a href="#集群联邦管理的对象" class="headerlink" title="集群联邦管理的对象"></a>集群联邦管理的对象</h4><p>成员集群是联邦的基本管理单元，所有待管理集群均须注册到集群联邦。</p>
+<p>集群联邦 V2 提供了统一的工具集(Kubefedctl)，允许用户对单个对象动态地创建联邦对象。</p>
+<p>动态对象的生成基于 CRD。</p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/集群联邦管理的对象.png" alt="集群联邦管理的对象"></p>
+<h4 id="集群注册中心"><a href="#集群注册中心" class="headerlink" title="集群注册中心"></a>集群注册中心</h4><p>集群注册中心(ClusterRegistry)提供了所有联邦下辖的集群清单，以及每个集群的认证信息状态信息等。</p>
+<p>集群联邦本身不提供算力，它只承担多集群的协调工作，所有被管理的集群都应注册到集群联邦中。</p>
+<p>集群联邦使用了单独的 KubeFedCluster 对象(同样适用 CRD 来定义)来管理集群注册信息:</p>
+<ul>
+<li>在该对象的定义中，不仅包含集群的注册信息，还包含集群的认证信息的引用，以明确每个集群使用的认证信息;</li>
+<li>该对象还包含各个集群的健康状态、域名等,</li>
+<li>当控制器行为出现异常时，直接通过集群状态信息即可获知控制器异常的原因。</li>
+</ul>
+<h5 id="安装"><a href="#安装" class="headerlink" title="安装"></a>安装</h5><p>下载 federation 代码</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token function">git</span> clone https://github.com/kubernetes-sigs/kubefed.git<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>选择 HostCluster，确认 kubeconfig 符合federation 命名规范，用 vi 编辑 <code>kubeconfig</code>，确保 context属性没用 @ 字符;</p>
+<p><code>vi ~/.kube/config</code></p>
+<pre class="line-numbers language-yaml" data-language="yaml"><code class="language-yaml"><span class="token key atrule">contexts</span><span class="token punctuation">:</span>
+<span class="token punctuation">-</span> <span class="token key atrule">context</span><span class="token punctuation">:</span>
+  <span class="token key atrule">cluster</span><span class="token punctuation">:</span> kubernetes
+  <span class="token key atrule">user</span><span class="token punctuation">:</span> kubernetes<span class="token punctuation">-</span>admin
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> cluster1
+<span class="token key atrule">current-context</span><span class="token punctuation">:</span> cluster1<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>安装</p>
+<pre class="line-numbers language-none"><code class="language-none">cd kubefed/
+./scripts/deploy-kubefed-latest.sh<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre>
+<p>安装完成后，相关资源均可在 <code>kube-federation-system</code> 查看。</p>
+<h4 id="集群类型"><a href="#集群类型" class="headerlink" title="集群类型"></a>集群类型</h4><p>Host:</p>
+<ul>
+<li>用于提供 KubeFed AP|与控制平面的集群，本质上就是 Federation 控制面。</li>
+</ul>
+<p>Member:</p>
+<ul>
+<li>通过 KubeFed API注册的集群，并提供相关身份凭证来让 KubeFed controler 能够存取集群,Host集群也可以作为 Member被加入。</li>
+</ul>
+<h4 id="注册集群-KubeFedCluster"><a href="#注册集群-KubeFedCluster" class="headerlink" title="注册集群 KubeFedCluster"></a>注册集群 KubeFedCluster</h4><p>用来定义哪些 Kubernetes 集群要被联邦。</p>
+<p>可透过 <code>kubefedctl join/unjoin</code> 来加入/删除集群当成功加入时，会建立一个 KubeFedCluster 组件来储存集群相关信息，如 APIEndpoint、CA Bundle 等,</p>
+<p>这些信息会被用在 KubeFedController 存取不同 Kubernetes 集群上，以确保能够建立 Kubernetes API资源。</p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/注册集群KubeFedCluster.png" alt="注册集群KubeFedCluster"></p>
+<h5 id="KubeFedCluster"><a href="#KubeFedCluster" class="headerlink" title="KubeFedCluster"></a>KubeFedCluster</h5><pre class="line-numbers language-yaml" data-language="yaml"><code class="language-yaml"><span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> core.kubefed.io/v1beta1
+<span class="token key atrule">kind</span><span class="token punctuation">:</span> KubeFedCluster
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> <span class="token string">"cluster1"</span>
+<span class="token key atrule">spec</span><span class="token punctuation">:</span>
+  <span class="token key atrule">apiEndpoint</span><span class="token punctuation">:</span> https<span class="token punctuation">:</span>//APServer.cluster1.example.com
+  caBundle<span class="token punctuation">:</span>LSOtLS<span class="token important">****LSOK</span>
+  <span class="token key atrule">disabledTLsValidations</span><span class="token punctuation">:</span>
+  <span class="token punctuation">-</span> <span class="token string">'*'</span>
+  <span class="token key atrule">secretRef</span><span class="token punctuation">:</span>
+    <span class="token key atrule">name</span><span class="token punctuation">:</span> cluster1<span class="token punctuation">-</span>vhvfw
+<span class="token key atrule">status</span><span class="token punctuation">:</span>
+  <span class="token key atrule">conditions</span><span class="token punctuation">:</span>
+  <span class="token punctuation">-</span> reason<span class="token punctuation">:</span>ClusterReady
+    <span class="token key atrule">type</span><span class="token punctuation">:</span> Ready
+  <span class="token key atrule">region</span><span class="token punctuation">:</span> China
+  <span class="token key atrule">zones</span><span class="token punctuation">:</span>
+  <span class="token punctuation">-</span> Shanghai<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/KubeFedCluster.png" alt="KubeFedCluster.png"></p>
+<h4 id="Federation-支持的核心对象"><a href="#Federation-支持的核心对象" class="headerlink" title="Federation 支持的核心对象"></a>Federation 支持的核心对象</h4><p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/Federation支持的核心对象.png" alt="Federation支持的核心对象"></p>
+<h5 id="Type-Configuration"><a href="#Type-Configuration" class="headerlink" title="Type Configuration"></a>Type Configuration</h5><p>定义了哪些 Kubernetes API 资源要被用于联邦管理。</p>
+<p>若想新增 Federated API 的话，可通过 <code>kubefedctl enable &lt;res&gt;</code> 指令来建立</p>
+<p>比如说想将 ConfigMap 资源通过联邦机制建立在不同集群上时，就必须先在 Federation Host 集群中，通过 CRD 建立新资源 FederatedconfigMap，接着再建立名称为configmaps 的Type configuration(FederatedTypeConfig)资源，然后描述 ConfigMap 要被 FederatedconfigMap 所管理</p>
+<p>这样 KubeFed controllers 才能知道如何建立 Federated 资源。</p>
+<h5 id="FederatedConfigMap"><a href="#FederatedConfigMap" class="headerlink" title="FederatedConfigMap"></a>FederatedConfigMap</h5><pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">k get crd federatedconfigmaps.types.kubefed.io
+NAME                                    CREATED AT
+federatedconfigmaps.types.kubefed.io    <span class="token number">2021</span>-09-13T10:10:03Z<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span></span></code></pre>
+<pre class="line-numbers language-yaml" data-language="yaml"><code class="language-yaml"><span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> core.kubefed.io/v1beta1
+<span class="token key atrule">kind</span><span class="token punctuation">:</span> FederatedTypeConfig
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> configmaps
+<span class="token key atrule">spec</span><span class="token punctuation">:</span>
+  <span class="token key atrule">federatedType</span><span class="token punctuation">:</span>
+    <span class="token key atrule">group</span><span class="token punctuation">:</span> types.kubefed.io
+    <span class="token key atrule">kind</span><span class="token punctuation">:</span> FederatedConfigMap
+    <span class="token key atrule">pluralName</span><span class="token punctuation">:</span> federatedconfigmaps
+    <span class="token key atrule">scope</span><span class="token punctuation">:</span> Namespaced
+    <span class="token key atrule">version</span><span class="token punctuation">:</span> vlbeta1
+  <span class="token key atrule">propagation</span><span class="token punctuation">:</span> Enabled
+<span class="token key atrule">targetType</span><span class="token punctuation">:</span>
+  <span class="token key atrule">kind</span><span class="token punctuation">:</span> ConfigMap
+  <span class="token key atrule">pluralName</span><span class="token punctuation">:</span> configmaps
+  <span class="token key atrule">scope</span><span class="token punctuation">:</span> Namespaced
+  <span class="token key atrule">version</span><span class="token punctuation">:</span> v1<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<h4 id="联邦对象组成"><a href="#联邦对象组成" class="headerlink" title="联邦对象组成"></a>联邦对象组成</h4><p>Template: 定义 Kubernetes 对象的模板</p>
+<p>Placement: 定义联邦对象需要被同步的目标集群。</p>
+<p>Overrides: 不同目标集群中，对 Kubernetes 对象模板的本地化属性</p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/联邦对象组成.png" alt="联邦对象组成"></p>
+<h5 id="Template"><a href="#Template" class="headerlink" title="Template"></a>Template</h5><p>Template 是联邦对象中定义 Kubernetes集群对象的模板部分，它的内容为完整的Kubernetes 对象。</p>
+<pre class="line-numbers language-yaml" data-language="yaml"><code class="language-yaml"><span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> types.federation.k8s.io/vlalpha1
+<span class="token key atrule">kind</span><span class="token punctuation">:</span> FederatedDeployment
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> sample<span class="token punctuation">-</span>federated<span class="token punctuation">-</span>deployment
+<span class="token key atrule">spec</span><span class="token punctuation">:</span>
+  <span class="token key atrule">template</span><span class="token punctuation">:</span>
+    <span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+  <span class="token key atrule">spec</span><span class="token punctuation">:</span>
+    <span class="token key atrule">replicas</span><span class="token punctuation">:</span> <span class="token number">2</span>
+    <span class="token key atrule">template</span><span class="token punctuation">:</span>
+      <span class="token key atrule">spec</span><span class="token punctuation">:</span>
+        <span class="token key atrule">containers</span><span class="token punctuation">:</span>
+        <span class="token punctuation">-</span> <span class="token key atrule">image</span><span class="token punctuation">:</span> nginx
+          <span class="token key atrule">name</span><span class="token punctuation">:</span> nginx
+  <span class="token key atrule">placement</span><span class="token punctuation">:</span>
+  <span class="token comment">#...</span>
+  <span class="token key atrule">overrides</span><span class="token punctuation">:</span>
+  <span class="token comment">#...</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<h5 id="Placement"><a href="#Placement" class="headerlink" title="Placement"></a>Placement</h5><p>Placement用来配置联邦对象的目标集群，其值可以是具体的集群名单，也可以是 clusterseletor 选择对应标签(label)的集群。</p>
+<p>当两者同时存在时，明确定义的集群名单具有较高优先级</p>
+<p>联邦根据优先级来定义要同步对象的目标集群，如果提供了集群名单(哪怕是一个空 List)，则无论 clusterselector提供什么内容，都会被忽略。</p>
+<pre class="line-numbers language-yaml" data-language="yaml"><code class="language-yaml"><span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> types.federation.k8s.io/vlalpha1
+<span class="token key atrule">kind</span><span class="token punctuation">:</span> FederatedDeployment
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> sample
+  <span class="token key atrule">namespace</span><span class="token punctuation">:</span> sample
+<span class="token key atrule">spec</span><span class="token punctuation">:</span>
+  <span class="token key atrule">template</span><span class="token punctuation">:</span>
+    <span class="token comment">#...</span>
+  <span class="token key atrule">placement</span><span class="token punctuation">:</span>
+    <span class="token key atrule">clusters</span><span class="token punctuation">:</span>
+    <span class="token punctuation">-</span> <span class="token key atrule">name</span><span class="token punctuation">:</span> cluster1
+    <span class="token punctuation">-</span> <span class="token key atrule">name</span><span class="token punctuation">:</span> cluster2
+  <span class="token key atrule">clusterSelector</span><span class="token punctuation">:</span>
+    <span class="token key atrule">matchLabels</span><span class="token punctuation">:</span>
+      <span class="token key atrule">region</span><span class="token punctuation">:</span> china
+      <span class="token key atrule">zone</span><span class="token punctuation">:</span> shanghai
+  <span class="token key atrule">overrides</span><span class="token punctuation">:</span>
+  <span class="token comment">#...</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<h5 id="Overrides"><a href="#Overrides" class="headerlink" title="Overrides"></a>Overrides</h5><p>Overrides 用于针对每个集群进行本地化定制。</p>
+<p>在实际部署应用时，通常会通过调整不同集群中的配置模板，部署符合特定集群需求的应用，以更好地发挥网络、计算资源、存储等的优势。</p>
+<p>目前 Overrides 不支持 List(Array)。比如说无法修改 <code>spec.template.spec.containers0].image</code></p>
+<p>思考一下为什么?</p>
+<pre class="line-numbers language-yaml" data-language="yaml"><code class="language-yaml"><span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> types.federation.k8s.io/v1alpha1
+<span class="token key atrule">kind</span><span class="token punctuation">:</span> FederatedDeployment
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+<span class="token key atrule">spec</span><span class="token punctuation">:</span>
+  <span class="token key atrule">template</span><span class="token punctuation">:</span>
+    <span class="token key atrule">spec</span><span class="token punctuation">:</span>
+      <span class="token key atrule">replicas</span><span class="token punctuation">:</span> <span class="token number">2</span>
+      <span class="token key atrule">template</span><span class="token punctuation">:</span>
+        <span class="token comment">#...</span>
+  <span class="token key atrule">placement</span><span class="token punctuation">:</span>
+    <span class="token key atrule">clusters</span><span class="token punctuation">:</span>
+    <span class="token punctuation">-</span> <span class="token key atrule">name</span><span class="token punctuation">:</span> cluster1
+    <span class="token punctuation">-</span> <span class="token key atrule">name</span><span class="token punctuation">:</span> cluster2
+  <span class="token key atrule">overrides</span><span class="token punctuation">:</span>
+  <span class="token punctuation">-</span> <span class="token key atrule">clusterName</span><span class="token punctuation">:</span> cluster2
+    <span class="token key atrule">clusterOverrides</span><span class="token punctuation">:</span>
+    <span class="token punctuation">-</span> <span class="token key atrule">path</span><span class="token punctuation">:</span> /spec/replicas
+      <span class="token key atrule">value</span><span class="token punctuation">:</span> <span class="token number">3</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<h5 id="使用-Federated-对象"><a href="#使用-Federated-对象" class="headerlink" title="使用 Federated 对象"></a>使用 Federated 对象</h5><pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">将 Namespace 设置为联邦对象
+kubefedctl federate ns default<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre>
+<h4 id="联邦调度"><a href="#联邦调度" class="headerlink" title="联邦调度"></a>联邦调度</h4><p>KubeFed 提供了一种自动化机制来将工作负载实例分散到不同的集群中，这能够基于总副本数与集群的定义策略来将Deployment或 Replicaset 资源进行编排。</p>
+<p>编排策略是通过建立ReplicaSchedulingPreference(RSP)文件，再由 KubeFed RSP Controller监听与撷取 RSP 内容来将工作负载实例建立到指定的集群上。</p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/联邦调度.png" alt="联邦调度"></p>
+<h4 id="多集群-DNS"><a href="#多集群-DNS" class="headerlink" title="多集群 DNS"></a>多集群 DNS</h4><p>KubeFed 提供了一组 API 资源，以及 Controllers 来实现跨集群 Service/ingress 的 DNSrecords 自动产生机制。</p>
+<p>需要结合 ExternalDNS 来同步更新至 DNS 服务供应商</p>
+<p>在 2020 年被移出，这里提供一个 DNS 接入的思路。</p>
+<blockquote>
+<p>Kubefed v2 should be only focused on the federation of resources across kubefedclusters. In the Kubernetes ecosystem there are other third party tools (such as servicemeshes) that already provide support to the DNs based federated ingress.</p>
+</blockquote>
+<h5 id="ServiceDNSRecord-原理"><a href="#ServiceDNSRecord-原理" class="headerlink" title="ServiceDNSRecord 原理"></a>ServiceDNSRecord 原理</h5><p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/ServiceDNSRecord原理.png" alt="ServiceDNSRecord原理"></p>
+<h3 id="Clusternet"><a href="#Clusternet" class="headerlink" title="Clusternet"></a>Clusternet</h3><h4 id="Clusternet简介"><a href="#Clusternet简介" class="headerlink" title="Clusternet简介"></a>Clusternet简介</h4><p>Clusternet(Cluster Internet)是一个兼具多集群管理和跨集群应用编排的开源云原生管控平台打通了跨 VPC、跨地域、跨云的集群管理。</p>
+<p>Clusternet 面向未来混合云、分布式云和边缘计算场景设计，支持海量集群的接入和管理。Clusternet 在保证无侵入且轻量化的基础上，创建了一张集群网络，对子集群进行纳管，并支持多集群的应用编排与治理。</p>
+<p>开源项目地址: <a target="_blank" rel="noopener" href="https://github.com/clusternet/clusternet">https://github.com/clusternet/clusternet</a></p>
+<ul>
+<li>最新版本 v0.6.0</li>
+<li>多平台支持: linux/amd64,linux/arm64, linux/ppc64le,linux/s390x,linux/386linux/arm</li>
+</ul>
+<h4 id="Clusternet-能力一览"><a href="#Clusternet-能力一览" class="headerlink" title="Clusternet 能力一览"></a>Clusternet 能力一览</h4><ul>
+<li>统一管控各类 Kubernetes 集群;</li>
+<li>集群管理 Pull/ Push 模式;</li>
+<li>轻量化，开箱即用，易于部署和维护;</li>
+<li>跨集群的服务发现及服务互访，</li>
+<li>Kubernetes 原生，没有额外的学习成本</li>
+<li>完善的 RBAC 能力，访问任一子集群;</li>
+<li>完善的接入能力: kubectl plugin/client-go;</li>
+<li>支持分发各类原生应用/CRD/Helmchart。</li>
+</ul>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/Clusternet能力一览.png" alt="Clusternet能力一览"></p>
+<h4 id="多集群管理的挑战"><a href="#多集群管理的挑战" class="headerlink" title="多集群管理的挑战"></a>多集群管理的挑战</h4><ul>
+<li>集群无处不在</li>
+<li>公有云、私有云、混合云、边缘、裸金属</li>
+<li>提供一致的纳管能力</li>
+<li>集群一键注册能力</li>
+<li>一致性的集群访问体验，比如 exec，logs</li>
+<li>权限管控 RBAC</li>
+<li>架构要足够轻量化，方便一键接入</li>
+</ul>
+<h4 id="Clusternet-架构"><a href="#Clusternet-架构" class="headerlink" title="Clusternet 架构"></a>Clusternet 架构</h4><ul>
+<li>最轻量化的架构</li>
+<li>一站式连接各类集群</li>
+<li>支持 Pull 和 Push 模式</li>
+<li>跨集群路由访问</li>
+<li>支持子集群 RBAC 访问</li>
+<li>提供一致的集群访问体验，比如 exec，logs</li>
+<li>原生 Kubernetes API</li>
+<li>接入成本低，kubectl plugin/client-go</li>
+</ul>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/Clusternet架构.png" alt="Clusternet架构"></p>
+<h4 id="如何通过-Clusternet-访问任一子集群"><a href="#如何通过-Clusternet-访问任一子集群" class="headerlink" title="如何通过 Clusternet 访问任一子集群"></a>如何通过 Clusternet 访问任一子集群</h4><p>Clusternet支持通过 Bootstrap Token，Service Token，TLS 证书等 RBAC的方式访问子集群;</p>
+<blockquote>
+<p>子集群的 credential 信息不需要存在父集群中</p>
+</blockquote>
+<p>也支持通过 kubectl命令行的方式对子集群进行 create/get/list/watch/patch/exec 等操作。</p>
+<p>更详细步骤及功能可以参照 <a target="_blank" rel="noopener" href="https://github.com/clusternet/clusternet/blob/main/docs/tutorials/visiting-child-clusters-with-rbac.md">https://github.com/clusternet/clusternet/blob/main/docs/tutorials/visiting-child-clusters-with-rbac.md</a></p>
+<ul>
+<li>使用 curl 进行访问</li>
+<li>通过 kubectl 进行访问</li>
+</ul>
+<h4 id="Clusternet应用分发设计"><a href="#Clusternet应用分发设计" class="headerlink" title="Clusternet应用分发设计"></a>Clusternet应用分发设计</h4><ul>
+<li>完全兼容 Kubernetes 的内置 API</li>
+<li>支持 Helm Charts</li>
+<li>支持 CRD</li>
+<li>丰富灵活的分发策略配置、差异化策略</li>
+</ul>
+<h4 id="应用分发的差异化痛点"><a href="#应用分发的差异化痛点" class="headerlink" title="应用分发的差异化痛点"></a>应用分发的差异化痛点</h4><ol>
+<li>在分发的资源上全部打上统一的标签，比如 apps.my.company/deployed-by: myplatform;</li>
+<li>在分发到子集群的资源上标记集群的信息，比如 apps.my.company/running-in:cluster-01’</li>
+<li>调整应用在每个集群中的副本数目、镜像名称等;</li>
+<li>在分发到某集群前，调整应用在该集群中的一些配置，比如注入一个Sidecar 容器等,</li>
+<li>灰度升级，变更可控，方便回滚;</li>
+<li>重复定义怎么办?冲突吗?</li>
+<li>…</li>
+</ol>
+<h4 id="Clusternet-应用分发模型"><a href="#Clusternet-应用分发模型" class="headerlink" title="Clusternet 应用分发模型"></a>Clusternet 应用分发模型</h4><p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《云原生训练营》学习笔记/Clusternet应用分发模型.png" alt="Clusternet应用分发模型"></p>
+<h4 id="如何创建一个资源"><a href="#如何创建一个资源" class="headerlink" title="如何创建一个资源"></a>如何创建一个资源</h4><p>kubectl 插件 kubectl-clusternet</p>
+<pre class="line-numbers language-none"><code class="language-none">$ kubectl krew update
+$ kubectl krew install clusternet
+# check plugin version
+$ kubectl clusternet version<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span></span></code></pre>
+<p>通过 client-go wrapper</p>
+<ul>
+<li>一键接入，无需改造</li>
+<li>兼容 client-go 各个版本</li>
+<li>示例: <a target="_blank" rel="noopener" href="https://github,com/clusternet/clusternet/blob/main/examples/clientgO/READEME.md">https://github,com/clusternet/clusternet/blob/main/examples/clientgO/READEME.md</a></li>
+</ul>
+<h5 id="示例-声明多集群应用-Subscription"><a href="#示例-声明多集群应用-Subscription" class="headerlink" title="示例:声明多集群应用 Subscription"></a>示例:声明多集群应用 Subscription</h5><pre class="line-numbers language-yaml" data-language="yaml"><code class="language-yaml"><span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> apps.clusternet.io/v1alpha1
+<span class="token key atrule">kind</span><span class="token punctuation">:</span> Subscription
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> app<span class="token punctuation">-</span>demo
+  <span class="token key atrule">namespace</span><span class="token punctuation">:</span> default
+<span class="token key atrule">spec</span><span class="token punctuation">:</span>
+  <span class="token key atrule">subscribers</span><span class="token punctuation">:</span> <span class="token comment">#defines the clusters to be distributed to</span>
+  <span class="token punctuation">-</span> <span class="token key atrule">clusterAffinity</span><span class="token punctuation">:</span>
+      <span class="token key atrule">matchLabels</span><span class="token punctuation">:</span>
+        clusters.clusternet<span class="token punctuation">,</span><span class="token key atrule">io/cluster-id</span><span class="token punctuation">:</span> dc91021d<span class="token punctuation">-</span>2361<span class="token punctuation">-</span>4f6d<span class="token punctuation">-</span>a404<span class="token punctuation">-</span>7c33b9e01118
+  <span class="token key atrule">feeds</span><span class="token punctuation">:</span> <span class="token comment"># defines all the resources to be deployed with</span>
+  <span class="token punctuation">-</span> <span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> apps.clusternet.io/v1alpha1
+    <span class="token key atrule">kind</span><span class="token punctuation">:</span> HelmChart
+    <span class="token key atrule">name</span><span class="token punctuation">:</span> mysql
+    <span class="token key atrule">namespace</span><span class="token punctuation">:</span> default
+  <span class="token punctuation">-</span> <span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> v1
+    <span class="token key atrule">kind</span><span class="token punctuation">:</span> Namespace
+    <span class="token key atrule">name</span><span class="token punctuation">:</span> foo
+  <span class="token punctuation">-</span> <span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> apps/v1
+    <span class="token key atrule">kind</span><span class="token punctuation">:</span> Service
+    <span class="token key atrule">name</span><span class="token punctuation">:</span> my<span class="token punctuation">-</span>nginx<span class="token punctuation">-</span>svc
+    <span class="token key atrule">namespace</span><span class="token punctuation">:</span> foo
+  <span class="token punctuation">-</span> <span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> apps/v1
+    <span class="token key atrule">kind</span><span class="token punctuation">:</span> Deployment
+    <span class="token key atrule">name</span><span class="token punctuation">:</span> my<span class="token punctuation">-</span>nginx
+    <span class="token key atrule">namespace</span><span class="token punctuation">:</span> fo0<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<h5 id="示例-差异化策略Localization-Globalization"><a href="#示例-差异化策略Localization-Globalization" class="headerlink" title="示例:差异化策略Localization/Globalization"></a>示例:差异化策略Localization/Globalization</h5><pre class="line-numbers language-yaml" data-language="yaml"><code class="language-yaml"><span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> apps.clusternet.io/vlalpha1
+<span class="token key atrule">kind</span><span class="token punctuation">:</span> Localization
+<span class="token key atrule">metadata</span><span class="token punctuation">:</span>
+  <span class="token key atrule">name</span><span class="token punctuation">:</span> nginx<span class="token punctuation">-</span>local<span class="token punctuation">-</span>overrides<span class="token punctuation">-</span>demo<span class="token punctuation">-</span>lower<span class="token punctuation">-</span>priority
+  <span class="token key atrule">namespace</span><span class="token punctuation">:</span> clusternet<span class="token punctuation">-</span><span class="token number">51821</span> <span class="token comment"># PLEASE UPDATE THIS TO YOUR Managedcluster NAMESPACE!! !</span>
+<span class="token key atrule">spec</span><span class="token punctuation">:</span>
+  <span class="token comment"># Priority is an integer defining the relative importance of this Localization compared to others</span>
+  <span class="token comment"># Lower numbers are considered lower priority.</span>
+  <span class="token comment"># Override values in lower Localization will be overridden by those in higher Localization.</span>
+  <span class="token comment">#(0ptional)Default priority is 500.</span>
+  <span class="token key atrule">priority</span><span class="token punctuation">:</span> <span class="token number">300</span>
+  <span class="token key atrule">feed</span><span class="token punctuation">:</span>
+    <span class="token key atrule">apiVersion</span><span class="token punctuation">:</span> apps/v1
+    <span class="token key atrule">kind</span><span class="token punctuation">:</span> Deployment
+    <span class="token key atrule">name</span><span class="token punctuation">:</span> my<span class="token punctuation">-</span>nginx
+    <span class="token key atrule">namespace</span><span class="token punctuation">:</span> foo
+  <span class="token key atrule">overrides</span><span class="token punctuation">:</span> <span class="token comment"># defines all the overrides to be processed with</span>
+  <span class="token punctuation">-</span> <span class="token key atrule">name</span><span class="token punctuation">:</span> add<span class="token punctuation">-</span>update<span class="token punctuation">-</span>labels
+    <span class="token key atrule">type</span><span class="token punctuation">:</span> MergePatch
+    <span class="token comment"># Value is a YAML/JSON format patch that provides MergePatch to current resource defined by feed.</span>
+    <span class="token comment"># This override adds or updates some labels.</span>
+    <span class="token key atrule">value</span><span class="token punctuation">:</span> <span class="token string">'{"metadata": {"labels": {"deployed-in-cluster":"clusternet-5l82l"}}}'</span>
+  <span class="token punctuation">-</span> <span class="token key atrule">name</span><span class="token punctuation">:</span> scale<span class="token punctuation">-</span>replicas
+    <span class="token key atrule">type</span><span class="token punctuation">:</span> JSONPatch
+    <span class="token comment"># Value is a YAML/JSON format patch that provides JSONPatch to current resource defined by feed</span>
+    <span class="token comment"># This patch sets replicas to 1.</span>
+    <span class="token comment"># But due to lower priority, this value will be overridden by above "nginx-local-overrides-demo-higher-priority" eventually</span>
+    <span class="token key atrule">value</span><span class="token punctuation">:</span> <span class="token punctuation">|</span><span class="token punctuation">-</span>
+        <span class="token punctuation">[</span>
+          <span class="token punctuation">{</span>
+            <span class="token key atrule">"path"</span><span class="token punctuation">:</span> <span class="token string">"/spec/replicas"</span><span class="token punctuation">,</span>
+            "value"<span class="token punctuation">:</span><span class="token number">1</span>
+            <span class="token key atrule">"op"</span><span class="token punctuation">:</span> <span class="token string">"replace"</span>
+          <span class="token punctuation">}</span>
+        <span class="token punctuation">]</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<h5 id="更多示例"><a href="#更多示例" class="headerlink" title="更多示例"></a>更多示例</h5><p>注册一个集群 <a target="_blank" rel="noopener" href="https://github.com/clusternet/clusternet/blob/main/docs/tutorials/installing.clusternet-with-helm.md">https://github.com/clusternet/clusternet/blob/main/docs/tutorials/installing.clusternet-with-helm.md</a></p>
+<p>部署一个完整的多集群应用 <a target="_blank" rel="noopener" href="https://github.com/clusternet/clusternet/blob/main/docs/tutorials/deploying-applications-to-multiple-clusters.md">https://github.com/clusternet/clusternet/blob/main/docs/tutorials/deploying-applications-to-multiple-clusters.md</a></p>
+<p>如何使用 client-go 创建多集群应用 <a target="_blank" rel="noopener" href="https://github.com/clusternet/clusternet/blob/main/examples/clientgo/READEMEmd">https://github.com/clusternet/clusternet/blob/main/examples/clientgo/READEMEmd</a></p>
 
                 
             </div>
