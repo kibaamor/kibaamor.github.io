@@ -399,21 +399,21 @@
                 
                 <div class="post-date info-break-policy">
                     <i class="far fa-calendar-check fa-fw"></i>更新日期:&nbsp;&nbsp;
-                    2024-08-26
+                    2024-08-29
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-file-word fa-fw"></i>文章字数:&nbsp;&nbsp;
-                    12.6k
+                    16.9k
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-clock fa-fw"></i>阅读时长:&nbsp;&nbsp;
-                    46 分
+                    62 分
                 </div>
                 
 
@@ -431,7 +431,19 @@
 
         <div class="card-content article-card-content">
             <div id="articleContent">
-                <h2 id="HTTP-状态码"><a href="#HTTP-状态码" class="headerlink" title="HTTP 状态码"></a>HTTP 状态码</h2><p>RFC 标准把状态码分成了五类：</p>
+                <h2 id="准备"><a href="#准备" class="headerlink" title="准备"></a>准备</h2><pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token function">git</span> clone git@github.com:kibaamor/http_study.git
+
+<span class="token builtin class-name">cd</span> http_study/www
+
+./run.sh start<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>编辑hosts，添加</p>
+<pre class="line-numbers language-txt" data-language="txt"><code class="language-txt">127.0.0.1       www.chrono.com
+127.0.0.1       www.metroid.net
+127.0.0.1       origin.io<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span></span></code></pre>
+<blockquote>
+<p>浏览器使用 firefox 测试。</p>
+</blockquote>
+<h2 id="HTTP-状态码"><a href="#HTTP-状态码" class="headerlink" title="HTTP 状态码"></a>HTTP 状态码</h2><p>RFC 标准把状态码分成了五类：</p>
 <ul>
 <li><p><code>1××</code>：提示信息，表示目前是协议处理的中间状态，还需要后续的操作；</p>
 <p>  我们偶尔能够见到的是”101 Switching Protocols”。它的意思是客户端使用 Upgrade 头字段，要求在 HTTP 协议的基础上改成其他的协议继续通信，比如 WebSocket。而如果服务器也同意变更协议，就会发送状态码 101，但这之后的数据传输就不会再使用 HTTP 了。</p>
@@ -773,6 +785,163 @@ Host: www.xxx.com\r\n
 <li>TLS1.2 要求必须实现 TLS RSA WITH AES128 CBC SHA，TLS1.3 要求必须实现 TLSAES 128 GCM SHA256，并且因为前向安全的原因废除了 DH 和 RSA 密钥交换算法。</li>
 <li>SHA-2 实际上是一系列摘要算法的统称，总共有 6 种，常用的有 SHA224、SHA256、SHA384，分别能够生成 28 字节、32 字节、48 字节的摘要。 </li>
 <li>虽然 SHA-2 很安全，但出于”未雨绸缪”的考虑，又出现了 SHA-3，它也有6种算法，名字与 SHA-2 差不多，比如 SHA3-224、SHA3-256，目前还未纳入 TLS。</li>
+</ol>
+<h2 id="TLS1-2连接过程解析"><a href="#TLS1-2连接过程解析" class="headerlink" title="TLS1.2连接过程解析"></a>TLS1.2连接过程解析</h2><h3 id="TLS-协议的组成"><a href="#TLS-协议的组成" class="headerlink" title="TLS 协议的组成"></a>TLS 协议的组成</h3><p>TLS 包含几个子协议，你也可以理解为它是由几个不同职责的模块组成，比较常用的有记录协议、警报协议、握手协议、变更密码规范协议等。</p>
+<ul>
+<li><p>记录协议（Record Protocol）规定了 TLS 收发数据的基本单位：记录（record）。它有点像是 TCP 里的 segment，所有的其他子协议都需要通过记录协议发出。但多个记录数据可以在一个 TCP 包里一次性发出，也并不需要像 TCP 那样返回 ACK。</p>
+</li>
+<li><p>警报协议（Alert Protocol）的职责是向对方发出警报信息，有点像是 HTTP 协议里的状态码。比如，protocol_version 就是不支持旧版本，bad_certificate 就是证书有问题，收到警报后另一方可以选择继续，也可以立即终止连接。</p>
+</li>
+<li><p>握手协议（Handshake Protocol）是 TLS 里最复杂的子协议，要比 TCP 的 SYN/ACK 复杂的多，浏览器和服务器会在握手过程中协商 TLS 版本号、随机数、密码套件等信息，然后交换证书和密钥参数，最终双方协商得到会话密钥，用于后续的混合加密系统。</p>
+</li>
+<li><p>最后一个是变更密码规范协议（Change Cipher Spec Protocol），它非常简单，就是一个”通知”，告诉对方，后续的数据都将使用加密保护。那么反过来，在它之前，数据都是明文的。</p>
+</li>
+</ul>
+<p>下面的这张图简要地描述了 TLS 的握手过程，其中每一个”框”都是一个记录，多个记录组合成一个 TCP 包发送。所以，最多经过两次消息往返（4 个消息）就可以完成握手，然后就可以在安全的通信环境里发送 HTTP 报文，实现 HTTPS 协议。</p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《透视HTTP协议》学习笔记/TLS1.2的握手过程.png" alt="TLS1.2的握手过程"></p>
+<h3 id="抓包的准备工作"><a href="#抓包的准备工作" class="headerlink" title="抓包的准备工作"></a>抓包的准备工作</h3><p>新增一个系统变量”SSLKEYLOGFILE”，设置浏览器日志文件的路径。</p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《透视HTTP协议》学习笔记/设置SSLKEYLOGFILE.png" alt="设置SSLKEYLOGFILE"></p>
+<p>后在 Wireshark 里设置”Protocols-TLS”（较早版本的 Wireshark 里是”SSL”），在”(Pre)-Master-Secret log filename”里填上刚才的日志文件。</p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《透视HTTP协议》学习笔记/使用SSLKEYLOGFILE.png" alt="使用SSLKEYLOGFILE"></p>
+<h3 id="ECDHE-握手过程"><a href="#ECDHE-握手过程" class="headerlink" title="ECDHE 握手过程"></a>ECDHE 握手过程</h3><p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《透视HTTP协议》学习笔记/TLS1.2ECDHE握手过程.png" alt="TLS1.2ECDHE握手过程"></p>
+<p>访问 <a target="_blank" rel="noopener" href="https://www.chrono.com/26-1">https://www.chrono.com/26-1</a></p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《透视HTTP协议》学习笔记/TLS1.2ECDHE握手过程Wireshark截图.png" alt="TLS1.2ECDHE握手过程Wireshark截图.png"></p>
+<p>TCP 建立连接之后，浏览器会首先发一个”Client Hello”消息，也就是跟服务器”打招呼”。里面有客户端的版本号、支持的密码套件，还有一个随机数（Client Random），用于后续生成会话密钥。</p>
+<pre class="line-numbers language-txt" data-language="txt"><code class="language-txt">Handshake Protocol: Client Hello
+    Version: TLS 1.2 (0x0303)
+    Random: 1cbf803321fd2623408dfe…
+    Cipher Suites (17 suites)
+        Cipher Suite: TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256 (0xc02f)
+        Cipher Suite: TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384 (0xc030)<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>服务器收到”Client Hello”后，会返回一个”Server Hello”消息。把版本号对一下，也给出一个随机数（Server Random），然后从客户端的列表里选一个作为本次通信使用的密码套件，在这里它选择了”TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384”。</p>
+<pre class="line-numbers language-txt" data-language="txt"><code class="language-txt">Handshake Protocol: Server Hello
+    Version: TLS 1.2 (0x0303)
+    Random: 0e6320f21bae50842e96…
+    Cipher Suite: TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384 (0xc030)<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span></span></code></pre>
+<p>然后，服务器为了证明自己的身份，就把证书也发给了客户端（Server Certificate）。</p>
+<p>因为服务器选择了 ECDHE 算法，所以它会在证书后发送”Server Key Exchange”消息，里面是椭圆曲线的公钥（Server Params），用来实现密钥交换算法，再加上自己的私钥签名认证。</p>
+<pre class="line-numbers language-txt" data-language="txt"><code class="language-txt">Handshake Protocol: Server Key Exchange
+    EC Diffie-Hellman Server Params
+        Curve Type: named_curve (0x03)
+        Named Curve: x25519 (0x001d)
+        Pubkey: 3b39deaf00217894e...
+        Signature Algorithm: rsa_pkcs1_sha512 (0x0601)
+        Signature: 37141adac38ea4...<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>之后是”Server Hello Done”消息，服务器说：”我的信息就是这些，打招呼完毕。”</p>
+<p>这样第一个消息往返就结束了（两个 TCP 包），结果是客户端和服务器通过明文共享了三个信息：<strong>Client Random</strong>、<strong>Server Random</strong> 和 <strong>Server Params</strong>。</p>
+<p>客户端在验证了服务器的证书后，客户端按照密码套件的要求，也生成一个椭圆曲线的公钥（Client Params），用”Client Key Exchange”消息发给服务器。</p>
+<pre class="line-numbers language-txt" data-language="txt"><code class="language-txt">Handshake Protocol: Client Key Exchange
+    EC Diffie-Hellman Client Params
+        Pubkey: 8c674d0e08dc27b5eaa…<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span></span></code></pre>
+<p>现在客户端和服务器手里都拿到了密钥交换算法的两个参数（Client Params、Server Params），就用 ECDHE 算法一阵算，算出了一个新的东西，叫”Pre-Master”，其实也是一个随机数。</p>
+<pre class="line-numbers language-txt" data-language="txt"><code class="language-txt">master_secret = PRF(pre_master_secret, "master secret", ClientHello.random + ServerHello.random)<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>至于具体的计算原理和过程，因为太复杂就不细说了，但算法可以保证即使黑客截获了之前的参数，也是绝对算不出这个随机数的。</p>
+<p>现在客户端和服务器手里有了三个随机数：Client Random、Server Random 和 Pre-Master。用这三个作为原始材料，就可以生成用于加密会 话的主密钥，叫”Master Secret”。而黑客因为拿不到”Pre-Master”，所以也就得不到主密钥。</p>
+<p>主密钥有 48 字节，但它也不是最终用于通信的会话密钥，还会再用 PRF 扩展出更多的密钥，比如客户端发送用的会话密钥（client_write_key）、服务器发送用的会话密钥（server_write_key）等等，避免只用一个密钥带来的安全隐患。</p>
+<p>有了主密钥和派生的会话密钥，握手就快结束了。客户端发一个”Change Cipher Spec”，然后再发一个”Finished”消息，把之前所有发送的数据做个摘要，再加密一下，让服务器做个验证。</p>
+<p>意思就是告诉服务器：”后面都改用对称算法加密通信了啊，用的就是打招呼时说的 AES，加密对不对还得你测一下。”</p>
+<p>服务器也是同样的操作，发”Change Cipher Spec”和”Finished”消息，双方都验证加密解密 OK，握手正式结束，后面就收发被加密的 HTTP 请求和响应了。</p>
+<h3 id="RSA-握手过程"><a href="#RSA-握手过程" class="headerlink" title="RSA 握手过程"></a>RSA 握手过程</h3><p>整个握手过程可真是够复杂的，但你可能会问了，好像这个过程和其他地方看到的不一样呢？</p>
+<p>刚才说的其实是如今主流的 TLS 握手过程，这与传统的握手有两点不同。</p>
+<p>第一个，使用 ECDHE 实现密钥交换，而不是 RSA，所以会在服务器端发出”Server Key Exchange”消息。</p>
+<p>第二个，因为使用了 ECDHE，客户端可以不用等到服务器发回”Finished”确认握手完毕，立即就发出 HTTP 报文，省去了一个消息往返的时间浪费。这个叫”TLS False Start”，意思就是”抢跑”，和”TCP Fast Open”有点像，都是不等连接完全建立就提前发应用数据，提高传输的效率。</p>
+<p>实验环境在 440 端口 <a target="_blank" rel="noopener" href="https://www.chrono.com:440/26-1">https://www.chrono.com:440/26-1</a> 实现了传统的 RSA 密钥交换，没有”False Start”</p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《透视HTTP协议》学习笔记/TLS1.2RSA握手过程.png" alt="TLS1.2RSA握手过程"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《透视HTTP协议》学习笔记/TLS1.2RSA握手过程Wireshark截图.png" alt="TLS1.2RSA握手过程Wireshark截图"></p>
+<p>大体的流程没有变，只是”Pre-Master”不再需要用算法生成，而是客户端直接生成随机数，然后用服务器的公钥加密，通过”Client Key Exchange”消息发给服务器。服务器再用私钥解密，这样双方也实现了共享三个随机数，就可以生成主密钥。</p>
+<h3 id="双向认证"><a href="#双向认证" class="headerlink" title="双向认证"></a>双向认证</h3><p>双向认证的流程也没有太多变化，只是在”Server Hello Done”之后，”Client Key Exchange”之前，客户端要发送”Client Certificate”消息，服务器收到后也把证书链走一遍，验证客户端的身份。</p>
+<h3 id="课外小贴士-7"><a href="#课外小贴士-7" class="headerlink" title="课外小贴士"></a>课外小贴士</h3><ol>
+<li>TLS 中记录协议原本定义有压缩方式，但后来发现存在安全漏洞(CRIME 攻击)，所以现在这个字段总是 NULL，即不压缩。</li>
+<li>在 TLS1.2 里，客户端和随机数的长度都是 28字节，前面的四个字节是 UNIX 时间戳，但并没有实际意义。</li>
+<li>Chrome 开发者工具的”Security”面板里可以看到 HTTPS 握手时选择的版本号、密码套件和椭圆曲线，例如”ECDHE RSA withX25519,and AES 256 GCM”</li>
+<li>ECDHE 即”短暂-椭圆曲线-迪菲-赫尔曼(ephemeral Elliptic Curve Diffie-Hellman)”算法，使用椭圆曲线增强了 DH 算法的安全性和性能，公钥和私钥都是临时生成的。</li>
+<li>在 Wireshark 抓包里你还会看见”Session ID”，”Extension”等字段，涉及会话复用和扩展协议，后面会讲到。</li>
+</ol>
+<h2 id="TLS1-3特性解析"><a href="#TLS1-3特性解析" class="headerlink" title="TLS1.3特性解析"></a>TLS1.3特性解析</h2><h3 id="最大化兼容性"><a href="#最大化兼容性" class="headerlink" title="最大化兼容性"></a>最大化兼容性</h3><p>由于 1.1、1.2 等协议已经出现了很多年，很多应用软件、中间代理（官方称为”MiddleBox”）只认老的记录协议格式，更新改造很困难，甚至是不可行（设备僵化）。</p>
+<p>在早期的试验中发现，一旦变更了记录头字段里的版本号，也就是由 0x303（TLS1.2）改为 0x304（TLS1.3）的话，大量的代理服务器、网关都无法正确处理，最终导致 TLS 握手失败。</p>
+<p>为了保证这些被广泛部署的”老设备”能够继续使用，避免新协议带来的”冲击”，TLS1.3 不得不做出妥协，保持现有的记录格式不变，通过”伪装”来实现兼容，使得 TLS1.3 看上去”像是”TLS1.2。</p>
+<p>那么，该怎么区分 1.2 和 1.3 呢？</p>
+<p>这要用到一个新的扩展协议（Extension Protocol），它有点”补充条款”的意思，通过在记录末尾添加一系列的”扩展字段”来增加新的功能，老版本的 TLS 不认识它可以直接忽略，这就实现了”后向兼容”。</p>
+<p>在记录头的 Version 字段被兼容性”固定”的情况下，只要是 TLS1.3 协议，握手的”Hello”消息后面就必须有”supported_versions”扩展，它标记了 TLS 的版本号，使用它就能区分新旧协议。</p>
+<p>其实上一讲 Chrome 在握手时发的就是 TLS1.3 协议，你可以看一下”Client Hello”消息后面的扩展，只是因为服务器不支持 1.3，所以就”后向兼容”降级成了 1.2。</p>
+<pre class="line-numbers language-txt" data-language="txt"><code class="language-txt">Handshake Protocol: Client Hello
+    Version: TLS 1.2 (0x0303)
+    Extension: supported_versions (len=11)
+        Supported Version: TLS 1.3 (0x0304)
+        Supported Version: TLS 1.2 (0x0303)<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>TLS1.3 利用扩展实现了许多重要的功能，比如”supported_groups””key_share””signature_algorithms””server_name”等。</p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《透视HTTP协议》学习笔记/supported_versions.png" alt="supported_versions"></p>
+<h3 id="强化安全"><a href="#强化安全" class="headerlink" title="强化安全"></a>强化安全</h3><p>TLS1.2 在十来年的应用中获得了许多宝贵的经验，陆续发现了很多的漏洞和加密算法的弱点，所以 TLS1.3 就在协议里修补了这些不安全因素。</p>
+<p>比如：</p>
+<ul>
+<li>伪随机数函数由 PRF 升级为 HKDF（HMAC-based Extract-and-Expand Key Derivation Function）；</li>
+<li>明确禁止在记录协议里使用压缩；</li>
+<li>废除了 RC4、DES 对称加密算法；</li>
+<li>废除了 ECB、CBC 等传统分组模式；</li>
+<li>废除了 MD5、SHA1、SHA-224 摘要算法；</li>
+<li>废除了 RSA、DH 密钥交换算法和许多命名曲线。</li>
+</ul>
+<p>经过这一番”减肥瘦身”之后，TLS1.3 里只保留了 AES、ChaCha20 对称加密算法，分组模式只能用 AEAD 的 GCM、CCM 和 Poly1305，摘要算法只能用 SHA256、SHA384，密钥交换算法只有 ECDHE 和 DHE，椭圆曲线也被”砍”到只剩 P-256 和 x25519 等 5 种。</p>
+<p>减肥可以让人变得更轻巧灵活，TLS 也是这样。</p>
+<p>算法精简后带来了一个意料之中的好处：原来众多的算法、参数组合导致密码套件非常复杂，难以选择，而现在的 TLS1.3 里只有 5 个套件，无论是客户端还是服务器都不会再犯”选择困难症”了。</p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《透视HTTP协议》学习笔记/TLS1.3里的5个密码套件.jpg" alt="TLS1.3里的5个密码套件"></p>
+<p>这里还要特别说一下废除 RSA 和 DH 密钥交换算法的原因。</p>
+<p>上一讲用 Wireshark 抓包时你一定看到了，浏览器默认会使用 ECDHE 而不是 RSA 做密钥交换，这是因为它不具有”前向安全”（Forward Secrecy）。</p>
+<p>假设有这么一个很有耐心的黑客，一直在长期收集混合加密系统收发的所有报文。如果加密系统使用服务器证书里的 RSA 做密钥交换，一旦私钥泄露或被破解（使用社会工程学或者巨型计算机），那么黑客就能够使用私钥解密出之前所有报文的”Pre-Master”，再算出会话密钥，破解所有密文。</p>
+<p>这就是所谓的”今日截获，明日破解”。</p>
+<p>而 ECDHE 算法在每次握手时都会生成一对临时的公钥和私钥，每次通信的密钥对都是不同的，也就是”一次一密”，即使黑客花大力气破解了这一次的会话密钥，也只是这次通信被攻击，之前的历史消息不会受到影响，仍然是安全的。</p>
+<p>所以现在主流的服务器和浏览器在握手阶段都已经不再使用 RSA，改用 ECDHE，而 TLS1.3 在协议里明确废除 RSA 和 DH 则在标准层面保证了”前向安全”。</p>
+<h3 id="提升性能"><a href="#提升性能" class="headerlink" title="提升性能"></a>提升性能</h3><p>HTTPS 建立连接时除了要做 TCP 握手，还要做 TLS 握手，在 1.2 中会多花两个消息往返（2-RTT），可能导致几十毫秒甚至上百毫秒的延迟，在移动网络中延迟还会更严重。</p>
+<p>现在因为密码套件大幅度简化，也就没有必要再像以前那样走复杂的协商流程了。TLS1.3 压缩了以前的”Hello”协商过程，删除了”Key Exchange”消息，把握手时间减少到了”1-RTT”，效率提高了一倍。</p>
+<p>那么它是怎么做的呢？</p>
+<p>其实具体的做法还是利用了扩展。客户端在”Client Hello”消息里直接用”supported_groups”带上支持的曲线，比如 P-256、x25519，用”key_share”带上曲线对应的客户端公钥参数，用”signature_algorithms”带上签名算法。</p>
+<p>服务器收到后在这些扩展里选定一个曲线和参数，再用”key_share”扩展返回服务器这边的公钥参数，就实现了双方的密钥交换，后面的流程就和 1.2 基本一样了。</p>
+<p>我为 1.3 的握手过程画了一张图，你可以对比 1.2 看看区别在哪里。</p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《透视HTTP协议》学习笔记/TLS1.3握手过程.png" alt="TLS1.3握手过程"></p>
+<p>除了标准的”1-RTT”握手，TLS1.3 还引入了”0-RTT”握手，用”pre_shared_key”和”early_data”扩展，在 TCP 连接后立即就建立安全连接发送加密消息，不过这需要有一些前提条件，今天暂且不说。</p>
+<h3 id="握手分析"><a href="#握手分析" class="headerlink" title="握手分析"></a>握手分析</h3><p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《透视HTTP协议》学习笔记/TLS1.3握手过程分析.png" alt="TLS1.3握手过程分析"></p>
+<p>在 TCP 建立连接之后，浏览器首先还是发一个”Client Hello”。</p>
+<p>因为 1.3 的消息兼容 1.2，所以开头的版本号、支持的密码套件和随机数（Client Random）结构都是一样的（不过这时的随机数是 32 个字节）。</p>
+<pre class="line-numbers language-txt" data-language="txt"><code class="language-txt">Handshake Protocol: Client Hello
+    Version: TLS 1.2 (0x0303)
+    Random: cebeb6c05403654d66c2329…
+    Cipher Suites (18 suites)
+        Cipher Suite: TLS_AES_128_GCM_SHA256 (0x1301)
+        Cipher Suite: TLS_CHACHA20_POLY1305_SHA256 (0x1303)
+        Cipher Suite: TLS_AES_256_GCM_SHA384 (0x1302)
+    Extension: supported_versions (len=9)
+        Supported Version: TLS 1.3 (0x0304)
+        Supported Version: TLS 1.2 (0x0303)
+    Extension: supported_groups (len=14)
+        Supported Groups (6 groups)
+            Supported Group: x25519 (0x001d)
+            Supported Group: secp256r1 (0x0017)
+    Extension: key_share (len=107)
+        Key Share extension
+            Client Key Share Length: 105
+            Key Share Entry: Group: x25519
+            Key Share Entry: Group: secp256r1<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>注意”Client Hello”里的扩展，”supported_versions”表示这是 TLS1.3，”supported_groups”是支持的曲线，”key_share”是曲线对应的参数。</p>
+<p>服务器收到”Client Hello”同样返回”Server Hello”消息，还是要给出一个随机数（Server Random）和选定密码套件。</p>
+<pre class="line-numbers language-txt" data-language="txt"><code class="language-txt">Handshake Protocol: Server Hello
+    Version: TLS 1.2 (0x0303)
+    Random: 12d2bce6568b063d3dee2…
+    Cipher Suite: TLS_AES_128_GCM_SHA256 (0x1301)
+    Extension: supported_versions (len=2)
+        Supported Version: TLS 1.3 (0x0304)
+    Extension: key_share (len=36)
+        Key Share extension
+            Key Share Entry: Group: x25519, Key Exchange length: 32<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>表面上看和 TLS1.2 是一样的，重点是后面的扩展。”supported_versions”里确认使用的是 TLS1.3，然后在”key_share”扩展带上曲线和对应的公钥参数。</p>
+<p>这时只交换了两条消息，客户端和服务器就拿到了四个共享信息：Client Random和Server Random、Client Params和Server Params，两边就可以各自用 ECDHE 算出”Pre-Master”，再用 HKDF 生成主密钥”Master Secret”，效率比 TLS1.2 提高了一大截。</p>
+<p>在算出主密钥后，服务器立刻发出”Change Cipher Spec”消息，比 TLS1.2 提早进入加密通信，后面的证书等就都是加密的了，减少了握手时的明文信息泄露。</p>
+<p>这里 TLS1.3 还有一个安全强化措施，多了个”Certificate Verify”消息，用服务器的私钥把前面的曲线、套件、参数等握手数据加了签名，作用和”Finished”消息差不多。但由于是私钥签名，所以强化了身份认证和和防窜改。</p>
+<p>这两个”Hello”消息之后，客户端验证服务器证书，再发”Finished”消息，就正式完成了握手，开始收发 HTTP 报文。</p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《透视HTTP协议》学习笔记/supported_versions.png" alt="supported_versions"></p>
+<h3 id="课外小贴士-8"><a href="#课外小贴士-8" class="headerlink" title="课外小贴士"></a>课外小贴士</h3><ol>
+<li>对 TLS1.2 已知的攻击有 BEAST、BREACH,CRIME、FREAK、LUCKY13、POODLE、ROBOT 等。</li>
+<li>在 TLS1.3 的 RFC 文档里已经删除了”ChangeCipher Spec”子协议，但用 Wireshark 抓包却还能看到，这里以抓包为准。</li>
+<li>TLS1.3 还提供了”降级保护机制”，如果”中间人”恶意降级到 1.2，服务器的随机数最后 8个字节会被设置为”44 4F 57 4E 47 52 4401”，即”DOWNGRD01”，支持 TLS1.3 的客户端就可以检查发现被降级，然后发出警报终止连接。</li>
 </ol>
 
                 
