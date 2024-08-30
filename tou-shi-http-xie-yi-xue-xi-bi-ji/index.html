@@ -406,14 +406,14 @@
                 
                 <div class="info-break-policy">
                     <i class="far fa-file-word fa-fw"></i>文章字数:&nbsp;&nbsp;
-                    30.2k
+                    37.3k
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-clock fa-fw"></i>阅读时长:&nbsp;&nbsp;
-                    111 分
+                    137 分
                 </div>
                 
 
@@ -1289,6 +1289,211 @@ rewrite ^  https://$host$request_uri permanent;   # 永久重定向<span aria-hi
 <li>ALPN 的前身是 Google 的 NPN(NextProtocol Negotiation)，它与 ALPN 的协商过程刚好相反，服务器提供支持的协议列表，由客户端决定最终使用的协议。</li>
 <li>明文的 HTTP/2(“h2c”)不使用 TLS，也就无法使用 ALPN 进行”协议协商”，所以需要使用头字段”Connection: Upgrade”升级到HTTP/2，服务器返回状态码 101切换协议。</li>
 <li>目前国内已经有不少大网站迁移到了 HTTP/2,比如www.qq.com、www.tmall.com，你可以用 Chrome的开发者工具检查它们的 Protocol。</li>
+</ol>
+<h2 id="Nginx"><a href="#Nginx" class="headerlink" title="Nginx"></a>Nginx</h2><h3 id="进程池"><a href="#进程池" class="headerlink" title="进程池"></a>进程池</h3><p>你也许听说过，Nginx 是个”轻量级”的 Web 服务器，那么这个所谓的”轻量级”是什么意思呢？</p>
+<p>“轻量级”是相对于”重量级”而言的。”重量级”就是指服务器进程很”重”，占用很多资源，当处理 HTTP 请求时会消耗大量的 CPU 和内存，受到这些资源的限制很难提高性能。</p>
+<p>而 Nginx 作为”轻量级”的服务器，它的 CPU、内存占用都非常少，同样的资源配置下就能够为更多的用户提供服务，其奥秘在于它独特的工作模式。</p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《透视HTTP协议》学习笔记/Nginx进程池.png" alt="Nginx进程池"></p>
+<p>在 Nginx 之前，Web 服务器的工作模式大多是”Per-Process”或者”Per-Thread”，对每一个请求使用单独的进程或者线程处理。这就存在创建进程或线程的成本，还会有进程、线程”上下文切换”的额外开销。如果请求数量很多，CPU 就会在多个进程、线程之间切换时”疲于奔命”，平白地浪费了计算时间。</p>
+<p>Nginx 则完全不同，”一反惯例”地没有使用多线程，而是使用了”进程池 + 单线程”的工作模式。</p>
+<p>Nginx 在启动的时候会预先创建好固定数量的 worker 进程，在之后的运行过程中不会再 fork 出新进程，这就是进程池，而且可以自动把进程”绑定”到独立的 CPU 上，这样就完全消除了进程创建和切换的成本，能够充分利用多核 CPU 的计算能力。</p>
+<p>在进程池之上，还有一个”master”进程，专门用来管理进程池。它的作用有点像是 supervisor（一个用 Python 编写的进程管理工具），用来监控进程，自动恢复发生异常的 worker，保持进程池的稳定和服务能力。</p>
+<p>不过 master 进程完全是 Nginx 自行用 C 语言实现的，这就摆脱了外部的依赖，简化了 Nginx 的部署和配置。</p>
+<h3 id="I-O-多路复用"><a href="#I-O-多路复用" class="headerlink" title="I/O 多路复用"></a>I/O 多路复用</h3><p>Nginx 利用了 Linux 内核里的一件”神兵利器”，I/O 多路复用接口，”大名鼎鼎”的 epoll。</p>
+<h3 id="多阶段处理"><a href="#多阶段处理" class="headerlink" title="多阶段处理"></a>多阶段处理</h3><p>有了”进程池”和”I/O 多路复用”，Nginx 是如何处理 HTTP 请求的呢？</p>
+<p>Nginx 在内部也采用的是”化整为零”的思路，把整个 Web 服务器分解成了多个”功能模块”，就好像是乐高积木，可以在配置文件里任意拼接搭建，从而实现了高度的灵活性和扩展性。</p>
+<p>Nginx 的 HTTP 处理有四大类模块：</p>
+<p>handler 模块：直接处理 HTTP 请求；<br>filter 模块：不直接处理请求，而是加工过滤响应报文；<br>upstream 模块：实现反向代理功能，转发请求到其他服务器；<br>balance 模块：实现反向代理时的负载均衡算法。<br>因为 upstream 模块和 balance 模块实现的是代理功能，Nginx 作为”中间人”，运行机制比较复杂，所以我今天只讲 handler 模块和 filter 模块。</p>
+<p>不知道你有没有了解过”设计模式”这方面的知识，其中有一个非常有用的模式叫做”职责链”。它就好像是工厂里的流水线，原料从一头流入，线上有许多工人会进行各种加工处理，最后从另一头出来的就是完整的产品。</p>
+<p>Nginx 里的 handler 模块和 filter 模块就是按照”职责链”模式设计和组织的，HTTP 请求报文就是”原材料”，各种模块就是工厂里的工人，走完模块构成的”流水线”，出来的就是处理完成的响应报文。</p>
+<p>下面的这张图显示了 Nginx 的”流水线”，在 Nginx 里的术语叫”阶段式处理”（Phases），一共有 11 个阶段，每个阶段里又有许多各司其职的模块。</p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《透视HTTP协议》学习笔记/Nginx的多阶段处理.png" alt="Nginx的多阶段处理"></p>
+<p>我简单列几个与我们的课程相关的模块吧：</p>
+<ol>
+<li>charset 模块实现了字符集编码转换；（[第 15 讲]）</li>
+<li>chunked 模块实现了响应数据的分块传输；（[第 16 讲]）</li>
+<li>range 模块实现了范围请求，只返回数据的一部分；（[第 16 讲]）</li>
+<li>rewrite 模块实现了重定向和跳转，还可以使用内置变量自定义跳转的 URI；（[第 18 讲]）</li>
+<li>not_modified 模块检查头字段”if-Modified-Since”和”If-None-Match”，处理条件请求；（[第 20 讲]）</li>
+<li>realip 模块处理”X-Real-IP””X-Forwarded-For”等字段，获取客户端的真实 IP 地址；（[第 21 讲]）</li>
+<li>ssl 模块实现了 SSL/TLS 协议支持，读取磁盘上的证书和私钥，实现 TLS 握手和 SNI、ALPN 等扩展功能；（[安全篇]）</li>
+<li>http_v2 模块实现了完整的 HTTP/2 协议。（[飞翔篇]）</li>
+</ol>
+<p>在这张图里，你还可以看到 limit_conn、limit_req、access、log 等其他模块，它们实现的是限流限速、访问控制、日志等功能，不在 HTTP 协议规定之内，但对于运行在现实世界的 Web 服务器却是必备的。</p>
+<h3 id="课外小贴士-15"><a href="#课外小贴士-15" class="headerlink" title="课外小贴士"></a>课外小贴士</h3><ol>
+<li>Nginx 自 1.7.11 开始引入了”多线程”，但只是作为辅助手段，卸载阻塞的磁盘 //O 操作，主要的 HTTP 请求处理使用的还是单线程里的epoll。</li>
+<li>Nginx 的”PRECONTENT”阶段在 1.13.3 之前叫”TRY_FILES”，仅供 Nginx 内部使用，用户不可介入。</li>
+<li>正文里的”流水线”图没有画出 hlter 模块所在的位置，它其实是在 CONTENT 阶段的末尾专门”过滤”响应数据。</li>
+</ol>
+<h2 id="OpenResty"><a href="#OpenResty" class="headerlink" title="OpenResty"></a>OpenResty</h2><h3 id="OpenResty-是什么？"><a href="#OpenResty-是什么？" class="headerlink" title="OpenResty 是什么？"></a>OpenResty 是什么？</h3><p>OpenResty 并不是一个全新的 Web 服务器，而是基于 Nginx，它利用了 Nginx 模块化、可扩展的特性，开发了一系列的增强模块，并把它们打包整合，形成了一个”一站式”的 Web 开发平台。</p>
+<p>虽然 OpenResty 的核心是 Nginx，但它又超越了 Nginx，关键就在于其中的 ngx_lua 模块，把小巧灵活的 Lua 语言嵌入了 Nginx，可以用脚本的方式操作 Nginx 内部的进程、多路复用、阶段式处理等各种构件。</p>
+<p>目前 OpenResty 有两个分支，分别是开源、免费的”OpenResty”和闭源、商业产品的”OpenResty+”，运作方式有社区支持、OpenResty 基金会、OpenResty.Inc 公司，还有其他的一些外界赞助（例如 Kong、CloudFlare），正在蓬勃发展。</p>
+<p>顺便说一下 OpenResty 的官方 logo，是一只展翅飞翔的海鸥，选择海鸥是因为”鸥”与 OpenResty 的发音相同。另外，这个 logo 的形状也像是左手比出的一个”OK”姿势，正好也是一个”O”。</p>
+<h3 id="高效率的-Lua"><a href="#高效率的-Lua" class="headerlink" title="高效率的 Lua"></a>高效率的 Lua</h3><p>OpenResty 能够高效运行的一大”秘技”是它的”同步非阻塞”编程范式，如果你要开发 OpenResty 应用就必须时刻铭记于心。</p>
+<p>“同步非阻塞”本质上还是一种”多路复用”，我拿上一讲的 Nginx epoll 来对比解释一下。</p>
+<p>epoll 是操作系统级别的”多路复用”，运行在内核空间。而 OpenResty 的”同步非阻塞”则是基于 Lua 内建的”协程”，是应用程序级别的”多路复用”，运行在用户空间，所以它的资源消耗要更少。</p>
+<p>OpenResty 里每一段 Lua 程序都由协程来调度运行。和 Linux 的 epoll 一样，每当可能发生阻塞的时候”协程”就会立刻切换出去，执行其他的程序。这样单个处理流程是”阻塞”的，但整个 OpenResty 却是”非阻塞的”，多个程序都”复用”在一个 Lua 虚拟机里运行。</p>
+<p>下面的代码是一个简单的例子，读取 POST 发送的 body 数据，然后再发回客户端：</p>
+<pre class="line-numbers language-lua" data-language="lua"><code class="language-lua">ngx<span class="token punctuation">.</span>req<span class="token punctuation">.</span><span class="token function">read_body</span><span class="token punctuation">(</span><span class="token punctuation">)</span>                  <span class="token comment">-- 同步非阻塞 (1)</span>
+
+<span class="token keyword">local</span> data <span class="token operator">=</span> ngx<span class="token punctuation">.</span>req<span class="token punctuation">.</span><span class="token function">get_body_data</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+<span class="token keyword">if</span> data <span class="token keyword">then</span>
+    ngx<span class="token punctuation">.</span><span class="token function">print</span><span class="token punctuation">(</span><span class="token string">"body: "</span><span class="token punctuation">,</span> data<span class="token punctuation">)</span>        <span class="token comment">-- 同步非阻塞 (2)</span>
+<span class="token keyword">end</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>代码中的”ngx.req.read_body”和”ngx.print”分别是数据的收发动作，只有收到数据才能发送数据，所以是”同步”的。</p>
+<p>但即使因为网络原因没收到或者发不出去，OpenResty 也不会在这里阻塞”干等着”，而是做个”记号”，把等待的这段 CPU 时间用来处理其他的请求，等网络可读或者可写时再”回来”接着运行。</p>
+<p>假设收发数据的等待时间是 10 毫秒，而真正 CPU 处理的时间是 0.1 毫秒，那么 OpenResty 就可以在这 10 毫秒内同时处理 100 个请求，而不是把这 100 个请求阻塞排队，用 1000 毫秒来处理。</p>
+<p>除了”同步非阻塞”，OpenResty 还选用了LuaJIT作为 Lua 语言的”运行时（Runtime）”，进一步”挖潜增效”。</p>
+<p>LuaJIT 是一个高效的 Lua 虚拟机，支持 JIT（Just In Time）技术，可以把 Lua 代码即时编译成”本地机器码”，这样就消除了脚本语言解释运行的劣势，让 Lua 脚本跑得和原生 C 代码一样快。</p>
+<p>另外，LuaJIT 还为 Lua 语言添加了一些特别的增强，比如二进制位运算库 bit，内存优化库 table，还有 FFI（Foreign Function Interface），让 Lua 直接调用底层 C 函数，比原生的压栈调用快很多。</p>
+<h3 id="阶段式处理"><a href="#阶段式处理" class="headerlink" title="阶段式处理"></a>阶段式处理</h3><p>和 Nginx 一样，OpenResty 也使用”流水线”来处理 HTTP 请求，底层的运行基础是 Nginx 的”阶段式处理”，但它又有自己的特色。</p>
+<p>Nginx 的”流水线”是由一个个 C 模块组成的，只能在静态文件里配置，开发困难，配置麻烦（相对而言）。而 OpenResty 的”流水线”则是由一个个的 Lua 脚本组成的，不仅可以从磁盘上加载，也可以从 Redis、MySQL 里加载，而且编写、调试的过程非常方便快捷。</p>
+<p>下面我画了一张图，列出了 OpenResty 的阶段，比起 Nginx，OpenResty 的阶段更注重对 HTTP 请求响应报文的加工和处理。</p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《透视HTTP协议》学习笔记/OpenResty的阶段式处理.png" alt="OpenResty的阶段式处理"></p>
+<p>OpenResty 里有几个阶段与 Nginx 是相同的，比如 rewrite、access、content、filter，这些都是标准的 HTTP 处理。</p>
+<p>在这几个阶段里可以用”xxx_by_lua”指令嵌入 Lua 代码，执行重定向跳转、访问控制、产生响应、负载均衡、过滤报文等功能。因为 Lua 的脚本语言特性，不用考虑内存分配、资源回收释放等底层的细节问题，可以专注于编写非常复杂的业务逻辑，比 C 模块的开发效率高很多，即易于扩展又易于维护。</p>
+<p>OpenResty 里还有两个不同于 Nginx 的特殊阶段。</p>
+<p>一个是”init 阶段”，它又分成”master init”和”worker init”，在 master 进程和 worker 进程启动的时候运行。这个阶段还没有开始提供服务，所以慢一点也没关系，可以调用一些阻塞的接口初始化服务器，比如读取磁盘、MySQL，加载黑白名单或者数据模型，然后放进共享内存里供运行时使用。</p>
+<p>另一个是”ssl 阶段”，这算得上是 OpenResty 的一大创举，可以在 TLS 握手时动态加载证书，或者发送”OCSP Stapling”。</p>
+<p>还记得[第 29 讲]里说的”SNI 扩展”吗？Nginx 可以依据”服务器名称指示”来选择证书实现 HTTPS 虚拟主机，但静态配置很不灵活，要编写很多雷同的配置块。虽然后来 Nginx 增加了变量支持，但它每次握手都要读磁盘，效率很低。</p>
+<p>而在 OpenResty 里就可以使用指令”ssl_certificate_by_lua”，编写 Lua 脚本，读取 SNI 名字后，直接从共享内存或者 Redis 里获取证书。不仅没有读盘阻塞，而且证书也是完全动态可配置的，无需修改配置文件就能够轻松支持大量的 HTTPS 虚拟主机。</p>
+<h3 id="课外小贴士-16"><a href="#课外小贴士-16" class="headerlink" title="课外小贴士"></a>课外小贴士</h3><ol>
+<li>Nginx 自己也意识到了静态配置文件的缺点所以引入了 JavaScript 作为可编程配置脚本实现了一定程度上的的动态配置，另外还单独开发了类似 Envoy 的全动态应用服务器”Nginx Unit”.</li>
+<li>OpenResty其实还有一个”官方”的中文名字,叫”鸥锐”，来自于 OpenResty 的谐音，但知道的人很少，用的人就更少了。</li>
+<li>OpenResty 还提供一个命令行工具”resty”可以解释运行 Lua 代码，利用它就能够写出比肩 Shell、Python、Perl 的高效脚本，而且100% 无阻塞。</li>
+<li>在 OpenResty 1.13.6.2 之前，LuaJIT 的虚拟机最多只能使用 2GB 内存，如果操作超长字符串就很容易发生内存分配失败错误。现在的OpenResty默认启用了新的”GC64”模式，内存的上限是 128TB。</li>
+<li>你还可以对比着 Node.js 来理解 OpenResty。Node.js 也是一个应用服务开发平台，使用的是脚本语言 JavaScript，运行在 V8 虚拟机上下层的支撑平台 libuv 利用 epol 实现了高性能,</li>
+</ol>
+<h2 id="WAF"><a href="#WAF" class="headerlink" title="WAF"></a>WAF</h2><h3 id="网络应用防火墙"><a href="#网络应用防火墙" class="headerlink" title="网络应用防火墙"></a>网络应用防火墙</h3><p>“网络应用防火墙”（Web Application Firewall），简称为”WAF”。</p>
+<p>你可能对传统的”防火墙”比较熟悉。传统”防火墙”工作在三层或者四层，隔离了外网和内网，使用预设的规则，只允许某些特定 IP 地址和端口号的数据包通过，拒绝不符合条件的数据流入或流出内网，实质上是一种网络数据过滤设备。</p>
+<p>WAF 也是一种”防火墙”，但它工作在七层，看到的不仅是 IP 地址和端口号，还能看到整个 HTTP 报文，所以就能够对报文内容做更深入细致的审核，使用更复杂的条件、规则来过滤数据。</p>
+<p>说白了，WAF 就是一种”HTTP 入侵检测和防御系统”。</p>
+<p>通常一款产品能够称为 WAF，要具备下面的一些功能：</p>
+<ol>
+<li>IP 黑名单和白名单，拒绝黑名单上地址的访问，或者只允许白名单上的用户访问；</li>
+<li>URI 黑名单和白名单，与 IP 黑白名单类似，允许或禁止对某些 URI 的访问；</li>
+<li>防护 DDoS 攻击，对特定的 IP 地址限连限速；</li>
+<li>过滤请求报文，防御”代码注入”攻击；</li>
+<li>过滤响应报文，防御敏感信息外泄；</li>
+<li>审计日志，记录所有检测到的入侵操作。</li>
+</ol>
+<p>听起来 WAF 好像很高深，但如果你理解了它的工作原理，其实也不难。</p>
+<p>它就像是平时编写程序时必须要做的函数入口参数检查，拿到 HTTP 请求、响应报文，用字符串处理函数看看有没有关键字、敏感词，或者用正则表达式做一下模式匹配，命中了规则就执行对应的动作，比如返回 403/404。</p>
+<p>如果你比较熟悉 Apache、Nginx、OpenResty，可以自己改改配置文件，写点 JS 或者 Lua 代码，就能够实现基本的 WAF 功能。</p>
+<p>比如说，在 Nginx 里实现 IP 地址黑名单，可以利用”map”指令，从变量 $remote_addr 获取 IP 地址，在黑名单上就映射为值 1，然后在”if”指令里判断：</p>
+<pre class="line-numbers language-txt" data-language="txt"><code class="language-txt">map $remote_addr $blocked {
+    default       0;
+    "1.2.3.4"     1;
+    "5.6.7.8"     1;
+}
+ 
+ 
+if ($blocked) {
+    return 403 "you are blocked.";  
+}<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>Nginx 的配置文件只能静态加载，改名单必须重启，比较麻烦。如果换成 OpenResty 就会非常方便，在 access 阶段进行判断，IP 地址列表可以使用 cosocket 连接外部的 Redis、MySQL 等数据库，实现动态更新：</p>
+<pre class="line-numbers language-lua" data-language="lua"><code class="language-lua"><span class="token keyword">local</span> ip_addr <span class="token operator">=</span> ngx<span class="token punctuation">.</span>var<span class="token punctuation">.</span>remote_addr
+
+<span class="token keyword">local</span> rds <span class="token operator">=</span> redis<span class="token punctuation">:</span><span class="token function">new</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+<span class="token keyword">if</span> rds<span class="token punctuation">:</span><span class="token function">get</span><span class="token punctuation">(</span>ip_addr<span class="token punctuation">)</span> <span class="token operator">==</span> <span class="token number">1</span> <span class="token keyword">then</span> 
+    ngx<span class="token punctuation">.</span><span class="token function">exit</span><span class="token punctuation">(</span><span class="token number">403</span><span class="token punctuation">)</span> 
+<span class="token keyword">end</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<h3 id="全面的-WAF-解决方案"><a href="#全面的-WAF-解决方案" class="headerlink" title="全面的 WAF 解决方案"></a>全面的 WAF 解决方案</h3><p>介绍一下 WAF 领域里的最顶级产品了：ModSecurity，它可以说是 WAF 界”事实上的标准”。</p>
+<p>ModSecurity 是一个开源的、生产级的 WAF 工具包，历史很悠久，比 Nginx 还要大几岁。它开始于一个私人项目，后来被商业公司 Breach Security 收购，现在则是由 TrustWave 公司的 SpiderLabs 团队负责维护。</p>
+<p>ModSecurity 最早是 Apache 的一个模块，只能运行在 Apache 上。因为其品质出众，大受欢迎，后来的 2.x 版添加了 Nginx 和 IIS 支持，但因为底层架构存在差异，不够稳定。</p>
+<p>所以，这两年 SpiderLabs 团队就开发了全新的 3.0 版本，移除了对 Apache 架构的依赖，使用新的”连接器”来集成进 Apache 或者 Nginx，比 2.x 版更加稳定和快速，误报率也更低。</p>
+<p>ModSecurity 有两个核心组件。第一个是”规则引擎”，它实现了自定义的”SecRule”语言，有自己特定的语法。但”SecRule”主要基于正则表达式，还是不够灵活，所以后来也引入了 Lua，实现了脚本化配置。</p>
+<p>ModSecurity 的规则引擎使用 C++11 实现，可以从 <a target="_blank" rel="noopener" href="https://github.com/SpiderLabs/ModSecurity">GitHub</a> 上下载源码，然后集成进 Nginx。因为它比较庞大，编译很费时间，所以最好编译成动态模块，在配置文件里用指令”load_module”加载：</p>
+<pre class="line-numbers language-txt" data-language="txt"><code class="language-txt">load_module modules/ngx_http_modsecurity_module.so;<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>只有引擎还不够，要让引擎运转起来，还需要完善的防御规则，所以 ModSecurity 的第二个核心组件就是它的”规则集”。</p>
+<p>ModSecurity 源码提供一个基本的规则配置文件”modsecurity.conf-recommended”，使用前要把它的后缀改成”conf”。</p>
+<p>有了规则集，就可以在 Nginx 配置文件里加载，然后启动规则引擎：</p>
+<pre class="line-numbers language-txt" data-language="txt"><code class="language-txt">modsecurity on;
+modsecurity_rules_file /path/to/modsecurity.conf;<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre>
+<p>“modsecurity.conf”文件默认只有检测功能，不提供入侵阻断，这是为了防止误杀误报，把”SecRuleEngine”后面改成”On”就可以开启完全的防护：</p>
+<pre class="line-numbers language-txt" data-language="txt"><code class="language-txt">#SecRuleEngine DetectionOnly
+SecRuleEngine  On<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre>
+<p>基本的规则集之外，ModSecurity 还额外提供一个更完善的规则集，为网站提供全面可靠的保护。这个规则集的全名叫”OWASP ModSecurity 核心规则集”（Open Web Application Security Project ModSecurity Core Rule Set），因为名字太长了，所以有时候会简称为”核心规则集”或者”CRS”。</p>
+<p>CRS 也是完全开源、免费的，可以从 GitHub 上下载：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token function">git</span> clone https://github.com/SpiderLabs/owasp-modsecurity-crs.git<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>其中有一个”crs-setup.conf.example”的文件，它是 CRS 的基本配置，可以用”Include”命令添加到”modsecurity.conf”里，然后再添加”rules”里的各种规则。</p>
+<pre class="line-numbers language-txt" data-language="txt"><code class="language-txt">Include /path/to/crs-setup.conf
+Include /path/to/rules/*.conf<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre>
+<p>你如果有兴趣可以看一下这些配置文件，里面用”SecRule”定义了很多的规则，基本的形式是”SecRule 变量 运算符 动作”。不过 ModSecurity 的这套语法”自成一体”，比较复杂，要完全掌握不是一朝一夕的事情，我就不详细解释了。</p>
+<p>另外，ModSecurity 还有强大的审计日志（Audit Log）功能，记录任何可疑的数据，供事后离线分析。但在生产环境中会遇到大量的攻击，日志会快速增长，消耗磁盘空间，而且写磁盘也会影响 Nginx 的性能，所以一般建议把它关闭：</p>
+<pre class="line-numbers language-txt" data-language="txt"><code class="language-txt">SecAuditEngine off  #RelevantOnly
+SecAuditLog /var/log/modsec_audit.log<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre>
+<h3 id="课外小贴士-17"><a href="#课外小贴士-17" class="headerlink" title="课外小贴士"></a>课外小贴士</h3><ol>
+<li>“CC 攻击”(Challenge Collapsar)是”DDoS”的一种，它使用代理服务器发动攻击。</li>
+<li>ModSecurity 名字里的”Mod”来源于 Apache扩展模块的命名惯例，例如”mod_php”mod_proxy””mod_cache”</li>
+<li>ModSecurity 也使用了”阶段式处理”，所以可以很容易地融合进 Nginx，不过它只有5个阶段:request headers、request body.response headers、response body、logging.</li>
+<li>TrustWave 公司还提供比”OWASP CRS”更高级更全面的规则集，叫”TrustwaveSpiderLabs Rules”，但它是商业产品，必须购买后才能使用。</li>
+<li>在 Nginx 上还可以使用另一个 WAF 模块:Naxsi，虽然它的功能也很强大，但与ModSecurity 并不兼容。</li>
+<li>OpenResty生态系统里也已经有了多个比较成熟的纯 Lua WAF，可以在 GitHub 上搜索关键词”ngx lua waf”，而商业版的 OpenResty+则基于 ModSecurity的核心规则集，使用 Lua重新实现了一套自有引擎。</li>
+</ol>
+<h2 id="CDN"><a href="#CDN" class="headerlink" title="CDN"></a>CDN</h2><h2 id="WebSocket"><a href="#WebSocket" class="headerlink" title="WebSocket"></a>WebSocket</h2><h3 id="WebSocket-的帧结构"><a href="#WebSocket-的帧结构" class="headerlink" title="WebSocket 的帧结构"></a>WebSocket 的帧结构</h3><p>WebSocket 用的也是二进制帧，有之前 HTTP/2、HTTP/3 的经验，相信你这次也能很快掌握 WebSocket 的报文结构。</p>
+<p>不过 WebSocket 和 HTTP/2 的关注点不同，WebSocket 更侧重于”实时通信”，而 HTTP/2 更侧重于提高传输效率，所以两者的帧结构也有很大的区别。</p>
+<p>WebSocket 虽然有”帧”，但却没有像 HTTP/2 那样定义”流”，也就不存在”多路复用””优先级”等复杂的特性，而它自身就是”全双工”的，也就不需要”服务器推送”。所以综合起来，WebSocket 的帧学习起来会简单一些。</p>
+<p>下图就是 WebSocket 的帧结构定义，长度不固定，最少 2 个字节，最多 14 字节，看着好像很复杂，实际非常简单。</p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《透视HTTP协议》学习笔记/WebSocket的帧结构.png" alt="WebSocket的帧结构"></p>
+<p>开头的两个字节是必须的，也是最关键的。</p>
+<p>第一个字节的第一位”FIN”是消息结束的标志位，相当于 HTTP/2 里的”END_STREAM”，表示数据发送完毕。一个消息可以拆成多个帧，接收方看到”FIN”后，就可以把前面的帧拼起来，组成完整的消息。</p>
+<p>“FIN”后面的三个位是保留位，目前没有任何意义，但必须是 0。</p>
+<p>第一个字节的后 4 位很重要，叫”Opcode”，操作码，其实就是帧类型，比如 1 表示帧内容是纯文本，2 表示帧内容是二进制数据，8 是关闭连接，9 和 10 分别是连接保活的 PING 和 PONG。</p>
+<p>第二个字节第一位是掩码标志位”MASK”，表示帧内容是否使用异或操作（xor）做简单的加密。目前的 WebSocket 标准规定，客户端发送数据必须使用掩码，而服务器发送则必须不使用掩码。</p>
+<p>第二个字节后 7 位是”Payload len”，表示帧内容的长度。它是另一种变长编码，最少 7 位，最多是 7+64 位，也就是额外增加 8 个字节，所以一个 WebSocket 帧最大是 2^64。</p>
+<p>长度字段后面是”Masking-key”，掩码密钥，它是由上面的标志位”MASK”决定的，如果使用掩码就是 4 个字节的随机数，否则就不存在。</p>
+<p>这么分析下来，其实 WebSocket 的帧头就四个部分：”结束标志位 + 操作码 + 帧长度 + 掩码”，只是使用了变长编码的”小花招”，不像 HTTP/2 定长报文头那么简单明了。</p>
+<p>我们的实验环境利用 OpenResty 的”lua-resty-websocket”库，实现了一个简单的 WebSocket 通信，你可以访问 URI”/38-1”，它会连接后端的 WebSocket 服务”ws://127.0.0.1⁄38-0”，用 Wireshark 抓包就可以看到 WebSocket 的整个通信过程。</p>
+<p>下面的截图是其中的一个文本帧，因为它是客户端发出的，所以需要掩码，报文头就在两个字节之外多了四个字节的”Masking-key”，总共是 6 个字节。</p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《透视HTTP协议》学习笔记/WebSocket帧截图.png" alt="WebSocket帧截图"></p>
+<p>而报文内容经过掩码，不是直接可见的明文，但掩码的安全强度几乎是零，用”Masking-key”简单地异或一下就可以转换出明文。</p>
+<h3 id="WebSocket-的握手"><a href="#WebSocket-的握手" class="headerlink" title="WebSocket 的握手"></a>WebSocket 的握手</h3><p>和 TCP、TLS 一样，WebSocket 也要有一个握手过程，然后才能正式收发数据。</p>
+<p>这里它还是搭上了 HTTP 的”便车”，利用了 HTTP 本身的”协议升级”特性，”伪装”成 HTTP，这样就能绕过浏览器沙盒、网络防火墙等等限制，这也是 WebSocket 与 HTTP 的另一个重要关联点。</p>
+<p>WebSocket 的握手是一个标准的 HTTP GET 请求，但要带上两个协议升级的专用头字段：</p>
+<ul>
+<li>“Connection: Upgrade”，表示要求协议”升级”；</li>
+<li>“Upgrade: websocket”，表示要”升级”成 WebSocket 协议。</li>
+</ul>
+<p>另外，为了防止普通的 HTTP 消息被”意外”识别成 WebSocket，握手消息还增加了两个额外的认证用头字段（所谓的”挑战”，Challenge）：</p>
+<ul>
+<li>Sec-WebSocket-Key：一个 Base64 编码的 16 字节随机数，作为简单的认证密钥；</li>
+<li>Sec-WebSocket-Version：协议的版本号，当前必须是 13。</li>
+</ul>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《透视HTTP协议》学习笔记/WebSocket的握手请求.png" alt="WebSocket的握手请求"></p>
+<p>服务器收到 HTTP 请求报文，看到上面的四个字段，就知道这不是一个普通的 GET 请求，而是 WebSocket 的升级请求，于是就不走普通的 HTTP 处理流程，而是构造一个特殊的”101 Switching Protocols”响应报文，通知客户端，接下来就不用 HTTP 了，全改用 WebSocket 协议通信。（有点像 TLS 的”Change Cipher Spec”）</p>
+<p>WebSocket 的握手响应报文也是有特殊格式的，要用字段”Sec-WebSocket-Accept”验证客户端请求报文，同样也是为了防止误连接。</p>
+<p>具体的做法是把请求头里”Sec-WebSocket-Key”的值，加上一个专用的 UUID “258EAFA5-E914-47DA-95CA-C5AB0DC85B11”，再计算 SHA-1 摘要。</p>
+<pre class="line-numbers language-txt" data-language="txt"><code class="language-txt">encode_base64(sha1(Sec-WebSocket-Key + '258EAFA5-E914-47DA-95CA-C5AB0DC85B11'))<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>客户端收到响应报文，就可以用同样的算法，比对值是否相等，如果相等，就说明返回的报文确实是刚才握手时连接的服务器，认证成功。</p>
+<p>握手完成，后续传输的数据就不再是 HTTP 报文，而是 WebSocket 格式的二进制帧了。</p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《透视HTTP协议》学习笔记/WebSocket的握手响应.png" alt="WebSocket的握手响应"></p>
+<h3 id="课外小贴士-18"><a href="#课外小贴士-18" class="headerlink" title="课外小贴士"></a>课外小贴士</h3><ol>
+<li>WebSocket 标准诞生于 2011年，比 HTTP/2要大上四岁。</li>
+<li>最早 WebSocket 只能从 HTTP/1.1升级，因为HTTP/2 取消了”Connection”头字段和协议升级机制，不能跑在 HTTP/2 上，所以就有草案提议扩展 HTTP/2 支持 WebSocket，后来形成了 RFC8441。</li>
+<li>虽然 WebSocket 完全借用了 HTTP 的 URI 形式，但也有一点小小的不兼容:不支持 URI后面的”#”片段标识”#”必须被编码为”%23”</li>
+<li>WebSocket 强制要求客户端发送数据必须使用掩码，这是为了提供最基本的安全防护，让每次发送的消息都是随机、不可预测的，抵御”缓存中毒”攻击。但如果运行在 SSL/TLS 上,采用加密通信，那么掩码就没有必要了。</li>
+<li>WebSocket 协议里的 PING、PONG 帧对于保持长连接很重要，可以让链路上总有数据在传输，防止被服务器、路由、网关认为是”无效连接”而意外关闭。</li>
+</ol>
+<h2 id="HTTP性能优化面面观"><a href="#HTTP性能优化面面观" class="headerlink" title="HTTP性能优化面面观"></a>HTTP性能优化面面观</h2><h3 id="HTTP-服务器"><a href="#HTTP-服务器" class="headerlink" title="HTTP 服务器"></a>HTTP 服务器</h3><p>衡量服务器性能的主要指标有三个：吞吐量（requests per second）、并发数（concurrency）和响应时间（time per request）。</p>
+<h3 id="HTTP-客户端"><a href="#HTTP-客户端" class="headerlink" title="HTTP 客户端"></a>HTTP 客户端</h3><p>Chrome 等浏览器自带的开发者工具也可以很好地观察客户端延迟指标，面板左边有每个 URI 具体消耗的时间，面板的右边也是类似的瀑布图。</p>
+<p>点击某个 URI，在 Timing 页里会显示出一个小型的”瀑布图”，是这个资源消耗时间的详细分解，延迟的原因都列的清清楚楚，比如下面的这张图：</p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《透视HTTP协议》学习笔记/Chrome瀑布图.png" alt="Chrome瀑布图"></p>
+<p>图里面的这些指标都是什么含义呢？我给你解释一下：</p>
+<ol>
+<li>因为有”队头阻塞”，浏览器对每个域名最多开 6 个并发连接（HTTP/1.1），当页面里链接很多的时候就必须排队等待（Queued、Queueing），这里它就等待了 1.62 秒，然后才被浏览器正式处理；</li>
+<li>浏览器要预先分配资源，调度连接，花费了 11.56 毫秒（Stalled）;</li>
+<li>连接前必须要解析域名，这里因为有本地缓存，所以只消耗了 0.41 毫秒（DNS Lookup）；</li>
+<li>与网站服务器建立连接的成本很高，总共花费了 270.87 毫秒，其中有 134.89 毫秒用于 TLS 握手，那么 TCP 握手的时间就是 135.98 毫秒（Initial connection、SSL）；</li>
+<li>实际发送数据非常快，只用了 0.11 毫秒（Request sent）；</li>
+<li>之后就是等待服务器的响应，专有名词叫 TTFB（Time To First Byte），也就是”首字节响应时间”，里面包括了服务器的处理时间和网络传输时间，花了 124.2 毫秒；</li>
+<li>接收数据也是非常快的，用了 3.58 毫秒（Content Dowload）。</li>
+</ol>
+<p>从这张图你可以看到，一次 HTTP”请求 - 响应”的过程中延迟的时间是非常惊人的，总时间 415.04 毫秒里占了差不多 99%。</p>
+<p>所以，客户端 HTTP 性能优化的关键就是：降低延迟。</p>
+<h3 id="课外小贴士-19"><a href="#课外小贴士-19" class="headerlink" title="课外小贴士"></a>课外小贴士</h3><ol>
+<li>在 Chrome 开发者工具的瀑布图里可以看到有两条蓝色和红色的竖线。蓝线表示的是”DOMReady”，也就是说浏览器已经解析完 HTML文档的 DOM 结构;红线表示的是”LoadComplete”，即已经下载完页面包含的所有资源(JS、CSS、图片等)。</li>
+<li>Nginx 默认不支持 br 压缩算法，需要安装一个第三方模块 ngx_brotli。</li>
 </ol>
 
                 
