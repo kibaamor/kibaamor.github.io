@@ -406,14 +406,14 @@
                 
                 <div class="info-break-policy">
                     <i class="far fa-file-word fa-fw"></i>文章字数:&nbsp;&nbsp;
-                    3.6k
+                    3.9k
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-clock fa-fw"></i>阅读时长:&nbsp;&nbsp;
-                    12 分
+                    14 分
                 </div>
                 
 
@@ -518,6 +518,13 @@
 <p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/iptables简介/iptables报文的处理流程.jpg" alt="iptables报文的处理流程"></p>
 <p>接下里根据 iptables 规则链处理报文的时机，来解析 5 种规则链的作用方式。如上图所示，网络设备接收的报文在进入内核协议栈后被 <strong>PREROUTING</strong> 链处理，可以在这里决定是否对报文进行目标地址转换。之后进行路由判断，如果报文的目标地址是本机，则内核协议栈会将其传给 <strong>INPUT</strong> 链处理。<strong>INPUT</strong> 链在允许通过后，报文有内核空间进入用户空间，被主机进程处理。如果 <strong>PREROUTING</strong> 链处理后的报文的目标地址不是本机地址，则将其传给 <strong>FORWARD</strong> 链处理，最后交给 <strong>POSTROUTING</strong> 链处理。</p>
 <p>本机进程发出的报文首先经过 <strong>路由计算</strong> 来选择发送的目标网络设备，并且根据目标网络计算结果对源地址进行填充。需要说明的是，在填充时如果没有指定源地址，则将根据路由表找一个合适的源 IP 地址，保证通过此源 IP 地址对应的网络设备可以将报文发送到目标地址。如果已经手工配置（绑定）了源 IP 地址，但根据路由计算得知无法从此源 IP 地址对应的网络设备将报文发送到目标地址，则将此报文丢弃。一种特别情况是在 Socket 设置了 <code>IP_TRANSPARENT</code> 选项后将不做此检查，而是依赖配置的 <strong>策略路由</strong> 将报文发送到目标网络设备，其中策略路由指不基于报文目标网络地址（如报文标记等）进行转发的判断机制。经过路由计算后报文进入 <strong>OUTPUT</strong> 链，此时也可以进行报文目标地址转换，如果判断报文处理后的目标地址发生变化，则需要再次进行路由计算。完成处理的报文需要再次进行路由计算，检查并确保报文有对应的可以发送的网络设备。经过处理后的报文最终到达 <strong>POSTROUTING</strong> 链，在此处可以进行源地址转换。</p>
+<p>在使用 iptables 规则时要注意一下事项：</p>
+<ul>
+<li><p>iptables 属于三层网络处理机制，与协议栈内的二层网络设备属于同一网络空间。从上图可以看出，不论报文是进入协议栈还是从协议栈发出，从报文的处理角度来说，只会经过一次路由判断，路由计算是当报文发出时根据请求的目标地址所对应的发送网络设备所在的子网信息填写报文源地址等信息的处理过程，而路由判断则为判断已经填写完整的报文是否可以继续被 iptables 链处理或采用哪条 iptables 链处理。注意，报文从 <strong>FORWARD</strong> 链出来后不再进行路由判断，在路由判断中如果发现目标不可达，则将被丢弃。</p>
+</li>
+<li><p>在 <strong>POSTROUTING</strong> 链中， Nat 表只能添加 SNat 规则，因为在之前进行路由判断时，已经确定目标所适配的二层设备了，如果这里能够允许修改 DNat 规则，则还需要再次进行路由处理，这显然是不符合 iptables 处理逻辑的。</p>
+</li>
+</ul>
 <p>各个表在内核中的优先级定义如下（数值越小、优先级越高）：</p>
 <pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token comment">// include/uapi/linux/netfilter_ipv4.h</span>
 <span class="token keyword">enum</span> <span class="token class-name">nf_ip_hook_priorities</span> <span class="token punctuation">{</span>
