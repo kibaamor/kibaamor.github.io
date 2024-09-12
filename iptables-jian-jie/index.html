@@ -399,21 +399,21 @@
                 
                 <div class="post-date info-break-policy">
                     <i class="far fa-calendar-check fa-fw"></i>更新日期:&nbsp;&nbsp;
-                    2024-09-11
+                    2024-09-12
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-file-word fa-fw"></i>文章字数:&nbsp;&nbsp;
-                    3.9k
+                    4.4k
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-clock fa-fw"></i>阅读时长:&nbsp;&nbsp;
-                    14 分
+                    16 分
                 </div>
                 
 
@@ -700,6 +700,44 @@
 <h2 id="五、常见问题"><a href="#五、常见问题" class="headerlink" title="五、常见问题"></a>五、常见问题</h2><h3 id="1-NAT-能建立多少连接"><a href="#1-NAT-能建立多少连接" class="headerlink" title="1. NAT 能建立多少连接"></a>1. NAT 能建立多少连接</h3><p>DNAT 即外网访问内网的某个服务，是没有端口数目限制的。</p>
 <p>SNAT 即内网访问外网的场景，鉴于 conntrack 是由 <strong>{源 IP，源端口，目标 IP，目标端口}</strong>，hash 后确定的。所以如果内网机器很多，但是访问的是不同的外网，也即目标 IP 和目标端口很多，这样内网可承载的数量就非常大，可不止 65535 个。</p>
 <p>但是如果内网所有的机器，都一定要访问同一个目标 IP 和目标端口，这样源 IP 如果只有一个，这样的情况下，才受 65535 的端口数目限制，根据原理，一种方法就是多个源 IP，另外的方法就是多个 NAT 网关，来分摊不同的内网机器访问。</p>
+<h3 id="2-iptables-的规则对-Unix-Domain-Socket-无效"><a href="#2-iptables-的规则对-Unix-Domain-Socket-无效" class="headerlink" title="2. iptables 的规则对 Unix Domain Socket 无效"></a>2. iptables 的规则对 Unix Domain Socket 无效</h3><h3 id="3-nfmark-和-ctmark"><a href="#3-nfmark-和-ctmark" class="headerlink" title="3. nfmark 和 ctmark"></a>3. nfmark 和 ctmark</h3><p><code>nfmark</code> 标记为网络协议栈的三层报文本身所携带，可配合 <strong>策略路由</strong> 影响路由计算结果。</p>
+<p><code>ctmark</code> 标记为 <code>conntrack</code> 表中对每个 Socket 连接维护的记录项，由 <code>conntrack</code> 表自身维护且与 TCP 状态不同，可以理解为帮助 iptables 规则判断 TCP 状态而存在，可以用 <code>Mangle</code> 表中的 iptables 规则，比如将当前连接上的 <code>ctmark</code> 标记复制到报文的 <code>nfmark</code> 标记上，保证响应报文继续采用 <strong>策略路由</strong> 进行处理等，同时 <code>Nat</code> 表依赖 <code>conntrack</code> 表内的连接记录状态决定是否跳过 <code>Nat</code> 表上的规则。</p>
+<p>一些例子</p>
+<blockquote>
+<p>下面的例子都应该在 <code>Mangle</code> 表中。</p>
+</blockquote>
+<div class="table-container">
+<table>
+<thead>
+<tr>
+<th>匹配规则</th>
+<th>功能描述</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>-A PREROUTING -p tcp -m mark --mark 0x539 -j CONNMARK --save-mark --nfmask 0xffffffff --ctmask 0xffffffff</code></td>
+<td>对进入 <code>PREROUTING</code> 链且携带 <code>nfmark=0x539</code> 标记的 TCP 报文，调用 CONNMARK 规则将 <code>nfmark=0x539</code> 标记保存到连接标记 <code>ctmask</code> 上</td>
+</tr>
+<tr>
+<td><code>-A OUTPUT -o lo -p tcp -m mark --mark 0x539 -j RETURN</code></td>
+<td>对进入 <code>OUTPUT</code> 链、目标地址为本地且已经携带 <code>nfmark=0x539</code> 标记的 TCP 报文，不再做特殊处理</td>
+</tr>
+<tr>
+<td><code>-A OUTPUT ! -d 127.0.0.1/32 -o lo -p tcp -m owner --uid-owner 1337 -j MARK --set-xmark 0x53a/0xffffffff</code></td>
+<td>对进入 <code>OUTPUT</code> 链且目标地址为非 127.0.0.1 但目标网络设备为本地，即目标为本机地址的由 UID 为 1337 进程发出的 TCP 报文，添加 <code>nfmark=0x53a</code> 标记</td>
+</tr>
+<tr>
+<td><code>-A OUTPUT -p tcp -m connmark --mark 0x539 -j CONNMARK --restore-mark --nfmask 0xffffffff --ctmask 0xffffffff</code></td>
+<td>对进入 <code>OUTPUT</code> 连接且四层连接已经携带 <code>ctmark=0x539</code> 标记的 TCP 报文，经过 CONNMARK 规则恢复到三层报文的 <code>nfmark</code> 标记上</td>
+</tr>
+<tr>
+<td><code>-A ISTIO_TPROXY ! -d 127.0.0.1/32 -p tcp -j TPROXY --on-port 15006 --on-ip 0.0.0.0 --tproxy-mark 0x539/0xffffffff</code></td>
+<td>对进入 <code>ISTIO_TPROXY</code> 链的目标地址为非 127.0.0.1 的 TCP 报文，经过 TPROXY 规则的处理，直接发送到本地网络监听端口 0.0.0.0:15006，并为其设置 <code>nfmark=0x539</code> 标记</td>
+</tr>
+</tbody>
+</table>
+</div>
 <h2 id="六、参考资料"><a href="#六、参考资料" class="headerlink" title="六、参考资料"></a>六、参考资料</h2><ol>
 <li><a target="_blank" rel="noopener" href="https://book.douban.com/subject/6558550/">《Istio权威指南（上）》</a></li>
 <li><a target="_blank" rel="noopener" href="https://wiki.archlinux.org/title/Iptables">iptables</a></li>
