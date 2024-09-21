@@ -595,23 +595,26 @@ net.ipv4.tcp_congestion_control <span class="token operator">=</span> cubic<span
                  <span class="token keyword">unsigned</span> <span class="token keyword">int</span> cur_mss<span class="token punctuation">)</span><span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span></span></code></pre>
 <!----fix markdown render issues---->
 <h2 id="六、糊涂窗口综合症：运输效率太低了怎么办"><a href="#六、糊涂窗口综合症：运输效率太低了怎么办" class="headerlink" title="六、糊涂窗口综合症：运输效率太低了怎么办"></a>六、糊涂窗口综合症：运输效率太低了怎么办</h2><blockquote>
-<p>更多的细节可以查阅 <a target="_blank" rel="noopener" href="https://book.douban.com/subject/26825411/">《TCP/IP 详解 卷一： 协议 第2版》</a> 中 <code>15.5.3 糊涂窗口综合症</code> 一节。<br>相关内容摘录如下：</p>
+<p>更多的细节可以查阅 <a target="_blank" rel="noopener" href="https://book.douban.com/subject/26825411/">《TCP/IP 详解 卷一：协议 第 2 版》</a> 中 <code>15.5.3 糊涂窗口综合症</code> 一节。<br>相关内容摘录如下：</p>
 <p>需要遵循以下规则：</p>
 <ol>
-<li><p>对于接收端来说，不应通告小的窗口值。<a target="_blank" rel="noopener" href="https://datatracker.ietf.org/doc/html/rfc1122#page-97">RFC1122</a><br>抽述的接收算法中，在窗门大小增至一个全长的报文段（比如：接收端 MSS ）或者接收端缓存空间的一半（取两者中较小者）之前，不能通告比当前窗口（可能为 0 ）更大的窗口值。注意到可能有两种情况会用到该规则：当应用程序处理接收到的数据后使得可用缓存增大，以及 TCP 接收端需要强制返回对窗口探测的响应。</p>
-</li>
-<li><p>对于发送端来说，不应发送小的报文段，而且需要由 Nagle 算法控制何时发送。为避免糊涂窗口综合症问题，只有当至少满足一下条件之一时才能传输报文段：</p>
-</li>
+<li>对于接收端来说，不应通告小的窗口值。<a target="_blank" rel="noopener" href="https://datatracker.ietf.org/doc/html/rfc1122#page-97">RFC1122</a> 描述的接收算法中，在窗口可增至一个全长的报文段（即接收端 MSS）或者接收端缓存空间的一半（取两者中较小者）之前，不能通告比当前窗口（可能为 0 ）更大的窗口值。注意到可能有两种情况会用到该规则：</li>
 </ol>
 <blockquote>
-<p>a. 全长（发送 MSS 字节）的报文段可以发送。<br>b. 数据段长度 &gt;= 接收端<strong>通告过的</strong>最大窗口值的一半的，可以发送。<br>c. 满足一下任一条件的都可以发送：</p>
+<p>a. 当应用程序处理接收到的数据后使得可用缓存增大，<br>b. 以及 TCP 接收端需要强制返回对窗口探测的响应。</p>
+</blockquote>
+<ol>
+<li>对于发送端来说，不应发送小的报文段，而且需要由 Nagle 算法控制何时发送。为避免糊涂窗口综合症（Silly Window Syndrome，SWS）问题，只有至少满足以下条件之一时才能传输报文段：</li>
+</ol>
 <blockquote>
-<p>i. 某一 ACK 不是目前期盼的（比如：没有未经确认的在传数据）；<br>ii. 该连接禁用 Nagle 算法。</p>
+<p>a. 全长（发送 MSS 字节）的报文段可以发送。<br>b. 数据段长度 &gt;= 接收端 <strong>通告过的</strong> 最大窗口值的一半的，可以发送。<br>c. 满足以下任一条件的都可以发送：</p>
+<blockquote>
+<p>i. 某一 ACK 不是目前期盼的（即没有未经确认的在传数据）；<br>ii. 该连接禁用 Nagle 算法。</p>
 </blockquote>
+<p>条件 a 最直接地避免了高耗费的报文段传输问题。条件 b 针对通告窗口值较小，可能小于要传输的报文段的情况。条件 c 防止 TCP 在数据需要被确认以及 Nagle 算法启用的情况下发送小报文段。若发送端应用在执行某些较小的写操作（如小于报文段大小），条件 c 可能有效避免糊涂窗口综合症。</p>
+<p>上述三个条件也让我们回答了以下问题：当有未经确认的在传数据时，若使用 Nagle 算法阻止发送小的报文段，究竟多小才算小？从条件 a 可以看出，”小”意味着字节数要小于 SMSS （即不超过 PMTU 或者接收端的 MSS 的最大包大小）。条件 b 只用于比较旧的原始主机，或者因接收端缓存有限而使用较小通告窗口时。</p>
+<p>条件 b 要求发送端记录接收端通告窗口的最大值。发送端以此猜测接收端缓存大小。尽管当连接建立时缓存大小可能减小，但实际这种情况很少见。另外，前面也提到过， TCP 需要避免窗口收缩。</p>
 </blockquote>
-<p>条件 a 最直接地避免了高耗费的报文段传输问题。条件 b 针对通告窗口值较小，可能小于要传输的报文段的情况。条件 c 防止 TCP 在数据需要被确认以及 Nagle 算法启用的情况下发送小报文段。若发送端应用在执行某些较小的写操作（如小于报文段大小），条件 c 可能有效避免出现糊涂窗口综合症。</p>
-<p>上述三个条件也让我们回答了以下问题：当有未经确认的在传数据时，若使用 Nagle 算法阻止发送小的报文段，究竟多小才算小？从条件 a 可以看出，”小”意味着字节数要小于 SMSS （即包的最大大小不超过 PMTU 或者接收端的 MSS）。条件 b 只用于比较旧的原始主机，或者因接收端缓存有限而使用较小通告窗口时。</p>
-<p>第 2 点中的条件 b 要求发送端记录接收端通告窗口的最大值。发送端以此猜测接收端缓存大小。尽管当连接建立时缓存大小可能减小，但实际这种情况很少见。另外，前面也提到过， TCP 需要避免窗口收缩。</p>
 </blockquote>
 <p>每辆货车的最大载货量是 <strong>MSS（Maximum Segment Size，最大分段大小）</strong>，但是如果在运输时货车里面实际的载货量常常很小，造成这种情况的原因可能是：</p>
 <ul>
@@ -621,7 +624,7 @@ net.ipv4.tcp_congestion_control <span class="token operator">=</span> cubic<span
 </ul>
 <p>这种情况会导致运输效率低，而且还容易造成网络拥堵，所以需要避免出现这种情况。</p>
 <ol>
-<li><p>如果是发送方导致这种情况出现，那么可以通过在发送方使用 <a target="_blank" rel="noopener" href="https://en.wikipedia.org/wiki/Nagle%27s_algorithm">纳格算法，Nagle’s algorithm</a> 来避免。算法的原理和实现可以参考 Linux 源码中 <code>linux-4.19.194/net/ipv4/tcp_output.c</code> 文件中 <code>tcp_nagle_check</code> 函数的实现：</p>
+<li><p>如果是发送方导致这种情况出现，那么可以通过在发送方使用 <a target="_blank" rel="noopener" href="https://en.wikipedia.org/wiki/Nagle%27s_algorithm">纳格算法，Nagle’s algorithm</a> 来避免。算法的原理和实现可以参考 Linux 源码中 <code>linux-4.19.194/net/ipv4/tcp_output.c</code> 文件中 <a target="_blank" rel="noopener" href="https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/tree/net/ipv4/tcp_output.c?h=v4.19.194#n1689"><code>tcp_nagle_check</code></a> 函数的实现：</p>
  <pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token comment">/* Return false, if packet can be sent now without violation Nagle's rules:
 * 1. It is full sized. (provided by caller in %partial bool)
 * 2. Or it contains FIN. (already checked by caller)
