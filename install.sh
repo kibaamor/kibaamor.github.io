@@ -2,11 +2,16 @@
 
 set -euf
 
+TMPDIR_BACKUP="${TMPDIR:-}"
+
 mkdir -p "$HOME"/.install_dotfiles
-TMPDIR="$HOME"/.install_dotfiles
+export TMPDIR="$HOME"/.install_dotfiles
 
 cleanup() {
-  [ -d "$TMPDIR" ] && rm -fr "$TMPDIR"
+    [ -d "$TMPDIR" ] && rm -fr "$TMPDIR"
+
+    export TMPDIR="$TMPDIR_BACKUP"
+    [ -z "${TMPDIR}" ] && unset TMPDIR
 }
 
 trap cleanup EXIT INT
@@ -14,4 +19,9 @@ trap cleanup EXIT INT
 # shellcheck source=/dev/null
 [ -s "$HOME/.customrc.pre.sh" ] && \. "$HOME/.customrc.pre.sh"
 
-sh -c "$(curl -fsLS get.chezmoi.io)" -- -b ~/.local/bin init --apply kibaamor && exec zsh -l
+sh -c "$(curl -fsLS get.chezmoi.io)" -- -b ~/.local/bin init --apply kibaamor
+
+trap '' EXIT INT
+cleanup
+
+exec zsh -l
