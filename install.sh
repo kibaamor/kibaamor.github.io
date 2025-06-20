@@ -19,7 +19,7 @@ trap cleanup EXIT INT
 # shellcheck source=/dev/null
 [ -s "$HOME"/.customrc.pre.sh ] && \. "$HOME"/.customrc.pre.sh
 
-sh -c "$(curl -fsLS get.chezmoi.io)" -- -b "$HOME"/.local/bin init --apply kibaamor
+sh -c "$(curl -fsLS get.chezmoi.io)" -- -b "$HOME"/.local/bin init --apply kibaamor "$@"
 
 trap '' EXIT INT
 cleanup
