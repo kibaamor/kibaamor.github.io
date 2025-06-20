@@ -24,4 +24,4 @@ sh -c "$(curl -fsLS get.chezmoi.io)" -- -b "$HOME"/.local/bin init --apply kibaa
 trap '' EXIT INT
 cleanup
 
-exec zsh -l
+exec /usr/bin/zsh -l
