@@ -1,6 +1,6 @@
 #!/bin/sh
 
-set -euf
+set -ef
 
 TMPDIR_BACKUP="${TMPDIR:-}"
 
