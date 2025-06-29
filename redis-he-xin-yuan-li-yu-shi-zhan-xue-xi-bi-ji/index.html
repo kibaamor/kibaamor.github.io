@@ -402,14 +402,14 @@
                 
                 <div class="info-break-policy">
                     <i class="far fa-file-word fa-fw"></i>文章字数:&nbsp;&nbsp;
-                    7.1k
+                    14.1k
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-clock fa-fw"></i>阅读时长:&nbsp;&nbsp;
-                    25 分
+                    53 分
                 </div>
                 
 
@@ -699,6 +699,420 @@ aof-load-truncated yes<span aria-hidden="true" class="line-numbers-rows"><span><
 <li><a target="_blank" rel="noopener" href="https://blog.csdn.net/qq_36318234/article/details/79994133">https://blog.csdn.net/qq_36318234/article/details/79994133</a></li>
 <li><a target="_blank" rel="noopener" href="https://www.cnblogs.com/wdliu/p/9377278.html">https://www.cnblogs.com/wdliu/p/9377278.html</a></li>
 </ul>
+<h2 id="05-Redis-持久化——混合持久化"><a href="#05-Redis-持久化——混合持久化" class="headerlink" title="05 Redis 持久化——混合持久化"></a>05 Redis 持久化——混合持久化</h2><p>RDB 和 AOF 持久化各有利弊，RDB 可能会导致一定时间内的数据丢失，而 AOF 由于文件较大则会影响 Redis 的启动速度，为了能同时使用 RDB 和 AOF 各种的优点，Redis 4.0 之后新增了混合持久化的方式。</p>
+<p>在开启混合持久化的情况下，AOF 重写时会把 Redis 的持久化数据，以 RDB 的格式写入到 AOF 文件的开头，之后的数据再以 AOF 的格式化追加的文件的末尾。</p>
+<p>混合持久化的数据存储结构如下图所示：</p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《Redis核心原理与实战》学习笔记/混合持久化的数据存储结构.png" alt="混合持久化的数据存储结构"></p>
+<h3 id="开启混合持久化"><a href="#开启混合持久化" class="headerlink" title="开启混合持久化"></a>开启混合持久化</h3><p>查询是否开启混合持久化可以使用 <code>config get aof-use-rdb-preamble</code> 命令。</p>
+<p>Redis 5.0 默认值为 yes。 如果是其他版本的 Redis 首先需要检查一下，是否已经开启了混合持久化，如果关闭的情况下，可以通过以下两种方式开启：</p>
+<ul>
+<li>通过命令行开启</li>
+<li>通过修改 Redis 配置文件开启</li>
+</ul>
+<h4 id="通过命令行开启"><a href="#通过命令行开启" class="headerlink" title="通过命令行开启"></a>通过命令行开启</h4><p>使用命令 <code>config set aof-use-rdb-preamble yes</code>。</p>
+<blockquote>
+<p>小贴士：命令行设置配置的缺点是重启 Redis 服务之后，设置的配置就会失效。</p>
+</blockquote>
+<h4 id="通过修改-Redis-配置文件开启"><a href="#通过修改-Redis-配置文件开启" class="headerlink" title="通过修改 Redis 配置文件开启"></a>通过修改 Redis 配置文件开启</h4><p>在 Redis 的根路径下找到 redis.conf 文件，把配置文件中的 <code>aof-use-rdb-preamble no</code> 改为 <code>aof-use-rdb-preamble yes</code>。</p>
+<h3 id="实例运行"><a href="#实例运行" class="headerlink" title="实例运行"></a>实例运行</h3><p>当在混合持久化关闭的情况下，使用 <code>bgrewriteaof</code> 触发 AOF 文件重写之后，查看 <code>appendonly.aof</code> 文件的持久化日志，如下图所示：</p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《Redis核心原理与实战》学习笔记/混合持久化关闭时AOF文件内容.png" alt="混合持久化关闭时AOF文件内容"></p>
+<p>可以看出，当混合持久化关闭的情况下 AOF 持久化文件存储的为标准的 AOF 格式的文件。 当混合持久化开启的模式下，使用 <code>bgrewriteaof</code> 命令触发 AOF 文件重写，得到 <code>appendonly.aof</code> 的文件内容如下图所示：</p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《Redis核心原理与实战》学习笔记/混合持久化开启时AOF文件内容.png" alt="混合持久化开启时AOF文件内容"></p>
+<p>可以看出 appendonly.aof 文件存储的内容是 <code>REDIS</code> 开头的 RDB 格式的内容，并非为 AOF 格式的日志。</p>
+<h3 id="数据恢复和源码解析"><a href="#数据恢复和源码解析" class="headerlink" title="数据恢复和源码解析"></a>数据恢复和源码解析</h3><p>混合持久化的数据恢复和 AOF 持久化过程是一样的，只需要把 appendonly.aof 放到 Redis 的根目录，在 Redis 启动时，只要开启了 AOF 持久化，Redis 就会自动加载并恢复数据。 Redis 启动信息如下图所示：</p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《Redis核心原理与实战》学习笔记/混合持久化开启时Redis的启动日志.png" alt="混合持久化开启时Redis的启动日志"></p>
+<p>可以看出 Redis 在服务器初始化的时候加载了 AOF 文件的内容。</p>
+<h4 id="混合持久化的加载流程"><a href="#混合持久化的加载流程" class="headerlink" title="混合持久化的加载流程"></a>混合持久化的加载流程</h4><p>混合持久化的加载流程如下：</p>
+<ol>
+<li>判断是否开启 AOF 持久化，开启继续执行后续流程，未开启执行加载 RDB 文件的流程；</li>
+<li>判断 appendonly.aof 文件是否存在，文件存在则执行后续流程；</li>
+<li>判断 AOF 文件开头是 RDB 的格式, 先加载 RDB 内容再加载剩余的 AOF 内容；</li>
+<li>判断 AOF 文件开头不是 RDB 的格式，直接以 AOF 格式加载整个文件。</li>
+</ol>
+<p>AOF 加载流程图如下图所示：</p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《Redis核心原理与实战》学习笔记/AOF加载流程图.png" alt="AOF加载流程图"></p>
+<h4 id="源码解析"><a href="#源码解析" class="headerlink" title="源码解析"></a>源码解析</h4><p>Redis 判断 AOF 文件的开头是否是 RDB 格式的，是通过关键字 <code>REDIS</code> 判断的，RDB 文件的开头一定是 <code>REDIS</code> 关键字开头的，判断源码在 Redis 的 <code>src/aof.c</code> 中，核心代码如下所示：</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">char</span> sig<span class="token punctuation">[</span><span class="token number">5</span><span class="token punctuation">]</span><span class="token punctuation">;</span> <span class="token comment">/* "REDIS" */</span>
+<span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token function">fread</span><span class="token punctuation">(</span>sig<span class="token punctuation">,</span><span class="token number">1</span><span class="token punctuation">,</span><span class="token number">5</span><span class="token punctuation">,</span>fp<span class="token punctuation">)</span> <span class="token operator">!=</span> <span class="token number">5</span> <span class="token operator">||</span> <span class="token function">memcmp</span><span class="token punctuation">(</span>sig<span class="token punctuation">,</span><span class="token string">"REDIS"</span><span class="token punctuation">,</span><span class="token number">5</span><span class="token punctuation">)</span> <span class="token operator">!=</span> <span class="token number">0</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+    <span class="token comment">// AOF 文件开头非 RDB 格式，非混合持久化文件</span>
+    <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token function">fseek</span><span class="token punctuation">(</span>fp<span class="token punctuation">,</span><span class="token number">0</span><span class="token punctuation">,</span><span class="token constant">SEEK_SET</span><span class="token punctuation">)</span> <span class="token operator">==</span> <span class="token operator">-</span><span class="token number">1</span><span class="token punctuation">)</span> <span class="token keyword">goto</span> readerr<span class="token punctuation">;</span>
+<span class="token punctuation">}</span> <span class="token keyword">else</span> <span class="token punctuation">{</span>
+    <span class="token comment">/* RDB preamble. Pass loading the RDB functions. */</span>
+    rio rdb<span class="token punctuation">;</span>
+
+    <span class="token function">serverLog</span><span class="token punctuation">(</span>LL_NOTICE<span class="token punctuation">,</span><span class="token string">"Reading RDB preamble from AOF file..."</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token function">fseek</span><span class="token punctuation">(</span>fp<span class="token punctuation">,</span><span class="token number">0</span><span class="token punctuation">,</span><span class="token constant">SEEK_SET</span><span class="token punctuation">)</span> <span class="token operator">==</span> <span class="token operator">-</span><span class="token number">1</span><span class="token punctuation">)</span> <span class="token keyword">goto</span> readerr<span class="token punctuation">;</span>
+    <span class="token function">rioInitWithFile</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>rdb<span class="token punctuation">,</span>fp<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token comment">// AOF 文件开头是 RDB 格式，先加载 RDB 再加载 AOF</span>
+    <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token function">rdbLoadRio</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>rdb<span class="token punctuation">,</span><span class="token constant">NULL</span><span class="token punctuation">,</span><span class="token number">1</span><span class="token punctuation">)</span> <span class="token operator">!=</span> C_OK<span class="token punctuation">)</span> <span class="token punctuation">{</span>
+        <span class="token function">serverLog</span><span class="token punctuation">(</span>LL_WARNING<span class="token punctuation">,</span><span class="token string">"Error reading the RDB preamble of the AOF file, AOF loading aborted"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token keyword">goto</span> readerr<span class="token punctuation">;</span>
+    <span class="token punctuation">}</span> <span class="token keyword">else</span> <span class="token punctuation">{</span>
+        <span class="token function">serverLog</span><span class="token punctuation">(</span>LL_NOTICE<span class="token punctuation">,</span><span class="token string">"Reading the remaining AOF tail..."</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+<span class="token punctuation">}</span>
+<span class="token comment">// 加载 AOF 格式的数据</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>可以看出 Redis 是通过判断 AOF 文件的开头是否是 <code>REDIS</code> 关键字，来确定此文件是否为混合持久化文件的。</p>
+<blockquote>
+<p>小贴士：AOF 格式的开头是 <code>*</code>，而 RDB 格式的开头是 <code>REDIS</code>。</p>
+</blockquote>
+<h3 id="优缺点-1"><a href="#优缺点-1" class="headerlink" title="优缺点"></a>优缺点</h3><p>混合持久化优点：</p>
+<ul>
+<li>混合持久化结合了 RDB 和 AOF 持久化的优点，开头为 RDB 的格式，使得 Redis 可以更快的启动，同时结合 AOF 的优点，有减低了大量数据丢失的风险。</li>
+</ul>
+<p>混合持久化缺点：</p>
+<ul>
+<li>AOF 文件中添加了 RDB 格式的内容，使得 AOF 文件的可读性变得很差；</li>
+<li>兼容性差，如果开启混合持久化，那么此混合持久化 AOF 文件，就不能用在 Redis 4.0 之前版本了。</li>
+</ul>
+<h3 id="持久化最佳实践"><a href="#持久化最佳实践" class="headerlink" title="持久化最佳实践"></a>持久化最佳实践</h3><p>持久化虽然保证了数据不丢失，但同时拖慢了 Redis 的运行速度，那怎么更合理的使用 Redis 的持久化功能呢？ Redis 持久化的最佳实践可从以下几个方面考虑。</p>
+<h4 id="控制持久化开关"><a href="#控制持久化开关" class="headerlink" title="控制持久化开关"></a>控制持久化开关</h4><p>使用者可根据实际的业务情况考虑，如果对数据的丢失不敏感的情况下，可考虑关闭 Redis 的持久化，这样所以的键值操作都在内存中，就可以保证最高效率的运行 Redis 了。 持久化关闭操作：</p>
+<ul>
+<li>关闭 RDB 持久化，使用命令： <code>config set save ""</code></li>
+<li>关闭 AOF 和 混合持久化，使用命令： <code>config set appendonly no</code></li>
+</ul>
+<h4 id="主从部署"><a href="#主从部署" class="headerlink" title="主从部署"></a>主从部署</h4><p>使用主从部署，一台用于响应主业务，一台用于数据持久化，这样就可能让 Redis 更加高效的运行。</p>
+<h4 id="使用混合持久化"><a href="#使用混合持久化" class="headerlink" title="使用混合持久化"></a>使用混合持久化</h4><p>混合持久化结合了 RDB 和 AOF 的优点，Redis 5.0 默认是开启的。</p>
+<h4 id="使用配置更高的机器"><a href="#使用配置更高的机器" class="headerlink" title="使用配置更高的机器"></a>使用配置更高的机器</h4><p>Redis 对 CPU 的要求并不高，反而是对内存和磁盘的要求很高，因为 Redis 大部分时候都在做读写操作，使用更多的内存和更快的磁盘，对 Redis 性能的提高非常有帮助。</p>
+<h3 id="参考-amp-鸣谢-2"><a href="#参考-amp-鸣谢-2" class="headerlink" title="参考&amp;鸣谢"></a>参考&amp;鸣谢</h3><ul>
+<li><a target="_blank" rel="noopener" href="https://redis.io/topics/persistence">https://redis.io/topics/persistence</a></li>
+<li><a target="_blank" rel="noopener" href="https://blog.csdn.net/qq_36318234/article/details/79994133">https://blog.csdn.net/qq_36318234/article/details/79994133</a></li>
+<li><a target="_blank" rel="noopener" href="https://www.cnblogs.com/wdliu/p/9377278.html">https://www.cnblogs.com/wdliu/p/9377278.html</a></li>
+</ul>
+<h2 id="06-字符串使用与内部实现原理"><a href="#06-字符串使用与内部实现原理" class="headerlink" title="06 字符串使用与内部实现原理"></a>06 字符串使用与内部实现原理</h2><p>Redis 发展到现在已经有 9 种数据类型了，其中最基础、最常用的数据类型有 5 种，它们分别是：字符串类型、列表类型、哈希表类型、集合类型、有序集合类型，而在这 5 种数据类型中最常用的是字符串类型，所以本文我们先从字符串的使用开始说起。</p>
+<p>字符串类型的全称是 Simple Dynamic Strings 简称 SDS，中文意思是：简单动态字符串。它是以键值对 key-value 的形式进行存储的，根据 key 来存储和获取 value 值，它的使用相对来说比较简单，但在实际项目中应用非常广泛。</p>
+<h3 id="1-字符串类型能做什么？"><a href="#1-字符串类型能做什么？" class="headerlink" title="1 字符串类型能做什么？"></a>1 字符串类型能做什么？</h3><p>字符串类型的使用场景有很多，但从功能的角度来区分，大致可分为以下两种：</p>
+<ul>
+<li>字符串存储和操作；</li>
+<li>整数类型和浮点类型的存储和计算。</li>
+</ul>
+<p>字符串最常用的业务场景有以下几个。</p>
+<h4 id="1）页面数据缓存"><a href="#1）页面数据缓存" class="headerlink" title="1）页面数据缓存"></a>1）页面数据缓存</h4><p>我们知道，一个系统最宝贵的资源就是数据库资源，随着公司业务的发展壮大，数据库的存储量也会越来越大，并且要处理的请求也越来越多，当数据量和并发量到达一定级别之后，数据库就变成了拖慢系统运行的”罪魁祸首”，为了避免这种情况的发生，我们可以把查询结果放入缓存(Redis)中，让下次同样的查询直接去缓存系统取结果，而非查询数据库，这样既减少了数据库的压力，同时也提高了程序的运行速度。</p>
+<p>介于以上这个思路，我们可以把文章详情页的数据放入缓存系统。具体的做法是先将文章详情页序列化为字符串存入缓存，再从缓存中读取到字符串，反序列化成对象，然后再赋值到页面进行显示 (当然也可以用哈希类型进行存储，这会在下一篇文章中讲到)，这样我们就实现了文章详情页的缓存功能，架构流程对比图如下所示。</p>
+<p>原始系统运行流程图：</p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《Redis核心原理与实战》学习笔记/原始系统运行流程图.png" alt="原始系统运行流程图"></p>
+<p>引入缓存系统后的流程图：</p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《Redis核心原理与实战》学习笔记/引入缓存系统后的流程图.png" alt="引入缓存系统后的流程图"></p>
+<h4 id="2）数字计算与统计"><a href="#2）数字计算与统计" class="headerlink" title="2）数字计算与统计"></a>2）数字计算与统计</h4><p>Redis 可以用来存储整数和浮点类型的数据，并且可以通过命令直接累加并存储整数信息，这样就省去了每次先要取数据、转换数据、拼加数据、再存入数据的麻烦，只需要使用一个命令就可以完成此流程，具体实现过程本文下半部分会讲。这样我们就可以使用此功能来实现访问量的统计，当有人访问时访问量 +1 就可以了。</p>
+<h4 id="3）共享-Session-信息"><a href="#3）共享-Session-信息" class="headerlink" title="3）共享 Session 信息"></a>3）共享 Session 信息</h4><p>通常我们在开发后台管理系统时，会使用 Session 来保存用户的会话(登录)状态，这些 Session 信息会被保存在服务器端，但这只适用于单系统应用，如果是分布式系统此模式将不再适用。</p>
+<p>例如用户一的 Session 信息被存储在服务器一，但第二次访问时用户一被分配到服务器二，这个时候服务器并没有用户一的 Session 信息，就会出现需要重复登录的问题。分布式系统每次会把请求随机分配到不同的服务器，因此我们需要借助缓存系统对这些 Session 信息进行统一的存储和管理，这样无论请求发送到那台服务器，服务器都会去统一的缓存系统获取相关的 Session 信息，这样就解决了分布式系统下 Session 存储的问题。</p>
+<h3 id="2-字符串如何使用？"><a href="#2-字符串如何使用？" class="headerlink" title="2 字符串如何使用？"></a>2 字符串如何使用？</h3><p>通常我们会使用两种方式来操作 Redis：第一种是使用命令行来操作，例如 redis-cli；另一种是使用代码的方式来操作。</p>
+<blockquote>
+<p>小贴士：mset 是一个原子性(atomic)操作，所有给定 key 都会在同一时间内被设置，不会出现某些 key 被更新，而另一些 key 没被更新的情况。</p>
+</blockquote>
+<h3 id="3-代码实战"><a href="#3-代码实战" class="headerlink" title="3 代码实战"></a>3 代码实战</h3><h3 id="4-字符串的内部实现"><a href="#4-字符串的内部实现" class="headerlink" title="4 字符串的内部实现"></a>4 字符串的内部实现</h3><h4 id="1）源码分析"><a href="#1）源码分析" class="headerlink" title="1）源码分析"></a>1）源码分析</h4><p>Redis 3.2 之前 SDS 源码如下：</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">struct</span> <span class="token class-name">sds</span><span class="token punctuation">{</span>
+    <span class="token keyword">int</span> len<span class="token punctuation">;</span> <span class="token comment">// 已占用的字节数</span>
+    <span class="token keyword">int</span> free<span class="token punctuation">;</span> <span class="token comment">// 剩余可以字节数</span>
+    <span class="token keyword">char</span> buf<span class="token punctuation">[</span><span class="token punctuation">]</span><span class="token punctuation">;</span> <span class="token comment">// 存储字符串的数据空间</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>可以看出 Redis 3.2 之前 SDS 内部是一个带有长度信息的字节数组，存储结构如下图所示：</p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《Redis核心原理与实战》学习笔记/Redis3.2之前SDS.png" alt="Redis3.2之前SDS"></p>
+<p>为了更加有效的利用内存，Redis 3.2 优化了 SDS 的存储结构，源码如下：</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">typedef</span> <span class="token keyword">char</span> <span class="token operator">*</span>sds<span class="token punctuation">;</span>
+
+<span class="token keyword">struct</span> <span class="token keyword">__attribute__</span> <span class="token punctuation">(</span><span class="token punctuation">(</span>__packed__<span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token class-name">sdshdr5</span> <span class="token punctuation">{</span> <span class="token comment">// 对应的字符串长度小于 1&lt;&lt;5</span>
+    <span class="token keyword">unsigned</span> <span class="token keyword">char</span> flags<span class="token punctuation">;</span>
+    <span class="token keyword">char</span> buf<span class="token punctuation">[</span><span class="token punctuation">]</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span class="token punctuation">;</span>
+<span class="token keyword">struct</span> <span class="token keyword">__attribute__</span> <span class="token punctuation">(</span><span class="token punctuation">(</span>__packed__<span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token class-name">sdshdr8</span> <span class="token punctuation">{</span> <span class="token comment">// 对应的字符串长度小于 1&lt;&lt;8</span>
+    uint8_t len<span class="token punctuation">;</span> <span class="token comment">/* 已使用长度，1 字节存储 */</span>
+    uint8_t alloc<span class="token punctuation">;</span> <span class="token comment">/* 总长度 */</span>
+    <span class="token keyword">unsigned</span> <span class="token keyword">char</span> flags<span class="token punctuation">;</span> 
+    <span class="token keyword">char</span> buf<span class="token punctuation">[</span><span class="token punctuation">]</span><span class="token punctuation">;</span> <span class="token comment">// 真正存储字符串的数据空间</span>
+<span class="token punctuation">}</span><span class="token punctuation">;</span>
+<span class="token keyword">struct</span> <span class="token keyword">__attribute__</span> <span class="token punctuation">(</span><span class="token punctuation">(</span>__packed__<span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token class-name">sdshdr16</span> <span class="token punctuation">{</span> <span class="token comment">// 对应的字符串长度小于 1&lt;&lt;16</span>
+    uint16_t len<span class="token punctuation">;</span> <span class="token comment">/* 已使用长度，2 字节存储 */</span>
+    uint16_t alloc<span class="token punctuation">;</span> 
+    <span class="token keyword">unsigned</span> <span class="token keyword">char</span> flags<span class="token punctuation">;</span> 
+    <span class="token keyword">char</span> buf<span class="token punctuation">[</span><span class="token punctuation">]</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span class="token punctuation">;</span>
+<span class="token keyword">struct</span> <span class="token keyword">__attribute__</span> <span class="token punctuation">(</span><span class="token punctuation">(</span>__packed__<span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token class-name">sdshdr32</span> <span class="token punctuation">{</span> <span class="token comment">// 对应的字符串长度小于 1&lt;&lt;32</span>
+    uint32_t len<span class="token punctuation">;</span> <span class="token comment">/* 已使用长度，4 字节存储 */</span>
+    uint32_t alloc<span class="token punctuation">;</span> 
+    <span class="token keyword">unsigned</span> <span class="token keyword">char</span> flags<span class="token punctuation">;</span> 
+    <span class="token keyword">char</span> buf<span class="token punctuation">[</span><span class="token punctuation">]</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span class="token punctuation">;</span>
+<span class="token keyword">struct</span> <span class="token keyword">__attribute__</span> <span class="token punctuation">(</span><span class="token punctuation">(</span>__packed__<span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token class-name">sdshdr64</span> <span class="token punctuation">{</span> <span class="token comment">// 对应的字符串长度小于 1&lt;&lt;64</span>
+    uint64_t len<span class="token punctuation">;</span> <span class="token comment">/* 已使用长度，8 字节存储 */</span>
+    uint64_t alloc<span class="token punctuation">;</span> 
+    <span class="token keyword">unsigned</span> <span class="token keyword">char</span> flags<span class="token punctuation">;</span> 
+    <span class="token keyword">char</span> buf<span class="token punctuation">[</span><span class="token punctuation">]</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>这样就可以针对不同长度的字符串申请相应的存储类型，从而有效的节约了内存使用。</p>
+<h4 id="2）数据类型"><a href="#2）数据类型" class="headerlink" title="2）数据类型"></a>2）数据类型</h4><p>我们可以使用 <code>object encoding key</code> 命令来查看对象(键值对)存储的数据类型，当我们使用此命令来查询 SDS 对象时，发现 SDS 对象竟然包含了三种不同的数据类型：int、embstr 和 raw。</p>
+<p>int 类型</p>
+<pre class="line-numbers language-text" data-language="text"><code class="language-text">127.0.0.1:6379&gt; set key 666
+OK
+127.0.0.1:6379&gt; object encoding key
+"int"<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span></span></code></pre>
+<p>embstr 类型</p>
+<pre class="line-numbers language-text" data-language="text"><code class="language-text">127.0.0.1:6379&gt; set key abc
+OK
+127.0.0.1:6379&gt; object encoding key
+"embstr"<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span></span></code></pre>
+<p>raw 类型</p>
+<pre class="line-numbers language-text" data-language="text"><code class="language-text">127.0.0.1:6379&gt; set key abcdefghigklmnopqrstyvwxyzabcdefghigklmnopqrs
+OK
+127.0.0.1:6379&gt; object encoding key
+"raw"<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span></span></code></pre>
+<p>int 类型很好理解，整数类型对应的就是 int 类型，而字符串则对应是 embstr 类型，当字符串长度大于 44 字节时，会变为 raw 类型存储。</p>
+<h4 id="3）为什么是-44-字节？"><a href="#3）为什么是-44-字节？" class="headerlink" title="3）为什么是 44 字节？"></a>3）为什么是 44 字节？</h4><p>在 Redis 中，如果 SDS 的存储值大于 64 字节时，Redis 的内存分配器会认为此对象为大字符串，并使用 raw 类型来存储，当数据小于 64 字节时(字符串类型)，会使用 embstr 类型存储。既然内存分配器的判断标准是 64 字节，那为什么 embstr 类型和 raw 类型的存储判断值是 44 字节？</p>
+<p>这是因为 Redis 在存储对象时，会创建此对象的关联信息，redisObject 对象头和 SDS 自身属性信息，这些信息都会占用一定的存储空间，因此长度判断标准就从 64 字节变成了 44 字节。</p>
+<p>在 Redis 中，所有的对象都会包含 redisObject 对象头。我们先来看 redisObject 对象的源码：</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">typedef</span> <span class="token keyword">struct</span> <span class="token class-name">redisObject</span> <span class="token punctuation">{</span>
+    <span class="token keyword">unsigned</span> type<span class="token operator">:</span><span class="token number">4</span><span class="token punctuation">;</span> <span class="token comment">// 4 bit</span>
+    <span class="token keyword">unsigned</span> encoding<span class="token operator">:</span><span class="token number">4</span><span class="token punctuation">;</span> <span class="token comment">// 4 bit</span>
+    <span class="token keyword">unsigned</span> lru<span class="token operator">:</span>LRU_BITS<span class="token punctuation">;</span> <span class="token comment">// 3 个字节</span>
+    <span class="token keyword">int</span> refcount<span class="token punctuation">;</span> <span class="token comment">// 4 个字节</span>
+    <span class="token keyword">void</span> <span class="token operator">*</span>ptr<span class="token punctuation">;</span> <span class="token comment">// 8 个字节</span>
+<span class="token punctuation">}</span> robj<span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>它的参数说明如下：</p>
+<ul>
+<li><code>type</code>：对象的数据类型，例如：string、list、hash 等，占用 4 bits 也就是半个字符的大小；</li>
+<li><code>encoding</code>：对象数据编码，占用 4 bits；</li>
+<li><code>lru</code>：记录对象的 LRU(Least Recently Used 的缩写，即最近最少使用)信息，内存回收时会用到此属性，占用 24 bits(3 字节)；</li>
+<li><code>refcount</code>：引用计数器，占用 32 bits(4 字节)；</li>
+<li><code>*ptr</code>：对象指针用于指向具体的内容，占用 64 bits(8 字节)。</li>
+</ul>
+<p>redisObject 总共占用 <code>0.5 bytes + 0.5 bytes + 3 bytes + 4 bytes + 8 bytes = 16 bytes(字节)</code>。</p>
+<p>了解了 redisObject 之后，我们再来看 SDS 自身的数据结构，从 SDS 的源码可以看出，SDS 的存储类型一共有 5 种：<code>SDS*TYPE*5</code>、<code>SDS*TYPE*8</code>、<code>SDS*TYPE*16</code>、<code>SDS*TYPE*32</code>、<code>SDS*TYPE*64</code>，在这些类型中最小的存储类型为 <code>SDS*TYPE*５</code>，但 <code>SDS*TYPE*５</code> 类型会默认转成 <code>SDS*TYPE*8</code>，以下源码可以证明，如下图所示：</p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《Redis核心原理与实战》学习笔记/sdsnewlen.png" alt="sdsnewlen"></p>
+<p>那我们直接来看 <code>SDS*TYPE*8</code> 的源码：</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">struct</span> <span class="token keyword">__attribute__</span> <span class="token punctuation">(</span><span class="token punctuation">(</span>__packed__<span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token class-name">sdshdr8</span> <span class="token punctuation">{</span>
+    uint8_t len<span class="token punctuation">;</span> <span class="token comment">// 1 byte</span>
+    uint8_t alloc<span class="token punctuation">;</span> <span class="token comment">// 1 byte</span>
+    <span class="token keyword">unsigned</span> <span class="token keyword">char</span> flags<span class="token punctuation">;</span> <span class="token comment">// 1 byte</span>
+    <span class="token keyword">char</span> buf<span class="token punctuation">[</span><span class="token punctuation">]</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>可以看出除了内容数组(buf)之外，其他三个属性分别占用了 1 个字节，最终分隔字符等于 64 字节，减去 redisObject 的 16 个字节，再减去 SDS 自身的 3 个字节，再减去结束符 \0 结束符占用 1 个字节，最终的结果是 44 字节(64-16-3-1=44)，内存占用如下图所示：</p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《Redis核心原理与实战》学习笔记/为什么是44字节.png" alt="为什么是44字节"></p>
+<h3 id="5-小结"><a href="#5-小结" class="headerlink" title="5 小结"></a>5 小结</h3><p>本文介绍了字符串的定义及其使用，它的使用主要分为：单键值对操作、多键值对操作、数字统计、键值对过期操作、字符串操作进阶等。同时也介绍了字符串使用的三个场景，字符串类型可用作为：页面数据缓存，可以缓存一些文章详情信息等；数字计算与统计，例如计算页面的访问次数；也可以用作 Session 共享，用来记录管理员的登录信息等。同时我们深入的介绍了字符串的五种数据存储结构，以及字符串的三种内部数据类型，如下图所示：</p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《Redis核心原理与实战》学习笔记/字符串小结.png" alt="字符串小结"></p>
+<p>同时我们也知道了 embstr 类型向 raw 类型转化，是因为每个 Redis 对象都包含了一个 redisObject 对象头和 SDS 自身属性占用了一定的空间，最终导致数据类型的判断长度是 44 字节。</p>
+<h2 id="08-字典使用与内部实现原理"><a href="#08-字典使用与内部实现原理" class="headerlink" title="08 字典使用与内部实现原理"></a>08 字典使用与内部实现原理</h2><p>字典类型 (Hash) 又被成为散列类型或者是哈希表类型，它是将一个键值 (key) 和一个特殊的“哈希表”关联起来，这个“哈希表”表包含两列数据：字段和值。例如我们使用字典类型来存储一篇文章的详情信息，存储结构如下图所示：</p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《Redis核心原理与实战》学习笔记/使用字典类型来存储一篇文章.png" alt="使用字典类型来存储一篇文章"></p>
+<p>同理我们也可以使用字典类型来存储用户信息，并且使用字典类型来存储此类信息，是不需要手动序列化和反序列化数据的，所以使用起来更加的方便和高效。</p>
+<h3 id="1-基础使用"><a href="#1-基础使用" class="headerlink" title="1.基础使用"></a>1.基础使用</h3><h3 id="2-代码实战"><a href="#2-代码实战" class="headerlink" title="2.代码实战"></a>2.代码实战</h3><h3 id="3-数据结构"><a href="#3-数据结构" class="headerlink" title="3.数据结构"></a>3.数据结构</h3><p>字典类型本质上是由数组和链表结构组成的，来看字典类型的源码实现：</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">typedef</span> <span class="token keyword">struct</span> <span class="token class-name">dictEntry</span> <span class="token punctuation">{</span> <span class="token comment">// dict.h</span>
+    <span class="token keyword">void</span> <span class="token operator">*</span>key<span class="token punctuation">;</span>
+    <span class="token keyword">union</span> <span class="token punctuation">{</span>
+        <span class="token keyword">void</span> <span class="token operator">*</span>val<span class="token punctuation">;</span>
+        uint64_t u64<span class="token punctuation">;</span>
+        int64_t s64<span class="token punctuation">;</span>
+        <span class="token keyword">double</span> d<span class="token punctuation">;</span>
+    <span class="token punctuation">}</span> v<span class="token punctuation">;</span>
+    <span class="token keyword">struct</span> <span class="token class-name">dictEntry</span> <span class="token operator">*</span>next<span class="token punctuation">;</span> <span class="token comment">// 下一个 entry</span>
+<span class="token punctuation">}</span> dictEntry<span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>字典类型的数据结构，如下图所示：</p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《Redis核心原理与实战》学习笔记/字典类型的数据结构.png" alt="字典类型的数据结构"></p>
+<p>通常情况下字典类型会使用数组的方式来存储相关的数据，但发生哈希冲突时才会使用链表的结构来存储数据。</p>
+<h3 id="4-哈希冲突"><a href="#4-哈希冲突" class="headerlink" title="4.哈希冲突"></a>4.哈希冲突</h3><p>字典类型的存储流程是先将键值进行 Hash 计算，得到存储键值对应的数组索引，再根据数组索引进行数据存储，但在小概率事件下可能会出完全不相同的键值进行 Hash 计算之后，得到相同的 Hash 值，这种情况我们称之为哈希冲突。</p>
+<p>哈希冲突一般通过链表的形式解决，相同的哈希值会对应一个链表结构，每次有哈希冲突时，就把新的元素插入到链表的尾部，请参考上面数据结构的那张图。</p>
+<p>键值查询的流程如下：</p>
+<ul>
+<li>通过算法 (Hash，计算和取余等) 操作获得数组的索引值，根据索引值找到对应的元素；</li>
+<li>判断元素和查找的键值是否相等，相等则成功返回数据，否则需要查看 next 指针是否还有对应其他元素，如果没有，则返回 null，如果有的话，重复此步骤。</li>
+</ul>
+<p>键值查询流程，如下图所示：</p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《Redis核心原理与实战》学习笔记/键值查询流程.png" alt="键值查询流程"></p>
+<h3 id="5-渐进式rehash"><a href="#5-渐进式rehash" class="headerlink" title="5.渐进式rehash"></a>5.渐进式rehash</h3><p>Redis 为了保证应用的高性能运行，提供了一个重要的机制——渐进式 rehash。 渐进式 rehash 是用来保证字典缩放效率的，也就是说在字典进行扩容或者缩容是会采取渐进式 rehash 的机制。</p>
+<h4 id="1）扩容"><a href="#1）扩容" class="headerlink" title="1）扩容"></a>1）扩容</h4><p>当元素数量等于数组长度时就会进行扩容操作，源码在 dict.c 文件中，核心代码如下：</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">int</span> <span class="token function">dictExpand</span><span class="token punctuation">(</span>dict <span class="token operator">*</span>d<span class="token punctuation">,</span> <span class="token keyword">unsigned</span> <span class="token keyword">long</span> size<span class="token punctuation">)</span>
+<span class="token punctuation">{</span>
+    <span class="token comment">/* 需要的容量小于当前容量，则不需要扩容 */</span>
+    <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token function">dictIsRehashing</span><span class="token punctuation">(</span>d<span class="token punctuation">)</span> <span class="token operator">||</span> d<span class="token operator">-&gt;</span>ht<span class="token punctuation">[</span><span class="token number">0</span><span class="token punctuation">]</span><span class="token punctuation">.</span>used <span class="token operator">&gt;</span> size<span class="token punctuation">)</span>
+        <span class="token keyword">return</span> DICT_ERR<span class="token punctuation">;</span>
+    dictht n<span class="token punctuation">;</span> 
+    <span class="token keyword">unsigned</span> <span class="token keyword">long</span> realsize <span class="token operator">=</span> <span class="token function">_dictNextPower</span><span class="token punctuation">(</span>size<span class="token punctuation">)</span><span class="token punctuation">;</span> <span class="token comment">// 重新计算扩容后的值</span>
+    <span class="token comment">/* 计算新的扩容大小等于当前容量，不需要扩容 */</span>
+    <span class="token keyword">if</span> <span class="token punctuation">(</span>realsize <span class="token operator">==</span> d<span class="token operator">-&gt;</span>ht<span class="token punctuation">[</span><span class="token number">0</span><span class="token punctuation">]</span><span class="token punctuation">.</span>size<span class="token punctuation">)</span> <span class="token keyword">return</span> DICT_ERR<span class="token punctuation">;</span>
+    <span class="token comment">/* 分配一个新的哈希表，并将所有指针初始化为NULL */</span>
+    n<span class="token punctuation">.</span>size <span class="token operator">=</span> realsize<span class="token punctuation">;</span>
+    n<span class="token punctuation">.</span>sizemask <span class="token operator">=</span> realsize<span class="token operator">-</span><span class="token number">1</span><span class="token punctuation">;</span>
+    n<span class="token punctuation">.</span>table <span class="token operator">=</span> <span class="token function">zcalloc</span><span class="token punctuation">(</span>realsize<span class="token operator">*</span><span class="token keyword">sizeof</span><span class="token punctuation">(</span>dictEntry<span class="token operator">*</span><span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    n<span class="token punctuation">.</span>used <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span>
+    <span class="token keyword">if</span> <span class="token punctuation">(</span>d<span class="token operator">-&gt;</span>ht<span class="token punctuation">[</span><span class="token number">0</span><span class="token punctuation">]</span><span class="token punctuation">.</span>table <span class="token operator">==</span> <span class="token constant">NULL</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+        <span class="token comment">// 第一次初始化</span>
+        d<span class="token operator">-&gt;</span>ht<span class="token punctuation">[</span><span class="token number">0</span><span class="token punctuation">]</span> <span class="token operator">=</span> n<span class="token punctuation">;</span>
+        <span class="token keyword">return</span> DICT_OK<span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+    d<span class="token operator">-&gt;</span>ht<span class="token punctuation">[</span><span class="token number">1</span><span class="token punctuation">]</span> <span class="token operator">=</span> n<span class="token punctuation">;</span> <span class="token comment">// 把增量输入放入新 ht[1] 中</span>
+    d<span class="token operator">-&gt;</span>rehashidx <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span> <span class="token comment">// 非默认值 -1，表示需要进行 rehash</span>
+    <span class="token keyword">return</span> DICT_OK<span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>从以上源码可以看出，如果需要扩容则会申请一个新的内存地址赋值给 ht[1]，并把字典的 rehashindex 设置为 0，表示之后需要进行 rehash 操作。</p>
+<h4 id="2）缩容"><a href="#2）缩容" class="headerlink" title="2）缩容"></a>2）缩容</h4><p>当字典的使用容量不足总空间的 10% 时就会触发缩容，Redis 在进行缩容时也会把 rehashindex 设置为 0，表示之后需要进行 rehash 操作。</p>
+<h4 id="3）渐进式rehash流程"><a href="#3）渐进式rehash流程" class="headerlink" title="3）渐进式rehash流程"></a>3）渐进式rehash流程</h4><p>在进行渐进式 rehash 时，会同时保留两个 hash 结构，新键值对加入时会直接插入到新的 hash 结构中，并会把旧 hash 结构中的元素一点一点的移动到新的 hash 结构中，当移除完最后一个元素时，清空旧 hash 结构，主要的执行流程如下：</p>
+<ul>
+<li>扩容或者缩容时把字典中的字段 rehashidx 标识为 0；</li>
+<li>在执行定时任务或者执行客户端的 hset、hdel 等操作指令时，判断是否需要触发 rehash 操作（通过 rehashidx 标识判断），如果需要触发 rehash 操作，也就是调用 dictRehash 函数，dictRehash 函数会把 ht[0] 中的元素依次添加到新的 Hash 表 ht[1] 中；</li>
+<li>rehash 操作完成之后，清空 Hash 表 ht[0]，然后对调 ht[1] 和 ht[0] 的值，把新的数据表 ht[1] 更改为 ht[0]，然后把字典中的 rehashidx 标识为 -1，表示不需要执行 rehash 操作。</li>
+</ul>
+<h3 id="6-使用场景"><a href="#6-使用场景" class="headerlink" title="6.使用场景"></a>6.使用场景</h3><h3 id="7-小结"><a href="#7-小结" class="headerlink" title="7.小结"></a>7.小结</h3><p>本文我们学习了字典类型的操作命令和在代码中的使用，也明白了字典类型实际是由数组和链表组成的，当字典进行扩容或者缩容时会进行渐进式 rehash 操作，渐进式 rehash 是用来保证 Redis 运行效率的，它的执行流程是同时保留两个哈希表，把旧表中的元素一点一点的移动到新表中，查询的时候会先查询两个哈希表，当所有元素都移动到新的哈希表之后，就会删除旧的哈希表。</p>
+<h2 id="10-列表使用与内部实现原理"><a href="#10-列表使用与内部实现原理" class="headerlink" title="10 列表使用与内部实现原理"></a>10 列表使用与内部实现原理</h2><p>列表类型 (List) 是一个使用链表结构存储的有序结构，它的元素插入会按照先后顺序存储到链表结构中，因此它的元素操作 (插入\删除) 时间复杂度为 O(1)，所以相对来说速度还是比较快的，但它的查询时间复杂度为 O(n)，因此查询可能会比较慢。</p>
+<h3 id="1-基础使用-1"><a href="#1-基础使用-1" class="headerlink" title="1 基础使用"></a>1 基础使用</h3><p>列表类型的使用相对来说比较简单，对它的操作就相当操作一个没有任何 key 值的 value 集合，如下图所示：</p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《Redis核心原理与实战》学习笔记/列表.png" alt="列表"></p>
+<h3 id="2-代码实战-1"><a href="#2-代码实战-1" class="headerlink" title="2 代码实战"></a>2 代码实战</h3><h3 id="3-内部实现"><a href="#3-内部实现" class="headerlink" title="3 内部实现"></a>3 内部实现</h3><p>我们先用 <code>debug encoding key</code> 来查看列表类型的内部存储类型，如下所示：</p>
+<pre class="line-numbers language-text" data-language="text"><code class="language-text">127.0.0.1:6379&gt; object encoding list
+"quicklist"<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre>
+<p>从结果可以看出，列表类型的底层数据类型是 quicklist。</p>
+<p>quicklist (快速列表) 是 Redis 3.2 引入的数据类型，早期的列表类型使用的是ziplist (压缩列表) 和双向链表组成的，Redis 3.2 改为用 quicklist 来存储列表元素。</p>
+<p>我们来看下 quicklist 的实现源码：</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">typedef</span> <span class="token keyword">struct</span> <span class="token class-name">quicklist</span> <span class="token punctuation">{</span> <span class="token comment">// src/quicklist.h</span>
+    quicklistNode <span class="token operator">*</span>head<span class="token punctuation">;</span>
+    quicklistNode <span class="token operator">*</span>tail<span class="token punctuation">;</span>
+    <span class="token keyword">unsigned</span> <span class="token keyword">long</span> count<span class="token punctuation">;</span>        <span class="token comment">/* ziplist 的个数 */</span>
+    <span class="token keyword">unsigned</span> <span class="token keyword">long</span> len<span class="token punctuation">;</span>          <span class="token comment">/* quicklist 的节点数 */</span>
+    <span class="token keyword">unsigned</span> <span class="token keyword">int</span> compress <span class="token operator">:</span> <span class="token number">16</span><span class="token punctuation">;</span> <span class="token comment">/* LZF 压缩算法深度 */</span>
+    <span class="token comment">//...</span>
+<span class="token punctuation">}</span> quicklist<span class="token punctuation">;</span>
+<span class="token keyword">typedef</span> <span class="token keyword">struct</span> <span class="token class-name">quicklistNode</span> <span class="token punctuation">{</span>
+    <span class="token keyword">struct</span> <span class="token class-name">quicklistNode</span> <span class="token operator">*</span>prev<span class="token punctuation">;</span>
+    <span class="token keyword">struct</span> <span class="token class-name">quicklistNode</span> <span class="token operator">*</span>next<span class="token punctuation">;</span>
+    <span class="token keyword">unsigned</span> <span class="token keyword">char</span> <span class="token operator">*</span>zl<span class="token punctuation">;</span>           <span class="token comment">/* 对应的 ziplist */</span>
+    <span class="token keyword">unsigned</span> <span class="token keyword">int</span> sz<span class="token punctuation">;</span>             <span class="token comment">/* ziplist 字节数 */</span>
+    <span class="token keyword">unsigned</span> <span class="token keyword">int</span> count <span class="token operator">:</span> <span class="token number">16</span><span class="token punctuation">;</span>     <span class="token comment">/* ziplist 个数 */</span>
+    <span class="token keyword">unsigned</span> <span class="token keyword">int</span> encoding <span class="token operator">:</span> <span class="token number">2</span><span class="token punctuation">;</span>   <span class="token comment">/* RAW==1 or LZF==2 */</span>
+    <span class="token keyword">unsigned</span> <span class="token keyword">int</span> container <span class="token operator">:</span> <span class="token number">2</span><span class="token punctuation">;</span>  <span class="token comment">/* NONE==1 or ZIPLIST==2 */</span>
+    <span class="token keyword">unsigned</span> <span class="token keyword">int</span> recompress <span class="token operator">:</span> <span class="token number">1</span><span class="token punctuation">;</span> <span class="token comment">/* 该节点先前是否被压缩 */</span>
+    <span class="token keyword">unsigned</span> <span class="token keyword">int</span> attempted_compress <span class="token operator">:</span> <span class="token number">1</span><span class="token punctuation">;</span> <span class="token comment">/* 节点太小无法压缩 */</span>
+    <span class="token comment">//...</span>
+<span class="token punctuation">}</span> quicklistNode<span class="token punctuation">;</span>
+<span class="token keyword">typedef</span> <span class="token keyword">struct</span> <span class="token class-name">quicklistLZF</span> <span class="token punctuation">{</span>
+    <span class="token keyword">unsigned</span> <span class="token keyword">int</span> sz<span class="token punctuation">;</span> 
+    <span class="token keyword">char</span> compressed<span class="token punctuation">[</span><span class="token punctuation">]</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span> quicklistLZF<span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>从以上源码可以看出 quicklist 是一个双向链表，链表中的每个节点实际上是一个 ziplist，它们的结构如下图所示：</p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《Redis核心原理与实战》学习笔记/列表的结构.png" alt="列表的结构"></p>
+<p>ziplist 作为 quicklist 的实际存储结构，它本质是一个字节数组，ziplist 数据结构如下图所示：</p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《Redis核心原理与实战》学习笔记/ziplist数据结构.png" alt="ziplist数据结构"></p>
+<p>其中的字段含义如下：</p>
+<ul>
+<li>zlbytes：压缩列表字节长度，占 4 字节；</li>
+<li>zltail：压缩列表尾元素相对于起始元素地址的偏移量，占 4 字节；</li>
+<li>zllen：压缩列表的元素个数；</li>
+<li>entryX：压缩列表存储的所有元素，可以是字节数组或者是整数；</li>
+<li>zlend：压缩列表的结尾，占 1 字节。</li>
+</ul>
+<h3 id="4-源码解析"><a href="#4-源码解析" class="headerlink" title="4 源码解析"></a>4 源码解析</h3><h4 id="1）添加功能源码分析"><a href="#1）添加功能源码分析" class="headerlink" title="1）添加功能源码分析"></a>1）添加功能源码分析</h4><p>quicklist 添加操作对应函数是 quicklistPush，源码如下：</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">void</span> <span class="token function">quicklistPush</span><span class="token punctuation">(</span>quicklist <span class="token operator">*</span>quicklist<span class="token punctuation">,</span> <span class="token keyword">void</span> <span class="token operator">*</span>value<span class="token punctuation">,</span> <span class="token keyword">const</span> size_t sz<span class="token punctuation">,</span>
+                   <span class="token keyword">int</span> where<span class="token punctuation">)</span> <span class="token punctuation">{</span>
+    <span class="token keyword">if</span> <span class="token punctuation">(</span>where <span class="token operator">==</span> QUICKLIST_HEAD<span class="token punctuation">)</span> <span class="token punctuation">{</span>
+        <span class="token comment">// 在列表头部添加元素</span>
+        <span class="token function">quicklistPushHead</span><span class="token punctuation">(</span>quicklist<span class="token punctuation">,</span> value<span class="token punctuation">,</span> sz<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span> <span class="token keyword">else</span> <span class="token keyword">if</span> <span class="token punctuation">(</span>where <span class="token operator">==</span> QUICKLIST_TAIL<span class="token punctuation">)</span> <span class="token punctuation">{</span>
+        <span class="token comment">// 在列表尾部添加元素</span>
+        <span class="token function">quicklistPushTail</span><span class="token punctuation">(</span>quicklist<span class="token punctuation">,</span> value<span class="token punctuation">,</span> sz<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>以 quicklistPushHead 为例，源码如下：</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">int</span> <span class="token function">quicklistPushHead</span><span class="token punctuation">(</span>quicklist <span class="token operator">*</span>quicklist<span class="token punctuation">,</span> <span class="token keyword">void</span> <span class="token operator">*</span>value<span class="token punctuation">,</span> size_t sz<span class="token punctuation">)</span> <span class="token punctuation">{</span>
+    quicklistNode <span class="token operator">*</span>orig_head <span class="token operator">=</span> quicklist<span class="token operator">-&gt;</span>head<span class="token punctuation">;</span>
+    <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token function">likely</span><span class="token punctuation">(</span>
+            <span class="token function">_quicklistNodeAllowInsert</span><span class="token punctuation">(</span>quicklist<span class="token operator">-&gt;</span>head<span class="token punctuation">,</span> quicklist<span class="token operator">-&gt;</span>fill<span class="token punctuation">,</span> sz<span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+        <span class="token comment">// 在头部节点插入元素</span>
+        quicklist<span class="token operator">-&gt;</span>head<span class="token operator">-&gt;</span>zl <span class="token operator">=</span>
+            <span class="token function">ziplistPush</span><span class="token punctuation">(</span>quicklist<span class="token operator">-&gt;</span>head<span class="token operator">-&gt;</span>zl<span class="token punctuation">,</span> value<span class="token punctuation">,</span> sz<span class="token punctuation">,</span> ZIPLIST_HEAD<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token function">quicklistNodeUpdateSz</span><span class="token punctuation">(</span>quicklist<span class="token operator">-&gt;</span>head<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span> <span class="token keyword">else</span> <span class="token punctuation">{</span>
+        <span class="token comment">// 头部节点不能继续插入，需要新建 quicklistNode、ziplist 进行插入</span>
+        quicklistNode <span class="token operator">*</span>node <span class="token operator">=</span> <span class="token function">quicklistCreateNode</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        node<span class="token operator">-&gt;</span>zl <span class="token operator">=</span> <span class="token function">ziplistPush</span><span class="token punctuation">(</span><span class="token function">ziplistNew</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">,</span> value<span class="token punctuation">,</span> sz<span class="token punctuation">,</span> ZIPLIST_HEAD<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token function">quicklistNodeUpdateSz</span><span class="token punctuation">(</span>node<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token comment">// 将新建的 quicklistNode 插入到 quicklist 结构中</span>
+        <span class="token function">_quicklistInsertNodeBefore</span><span class="token punctuation">(</span>quicklist<span class="token punctuation">,</span> quicklist<span class="token operator">-&gt;</span>head<span class="token punctuation">,</span> node<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+    quicklist<span class="token operator">-&gt;</span>count<span class="token operator">++</span><span class="token punctuation">;</span>
+    quicklist<span class="token operator">-&gt;</span>head<span class="token operator">-&gt;</span>count<span class="token operator">++</span><span class="token punctuation">;</span>
+    <span class="token keyword">return</span> <span class="token punctuation">(</span>orig_head <span class="token operator">!=</span> quicklist<span class="token operator">-&gt;</span>head<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>quicklistPushHead 函数的执行流程，先判断 quicklist 的 head 节点是否可以插入数据，如果可以插入则使用 ziplist 的接口进行插入，否则就新建 quicklistNode 节点进行插入。</p>
+<p>函数的入参是待插入的 quicklist，还有需要插入的值 value 以及他的大小 sz。</p>
+<p>函数的返回值为 int，0 表示没有新建 head，1 表示新建了 head。</p>
+<h4 id="2）删除功能源码分析"><a href="#2）删除功能源码分析" class="headerlink" title="2）删除功能源码分析"></a>2）删除功能源码分析</h4><p>quicklist 元素删除分为两种情况：单一元素删除和区间元素删除，它们都位于 src/quicklist.c 文件中。</p>
+<h5 id="单一元素删除"><a href="#单一元素删除" class="headerlink" title="单一元素删除"></a>单一元素删除</h5><p>单一元素的删除函数是 quicklistDelEntry，源码如下：</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">void</span> <span class="token function">quicklistDelEntry</span><span class="token punctuation">(</span>quicklistIter <span class="token operator">*</span>iter<span class="token punctuation">,</span> quicklistEntry <span class="token operator">*</span>entry<span class="token punctuation">)</span> <span class="token punctuation">{</span>
+    quicklistNode <span class="token operator">*</span>prev <span class="token operator">=</span> entry<span class="token operator">-&gt;</span>node<span class="token operator">-&gt;</span>prev<span class="token punctuation">;</span>
+    quicklistNode <span class="token operator">*</span>next <span class="token operator">=</span> entry<span class="token operator">-&gt;</span>node<span class="token operator">-&gt;</span>next<span class="token punctuation">;</span>
+    <span class="token comment">// 删除指定位置的元素</span>
+    <span class="token keyword">int</span> deleted_node <span class="token operator">=</span> <span class="token function">quicklistDelIndex</span><span class="token punctuation">(</span><span class="token punctuation">(</span>quicklist <span class="token operator">*</span><span class="token punctuation">)</span>entry<span class="token operator">-&gt;</span>quicklist<span class="token punctuation">,</span>
+                                         entry<span class="token operator">-&gt;</span>node<span class="token punctuation">,</span> <span class="token operator">&amp;</span>entry<span class="token operator">-&gt;</span>zi<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token comment">//...</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>可以看出 quicklistDelEntry 函数的底层，依赖 quicklistDelIndex 函数进行元素删除。</p>
+<h5 id="区间元素删除"><a href="#区间元素删除" class="headerlink" title="区间元素删除"></a>区间元素删除</h5><p>区间元素删除的函数是 quicklistDelRange，源码如下：</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token comment">// start 表示开始删除的下标，count 表示要删除的个数</span>
+<span class="token keyword">int</span> <span class="token function">quicklistDelRange</span><span class="token punctuation">(</span>quicklist <span class="token operator">*</span>quicklist<span class="token punctuation">,</span> <span class="token keyword">const</span> <span class="token keyword">long</span> start<span class="token punctuation">,</span>
+                      <span class="token keyword">const</span> <span class="token keyword">long</span> count<span class="token punctuation">)</span> <span class="token punctuation">{</span>
+    <span class="token keyword">if</span> <span class="token punctuation">(</span>count <span class="token operator">&lt;=</span> <span class="token number">0</span><span class="token punctuation">)</span>
+        <span class="token keyword">return</span> <span class="token number">0</span><span class="token punctuation">;</span>
+    <span class="token keyword">unsigned</span> <span class="token keyword">long</span> extent <span class="token operator">=</span> count<span class="token punctuation">;</span> 
+    <span class="token keyword">if</span> <span class="token punctuation">(</span>start <span class="token operator">&gt;=</span> <span class="token number">0</span> <span class="token operator">&amp;&amp;</span> extent <span class="token operator">&gt;</span> <span class="token punctuation">(</span>quicklist<span class="token operator">-&gt;</span>count <span class="token operator">-</span> start<span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+        <span class="token comment">// 删除的元素个数大于已有元素</span>
+        extent <span class="token operator">=</span> quicklist<span class="token operator">-&gt;</span>count <span class="token operator">-</span> start<span class="token punctuation">;</span>
+    <span class="token punctuation">}</span> <span class="token keyword">else</span> <span class="token keyword">if</span> <span class="token punctuation">(</span>start <span class="token operator">&lt;</span> <span class="token number">0</span> <span class="token operator">&amp;&amp;</span> extent <span class="token operator">&gt;</span> <span class="token punctuation">(</span><span class="token keyword">unsigned</span> <span class="token keyword">long</span><span class="token punctuation">)</span><span class="token punctuation">(</span><span class="token operator">-</span>start<span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+        <span class="token comment">// 删除指定的元素个数</span>
+        extent <span class="token operator">=</span> <span class="token operator">-</span>start<span class="token punctuation">;</span> <span class="token comment">/* c.f. LREM -29 29; just delete until end. */</span>
+    <span class="token punctuation">}</span>
+    <span class="token comment">//...</span>
+    <span class="token comment">// extent 为剩余需要删除的元素个数，</span>
+    <span class="token keyword">while</span> <span class="token punctuation">(</span>extent<span class="token punctuation">)</span> <span class="token punctuation">{</span>
+        <span class="token comment">// 保存下个 quicklistNode，因为本节点可能会被删除</span>
+        quicklistNode <span class="token operator">*</span>next <span class="token operator">=</span> node<span class="token operator">-&gt;</span>next<span class="token punctuation">;</span>
+        <span class="token keyword">unsigned</span> <span class="token keyword">long</span> del<span class="token punctuation">;</span>
+        <span class="token keyword">int</span> delete_entire_node <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span>entry<span class="token punctuation">.</span>offset <span class="token operator">==</span> <span class="token number">0</span> <span class="token operator">&amp;&amp;</span> extent <span class="token operator">&gt;=</span> node<span class="token operator">-&gt;</span>count<span class="token punctuation">)</span> <span class="token punctuation">{</span>
+            <span class="token comment">// 删除整个 quicklistNode</span>
+            delete_entire_node <span class="token operator">=</span> <span class="token number">1</span><span class="token punctuation">;</span>
+            del <span class="token operator">=</span> node<span class="token operator">-&gt;</span>count<span class="token punctuation">;</span>
+        <span class="token punctuation">}</span> <span class="token keyword">else</span> <span class="token keyword">if</span> <span class="token punctuation">(</span>entry<span class="token punctuation">.</span>offset <span class="token operator">&gt;=</span> <span class="token number">0</span> <span class="token operator">&amp;&amp;</span> extent <span class="token operator">&gt;=</span> node<span class="token operator">-&gt;</span>count<span class="token punctuation">)</span> <span class="token punctuation">{</span>
+           <span class="token comment">// 删除本节点的所有元素</span>
+            del <span class="token operator">=</span> node<span class="token operator">-&gt;</span>count <span class="token operator">-</span> entry<span class="token punctuation">.</span>offset<span class="token punctuation">;</span>
+        <span class="token punctuation">}</span> <span class="token keyword">else</span> <span class="token keyword">if</span> <span class="token punctuation">(</span>entry<span class="token punctuation">.</span>offset <span class="token operator">&lt;</span> <span class="token number">0</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+            <span class="token comment">// entry.offset&lt;0 表示从后向前，相反则表示从前向后剩余的元素个数</span>
+            del <span class="token operator">=</span> <span class="token operator">-</span>entry<span class="token punctuation">.</span>offset<span class="token punctuation">;</span>
+            <span class="token keyword">if</span> <span class="token punctuation">(</span>del <span class="token operator">&gt;</span> extent<span class="token punctuation">)</span>
+                del <span class="token operator">=</span> extent<span class="token punctuation">;</span>
+        <span class="token punctuation">}</span> <span class="token keyword">else</span> <span class="token punctuation">{</span>
+            <span class="token comment">// 删除本节点部分元素</span>
+            del <span class="token operator">=</span> extent<span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+        <span class="token function">D</span><span class="token punctuation">(</span><span class="token string">"[%ld]: asking to del: %ld because offset: %d; (ENTIRE NODE: %d), "</span>
+          <span class="token string">"node count: %u"</span><span class="token punctuation">,</span>
+          extent<span class="token punctuation">,</span> del<span class="token punctuation">,</span> entry<span class="token punctuation">.</span>offset<span class="token punctuation">,</span> delete_entire_node<span class="token punctuation">,</span> node<span class="token operator">-&gt;</span>count<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span>delete_entire_node<span class="token punctuation">)</span> <span class="token punctuation">{</span>
+            <span class="token function">__quicklistDelNode</span><span class="token punctuation">(</span>quicklist<span class="token punctuation">,</span> node<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span> <span class="token keyword">else</span> <span class="token punctuation">{</span>
+            <span class="token function">quicklistDecompressNodeForUse</span><span class="token punctuation">(</span>node<span class="token punctuation">)</span><span class="token punctuation">;</span>
+            node<span class="token operator">-&gt;</span>zl <span class="token operator">=</span> <span class="token function">ziplistDeleteRange</span><span class="token punctuation">(</span>node<span class="token operator">-&gt;</span>zl<span class="token punctuation">,</span> entry<span class="token punctuation">.</span>offset<span class="token punctuation">,</span> del<span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token function">quicklistNodeUpdateSz</span><span class="token punctuation">(</span>node<span class="token punctuation">)</span><span class="token punctuation">;</span>
+            node<span class="token operator">-&gt;</span>count <span class="token operator">-=</span> del<span class="token punctuation">;</span>
+            quicklist<span class="token operator">-&gt;</span>count <span class="token operator">-=</span> del<span class="token punctuation">;</span>
+            <span class="token function">quicklistDeleteIfEmpty</span><span class="token punctuation">(</span>quicklist<span class="token punctuation">,</span> node<span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token keyword">if</span> <span class="token punctuation">(</span>node<span class="token punctuation">)</span>
+                <span class="token function">quicklistRecompressOnly</span><span class="token punctuation">(</span>quicklist<span class="token punctuation">,</span> node<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+        <span class="token comment">// 剩余待删除元素的个数</span>
+        extent <span class="token operator">-=</span> del<span class="token punctuation">;</span>
+        <span class="token comment">// 下个 quicklistNode</span>
+        node <span class="token operator">=</span> next<span class="token punctuation">;</span>
+        <span class="token comment">// 从下个 quicklistNode 起始位置开始删除</span>
+        entry<span class="token punctuation">.</span>offset <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+    <span class="token keyword">return</span> <span class="token number">1</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>从上面代码可以看出，quicklist 在区间删除时，会先找到 start 所在的 quicklistNode，计算删除的元素是否小于要删除的 count，如果不满足删除的个数，则会移动至下一个 quicklistNode 继续删除，依次循环直到删除完成为止。</p>
+<p>quicklistDelRange 函数的返回值为 int 类型，当返回 1 时表示成功的删除了指定区间的元素，返回 0 时表示没有删除任何元素。</p>
+<h4 id="3）更多源码"><a href="#3）更多源码" class="headerlink" title="3）更多源码"></a>3）更多源码</h4><p>除了上面介绍的几个常用函数之外，还有一些更多的函数，例如：</p>
+<ul>
+<li>quicklistCreate：创建 quicklist；</li>
+<li>quicklistInsertAfter：在某个元素的后面添加数据；</li>
+<li>quicklistInsertBefore：在某个元素的前面添加数据；</li>
+<li>quicklistPop：取出并删除列表的第一个或最后一个元素；</li>
+<li>quicklistReplaceAtIndex：替换某个元素。</li>
+</ul>
+<h3 id="5-使用场景"><a href="#5-使用场景" class="headerlink" title="5 使用场景"></a>5 使用场景</h3><h3 id="6-小结"><a href="#6-小结" class="headerlink" title="6 小结"></a>6 小结</h3><p>通过本文我们可以知道列表类型并不是简单的双向链表，而是采用了 quicklist 的数据结构对数据进行存取，quicklist 是 Redis 3.2 新增的数据类型，它的底层采取的是压缩列表加双向链表的存储结构，quicklist 为了存储更多的数据，会对每个 quicklistNode 节点进行压缩，这样就可以有效的存储更多的消息队列或者文章的数据了。</p>
 
                 
             </div>
