@@ -402,7 +402,7 @@
                 
                 <div class="info-break-policy">
                     <i class="far fa-file-word fa-fw"></i>文章字数:&nbsp;&nbsp;
-                    14.1k
+                    14.3k
                 </div>
                 
 
@@ -779,7 +779,8 @@ aof-load-truncated yes<span aria-hidden="true" class="line-numbers-rows"><span><
 <li><a target="_blank" rel="noopener" href="https://blog.csdn.net/qq_36318234/article/details/79994133">https://blog.csdn.net/qq_36318234/article/details/79994133</a></li>
 <li><a target="_blank" rel="noopener" href="https://www.cnblogs.com/wdliu/p/9377278.html">https://www.cnblogs.com/wdliu/p/9377278.html</a></li>
 </ul>
-<h2 id="06-字符串使用与内部实现原理"><a href="#06-字符串使用与内部实现原理" class="headerlink" title="06 字符串使用与内部实现原理"></a>06 字符串使用与内部实现原理</h2><p>Redis 发展到现在已经有 9 种数据类型了，其中最基础、最常用的数据类型有 5 种，它们分别是：字符串类型、列表类型、哈希表类型、集合类型、有序集合类型，而在这 5 种数据类型中最常用的是字符串类型，所以本文我们先从字符串的使用开始说起。</p>
+<h2 id="06-字符串使用与内部实现原理"><a href="#06-字符串使用与内部实现原理" class="headerlink" title="06 字符串使用与内部实现原理"></a>06 字符串使用与内部实现原理</h2><p><a target="_blank" rel="noopener" href="https://www.cnblogs.com/wan-ming-zhu/p/18078015">https://www.cnblogs.com/wan-ming-zhu/p/18078015</a></p>
+<p>Redis 发展到现在已经有 9 种数据类型了，其中最基础、最常用的数据类型有 5 种，它们分别是：字符串类型、列表类型、哈希表类型、集合类型、有序集合类型，而在这 5 种数据类型中最常用的是字符串类型，所以本文我们先从字符串的使用开始说起。</p>
 <p>字符串类型的全称是 Simple Dynamic Strings 简称 SDS，中文意思是：简单动态字符串。它是以键值对 key-value 的形式进行存储的，根据 key 来存储和获取 value 值，它的使用相对来说比较简单，但在实际项目中应用非常广泛。</p>
 <h3 id="1-字符串类型能做什么？"><a href="#1-字符串类型能做什么？" class="headerlink" title="1 字符串类型能做什么？"></a>1 字符串类型能做什么？</h3><p>字符串类型的使用场景有很多，但从功能的角度来区分，大致可分为以下两种：</p>
 <ul>
@@ -887,10 +888,14 @@ OK
 <span class="token punctuation">}</span><span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
 <p>可以看出除了内容数组(buf)之外，其他三个属性分别占用了 1 个字节，最终分隔字符等于 64 字节，减去 redisObject 的 16 个字节，再减去 SDS 自身的 3 个字节，再减去结束符 \0 结束符占用 1 个字节，最终的结果是 44 字节(64-16-3-1=44)，内存占用如下图所示：</p>
 <p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《Redis核心原理与实战》学习笔记/为什么是44字节.png" alt="为什么是44字节"></p>
+<blockquote>
+<p>但 SDS 不需要用 \0 字符来标识字符串结尾，而是有个专门的 len 成员变量来记录长度，所以可存储包含 \0 的数据。但是 SDS 为了兼容部分 C 语言标准库的函数，还是会在结尾加上 \0 字符。注意：我们说 alloc 成员维护的是 buf[] 数组的长度，但是这个长度不包括结尾的 \0，比如 alloc 为 10，但 buf[] 的长度其实是 11。</p>
+</blockquote>
 <h3 id="5-小结"><a href="#5-小结" class="headerlink" title="5 小结"></a>5 小结</h3><p>本文介绍了字符串的定义及其使用，它的使用主要分为：单键值对操作、多键值对操作、数字统计、键值对过期操作、字符串操作进阶等。同时也介绍了字符串使用的三个场景，字符串类型可用作为：页面数据缓存，可以缓存一些文章详情信息等；数字计算与统计，例如计算页面的访问次数；也可以用作 Session 共享，用来记录管理员的登录信息等。同时我们深入的介绍了字符串的五种数据存储结构，以及字符串的三种内部数据类型，如下图所示：</p>
 <p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《Redis核心原理与实战》学习笔记/字符串小结.png" alt="字符串小结"></p>
 <p>同时我们也知道了 embstr 类型向 raw 类型转化，是因为每个 Redis 对象都包含了一个 redisObject 对象头和 SDS 自身属性占用了一定的空间，最终导致数据类型的判断长度是 44 字节。</p>
-<h2 id="08-字典使用与内部实现原理"><a href="#08-字典使用与内部实现原理" class="headerlink" title="08 字典使用与内部实现原理"></a>08 字典使用与内部实现原理</h2><p>字典类型 (Hash) 又被成为散列类型或者是哈希表类型，它是将一个键值 (key) 和一个特殊的“哈希表”关联起来，这个“哈希表”表包含两列数据：字段和值。例如我们使用字典类型来存储一篇文章的详情信息，存储结构如下图所示：</p>
+<h2 id="08-字典使用与内部实现原理"><a href="#08-字典使用与内部实现原理" class="headerlink" title="08 字典使用与内部实现原理"></a>08 字典使用与内部实现原理</h2><p><a target="_blank" rel="noopener" href="https://www.cnblogs.com/wan-ming-zhu/p/18079378">https://www.cnblogs.com/wan-ming-zhu/p/18079378</a></p>
+<p>字典类型 (Hash) 又被成为散列类型或者是哈希表类型，它是将一个键值 (key) 和一个特殊的”哈希表”关联起来，这个”哈希表”表包含两列数据：字段和值。例如我们使用字典类型来存储一篇文章的详情信息，存储结构如下图所示：</p>
 <p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《Redis核心原理与实战》学习笔记/使用字典类型来存储一篇文章.png" alt="使用字典类型来存储一篇文章"></p>
 <p>同理我们也可以使用字典类型来存储用户信息，并且使用字典类型来存储此类信息，是不需要手动序列化和反序列化数据的，所以使用起来更加的方便和高效。</p>
 <h3 id="1-基础使用"><a href="#1-基础使用" class="headerlink" title="1.基础使用"></a>1.基础使用</h3><h3 id="2-代码实战"><a href="#2-代码实战" class="headerlink" title="2.代码实战"></a>2.代码实战</h3><h3 id="3-数据结构"><a href="#3-数据结构" class="headerlink" title="3.数据结构"></a>3.数据结构</h3><p>字典类型本质上是由数组和链表结构组成的，来看字典类型的源码实现：</p>
@@ -950,7 +955,8 @@ OK
 <li>rehash 操作完成之后，清空 Hash 表 ht[0]，然后对调 ht[1] 和 ht[0] 的值，把新的数据表 ht[1] 更改为 ht[0]，然后把字典中的 rehashidx 标识为 -1，表示不需要执行 rehash 操作。</li>
 </ul>
 <h3 id="6-使用场景"><a href="#6-使用场景" class="headerlink" title="6.使用场景"></a>6.使用场景</h3><h3 id="7-小结"><a href="#7-小结" class="headerlink" title="7.小结"></a>7.小结</h3><p>本文我们学习了字典类型的操作命令和在代码中的使用，也明白了字典类型实际是由数组和链表组成的，当字典进行扩容或者缩容时会进行渐进式 rehash 操作，渐进式 rehash 是用来保证 Redis 运行效率的，它的执行流程是同时保留两个哈希表，把旧表中的元素一点一点的移动到新表中，查询的时候会先查询两个哈希表，当所有元素都移动到新的哈希表之后，就会删除旧的哈希表。</p>
-<h2 id="10-列表使用与内部实现原理"><a href="#10-列表使用与内部实现原理" class="headerlink" title="10 列表使用与内部实现原理"></a>10 列表使用与内部实现原理</h2><p>列表类型 (List) 是一个使用链表结构存储的有序结构，它的元素插入会按照先后顺序存储到链表结构中，因此它的元素操作 (插入\删除) 时间复杂度为 O(1)，所以相对来说速度还是比较快的，但它的查询时间复杂度为 O(n)，因此查询可能会比较慢。</p>
+<h2 id="10-列表使用与内部实现原理"><a href="#10-列表使用与内部实现原理" class="headerlink" title="10 列表使用与内部实现原理"></a>10 列表使用与内部实现原理</h2><p><a target="_blank" rel="noopener" href="https://www.cnblogs.com/wan-ming-zhu/p/18078658">https://www.cnblogs.com/wan-ming-zhu/p/18078658</a></p>
+<p>列表类型 (List) 是一个使用链表结构存储的有序结构，它的元素插入会按照先后顺序存储到链表结构中，因此它的元素操作 (插入\删除) 时间复杂度为 O(1)，所以相对来说速度还是比较快的，但它的查询时间复杂度为 O(n)，因此查询可能会比较慢。</p>
 <h3 id="1-基础使用-1"><a href="#1-基础使用-1" class="headerlink" title="1 基础使用"></a>1 基础使用</h3><p>列表类型的使用相对来说比较简单，对它的操作就相当操作一个没有任何 key 值的 value 集合，如下图所示：</p>
 <p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《Redis核心原理与实战》学习笔记/列表.png" alt="列表"></p>
 <h3 id="2-代码实战-1"><a href="#2-代码实战-1" class="headerlink" title="2 代码实战"></a>2 代码实战</h3><h3 id="3-内部实现"><a href="#3-内部实现" class="headerlink" title="3 内部实现"></a>3 内部实现</h3><p>我们先用 <code>debug encoding key</code> 来查看列表类型的内部存储类型，如下所示：</p>
@@ -993,7 +999,7 @@ OK
 <li>zltail：压缩列表尾元素相对于起始元素地址的偏移量，占 4 字节；</li>
 <li>zllen：压缩列表的元素个数；</li>
 <li>entryX：压缩列表存储的所有元素，可以是字节数组或者是整数；</li>
-<li>zlend：压缩列表的结尾，占 1 字节。</li>
+<li>zlend：压缩列表的结尾，占 1 字节，固定值 0xFF；</li>
 </ul>
 <h3 id="4-源码解析"><a href="#4-源码解析" class="headerlink" title="4 源码解析"></a>4 源码解析</h3><h4 id="1）添加功能源码分析"><a href="#1）添加功能源码分析" class="headerlink" title="1）添加功能源码分析"></a>1）添加功能源码分析</h4><p>quicklist 添加操作对应函数是 quicklistPush，源码如下：</p>
 <pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">void</span> <span class="token function">quicklistPush</span><span class="token punctuation">(</span>quicklist <span class="token operator">*</span>quicklist<span class="token punctuation">,</span> <span class="token keyword">void</span> <span class="token operator">*</span>value<span class="token punctuation">,</span> <span class="token keyword">const</span> size_t sz<span class="token punctuation">,</span>
