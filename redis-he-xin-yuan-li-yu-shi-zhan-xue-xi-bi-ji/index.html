@@ -402,14 +402,14 @@
                 
                 <div class="info-break-policy">
                     <i class="far fa-file-word fa-fw"></i>文章字数:&nbsp;&nbsp;
-                    2.1k
+                    7.1k
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-clock fa-fw"></i>阅读时长:&nbsp;&nbsp;
-                    7 分
+                    25 分
                 </div>
                 
 
@@ -480,6 +480,225 @@
 <h4 id="步骤七：返回结果给客户端"><a href="#步骤七：返回结果给客户端" class="headerlink" title="步骤七：返回结果给客户端"></a>步骤七：返回结果给客户端</h4><p>命令执行完之后，服务器会通过 socket 的方式把执行结果发送给客户端，客户端再把结果展示给用户，至此一条命令的执行就结束了。</p>
 <h3 id="小结"><a href="#小结" class="headerlink" title="小结"></a>小结</h3><p>当用户输入一条命令之后，客户端会以 socket 的方式把数据转换成 Redis 协议，并发送至服务器端，服务器端在接受到数据之后，会先将协议转换为真正的执行命令，在经过各种验证以保证命令能够正确并安全的执行，但验证处理完之后，会调用具体的方法执行此条命令，执行完成之后会进行相关的统计和记录，然后再把执行结果返回给客户端，整个执行流程，如下图所示：</p>
 <p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《Redis核心原理与实战》学习笔记/Redis命令执行流程小结.png" alt="Redis命令执行流程小结"></p>
+<h2 id="03-Redis-持久化——RDB"><a href="#03-Redis-持久化——RDB" class="headerlink" title="03 Redis 持久化——RDB"></a>03 Redis 持久化——RDB</h2><p>Redis 的读写都是在内存中，所以它的性能较高，但在内存中的数据会随着服务器的重启而丢失，为了保证数据不丢失，我们需要将内存中的数据存储到磁盘，以便 Redis 重启时能够从磁盘中恢复原有的数据，而整个过程就叫做 Redis 持久化。</p>
+<p>Redis 持久化也是 Redis 和 Memcached 的主要区别之一，因为 Memcached 不具备持久化功能。</p>
+<h3 id="持久化的几种方式"><a href="#持久化的几种方式" class="headerlink" title="持久化的几种方式"></a>持久化的几种方式</h3><p>Redis 持久化拥有以下三种方式：</p>
+<ul>
+<li>快照方式（RDB, Redis DataBase）将某一个时刻的内存数据，以二进制的方式写入磁盘；</li>
+<li>文件追加方式（AOF, Append Only File），记录所有的操作命令，并以文本的形式追加到文件中；</li>
+<li>混合持久化方式，Redis 4.0 之后新增的方式，混合持久化是结合了 RDB 和 AOF 的优点，在写入的时候，先把当前的数据以 RDB 的形式写入文件的开头，再将后续的操作命令以 AOF 的格式存入文件，这样既能保证 Redis 重启时的速度，又能减低数据丢失的风险。</li>
+</ul>
+<h3 id="RDB简介"><a href="#RDB简介" class="headerlink" title="RDB简介"></a>RDB简介</h3><p>RDB（Redis DataBase）是将某一个时刻的内存快照（Snapshot），以二进制的方式写入磁盘的过程。</p>
+<h3 id="持久化触发"><a href="#持久化触发" class="headerlink" title="持久化触发"></a>持久化触发</h3><p>RDB 的持久化触发方式有两类：一类是手动触发，另一类是自动触发。</p>
+<h4 id="手动触发"><a href="#手动触发" class="headerlink" title="手动触发"></a>手动触发</h4><p>手动触发持久化的操作有两个： <code>save</code> 和 <code>bgsave</code> ，它们主要区别体现在：是否阻塞 Redis 主线程的执行。</p>
+<p>在客户端中执行 <code>save</code> 命令，就会触发 Redis 的持久化，但同时也是使 Redis 处于阻塞状态，直到 RDB 持久化完成，才会响应其他客户端发来的命令，所以<strong>在生产环境一定要慎用。</strong></p>
+<p><code>bgsave</code> （background save）既后台保存的意思， 它和 <code>save</code> 命令最大的区别就是 <code>bgsave</code> 会 <code>fork()</code> 一个子进程来执行持久化，整个过程中只有在 <code>fork()</code> 子进程时有短暂的阻塞，当子进程被创建之后，Redis 的主进程就可以响应其他客户端的请求了，相对于整个流程都阻塞的 <code>save</code> 命令来说，显然 <code>bgsave</code> 命令更适合我们使用。</p>
+<h4 id="自动触发"><a href="#自动触发" class="headerlink" title="自动触发"></a>自动触发</h4><p>说完了 RDB 的手动触发方式，下面来看如何自动触发 RDB 持久化？ RDB 自动持久化主要来源于以下几种情况。</p>
+<ol>
+<li><p><code>save m n</code></p>
+<p> <code>save m n</code> 是指在 <code>m</code> 秒内，如果有 <code>n</code> 个键发生改变，则自动触发持久化。 参数 <code>m</code> 和 <code>n</code> 可以在 Redis 的配置文件中找到，例如，<code>save 60 1</code> 则表明在 60 秒内，至少有一个键发生改变，就会触发 RDB 持久化。 自动触发持久化，本质是 Redis 通过判断，如果满足设置的触发条件，自动执行一次 <code>bgsave</code> 命令。 注意：当设置多个 <code>save m n</code> 命令时，满足任意一个条件都会触发持久化。 例如，我们设置了以下两个 <code>save m n</code> 命令：</p>
+<ul>
+<li><code>save 60 10</code></li>
+<li><p><code>save 600 1</code></p>
+<p>当 60s 内如果有 10 次 Redis 键值发生改变，就会触发持久化；如果 60s 内 Redis 的键值改变次数少于 10 次，那么 Redis 就会判断 600s 内，Redis 的键值是否至少被修改了一次，如果满足则会触发持久化。</p>
+</li>
+</ul>
+</li>
+<li><p><code>flushall</code></p>
+<p> <code>flushall</code> 命令用于清空 Redis 数据库，在生产环境下一定慎用，当 Redis 执行了 <code>flushall</code> 命令之后，则会触发自动持久化，把 RDB 文件清空。</p>
+</li>
+<li><p>主从同步触发</p>
+<p> 在 Redis 主从复制中，当从节点执行全量复制操作时，主节点会执行 <code>bgsave</code> 命令，并将 RDB 文件发送给从节点，该过程会自动触发 Redis 持久化。</p>
+</li>
+</ol>
+<h3 id="配置说明"><a href="#配置说明" class="headerlink" title="配置说明"></a>配置说明</h3><p>RDB 配置参数可以在 Redis 的配置文件中找见，具体内容如下：</p>
+<pre class="line-numbers language-text" data-language="text"><code class="language-text"># RDB 保存的条件
+save 900 1
+save 300 10
+save 60 10000
+
+# bgsave 失败之后，是否停止持久化数据到磁盘，yes 表示停止持久化，no 表示忽略错误继续写文件。
+stop-writes-on-bgsave-error yes
+
+# RDB 文件压缩
+rdbcompression yes
+
+# 写入文件和读取文件时是否开启 RDB 文件检查，检查是否有无损坏，如果在启动是检查发现损坏，则停止启动。
+rdbchecksum yes
+
+# RDB 文件名
+dbfilename dump.rdb
+
+# RDB 文件目录
+dir ./<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>其中比较重要的参数如下列表： </p>
+<ol>
+<li><p>save 参数</p>
+<p> 它是用来配置触发 RDB 持久化条件的参数，满足保存条件时将会把数据持久化到硬盘。 默认配置说明如下：</p>
+<ul>
+<li><code>save 900 1</code>：表示 900 秒内如果至少有 1 个 key 值变化，则把数据持久化到硬盘；</li>
+<li><code>save 300 10</code>：表示 300 秒内如果至少有 10 个 key 值变化，则把数据持久化到硬盘；</li>
+<li><code>save 60 10000</code>：表示 60 秒内如果至少有 10000 个 key 值变化，则把数据持久化到硬盘。</li>
+</ul>
+</li>
+<li><p>rdbcompression 参数</p>
+<p> 它的默认值是 yes 表示开启 RDB 文件压缩，Redis 会采用 LZF 算法进行压缩。如果不想消耗 CPU 性能来进行文件压缩的话，可以设置为关闭此功能，这样的缺点是需要更多的磁盘空间来保存文件。</p>
+</li>
+<li><p>rdbchecksum 参数</p>
+<p> 它的默认值为 yes 表示写入文件和读取文件时是否开启 RDB 文件检查，检查是否有无损坏，如果在启动是检查发现损坏，则停止启动。</p>
+</li>
+</ol>
+<h3 id="配置查询"><a href="#配置查询" class="headerlink" title="配置查询"></a>配置查询</h3><p>Redis 中可以使用命令查询当前配置参数。查询命令的格式为：<code>config get xxx</code> ，例如，想要获取 RDB 文件的存储名称设置，可以使用 <code>config get dbfilename</code>。</p>
+<p>查询 RDB 的文件目录，可使用命令 <code>config get dir</code>。</p>
+<h3 id="配置设置"><a href="#配置设置" class="headerlink" title="配置设置"></a>配置设置</h3><p>设置 RDB 的配置，可以通过以下两种方式：</p>
+<ul>
+<li>手动修改 Redis 配置文件；</li>
+<li>使用命令行设置，例如，使用 config set dir “/usr/data” 就是用于修改 RDB 的存储目录。</li>
+</ul>
+<p>注意：手动修改 Redis 配置文件的方式是全局生效的，即重启 Redis 服务器设置参数也不会丢失，而使用命令修改的方式，在 Redis 重启之后就会丢失。但手动修改 Redis 配置文件，想要立即生效需要重启 Redis 服务器，而命令的方式则不需要重启 Redis 服务器。</p>
+<blockquote>
+<p>小贴士：Redis 的配置文件位于 Redis 安装目录的根路径下，默认名称为 redis.conf。</p>
+</blockquote>
+<h3 id="RDB-文件恢复"><a href="#RDB-文件恢复" class="headerlink" title="RDB 文件恢复"></a>RDB 文件恢复</h3><p>当 Redis 服务器启动时，如果 Redis 根目录存在 RDB 文件 dump.rdb，Redis 就会自动加载 RDB 文件恢复持久化数据。<br>如果根目录没有 dump.rdb 文件，请先将 dump.rdb 文件移动到 Redis 的根目录。</p>
+<p>验证 RDB 文件是否被加载 Redis 在启动时有日志信息，会显示是否加载了 RDB 文件，我们执行 Redis 启动命令：<code>src/redis-server redis.conf</code> ，如下图所示：</p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《Redis核心原理与实战》学习笔记/RDB文件恢复.png" alt="RDB文件恢复"></p>
+<p>从日志上可以看出， Redis 服务在启动时已经正常加载了 RDB 文件。</p>
+<blockquote>
+<p>小贴士：Redis 服务器在载入 RDB 文件期间，会一直处于阻塞状态，直到载入工作完成为止。</p>
+</blockquote>
+<h3 id="RDB-优缺点"><a href="#RDB-优缺点" class="headerlink" title="RDB 优缺点"></a>RDB 优缺点</h3><h4 id="RDB-优点"><a href="#RDB-优点" class="headerlink" title="RDB 优点"></a>RDB 优点</h4><ul>
+<li>RDB 的内容为二进制的数据，占用内存更小，更紧凑，更适合做为备份文件；</li>
+<li>RDB 对灾难恢复非常有用，它是一个紧凑的文件，可以更快的传输到远程服务器进行 Redis 服务恢复；</li>
+<li>RDB 可以更大程度的提高 Redis 的运行速度，因为每次持久化时 Redis 主进程都会 <code>fork()</code> 一个子进程，进行数据持久化到磁盘，Redis 主进程并不会执行磁盘 I/O 等操作；</li>
+<li>与 AOF 格式的文件相比，RDB 文件可以更快的重启。</li>
+</ul>
+<h4 id="RDB-缺点"><a href="#RDB-缺点" class="headerlink" title="RDB 缺点"></a>RDB 缺点</h4><ul>
+<li>因为 RDB 只能保存某个时间间隔的数据，如果中途 Redis 服务被意外终止了，则会丢失一段时间内的 Redis 数据；</li>
+<li>RDB 需要经常 <code>fork()</code> 才能使用子进程将其持久化在磁盘上。如果数据集很大，<code>fork()</code> 可能很耗时，并且如果数据集很大且 CPU 性能不佳，则可能导致 Redis 停止为客户端服务几毫秒甚至一秒钟。</li>
+</ul>
+<h3 id="禁用持久化"><a href="#禁用持久化" class="headerlink" title="禁用持久化"></a>禁用持久化</h3><p>禁用持久化可以提高 Redis 的执行效率，如果对数据丢失不敏感的情况下，可以在连接客户端的情况下，执行 <code>config set save ""</code> 命令即可禁用 Redis 的持久化。</p>
+<h3 id="参考-amp-鸣谢"><a href="#参考-amp-鸣谢" class="headerlink" title="参考&amp;鸣谢"></a>参考&amp;鸣谢</h3><ul>
+<li><a target="_blank" rel="noopener" href="https://redis.io/topics/persistence">https://redis.io/topics/persistence</a></li>
+<li><a target="_blank" rel="noopener" href="https://blog.csdn.net/qq_36318234/article/details/79994133">https://blog.csdn.net/qq_36318234/article/details/79994133</a></li>
+<li><a target="_blank" rel="noopener" href="https://www.cnblogs.com/ysocean/p/9114268.html">https://www.cnblogs.com/ysocean/p/9114268.html</a></li>
+<li><a target="_blank" rel="noopener" href="https://www.cnblogs.com/wdliu/p/9377278.html">https://www.cnblogs.com/wdliu/p/9377278.html</a></li>
+</ul>
+<h2 id="04-Redis-持久化——AOF"><a href="#04-Redis-持久化——AOF" class="headerlink" title="04 Redis 持久化——AOF"></a>04 Redis 持久化——AOF</h2><p>使用 RDB 持久化有一个风险，它可能会造成最新数据丢失的风险。因为 RDB 的持久化有一定的时间间隔，在这个时间段内如果 Redis 服务意外终止的话，就会造成最新的数据全部丢失。</p>
+<p>可能会操作 Redis 服务意外终止的条件：</p>
+<ul>
+<li>安装 Redis 的机器停止运行，蓝屏或者系统崩溃；</li>
+<li>安装 Redis 的机器出现电源故障，例如突然断电；</li>
+<li>使用 <code>kill -9 Redis_PID</code> 等。</li>
+</ul>
+<p>那么如何解决以上的这些问题呢？Redis 为我们提供了另一种持久化的方案——AOF。</p>
+<h3 id="简介"><a href="#简介" class="headerlink" title="简介"></a>简介</h3><p>AOF（Append Only File）中文是附加到文件，顾名思义 AOF 可以把 Redis 每个键值对操作都记录到文件（appendonly.aof）中。</p>
+<h3 id="持久化查询和设置"><a href="#持久化查询和设置" class="headerlink" title="持久化查询和设置"></a>持久化查询和设置</h3><h4 id="查询-AOF-启动状态"><a href="#查询-AOF-启动状态" class="headerlink" title="查询 AOF 启动状态"></a>查询 AOF 启动状态</h4><p>使用 <code>config get appendonly</code> 命令，如下图所示：</p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《Redis核心原理与实战》学习笔记/查询AOF启动状态.png" alt="查询AOF启动状态"></p>
+<p>其中，第一行为 AOF 文件的名称，而最后一行表示 AOF 启动的状态，yes 表示已启动，no 表示未启动。</p>
+<h3 id="开启-AOF-持久化"><a href="#开启-AOF-持久化" class="headerlink" title="开启 AOF 持久化"></a>开启 AOF 持久化</h3><h4 id="命令行启动-AOF"><a href="#命令行启动-AOF" class="headerlink" title="命令行启动 AOF"></a>命令行启动 AOF</h4><p>命令行启动 AOF，使用 <code>config set appendonly yes</code> 命令。</p>
+<p>命令行启动 AOF 的优缺点：命令行启动优点是无需重启 Redis 服务，缺点是如果 Redis 服务重启，则之前使用命令行设置的配置就会失效。</p>
+<h4 id="配置文件启动-AOF"><a href="#配置文件启动-AOF" class="headerlink" title="配置文件启动 AOF"></a>配置文件启动 AOF</h4><p>Redis 的配置文件在它的根路径下的 redis.conf 文件中，获取 Redis 的根目录可以使用命令 <code>config get dir</code> 获取，如下图所示：</p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《Redis核心原理与实战》学习笔记/获取Redis的根目录.png" alt="获取Redis的根目录"></p>
+<p>只需要在配置文件中设置 <code>appendonly yes</code> 即可，默认 appendonly no 表示关闭 AOF 持久化。</p>
+<p>配置文件启动 AOF 的优缺点：修改配置文件的缺点是每次修改配置文件都要重启 Redis 服务才能生效，优点是无论重启多少次 Redis 服务，配置文件中设置的配置信息都不会失效。</p>
+<h3 id="触发持久化"><a href="#触发持久化" class="headerlink" title="触发持久化"></a>触发持久化</h3><p>AOF 持久化开启之后，只要满足一定条件，就会触发 AOF 持久化。AOF 的触发条件分为两种：自动触发和手动触发。</p>
+<h4 id="自动触发-1"><a href="#自动触发-1" class="headerlink" title="自动触发"></a>自动触发</h4><p>有两种情况可以自动触发 AOF 持久化，分为是：</p>
+<ol>
+<li>满足 AOF 设置的策略触发</li>
+<li>满足 AOF 重写触发条件</li>
+</ol>
+<p>其中，AOF 重写触发会在本文的后半部分详细介绍，这里重点来说 AOF 持久化策略都有哪些。 AOF 持久化策略，分为以下三种：</p>
+<ul>
+<li>always：每条 Redis 操作命令都会写入磁盘，最多丢失一条数据；</li>
+<li>everysec：每秒钟写入一次磁盘，最多丢失一秒的数据；</li>
+<li>no：不设置写入磁盘的规则，根据当前操作系统来决定何时写入磁盘，Linux 默认 30s 写入一次数据至磁盘。</li>
+</ul>
+<p>这三种配置可以在 Redis 的配置文件（redis.conf）中设置，如下代码所示：</p>
+<pre class="line-numbers language-text" data-language="text"><code class="language-text"># 开启每秒写入一次的持久化策略
+appendfsync everysec<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre>
+<blockquote>
+<p>小贴士：因为每次写入磁盘都会对 Redis 的性能造成一定的影响，所以要根据用户的实际情况设置相应的策略，一般设置每秒写入一次磁盘的频率就可以满足大部分的使用场景了。</p>
+</blockquote>
+<h4 id="手动触发-1"><a href="#手动触发-1" class="headerlink" title="手动触发"></a>手动触发</h4><p>在客户端执行 <code>bgrewriteaof</code> 命令就可以手动触发 AOF 持久化。</p>
+<h3 id="AOF-文件重写"><a href="#AOF-文件重写" class="headerlink" title="AOF 文件重写"></a>AOF 文件重写</h3><p>AOF 是通过记录 Redis 的执行命令来持久化（保存）数据的，所以随着时间的流逝 AOF 文件会越来越多，这样不仅增加了服务器的存储压力，也会造成 Redis 重启速度变慢，为了解决这个问题 Redis 提供了 AOF 重写的功能。</p>
+<h4 id="什么是-AOF-重写？"><a href="#什么是-AOF-重写？" class="headerlink" title="什么是 AOF 重写？"></a>什么是 AOF 重写？</h4><p>AOF 重写指的是它会直接读取 Redis 服务器当前的状态，并压缩保存为 AOF 文件。例如，我们增加了一个计数器，并对它做了 99 次修改，如果不做 AOF 重写的话，那么持久化文件中就会有 100 条记录执行命令的信息，而 AOF 重写之后，之后记录一条此计数器最终的结果信息，这样就去除了所有的无效信息。</p>
+<h4 id="AOF-重写实现"><a href="#AOF-重写实现" class="headerlink" title="AOF 重写实现"></a>AOF 重写实现</h4><p>触发 AOF 文件重写，要满足两个条件，这两个条件也是配置在 Redis 配置文件中的，它们分别：</p>
+<ul>
+<li><code>auto-aof-rewrite-min-size</code>：允许 AOF 重写的最小文件容量，默认是 64mb 。</li>
+<li><code>auto-aof-rewrite-percentage</code>：AOF 文件重写的大小比例，默认值是 100，表示 100%，也就是只有当前 AOF 文件，比最后一次（上次）的 AOF 文件大一倍时，才会启动 AOF 文件重写。</li>
+</ul>
+<blockquote>
+<p>小贴士：只有同时满足 auto-aof-rewrite-min-size 和 auto-aof-rewrite-percentage 设置的条件，才会触发 AOF 文件重写。</p>
+</blockquote>
+<p>注意：使用 <code>bgrewriteaof</code> 命令，可以自动触发 AOF 文件重写。</p>
+<h4 id="AOF-重写流程"><a href="#AOF-重写流程" class="headerlink" title="AOF 重写流程"></a>AOF 重写流程</h4><p>AOF 文件重写是生成一个全新的文件，并把当前数据的最少操作命令保存到新文件上，当把所有的数据都保存至新文件之后，Redis 会交换两个文件，并把最新的持久化操作命令追加到新文件上。</p>
+<h3 id="配置说明-1"><a href="#配置说明-1" class="headerlink" title="配置说明"></a>配置说明</h3><p>AOF 的配置参数在 Redis 的配置文件中，也就是 Redis 根路径下的 redis.conf 文件中，配置参数和说明如下：</p>
+<pre class="line-numbers language-text" data-language="text"><code class="language-text"># 是否开启 AOF，yes 为开启，默认是关闭
+appendonly no
+
+# AOF 默认文件名
+appendfilename "appendonly.aof"
+
+# AOF 持久化策略配置
+# appendfsync always
+appendfsync everysec
+# appendfsync no
+
+# AOF 文件重写的大小比例，默认值是 100，表示 100%，也就是只有当前 AOF 文件，比最后一次的 AOF 文件大一倍时，才会启动 AOF 文件重写。
+auto-aof-rewrite-percentage 100
+
+# 允许 AOF 重写的最小文件容量
+auto-aof-rewrite-min-size 64mb
+
+# 是否开启启动时加载 AOF 文件效验，默认值是 yes，表示尽可能的加载 AOF 文件，忽略错误部分信息，并启动 Redis 服务。
+# 如果值为 no，则表示，停止启动 Redis，用户必须手动修复 AOF 文件才能正常启动 Redis 服务。
+aof-load-truncated yes<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>其中比较重要的是 <code>appendfsync</code> 参数，用它来设置 AOF 的持久化策略，可以选择按时间间隔或者操作次数来存储 AOF 文件，这个参数的三个值在文章开头有说明，这里就不再复述了。</p>
+<h3 id="数据恢复"><a href="#数据恢复" class="headerlink" title="数据恢复"></a>数据恢复</h3><h4 id="正常数据恢复"><a href="#正常数据恢复" class="headerlink" title="正常数据恢复"></a>正常数据恢复</h4><p>正常情况下，只要开启了 AOF 持久化，并且提供了正常的 appendonly.aof 文件，在 Redis 启动时就会自定加载 AOF 文件并启动，执行如下图所示：</p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《Redis核心原理与实战》学习笔记/正常AOF数据恢复.png" alt="正常AOF数据恢复"></p>
+<p>其中 <code>DB loaded from append only file......</code> 表示 Redis 服务器在启动时，先去加载了 AOF 持久化文件。</p>
+<blockquote>
+<p>小贴士：默认情况下 appendonly.aof 文件保存在 Redis 的根目录下。</p>
+</blockquote>
+<p>持久化文件加载规则</p>
+<ul>
+<li>如果只开启了 AOF 持久化，Redis 启动时只会加载 AOF 文件（appendonly.aof），进行数据恢复；</li>
+<li>如果只开启了 RDB 持久化，Redis 启动时只会加载 RDB 文件（dump.rdb），进行数据恢复；</li>
+<li>如果同时开启了 RDB 和 AOF 持久化，Redis 启动时只会加载 AOF 文件（appendonly.aof），进行数据恢复。</li>
+</ul>
+<p>在 AOF 开启的情况下，即使 AOF 文件不存在，只有 RDB 文件，也不会加载 RDB 文件。 AOF 和 RDB 的加载流程如下图所示：</p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《Redis核心原理与实战》学习笔记/持久化文件加载规则.png" alt="持久化文件加载规则"></p>
+<h4 id="简单异常数据恢复"><a href="#简单异常数据恢复" class="headerlink" title="简单异常数据恢复"></a>简单异常数据恢复</h4><p>在 AOF 写入文件时如果服务器崩溃，或者是 AOF 存储已满的情况下，AOF 的最后一条命令可能被截断，这就是异常的 AOF 文件。</p>
+<p>在 AOF 文件异常的情况下，如果为修改 Redis 的配置文件，也就是使用 aof-load-truncated 等于 yes 的配置，Redis 在启动时会忽略最后一条命令，并顺利启动 Redis，执行结果如下：</p>
+<pre class="line-numbers language-text" data-language="text"><code class="language-text">* Reading RDB preamble from AOF file...
+* Reading the remaining AOF tail...
+# !!! Warning: short read while loading the AOF file !!!
+# !!! Truncating the AOF at offset 439 !!!
+# AOF loaded anyway because aof-load-truncated is enabled<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<h4 id="复杂异常数据恢复"><a href="#复杂异常数据恢复" class="headerlink" title="复杂异常数据恢复"></a>复杂异常数据恢复</h4><p>AOF 文件可能出现更糟糕的情况，当 AOF 文件不仅被截断，而且中间的命令也被破坏，这个时候再启动 Redis 会提示错误信息并中止运行，错误信息如下：</p>
+<pre class="line-numbers language-text" data-language="text"><code class="language-text">* Reading the remaining AOF tail...
+# Bad file format reading the append only file: make a backup of your AOF file, then use ./redis-check-aof --fix &lt;filename&gt;<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre>
+<p>出现此类问题的解决方案如下：</p>
+<ol>
+<li>首先使用 AOF 修复工具，检测出现的问题，在命令行中输入 redis-check-aof 命令，它会跳转到出现问题的命令行，这个时候可以尝试手动修复此文件；</li>
+<li>如果无法手动修复，我们可以使用 redis-check-aof —fix 自动修复 AOF 异常文件，不过执行此命令，可能会导致异常部分至文件末尾的数据全部被丢弃。</li>
+</ol>
+<h3 id="优缺点"><a href="#优缺点" class="headerlink" title="优缺点"></a>优缺点</h3><h4 id="AOF-优点"><a href="#AOF-优点" class="headerlink" title="AOF 优点"></a>AOF 优点</h4><ul>
+<li>AOF 持久化保存的数据更加完整，AOF 提供了三种保存策略：每次操作保存、每秒钟保存一次、跟随系统的持久化策略保存，其中每秒保存一次，从数据的安全性和性能两方面考虑是一个不错的选择，也是 AOF 默认的策略，即使发生了意外情况，最多只会丢失 1s 钟的数据；</li>
+<li>AOF 采用的是命令追加的写入方式，所以不会出现文件损坏的问题，即使由于某些意外原因，导致了最后操作的持久化数据写入了一半，也可以通过 redis-check-aof 工具轻松的修复；</li>
+<li>AOF 持久化文件，非常容易理解和解析，它是把所有 Redis 键值操作命令，以文件的方式存入了磁盘。即使不小心使用 flushall 命令删除了所有键值信息，只要使用 AOF 文件，删除最后的 flushall 命令，重启 Redis 即可恢复之前误删的数据。</li>
+</ul>
+<h4 id="AOF-缺点"><a href="#AOF-缺点" class="headerlink" title="AOF 缺点"></a>AOF 缺点</h4><ul>
+<li>对于相同的数据集来说，AOF 文件要大于 RDB 文件；</li>
+<li>在 Redis 负载比较高的情况下，RDB 比 AOF 性能更好；</li>
+<li>RDB 使用快照的形式来持久化整个 Redis 数据，而 AOF 只是将每次执行的命令追加到 AOF 文件中，因此从理论上说，RDB 比 AOF 更健壮。</li>
+</ul>
+<h3 id="小结-1"><a href="#小结-1" class="headerlink" title="小结"></a>小结</h3><p>AOF 保存数据更加完整，它可以记录每次 Redis 的键值变化，或者是选择每秒保存一次数据。AOF 的持久化文件更加易读，但相比与二进制的 RDB 来说，所占的存储空间也越大，为了解决这个问题，AOF 提供自动化重写机制，最大程度的减少了 AOF 占用空间大的问题。同时 AOF 也提供了很方便的异常文件恢复命令： redis-check-aof —fix ，为使用 AOF 提供了很好的保障。</p>
+<h3 id="参考-amp-鸣谢-1"><a href="#参考-amp-鸣谢-1" class="headerlink" title="参考&amp;鸣谢"></a>参考&amp;鸣谢</h3><ul>
+<li><a target="_blank" rel="noopener" href="https://redis.io/topics/persistence">https://redis.io/topics/persistence</a></li>
+<li><a target="_blank" rel="noopener" href="https://blog.csdn.net/qq_36318234/article/details/79994133">https://blog.csdn.net/qq_36318234/article/details/79994133</a></li>
+<li><a target="_blank" rel="noopener" href="https://www.cnblogs.com/wdliu/p/9377278.html">https://www.cnblogs.com/wdliu/p/9377278.html</a></li>
+</ul>
 
                 
             </div>
