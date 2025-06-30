@@ -402,14 +402,14 @@
                 
                 <div class="info-break-policy">
                     <i class="far fa-file-word fa-fw"></i>文章字数:&nbsp;&nbsp;
-                    21.8k
+                    23.7k
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-clock fa-fw"></i>阅读时长:&nbsp;&nbsp;
-                    83 分
+                    91 分
                 </div>
                 
 
@@ -1672,6 +1672,93 @@ OK<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><
 <li>zrem：删除地理位置</li>
 </ul>
 <h3 id="小结-4"><a href="#小结-4" class="headerlink" title="小结"></a>小结</h3><p>GEO 是 Redis 3.2 版本中新增的功能，只有升级到 3.2+ 才能使用，GEO 本质上是基于 ZSet 实现的，这点在 Redis 源码找到相关信息，我们可以 GEO 使用实现查找附近的人或者附近的地点，还可以用它来计算两个位置相隔的直线距离。</p>
+<h2 id="21-游标迭代器（过滤器）——Scan"><a href="#21-游标迭代器（过滤器）——Scan" class="headerlink" title="21 游标迭代器（过滤器）——Scan"></a>21 游标迭代器（过滤器）——Scan</h2><p><a target="_blank" rel="noopener" href="https://www.cnblogs.com/wan-ming-zhu/p/18080118">https://www.cnblogs.com/wan-ming-zhu/p/18080118</a></p>
+<p>Redis 2.8 时推出了 Scan。</p>
+<p>官方文档地址：<a target="_blank" rel="noopener" href="https://redis.io/commands/scan">https://redis.io/commands/scan</a></p>
+<p>翻译为中文的含义是：Scan 及它的相关命令可以保证以下查询规则。</p>
+<ul>
+<li>它可以完整返回开始到结束检索集合中出现的所有元素，也就是在整个查询过程中如果这些元素没有被删除，且符合检索条件，则一定会被查询出来；</li>
+<li>它可以保证不会查询出，在开始检索之前删除的那些元素。</li>
+</ul>
+<p>然后，Scan 命令包含以下缺点：</p>
+<ul>
+<li>一个元素可能被返回多次，需要客户端来实现去重；</li>
+<li>在迭代过程中如果有元素被修改，那么修改的元素能不能被遍历到不确定。 (Elements that were not constantly present in the collection during a full iteration, may be returned or not: it is undefined.)</li>
+</ul>
+<h3 id="小结-5"><a href="#小结-5" class="headerlink" title="小结"></a>小结</h3><p>通过本文我们可以知道 Scan 包含以下四个指令：</p>
+<ul>
+<li>Scan：用于检索当前数据库中所有数据；</li>
+<li>HScan：用于检索哈希类型的数据；</li>
+<li>SScan：用于检索集合类型中的数据；</li>
+<li>ZScan：由于检索有序集合中的数据。</li>
+</ul>
+<p>Scan 具备以下几个特点：</p>
+<ol>
+<li>Scan 可以实现 keys 的匹配功能；</li>
+<li>Scan 是通过游标进行查询的不会导致 Redis 假死；</li>
+<li>Scan 提供了 count 参数，可以规定遍历的数量；</li>
+<li>Scan 会把游标返回给客户端，用户客户端继续遍历查询；</li>
+<li>Scan 返回的结果可能会有重复数据，需要客户端去重；</li>
+<li>单次返回空值且游标不为 0，说明遍历还没结束；</li>
+<li>Scan 可以保证在开始检索之前，被删除的元素一定不会被查询出来；</li>
+<li>在迭代过程中如果有元素被修改， Scan 不保证能查询出相关的元素。</li>
+</ol>
+<h2 id="22-优秀的基数统计算法——HyperLogLog"><a href="#22-优秀的基数统计算法——HyperLogLog" class="headerlink" title="22 优秀的基数统计算法——HyperLogLog"></a>22 优秀的基数统计算法——HyperLogLog</h2><h3 id="为什么要使用-HyperLogLog？"><a href="#为什么要使用-HyperLogLog？" class="headerlink" title="为什么要使用 HyperLogLog？"></a>为什么要使用 HyperLogLog？</h3><p>在我们实际开发的过程中，可能会遇到这样一个问题，当我们需要统计一个大型网站的独立访问次数时，该用什么的类型来统计？</p>
+<p>如果我们使用 Redis 中的集合来统计，当它每天有数千万级别的访问时，将会是一个巨大的问题。因为这些访问量不能被清空，我们运营人员可能会随时查看这些信息，那么随着时间的推移，这些统计数据所占用的空间会越来越大，逐渐超出我们能承载最大空间。</p>
+<p>例如，我们用 IP 来作为独立访问的判断依据，那么我们就要把每个独立 IP 进行存储，以 IP4 来计算，IP4 最多需要 15 个字节来存储信息，例如：110.110.110.110。当有一千万个独立 IP 时，所占用的空间就是 15 bit*10000000 约定于 143MB，但这只是一个页面的统计信息，假如我们有 1 万个这样的页面，那我们就需要 1T 以上的空间来存储这些数据，而且随着 IP6 的普及，这个存储数字会越来越大，那我们就不能用集合的方式来存储了，这个时候我们需要开发新的数据类型 HyperLogLog 来做这件事了。</p>
+<h3 id="HyperLogLog-介绍"><a href="#HyperLogLog-介绍" class="headerlink" title="HyperLogLog 介绍"></a>HyperLogLog 介绍</h3><p>HyperLogLog（下文简称为 HLL）是 Redis 2.8.9 版本添加的数据结构，它用于高性能的基数（去重）统计功能，它的缺点就是存在极低的误差率。</p>
+<p>HLL 具有以下几个特点：</p>
+<ul>
+<li>能够使用极少的内存来统计巨量的数据，它只需要 12K 空间就能统计 2^64 的数据；</li>
+<li>统计存在一定的误差，误差率整体较低，标准误差为 0.81%；</li>
+<li>误差可以被设置辅助计算因子进行降低。</li>
+</ul>
+<h3 id="基础使用"><a href="#基础使用" class="headerlink" title="基础使用"></a>基础使用</h3><p>HLL 的命令只有 3 个，但都非常的实用，下面分别来看。</p>
+<h4 id="添加元素"><a href="#添加元素" class="headerlink" title="添加元素"></a>添加元素</h4><pre class="line-numbers language-text" data-language="text"><code class="language-text">127.0.0.1:6379&gt; pfadd key "redis"
+(integer) 1
+127.0.0.1:6379&gt; pfadd key "java" "sql"
+(integer) 1<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span></span></code></pre>
+<p>相关语法：</p>
+<pre class="line-numbers language-text" data-language="text"><code class="language-text">pfadd key element [element ...]<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>此命令支持添加一个或多个元素至 HLL 结构中。</p>
+<h4 id="统计不重复的元素"><a href="#统计不重复的元素" class="headerlink" title="统计不重复的元素"></a>统计不重复的元素</h4><pre class="line-numbers language-text" data-language="text"><code class="language-text">127.0.0.1:6379&gt; pfadd key "redis"
+(integer) 1
+127.0.0.1:6379&gt; pfadd key "sql"
+(integer) 1
+127.0.0.1:6379&gt; pfadd key "redis"
+(integer) 0
+127.0.0.1:6379&gt; pfcount key
+(integer) 2<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>从 pfcount 的结果可以看出，在 HLL 结构中键值为 key 的元素，有 2 个不重复的值：redis 和 sql，可以看出结果还是挺准的。</p>
+<p>相关语法：</p>
+<pre class="line-numbers language-text" data-language="text"><code class="language-text">pfcount key [key ...]<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>此命令支持统计一个或多个 HLL 结构。</p>
+<h4 id="合并一个或多个-HLL-至新结构"><a href="#合并一个或多个-HLL-至新结构" class="headerlink" title="合并一个或多个 HLL 至新结构"></a>合并一个或多个 HLL 至新结构</h4><p>新增 k 和 k2 合并至新结构 k3 中，代码如下：</p>
+<pre class="line-numbers language-text" data-language="text"><code class="language-text">127.0.0.1:6379&gt; pfadd k "java" "sql"
+(integer) 1
+127.0.0.1:6379&gt; pfadd k2 "redis" "sql"
+(integer) 1
+127.0.0.1:6379&gt; pfmerge k3 k k2
+OK
+127.0.0.1:6379&gt; pfcount k3
+(integer) 3<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>相关语法：</p>
+<pre class="line-numbers language-text" data-language="text"><code class="language-text">pfmerge destkey sourcekey [sourcekey ...]<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<h5 id="pfmerge-使用场景"><a href="#pfmerge-使用场景" class="headerlink" title="pfmerge 使用场景"></a>pfmerge 使用场景</h5><p>当我们需要合并两个或多个同类页面的访问数据时，我们可以使用 pfmerge 来操作。</p>
+<h3 id="HLL-算法原理"><a href="#HLL-算法原理" class="headerlink" title="HLL 算法原理"></a>HLL 算法原理</h3><p>HyperLogLog 算法来源于论文 <a target="_blank" rel="noopener" href="https://algo.inria.fr/flajolet/Publications/FlFuGaMe07.pdf">HyperLogLog the analysis of a near-optimal cardinality estimation algorithm</a>，想要了解 HLL 的原理，先要从伯努利试验说起，伯努利实验说的是抛硬币的事。一次伯努利实验相当于抛硬币，不管抛多少次只要出现一个正面，就称为一次伯努利实验。</p>
+<p>我们用 k 来表示每次抛硬币的次数，n 表示第几次抛的硬币，用 k_max 来表示抛硬币的最高次数，最终根据估算发现 n 和 k_max 存在的关系是 n=2^(k_max)，但同时我们也发现了另一个问题当试验次数很小的时候，这种估算方法的误差会很大，例如我们进行以下 3 次实验：</p>
+<ul>
+<li>第 1 次试验：抛 3 次出现正面，此时 k=3，n=1；</li>
+<li>第 2 次试验：抛 2 次出现正面，此时 k=2，n=2；</li>
+<li>第 3 次试验：抛 6 次出现正面，此时 k=6，n=3。</li>
+</ul>
+<p>对于这三组实验来说，k_max=6，n=3，但放入估算公式明显 3≠2^6。为了解决这个问题 HLL 引入了分桶算法和调和平均数来使这个算法更接近真实情况。</p>
+<p>分桶算法是指把原来的数据平均分为 m 份，在每段中求平均数在乘以 m，以此来消减因偶然性带来的误差，提高预估的准确性，简单来说就是把一份数据分为多份，把一轮计算，分为多轮计算。</p>
+<p>而调和平均数指的是使用平均数的优化算法，而非直接使用平均数。</p>
+<blockquote>
+<p>例如小明的月工资是 1000 元，而小王的月工资是 100000 元，如果直接取平均数，那小明的平均工资就变成了 (1000+100000)/2=50500 元，这显然是不准确的，而使用调和平均数算法计算的结果是 2/(1⁄1000+1⁄100000)≈1998 元，显然此算法更符合实际平均数。</p>
+</blockquote>
+<p>所以综合以上情况，在 Redis 中使用 HLL 插入数据，相当于把存储的值经过 hash 之后，再将 hash 值转换为二进制，存入到不同的桶中，这样就可以用很小的空间存储很多的数据，统计时再去相应的位置进行对比很快就能得出结论，这就是 HLL 算法的基本原理，想要更深入的了解算法及其推理过程，可以看去原版的论文。</p>
 
                 
             </div>
