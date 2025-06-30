@@ -395,21 +395,21 @@
                 
                 <div class="post-date info-break-policy">
                     <i class="far fa-calendar-check fa-fw"></i>更新日期:&nbsp;&nbsp;
-                    2025-06-29
+                    2025-06-30
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-file-word fa-fw"></i>文章字数:&nbsp;&nbsp;
-                    14.3k
+                    21.8k
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-clock fa-fw"></i>阅读时长:&nbsp;&nbsp;
-                    53 分
+                    83 分
                 </div>
                 
 
@@ -954,12 +954,12 @@ OK
 <li>在执行定时任务或者执行客户端的 hset、hdel 等操作指令时，判断是否需要触发 rehash 操作（通过 rehashidx 标识判断），如果需要触发 rehash 操作，也就是调用 dictRehash 函数，dictRehash 函数会把 ht[0] 中的元素依次添加到新的 Hash 表 ht[1] 中；</li>
 <li>rehash 操作完成之后，清空 Hash 表 ht[0]，然后对调 ht[1] 和 ht[0] 的值，把新的数据表 ht[1] 更改为 ht[0]，然后把字典中的 rehashidx 标识为 -1，表示不需要执行 rehash 操作。</li>
 </ul>
-<h3 id="6-使用场景"><a href="#6-使用场景" class="headerlink" title="6.使用场景"></a>6.使用场景</h3><h3 id="7-小结"><a href="#7-小结" class="headerlink" title="7.小结"></a>7.小结</h3><p>本文我们学习了字典类型的操作命令和在代码中的使用，也明白了字典类型实际是由数组和链表组成的，当字典进行扩容或者缩容时会进行渐进式 rehash 操作，渐进式 rehash 是用来保证 Redis 运行效率的，它的执行流程是同时保留两个哈希表，把旧表中的元素一点一点的移动到新表中，查询的时候会先查询两个哈希表，当所有元素都移动到新的哈希表之后，就会删除旧的哈希表。</p>
+<h3 id="7-小结"><a href="#7-小结" class="headerlink" title="7.小结"></a>7.小结</h3><p>本文我们学习了字典类型的操作命令和在代码中的使用，也明白了字典类型实际是由数组和链表组成的，当字典进行扩容或者缩容时会进行渐进式 rehash 操作，渐进式 rehash 是用来保证 Redis 运行效率的，它的执行流程是同时保留两个哈希表，把旧表中的元素一点一点的移动到新表中，查询的时候会先查询两个哈希表，当所有元素都移动到新的哈希表之后，就会删除旧的哈希表。</p>
 <h2 id="10-列表使用与内部实现原理"><a href="#10-列表使用与内部实现原理" class="headerlink" title="10 列表使用与内部实现原理"></a>10 列表使用与内部实现原理</h2><p><a target="_blank" rel="noopener" href="https://www.cnblogs.com/wan-ming-zhu/p/18078658">https://www.cnblogs.com/wan-ming-zhu/p/18078658</a></p>
 <p>列表类型 (List) 是一个使用链表结构存储的有序结构，它的元素插入会按照先后顺序存储到链表结构中，因此它的元素操作 (插入\删除) 时间复杂度为 O(1)，所以相对来说速度还是比较快的，但它的查询时间复杂度为 O(n)，因此查询可能会比较慢。</p>
 <h3 id="1-基础使用-1"><a href="#1-基础使用-1" class="headerlink" title="1 基础使用"></a>1 基础使用</h3><p>列表类型的使用相对来说比较简单，对它的操作就相当操作一个没有任何 key 值的 value 集合，如下图所示：</p>
 <p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《Redis核心原理与实战》学习笔记/列表.png" alt="列表"></p>
-<h3 id="2-代码实战-1"><a href="#2-代码实战-1" class="headerlink" title="2 代码实战"></a>2 代码实战</h3><h3 id="3-内部实现"><a href="#3-内部实现" class="headerlink" title="3 内部实现"></a>3 内部实现</h3><p>我们先用 <code>debug encoding key</code> 来查看列表类型的内部存储类型，如下所示：</p>
+<h3 id="3-内部实现"><a href="#3-内部实现" class="headerlink" title="3 内部实现"></a>3 内部实现</h3><p>我们先用 <code>debug encoding key</code> 来查看列表类型的内部存储类型，如下所示：</p>
 <pre class="line-numbers language-text" data-language="text"><code class="language-text">127.0.0.1:6379&gt; object encoding list
 "quicklist"<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre>
 <p>从结果可以看出，列表类型的底层数据类型是 quicklist。</p>
@@ -1118,7 +1118,560 @@ OK
 <li>quicklistPop：取出并删除列表的第一个或最后一个元素；</li>
 <li>quicklistReplaceAtIndex：替换某个元素。</li>
 </ul>
-<h3 id="5-使用场景"><a href="#5-使用场景" class="headerlink" title="5 使用场景"></a>5 使用场景</h3><h3 id="6-小结"><a href="#6-小结" class="headerlink" title="6 小结"></a>6 小结</h3><p>通过本文我们可以知道列表类型并不是简单的双向链表，而是采用了 quicklist 的数据结构对数据进行存取，quicklist 是 Redis 3.2 新增的数据类型，它的底层采取的是压缩列表加双向链表的存储结构，quicklist 为了存储更多的数据，会对每个 quicklistNode 节点进行压缩，这样就可以有效的存储更多的消息队列或者文章的数据了。</p>
+<h3 id="6-小结"><a href="#6-小结" class="headerlink" title="6 小结"></a>6 小结</h3><p>通过本文我们可以知道列表类型并不是简单的双向链表，而是采用了 quicklist 的数据结构对数据进行存取，quicklist 是 Redis 3.2 新增的数据类型，它的底层采取的是压缩列表加双向链表的存储结构，quicklist 为了存储更多的数据，会对每个 quicklistNode 节点进行压缩，这样就可以有效的存储更多的消息队列或者文章的数据了。</p>
+<h2 id="12-集合使用与内部实现原理"><a href="#12-集合使用与内部实现原理" class="headerlink" title="12 集合使用与内部实现原理"></a>12 集合使用与内部实现原理</h2><p><a target="_blank" rel="noopener" href="https://www.cnblogs.com/wan-ming-zhu/p/18079410">https://www.cnblogs.com/wan-ming-zhu/p/18079410</a></p>
+<p>集合类型 (Set) 是一个无序并唯一的键值集合。</p>
+<p>之所以说集合类型是一个无序集合，是因为它的存储顺序不会按照插入的先后顺序进行存储，如下代码所示：</p>
+<pre class="line-numbers language-text" data-language="text"><code class="language-text">127.0.0.1:6379&gt; sadd myset v2 v1 v3 #插入数据 v2、v1、v3 
+(integer) 3
+127.0.0.1:6379&gt; smembers myset #查询数据
+1) "v1"
+2) "v3"
+3) "v2"<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>从上面代码执行结果可以看出，myset 的存储顺序并不是以插入的先后顺序进行存储的。</p>
+<p>集合类型和列表类型的区别如下：</p>
+<ul>
+<li>列表可以存储重复元素，集合只能存储非重复元素；</li>
+<li>列表是按照元素的先后顺序存储元素的，而集合则是无序方式存储元素的。</li>
+</ul>
+<h3 id="3-内部实现-1"><a href="#3-内部实现-1" class="headerlink" title="3 内部实现"></a>3 内部实现</h3><p>集合类型是由 intset (整数集合) 或 hashtable (普通哈希表) 组成的。当集合类型以 hashtable 存储时，哈希表的 key 为要插入的元素值，而哈希表的 value 则为 Null，如下图所示：</p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《Redis核心原理与实战》学习笔记/集合内部实现.png" alt="集合内部实现"></p>
+<p>当集合中所有的值都为整数时，Redis 会使用 intset 结构来存储，如下代码所示：</p>
+<pre class="line-numbers language-text" data-language="text"><code class="language-text">127.0.0.1:6379&gt; sadd myset 1 9 3 -2
+(integer) 4
+127.0.0.1:6379&gt; object encoding myset
+"intset"<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span></span></code></pre>
+<p>从上面代码可以看出，<strong>当所有元素都为整数时，集合会以 intset 结构进行(数据)存储</strong>。 当发生以下两种情况时，会导致集合类型使用 hashtable 而非 intset 存储：</p>
+<ol>
+<li>当元素的个数超过一定数量时，默认是 512 个，该值可通过命令 <code>set-max-intset-entries xxx</code> 来配置。</li>
+<li><p>当元素为非整数时，集合将会使用 hashtable 来存储，如下代码所示：</p>
+ <pre class="line-numbers language-text" data-language="text"><code class="language-text">127.0.0.1:6379&gt; sadd myht "redis" "db"
+(integer) 2
+127.0.0.1:6379&gt; object encoding myht
+"hashtable"<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span></span></code></pre>
+<p>从上面代码可以看出，<strong>当元素为非整数时，集合会使用 hashtable 进行存储。</strong></p>
+</li>
+</ol>
+<h3 id="4-源码解析-1"><a href="#4-源码解析-1" class="headerlink" title="4 源码解析"></a>4 源码解析</h3><p>集合源码在 t_set.c 文件中，核心源码如下：</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token comment">/* 
+ * 添加元素到集合
+ * 如果当前值已经存在，则返回 0 不作任何处理，否则就添加该元素，并返回 1。
+ */</span>
+<span class="token keyword">int</span> <span class="token function">setTypeAdd</span><span class="token punctuation">(</span>robj <span class="token operator">*</span>subject<span class="token punctuation">,</span> sds value<span class="token punctuation">)</span> <span class="token punctuation">{</span>
+    <span class="token keyword">long</span> <span class="token keyword">long</span> llval<span class="token punctuation">;</span>
+    <span class="token keyword">if</span> <span class="token punctuation">(</span>subject<span class="token operator">-&gt;</span>encoding <span class="token operator">==</span> OBJ_ENCODING_HT<span class="token punctuation">)</span> <span class="token punctuation">{</span> <span class="token comment">// 字典类型</span>
+        dict <span class="token operator">*</span>ht <span class="token operator">=</span> subject<span class="token operator">-&gt;</span>ptr<span class="token punctuation">;</span>
+        dictEntry <span class="token operator">*</span>de <span class="token operator">=</span> <span class="token function">dictAddRaw</span><span class="token punctuation">(</span>ht<span class="token punctuation">,</span>value<span class="token punctuation">,</span><span class="token constant">NULL</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span>de<span class="token punctuation">)</span> <span class="token punctuation">{</span>
+            <span class="token comment">// 把 value 作为字典到 key，将 Null 作为字典到 value，将元素存入到字典</span>
+            <span class="token function">dictSetKey</span><span class="token punctuation">(</span>ht<span class="token punctuation">,</span>de<span class="token punctuation">,</span><span class="token function">sdsdup</span><span class="token punctuation">(</span>value<span class="token punctuation">)</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token function">dictSetVal</span><span class="token punctuation">(</span>ht<span class="token punctuation">,</span>de<span class="token punctuation">,</span><span class="token constant">NULL</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token keyword">return</span> <span class="token number">1</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+    <span class="token punctuation">}</span> <span class="token keyword">else</span> <span class="token keyword">if</span> <span class="token punctuation">(</span>subject<span class="token operator">-&gt;</span>encoding <span class="token operator">==</span> OBJ_ENCODING_INTSET<span class="token punctuation">)</span> <span class="token punctuation">{</span> <span class="token comment">// inset 数据类型</span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token function">isSdsRepresentableAsLongLong</span><span class="token punctuation">(</span>value<span class="token punctuation">,</span><span class="token operator">&amp;</span>llval<span class="token punctuation">)</span> <span class="token operator">==</span> C_OK<span class="token punctuation">)</span> <span class="token punctuation">{</span>
+            uint8_t success <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span>
+            subject<span class="token operator">-&gt;</span>ptr <span class="token operator">=</span> <span class="token function">intsetAdd</span><span class="token punctuation">(</span>subject<span class="token operator">-&gt;</span>ptr<span class="token punctuation">,</span>llval<span class="token punctuation">,</span><span class="token operator">&amp;</span>success<span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token keyword">if</span> <span class="token punctuation">(</span>success<span class="token punctuation">)</span> <span class="token punctuation">{</span>
+                <span class="token comment">// 超过 inset 的最大存储数量，则使用字典类型存储</span>
+                <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token function">intsetLen</span><span class="token punctuation">(</span>subject<span class="token operator">-&gt;</span>ptr<span class="token punctuation">)</span> <span class="token operator">&gt;</span> server<span class="token punctuation">.</span>set_max_intset_entries<span class="token punctuation">)</span>
+                    <span class="token function">setTypeConvert</span><span class="token punctuation">(</span>subject<span class="token punctuation">,</span>OBJ_ENCODING_HT<span class="token punctuation">)</span><span class="token punctuation">;</span>
+                <span class="token keyword">return</span> <span class="token number">1</span><span class="token punctuation">;</span>
+            <span class="token punctuation">}</span>
+        <span class="token punctuation">}</span> <span class="token keyword">else</span> <span class="token punctuation">{</span>
+            <span class="token comment">// 转化为整数类型失败，使用字典类型存储</span>
+            <span class="token function">setTypeConvert</span><span class="token punctuation">(</span>subject<span class="token punctuation">,</span>OBJ_ENCODING_HT<span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+            <span class="token function">serverAssert</span><span class="token punctuation">(</span><span class="token function">dictAdd</span><span class="token punctuation">(</span>subject<span class="token operator">-&gt;</span>ptr<span class="token punctuation">,</span><span class="token function">sdsdup</span><span class="token punctuation">(</span>value<span class="token punctuation">)</span><span class="token punctuation">,</span><span class="token constant">NULL</span><span class="token punctuation">)</span> <span class="token operator">==</span> DICT_OK<span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token keyword">return</span> <span class="token number">1</span><span class="token punctuation">;</span>
+        <span class="token punctuation">}</span>
+    <span class="token punctuation">}</span> <span class="token keyword">else</span> <span class="token punctuation">{</span>
+        <span class="token comment">// 未知编码(类型)</span>
+        <span class="token function">serverPanic</span><span class="token punctuation">(</span><span class="token string">"Unknown set encoding"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+    <span class="token keyword">return</span> <span class="token number">0</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>以上这些代码验证了，我们上面所说的内容，当元素都为整数并且元素的个数没有到达设置的最大值时，键值的存储使用的是 intset 的数据结构，反之到元素超过了一定的范围，又或者是存储的元素为非整数时，集合会选择使用 hashtable 的数据结构进行存储。</p>
+<h2 id="14-有序集合使用与内部实现原理"><a href="#14-有序集合使用与内部实现原理" class="headerlink" title="14 有序集合使用与内部实现原理"></a>14 有序集合使用与内部实现原理</h2><p>有序集合类型 (Sorted Set) 相比于集合类型多了一个排序属性 score（分值），对于有序集合 ZSet 来说，每个存储元素相当于有两个值组成的，一个是有序结合的元素值，一个是排序值。有序集合的存储元素值也是不能重复的，但分值是可以重复的。</p>
+<h3 id="3-内部实现-2"><a href="#3-内部实现-2" class="headerlink" title="3 内部实现"></a>3 内部实现</h3><p>有序集合是由 ziplist (压缩列表) 或 skiplist (跳跃表) 组成的。</p>
+<h4 id="1）ziplist"><a href="#1）ziplist" class="headerlink" title="1）ziplist"></a>1）ziplist</h4><p>当数据比较少时，有序集合使用的是 ziplist 存储的，如下代码所示：</p>
+<pre class="line-numbers language-text" data-language="text"><code class="language-text">127.0.0.1:6379&gt; zadd myzset 1 db 2 redis 3 mysql
+(integer) 3
+127.0.0.1:6379&gt; object encoding myzset
+"ziplist"<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span></span></code></pre>
+<p>从结果可以看出，有序集合把 myset 键值对存储在 ziplist 结构中了。 有序集合使用 ziplist 格式存储必须满足以下两个条件：</p>
+<ul>
+<li>有序集合保存的元素个数要小于 128 个；</li>
+<li>有序集合保存的所有元素成员的长度都必须小于 64 字节。</li>
+</ul>
+<p>如果不能满足以上两个条件中的任意一个，有序集合将会使用 skiplist 结构进行存储。 接下来我们来测试以下，当有序集合中某个元素长度大于 64 字节时会发生什么情况？ 代码如下：</p>
+<pre class="line-numbers language-text" data-language="text"><code class="language-text">127.0.0.1:6379&gt; zadd zmaxleng 1.0 redis
+(integer) 1
+127.0.0.1:6379&gt; object encoding zmaxleng
+"ziplist"
+127.0.0.1:6379&gt; zadd zmaxleng 2.0 aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+(integer) 1
+127.0.0.1:6379&gt; object encoding zmaxleng
+"skiplist"<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>通过以上代码可以看出，当有序集合保存的所有元素成员的长度大于 64 字节时，有序集合就会从 ziplist 转换成为 skiplist。</p>
+<blockquote>
+<p>小贴士：可以通过配置文件中的 <code>zset-max-ziplist-entries</code>（默认 128）和 <code>zset-max-ziplist-value</code>（默认 64）来设置有序集合使用 ziplist 存储的临界值。</p>
+</blockquote>
+<h4 id="2）skiplist"><a href="#2）skiplist" class="headerlink" title="2）skiplist"></a>2）skiplist</h4><p>skiplist 数据编码底层是使用 zset 结构实现的，而 zset 结构中包含了一个字典和一个跳跃表，源码如下：</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">typedef</span> <span class="token keyword">struct</span> <span class="token class-name">zset</span> <span class="token punctuation">{</span>
+    dict <span class="token operator">*</span>dict<span class="token punctuation">;</span>
+    zskiplist <span class="token operator">*</span>zsl<span class="token punctuation">;</span>
+<span class="token punctuation">}</span> zset<span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span></span></code></pre>
+<p>更多关于跳跃表的源码实现，会在后面的章节详细介绍。</p>
+<blockquote>
+<p>注意：虽然查看结构时显示的是 skiplist，但它除了使用跳表之外，还使用了哈希表。所以有序集合比较特殊，它是唯一同时使用两种数据结构的类型。这样的好处是既能进行高效的范围查询，也能进行高效的单点查询。</p>
+</blockquote>
+<h5 id="跳跃表实现原理"><a href="#跳跃表实现原理" class="headerlink" title="跳跃表实现原理"></a>跳跃表实现原理</h5><p>跳跃表的结构如下图所示：</p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《Redis核心原理与实战》学习笔记/跳跃表的结构.png" alt="跳跃表的结构"></p>
+<p>根据以上图片展示，当我们在跳跃表中查询值 32 时，执行流程如下：</p>
+<ol>
+<li>从最上层开始找，1 比 32 小，在当前层移动到下一个节点进行比较；</li>
+<li>7 比 32 小，当前层移动下一个节点比较，由于下一个节点指向 Null，所以以 7 为目标，移动到下一层继续向后比较；</li>
+<li>18 小于 32，继续向后移动查找，对比 77 大于 32，以 18 为目标，移动到下一层继续向后比较；</li>
+<li>对比 32 等于 32，值被顺利找到。</li>
+</ol>
+<p>从上面的流程可以看出，跳跃表会想从最上层开始找起，依次向后查找，如果本层的节点大于要找的值，或者本层的节点为 Null 时，以上一个节点为目标，往下移一层继续向后查找并循环此流程，直到找到该节点并返回，如果对比到最后一个元素仍未找到，则返回 Null。</p>
+<h5 id="为什么是跳跃表？而非红黑树？"><a href="#为什么是跳跃表？而非红黑树？" class="headerlink" title="为什么是跳跃表？而非红黑树？"></a>为什么是跳跃表？而非红黑树？</h5><p>因为跳跃表的性能和红黑树基本相近，但却比红黑树更好实现，所有 Redis 的有序集合会选用跳跃表来实现存储。</p>
+<h2 id="16-Redis-事务深入解析"><a href="#16-Redis-事务深入解析" class="headerlink" title="16 Redis 事务深入解析"></a>16 Redis 事务深入解析</h2><p><a target="_blank" rel="noopener" href="https://www.cnblogs.com/wan-ming-zhu/p/18079959">https://www.cnblogs.com/wan-ming-zhu/p/18079959</a></p>
+<h3 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h3><p>事务指的是提供一种将多个命令打包，一次性按顺序地执行的机制，并且保证服务器只有在执行完事务中的所有命令后，才会继续处理此客户端的其他命令。</p>
+<p>事务也是其他关系型数据库所必备的基础功能，以支付的场景为例，正常情况下只有正常消费完成之后，才会减去账户余额。但如果没有事务的保障，可能会发生消费失败了，但依旧会把账户的余额给扣减了，我想这种情况应该任何人都无法接受吧？所以事务是数据库中一项非常重要的基础功能。</p>
+<h3 id="事务基本使用"><a href="#事务基本使用" class="headerlink" title="事务基本使用"></a>事务基本使用</h3><p>Redis 中的事务从开始到结束也是要经历三个阶段：</p>
+<ul>
+<li>开启事务</li>
+<li>命令入列</li>
+<li>执行事务/放弃事务</li>
+</ul>
+<p>其中，开启事务使用 multi 命令，事务执行使用 exec 命令，放弃事务使用 discard 命令。</p>
+<h4 id="开启事务"><a href="#开启事务" class="headerlink" title="开启事务"></a>开启事务</h4><p>multi 命令用于开启事务，实现代码如下：</p>
+<pre class="line-numbers language-text" data-language="text"><code class="language-text">&gt; multi
+OK<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre>
+<p>multi 命令可以让客户端从非事务模式状态，变为事务模式状态，如下图所示：</p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《Redis核心原理与实战》学习笔记/multi.png" alt="multi"></p>
+<p>注意：multi 命令不能嵌套使用，如果已经开启了事务的情况下，再执行 multi 命令，会提示如下错误：</p>
+<pre class="line-numbers language-text" data-language="text"><code class="language-text">127.0.0.1:6379&gt; multi
+OK
+127.0.0.1:6379&gt; multi
+(error) ERR MULTI calls can not be nested<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span></span></code></pre>
+<h4 id="命令入列"><a href="#命令入列" class="headerlink" title="命令入列"></a>命令入列</h4><p>客户端进入事务状态之后，执行的所有常规 Redis 操作命令（非触发事务执行或放弃和导致入列异常的命令）会依次入列，命令入列成功后会返回 QUEUED，如下代码所示：</p>
+<pre class="line-numbers language-text" data-language="text"><code class="language-text">&gt; multi
+OK
+&gt; set k v
+QUEUED
+&gt; get k
+QUEUED<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《Redis核心原理与实战》学习笔记/Redis事务状态后命令执行流程.png" alt="Redis事务状态后命令执行流程"></p>
+<p>注意：命令会按照先进先出（FIFO）的顺序出入列，也就是说事务会按照命令的入列顺序，从前往后依次执行。</p>
+<h4 id="执行事务-放弃事务"><a href="#执行事务-放弃事务" class="headerlink" title="执行事务/放弃事务"></a>执行事务/放弃事务</h4><p>执行事务的命令是 exec，放弃事务的命令是 discard。</p>
+<p>执行事务示例代码如下：</p>
+<pre class="line-numbers language-text" data-language="text"><code class="language-text">&gt; multi
+OK
+&gt; set k v2
+QUEUED
+&gt; exec
+1) OK
+&gt; get k
+"v2"<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>放弃事务示例代码如下：</p>
+<pre class="line-numbers language-text" data-language="text"><code class="language-text">&gt; multi
+OK
+&gt; set k v3
+QUEUED
+&gt; discard
+OK
+&gt; get k
+"v2"<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《Redis核心原理与实战》学习笔记/Redis执行事务放弃事务.png" alt="Redis执行事务放弃事务"></p>
+<h3 id="事务错误-amp-回滚"><a href="#事务错误-amp-回滚" class="headerlink" title="事务错误&amp;回滚"></a>事务错误&amp;回滚</h3><p>事务执行中的错误分为以下三类：</p>
+<ul>
+<li>执行时才会出现的错误（简称：执行时错误）；</li>
+<li>入列时错误，不会终止整个事务；</li>
+<li>入列时错误，会终止整个事务。</li>
+</ul>
+<h4 id="执行时错误"><a href="#执行时错误" class="headerlink" title="执行时错误"></a>执行时错误</h4><p>示例代码如下：</p>
+<pre class="line-numbers language-text" data-language="text"><code class="language-text">&gt; get k
+"v"
+&gt; multi
+OK
+&gt; set k v2
+QUEUED
+&gt; expire k 10s
+QUEUED
+&gt; exec
+1) OK
+2) (error) ERR value is not an integer or out of range
+&gt; get k
+"v2"<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>执行命令解释如下图所示：</p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《Redis核心原理与实战》学习笔记/执行时才会出现的错误.png" alt="执行时才会出现的错误"></p>
+<p>从以上结果可以看出，即使事务队列中某个命令在执行期间发生了错误，事务也会继续执行，直到事务队列中所有命令执行完成。</p>
+<h4 id="入列错误不会导致事务结束"><a href="#入列错误不会导致事务结束" class="headerlink" title="入列错误不会导致事务结束"></a>入列错误不会导致事务结束</h4><p>示例代码如下：</p>
+<pre class="line-numbers language-text" data-language="text"><code class="language-text">&gt; get k
+"v"
+&gt; multi
+OK
+&gt; set k v2
+QUEUED
+&gt; multi
+(error) ERR MULTI calls can not be nested
+&gt; exec
+1) OK
+&gt; get k
+"v2"<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>执行命令解释如下图所示：</p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《Redis核心原理与实战》学习笔记/入列错误不会导致事务结束.png" alt="入列错误不会导致事务结束"></p>
+<p>可以看出，重复执行 multi 会导致入列错误，但不会终止事务，最终查询的结果是事务执行成功了。除了重复执行 multi 命令，还有在事务状态下执行 watch 也是同样的效果，下文会详细讲解关于 watch 的内容。</p>
+<h4 id="入列错误导致事务结束"><a href="#入列错误导致事务结束" class="headerlink" title="入列错误导致事务结束"></a>入列错误导致事务结束</h4><p>示例代码如下：</p>
+<pre class="line-numbers language-text" data-language="text"><code class="language-text">&gt; get k
+"v2"
+&gt; multi
+OK
+&gt; set k v3
+QUEUED
+&gt; set k
+(error) ERR wrong number of arguments for 'set' command
+&gt; exec
+(error) EXECABORT Transaction discarded because of previous errors.
+&gt; get k
+"v2"<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>执行命令解释如下图所示：</p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《Redis核心原理与实战》学习笔记/入列错误导致事务结束.png" alt="入列错误导致事务结束"></p>
+<p>所以我们看到错误可以分为两种：一种是事务执行时才会发现的错误；另一种是在入队的时候就能发现的错误。</p>
+<ul>
+<li>执行时出现的错误，不会影响事务队列中的其它命令；即使某条命令失败，其它命令依旧可以正常执行；</li>
+<li>入队时发现的错误，如果是 multi、watch 这种错误也不会终止事务，只是不会让它入队；但如果是命令不符合 Redis 的规则，那么这种错误就类似于编程语言的语法错误，直接编译时就报错，没必要等到执行了。所以在 Redis 中的表现就是整个事务都废弃掉，里面的命令一条也不会执行；</li>
+</ul>
+<h4 id="为什么不支持事务回滚？"><a href="#为什么不支持事务回滚？" class="headerlink" title="为什么不支持事务回滚？"></a>为什么不支持事务回滚？</h4><p>Redis 官方文档的解释如下：</p>
+<blockquote>
+<p>If you have a relational databases background, the fact that Redis commands can fail during a transaction, but still Redis will execute the rest of the transaction instead of rolling back, may look odd to you.</p>
+<p>However there are good opinions for this behavior:</p>
+<ul>
+<li>Redis commands can fail only if called with a wrong syntax (and the problem is not detectable during the command queueing), or against keys holding the wrong data type: this means that in practical terms a failing command is the result of a programming errors, and a kind of error that is very likely to be detected during development, and not in production.</li>
+<li>Redis is internally simplified and faster because it does not need the ability to roll back.</li>
+</ul>
+<p>An argument against Redis point of view is that bugs happen, however it should be noted that in general the roll back does not save you from programming errors. For instance if a query increments a key by 2 instead of 1, or increments the wrong key, there is no way for a rollback mechanism to help. Given that no one can save the programmer from his or her errors, and that the kind of errors required for a Redis command to fail are unlikely to enter in production, we selected the simpler and faster approach of not supporting roll backs on errors.</p>
+</blockquote>
+<p>大概的意思是，作者不支持事务回滚的原因有以下两个：</p>
+<ul>
+<li>他认为 Redis 事务的执行时，错误通常都是编程错误造成的，这种错误通常只会出现在开发环境中，而很少会在实际的生产环境中出现，所以他认为没有必要为 Redis 开发事务回滚功能；</li>
+<li>不支持事务回滚是因为这种复杂的功能和 Redis 追求的简单高效的设计主旨不符合。</li>
+</ul>
+<blockquote>
+<p>这里不支持事务回滚，指的是不支持运行时错误的事务回滚。</p>
+</blockquote>
+<h4 id="监控"><a href="#监控" class="headerlink" title="监控"></a>监控</h4><p>watch 命令用于客户端并发情况下，为事务提供一个乐观锁（CAS，Check And Set），也就是可以用 watch 命令来监控一个或多个变量，如果在事务的过程中，<strong>某个监控项被修改了，那么整个事务就会终止执行。</strong></p>
+<p>watch 基本语法如下：</p>
+<pre class="line-numbers language-text" data-language="text"><code class="language-text">watch key [key ...]<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>watch 示例代码如下：</p>
+<pre class="line-numbers language-text" data-language="text"><code class="language-text">&gt; watch k
+OK
+&gt; multi
+OK
+&gt; set k v2
+QUEUED
+&gt; exec
+(nil)
+&gt; get k
+"v"<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>注意：以上事务在执行期间，也就是开启事务（multi）之后，执行事务（exec）之前，模拟多客户端并发操作了变量 k 的值，这个时候再去执行事务，才会出现如上结果，exec 执行的结果为 nil。</p>
+<p>可以看出，当执行 exec 返回的结果是 nil 时，表示 watch 监控的对象在事务执行的过程中被修改了。从 get k 的结果也可以印证，因为事务中设置的值 <code>set k v2</code> 并未正常执行。</p>
+<p>执行流程如下图所示：</p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《Redis核心原理与实战》学习笔记/watch执行流程.png" alt="watch执行流程"></p>
+<p>注意： watch 命令只能在客户端开启事务之前执行，在事务中执行 watch 命令会引发错误，但不会造成整个事务失败，如下代码所示：</p>
+<pre class="line-numbers language-text" data-language="text"><code class="language-text">&gt; multi
+OK
+&gt; set k v3
+QUEUED
+&gt; watch k
+(error) ERR WATCH inside MULTI is not allowed
+&gt; exec
+1) OK
+&gt; get k
+"v3"<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>执行命令解释如下图所示：</p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《Redis核心原理与实战》学习笔记/watch执行命令解释.png" alt="watch执行命令解释"></p>
+<blockquote>
+<p>一个 watch 对应一个事务，watch 之后只要执行了事务，不管里面的命令是成功还是失败，这个 watch 就算是结束了。再次开启事务，设置的 key 就是不被监视的 key 了。</p>
+</blockquote>
+<p>unwatch 命令用于清除所有之前监控的所有对象（键值对）。</p>
+<p>unwatch 示例如下所示：</p>
+<pre class="line-numbers language-text" data-language="text"><code class="language-text">&gt; set k v
+OK
+&gt; watch k
+OK
+&gt; multi
+OK
+&gt; unwatch
+QUEUED
+&gt; set k v2
+QUEUED
+&gt; exec
+1) OK
+2) OK
+&gt; get k
+"v2"<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>可以看出，即使在事务的执行过程中，k 值被修改了，因为调用了 unwatch 命令，整个事务依然会顺利执行。</p>
+<h4 id="知识点练习"><a href="#知识点练习" class="headerlink" title="知识点练习"></a>知识点练习</h4><p>以下两个客户端交替执行的结果是？</p>
+<p>客户端一，执行如下命令：</p>
+<pre class="line-numbers language-text" data-language="text"><code class="language-text">&gt; set k v
+OK
+&gt; watch k
+OK
+&gt; multi
+OK
+&gt; set k v2
+QUEUED<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>客户端二，执行如下命令：</p>
+<pre class="line-numbers language-text" data-language="text"><code class="language-text">&gt; set k v
+OK<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre>
+<p>客户端一，再执行如下命令：</p>
+<pre class="line-numbers language-text" data-language="text"><code class="language-text">&gt; exec<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>此时 k 的值为多少？</p>
+<p>答： k 的值为 v，而非 v2。</p>
+<p>题目解析：本题考查的是 watch 命令监控时，即使把原对象的值重新赋值给了原对象，这个时候 watch 命令也会认为监控对象还是被修改了。</p>
+<h3 id="小结-2"><a href="#小结-2" class="headerlink" title="小结"></a>小结</h3><p>事务为多个命令提供一次性按顺序执行的机制，与 Redis 事务相关的命令有以下五个：</p>
+<ul>
+<li>multi：开启事务</li>
+<li>exec：执行事务</li>
+<li>discard：丢弃事务</li>
+<li>watch：为事务提供乐观锁实现</li>
+<li>unwatch：取消监控（取消事务中的乐观锁）</li>
+</ul>
+<p>正常情况下 Redis 事务分为三个阶段：开启事务、命令入列、执行事务。Redis 事务并不支持运行时错误的事务回滚，但在某些入列错误，如 set key 或者是 watch 监控项被修改时，提供整个事务回滚的功能。</p>
+<h2 id="17-Redis-键值过期操作"><a href="#17-Redis-键值过期操作" class="headerlink" title="17 Redis 键值过期操作"></a>17 Redis 键值过期操作</h2><h3 id="过期设置"><a href="#过期设置" class="headerlink" title="过期设置"></a>过期设置</h3><p>Redis 中设置过期时间主要通过以下四种方式：</p>
+<ul>
+<li><code>expire key seconds</code>：设置 key 在 n 秒后过期；</li>
+<li><code>pexpire key milliseconds</code>：设置 key 在 n 毫秒后过期；</li>
+<li><code>expireat key timestamp</code>：设置 key 在某个时间戳（精确到秒）之后过期；</li>
+<li><code>pexpireat key millisecondsTimestamp</code>：设置 key 在某个时间戳（精确到毫秒）之后过期；</li>
+</ul>
+<h3 id="字符串中的过期操作"><a href="#字符串中的过期操作" class="headerlink" title="字符串中的过期操作"></a>字符串中的过期操作</h3><p>字符串中几个直接操作过期时间的方法，如下列表：</p>
+<ul>
+<li><code>set key value ex seconds</code>：设置键值对的同时指定过期时间（精确到秒）；<br>-<code>set key value px milliseconds</code>：设置键值对的同时指定过期时间（精确到毫秒）；</li>
+<li><code>setex key seconds valule</code>：设置键值对的同时指定过期时间（精确到秒）。</li>
+</ul>
+<h3 id="移除过期时间"><a href="#移除过期时间" class="headerlink" title="移除过期时间"></a>移除过期时间</h3><p>使用命令： persist key 可以移除键值的过期时间。</p>
+<h3 id="持久化中的过期键"><a href="#持久化中的过期键" class="headerlink" title="持久化中的过期键"></a>持久化中的过期键</h3><p>Redis 持久化文件有两种格式：RDB（Redis Database）和 AOF（Append Only File），下面我们分别来看过期键在这两种格式中的呈现状态。</p>
+<h4 id="RDB-中的过期键"><a href="#RDB-中的过期键" class="headerlink" title="RDB 中的过期键"></a>RDB 中的过期键</h4><p>RDB 文件分为两个阶段，RDB 文件生成阶段和加载阶段。</p>
+<h5 id="1-RDB-文件生成"><a href="#1-RDB-文件生成" class="headerlink" title="1. RDB 文件生成"></a>1. RDB 文件生成</h5><p>从内存状态持久化成 RDB（文件）的时候，会对 key 进行过期检查，过期的键不会被保存到新的 RDB 文件中，因此 Redis 中的过期键不会对生成新 RDB 文件产生任何影响。</p>
+<h5 id="2-RDB-文件加载"><a href="#2-RDB-文件加载" class="headerlink" title="2. RDB 文件加载"></a>2. RDB 文件加载</h5><p>RDB 加载分为以下两种情况：</p>
+<ul>
+<li>如果 Redis 是主服务器运行模式的话，在载入 RDB 文件时，程序会对文件中保存的键进行检查，过期键不会被载入到数据库中。所以过期键不会对载入 RDB 文件的主服务器造成影响；</li>
+<li>如果 Redis 是从服务器运行模式的话，在载入 RDB 文件时，不论键是否过期都会被载入到数据库中。但由于主从服务器在进行数据同步时，从服务器的数据会被清空。所以一般来说，过期键对载入 RDB 文件的从服务器也不会造成影响。</li>
+</ul>
+<p>RDB 文件加载的源码可以在 rdb.c 文件的 rdbLoad() 函数中找到，源码所示：</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token comment">/* Check if the key already expired. This function is used when loading
+* an RDB file from disk, either at startup, or when an RDB was
+* received from the master. In the latter case, the master is
+* responsible for key expiry. If we would expire keys here, the
+* snapshot taken by the master may not be reflected on the slave. 
+*
+* 如果服务器为主节点的话，
+* 那么在键已经过期的时候，不再将它们关联到数据库中去
+*/</span>
+<span class="token keyword">if</span> <span class="token punctuation">(</span>server<span class="token punctuation">.</span>masterhost <span class="token operator">==</span> <span class="token constant">NULL</span> <span class="token operator">&amp;&amp;</span> expiretime <span class="token operator">!=</span> <span class="token operator">-</span><span class="token number">1</span> <span class="token operator">&amp;&amp;</span> expiretime <span class="token operator">&lt;</span> now<span class="token punctuation">)</span> <span class="token punctuation">{</span>
+    <span class="token function">decrRefCount</span><span class="token punctuation">(</span>key<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token function">decrRefCount</span><span class="token punctuation">(</span>val<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token comment">// 跳过</span>
+    <span class="token keyword">continue</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<h4 id="AOF-中的过期键"><a href="#AOF-中的过期键" class="headerlink" title="AOF 中的过期键"></a>AOF 中的过期键</h4><h5 id="1-AOF-文件写入"><a href="#1-AOF-文件写入" class="headerlink" title="1. AOF 文件写入"></a>1. AOF 文件写入</h5><p>当 Redis 以 AOF 模式持久化时，如果数据库某个过期键还没被删除，那么 AOF 文件会保留此过期键，当此过期键被删除后，Redis 会向 AOF 文件追加一条 DEL 命令来显式地删除该键值。</p>
+<h5 id="2-AOF-重写"><a href="#2-AOF-重写" class="headerlink" title="2. AOF 重写"></a>2. AOF 重写</h5><p>执行 AOF 重写时，会对 Redis 中的键值对进行检查已过期的键不会被保存到重写后的 AOF 文件中，因此不会对 AOF 重写造成任何影响。</p>
+<h4 id="主从库的过期键"><a href="#主从库的过期键" class="headerlink" title="主从库的过期键"></a>主从库的过期键</h4><p>当 Redis 运行在主从模式下时，从库不会进行过期扫描，从库对过期的处理是被动的。也就是即使从库中的 key 过期了，如果有客户端访问从库时，依然可以得到 key 对应的值，像未过期的键值对一样返回。</p>
+<p>从库的过期键处理依靠主服务器控制，主库在 key 到期时，会在 AOF 文件里增加一条 del 指令，同步到所有的从库，从库通过执行这条 del 指令来删除过期的 key。</p>
+<h3 id="小结-3"><a href="#小结-3" class="headerlink" title="小结"></a>小结</h3><p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《Redis核心原理与实战》学习笔记/Redis键值过期操作小结.png" alt="Redis键值过期操作小结"></p>
+<h2 id="18-Redis-过期策略与源码分析"><a href="#18-Redis-过期策略与源码分析" class="headerlink" title="18 Redis 过期策略与源码分析"></a>18 Redis 过期策略与源码分析</h2><h3 id="过期键执行流程"><a href="#过期键执行流程" class="headerlink" title="过期键执行流程"></a>过期键执行流程</h3><p>Redis 之所以能知道那些键值过期，是因为在 Redis 中维护了一个字典，存储了所有设置了过期时间的键值，我们称之为过期字典。</p>
+<p>过期键判断流程如下图所示：</p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《Redis核心原理与实战》学习笔记/过期键判断流程.png" alt="过期键判断流程"></p>
+<h3 id="过期键源码分析"><a href="#过期键源码分析" class="headerlink" title="过期键源码分析"></a>过期键源码分析</h3><p>过期键存储在 redisDb 结构中，源代码在 src/server.h 文件中</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token comment">/* Redis database representation. There are multiple databases identified
+ * by integers from 0 (the default database) up to the max configured
+ * database. The database number is the 'id' field in the structure. */</span>
+<span class="token keyword">typedef</span> <span class="token keyword">struct</span> <span class="token class-name">redisDb</span> <span class="token punctuation">{</span>
+    dict <span class="token operator">*</span>dict<span class="token punctuation">;</span>                 <span class="token comment">/* 数据库键空间，存放着所有的键值对 */</span>
+    dict <span class="token operator">*</span>expires<span class="token punctuation">;</span>              <span class="token comment">/* 键的过期时间 */</span>
+    dict <span class="token operator">*</span>blocking_keys<span class="token punctuation">;</span>        <span class="token comment">/* Keys with clients waiting for data (BLPOP)*/</span>
+    dict <span class="token operator">*</span>ready_keys<span class="token punctuation">;</span>           <span class="token comment">/* Blocked keys that received a PUSH */</span>
+    dict <span class="token operator">*</span>watched_keys<span class="token punctuation">;</span>         <span class="token comment">/* WATCHED keys for MULTI/EXEC CAS */</span>
+    <span class="token keyword">int</span> id<span class="token punctuation">;</span>                     <span class="token comment">/* Database ID */</span>
+    <span class="token keyword">long</span> <span class="token keyword">long</span> avg_ttl<span class="token punctuation">;</span>          <span class="token comment">/* Average TTL, just for stats */</span>
+    list <span class="token operator">*</span>defrag_later<span class="token punctuation">;</span>         <span class="token comment">/* List of key names to attempt to defrag one by one, gradually. */</span>
+<span class="token punctuation">}</span> redisDb<span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<blockquote>
+<p>小贴士：本文的所有源码都是基于 Redis 5。</p>
+</blockquote>
+<h3 id="过期策略"><a href="#过期策略" class="headerlink" title="过期策略"></a>过期策略</h3><p>Redis 会删除已过期的键值，以此来减少 Redis 的空间占用，但因为 Redis 本身是单线的，如果因为删除操作而影响主业务的执行就得不偿失了，为此 Redis 需要制定多个（过期）删除策略来保证糟糕的事情不会发生。</p>
+<p>常见的过期策略有以下几种：</p>
+<ul>
+<li>惰性删除</li>
+<li>定期删除</li>
+</ul>
+<p>下面分别来看每种策略有何不同。</p>
+<h4 id="惰性删除"><a href="#惰性删除" class="headerlink" title="惰性删除"></a>惰性删除</h4><p>不主动删除过期键，每次从数据库获取键值时判断是否过期，如果过期则删除键值，并返回 null。</p>
+<ul>
+<li>优点：因为每次访问时，才会判断过期键，所以此策略只会使用很少的系统资源。</li>
+<li>缺点：系统占用空间删除不及时，导致空间利用率降低，造成了一定的空间浪费。</li>
+</ul>
+<h5 id="源码解析-1"><a href="#源码解析-1" class="headerlink" title="源码解析"></a>源码解析</h5><p>惰性删除的源码位于 src/db.c 文件的 expireIfNeeded 方法中，源码如下：</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">int</span> <span class="token function">expireIfNeeded</span><span class="token punctuation">(</span>redisDb <span class="token operator">*</span>db<span class="token punctuation">,</span> robj <span class="token operator">*</span>key<span class="token punctuation">)</span> <span class="token punctuation">{</span>
+    <span class="token comment">// 判断键是否过期</span>
+    <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token operator">!</span><span class="token function">keyIsExpired</span><span class="token punctuation">(</span>db<span class="token punctuation">,</span>key<span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token keyword">return</span> <span class="token number">0</span><span class="token punctuation">;</span>
+    <span class="token keyword">if</span> <span class="token punctuation">(</span>server<span class="token punctuation">.</span>masterhost <span class="token operator">!=</span> <span class="token constant">NULL</span><span class="token punctuation">)</span> <span class="token keyword">return</span> <span class="token number">1</span><span class="token punctuation">;</span>
+    <span class="token comment">/* 删除过期键 */</span>
+    <span class="token comment">// 增加过期键个数</span>
+    server<span class="token punctuation">.</span>stat_expiredkeys<span class="token operator">++</span><span class="token punctuation">;</span>
+    <span class="token comment">// 传播键过期的消息</span>
+    <span class="token function">propagateExpire</span><span class="token punctuation">(</span>db<span class="token punctuation">,</span>key<span class="token punctuation">,</span>server<span class="token punctuation">.</span>lazyfree_lazy_expire<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token function">notifyKeyspaceEvent</span><span class="token punctuation">(</span>NOTIFY_EXPIRED<span class="token punctuation">,</span>
+        <span class="token string">"expired"</span><span class="token punctuation">,</span>key<span class="token punctuation">,</span>db<span class="token operator">-&gt;</span>id<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token comment">// server.lazyfree_lazy_expire 为 1 表示异步删除（懒空间释放），反之同步删除</span>
+    <span class="token keyword">return</span> server<span class="token punctuation">.</span>lazyfree_lazy_expire <span class="token operator">?</span> <span class="token function">dbAsyncDelete</span><span class="token punctuation">(</span>db<span class="token punctuation">,</span>key<span class="token punctuation">)</span> <span class="token operator">:</span>
+                                         <span class="token function">dbSyncDelete</span><span class="token punctuation">(</span>db<span class="token punctuation">,</span>key<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+<span class="token comment">// 判断键是否过期</span>
+<span class="token keyword">int</span> <span class="token function">keyIsExpired</span><span class="token punctuation">(</span>redisDb <span class="token operator">*</span>db<span class="token punctuation">,</span> robj <span class="token operator">*</span>key<span class="token punctuation">)</span> <span class="token punctuation">{</span>
+    mstime_t when <span class="token operator">=</span> <span class="token function">getExpire</span><span class="token punctuation">(</span>db<span class="token punctuation">,</span>key<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">if</span> <span class="token punctuation">(</span>when <span class="token operator">&lt;</span> <span class="token number">0</span><span class="token punctuation">)</span> <span class="token keyword">return</span> <span class="token number">0</span><span class="token punctuation">;</span> <span class="token comment">/* No expire for this key */</span>
+    <span class="token comment">/* Don't expire anything while loading. It will be done later. */</span>
+    <span class="token keyword">if</span> <span class="token punctuation">(</span>server<span class="token punctuation">.</span>loading<span class="token punctuation">)</span> <span class="token keyword">return</span> <span class="token number">0</span><span class="token punctuation">;</span>
+    mstime_t now <span class="token operator">=</span> server<span class="token punctuation">.</span>lua_caller <span class="token operator">?</span> server<span class="token punctuation">.</span>lua_time_start <span class="token operator">:</span> <span class="token function">mstime</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">return</span> now <span class="token operator">&gt;</span> when<span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+<span class="token comment">// 获取键的过期时间</span>
+<span class="token keyword">long</span> <span class="token keyword">long</span> <span class="token function">getExpire</span><span class="token punctuation">(</span>redisDb <span class="token operator">*</span>db<span class="token punctuation">,</span> robj <span class="token operator">*</span>key<span class="token punctuation">)</span> <span class="token punctuation">{</span>
+    dictEntry <span class="token operator">*</span>de<span class="token punctuation">;</span>
+    <span class="token comment">/* No expire? return ASAP */</span>
+    <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token function">dictSize</span><span class="token punctuation">(</span>db<span class="token operator">-&gt;</span>expires<span class="token punctuation">)</span> <span class="token operator">==</span> <span class="token number">0</span> <span class="token operator">||</span>
+       <span class="token punctuation">(</span>de <span class="token operator">=</span> <span class="token function">dictFind</span><span class="token punctuation">(</span>db<span class="token operator">-&gt;</span>expires<span class="token punctuation">,</span>key<span class="token operator">-&gt;</span>ptr<span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token operator">==</span> <span class="token constant">NULL</span><span class="token punctuation">)</span> <span class="token keyword">return</span> <span class="token operator">-</span><span class="token number">1</span><span class="token punctuation">;</span>
+    <span class="token comment">/* The entry was found in the expire dict, this means it should also
+     * be present in the main dict (safety check). */</span>
+    <span class="token function">serverAssertWithInfo</span><span class="token punctuation">(</span><span class="token constant">NULL</span><span class="token punctuation">,</span>key<span class="token punctuation">,</span><span class="token function">dictFind</span><span class="token punctuation">(</span>db<span class="token operator">-&gt;</span>dict<span class="token punctuation">,</span>key<span class="token operator">-&gt;</span>ptr<span class="token punctuation">)</span> <span class="token operator">!=</span> <span class="token constant">NULL</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token keyword">return</span> <span class="token function">dictGetSignedIntegerVal</span><span class="token punctuation">(</span>de<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>所有对数据库的读写命令在执行之前，都会调用 expireIfNeeded 方法判断键值是否过期，过期则会从数据库中删除，反之则不做任何处理。</p>
+<p>惰性删除执行流程，如下图所示：</p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《Redis核心原理与实战》学习笔记/惰性删除执行流程.png" alt="惰性删除执行流程"></p>
+<h4 id="定期删除"><a href="#定期删除" class="headerlink" title="定期删除"></a>定期删除</h4><p>每隔一段时间检查一次数据库，随机删除一些过期键。</p>
+<p>Redis 默认每秒进行 10 次过期扫描，此配置可通过 Redis 的配置文件 redis.conf 进行配置，配置键为 hz 它的默认值是 hz 10。</p>
+<p>需要注意的是：Redis 每次扫描并不是遍历过期字典中的所有键，而是采用随机抽取判断并删除过期键的形式执行的。</p>
+<h5 id="定期删除流程"><a href="#定期删除流程" class="headerlink" title="定期删除流程"></a>定期删除流程</h5><ol>
+<li>从过期字典中随机取出 20 个键；</li>
+<li>删除这 20 个键中过期的键；</li>
+<li>如果过期 key 的比例超过 25%，重复步骤 1。</li>
+</ol>
+<p>同时为了保证过期扫描不会出现循环过度，导致线程卡死现象，算法还增加了扫描时间的上限，默认不会超过 25ms。</p>
+<p>定期删除执行流程，如下图所示：</p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《Redis核心原理与实战》学习笔记/定期删除执行流程.png" alt="定期删除执行流程"></p>
+<ul>
+<li>优点：通过限制删除操作的时长和频率，来减少删除操作对 Redis 主业务的影响，同时也能删除一部分过期的数据减少了过期键对空间的无效占用。</li>
+<li>缺点：内存清理方面没有定时删除效果好，同时没有惰性删除使用的系统资源少。</li>
+</ul>
+<h5 id="源码解析-2"><a href="#源码解析-2" class="headerlink" title="源码解析"></a>源码解析</h5><p>定期删除的核心源码在 src/expire.c 文件下的 activeExpireCycle 方法中，源码如下：</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">void</span> <span class="token function">activeExpireCycle</span><span class="token punctuation">(</span><span class="token keyword">int</span> type<span class="token punctuation">)</span> <span class="token punctuation">{</span>
+    <span class="token keyword">static</span> <span class="token keyword">unsigned</span> <span class="token keyword">int</span> current_db <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span> <span class="token comment">/* 上次定期删除遍历到的数据库ID */</span>
+    <span class="token keyword">static</span> <span class="token keyword">int</span> timelimit_exit <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span>      <span class="token comment">/* Time limit hit in previous call? */</span>
+    <span class="token keyword">static</span> <span class="token keyword">long</span> <span class="token keyword">long</span> last_fast_cycle <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span> <span class="token comment">/* 上一次执行快速定期删除的时间点 */</span>
+    <span class="token keyword">int</span> j<span class="token punctuation">,</span> iteration <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span>
+    <span class="token keyword">int</span> dbs_per_call <span class="token operator">=</span> CRON_DBS_PER_CALL<span class="token punctuation">;</span> <span class="token comment">// 每次定期删除，遍历的数据库的数量</span>
+    <span class="token keyword">long</span> <span class="token keyword">long</span> start <span class="token operator">=</span> <span class="token function">ustime</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">,</span> timelimit<span class="token punctuation">,</span> elapsed<span class="token punctuation">;</span>
+    <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token function">clientsArePaused</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token keyword">return</span><span class="token punctuation">;</span>
+    <span class="token keyword">if</span> <span class="token punctuation">(</span>type <span class="token operator">==</span> ACTIVE_EXPIRE_CYCLE_FAST<span class="token punctuation">)</span> <span class="token punctuation">{</span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token operator">!</span>timelimit_exit<span class="token punctuation">)</span> <span class="token keyword">return</span><span class="token punctuation">;</span>
+        <span class="token comment">// ACTIVE_EXPIRE_CYCLE_FAST_DURATION 是快速定期删除的执行时长</span>
+        <span class="token keyword">if</span> <span class="token punctuation">(</span>start <span class="token operator">&lt;</span> last_fast_cycle <span class="token operator">+</span> ACTIVE_EXPIRE_CYCLE_FAST_DURATION<span class="token operator">*</span><span class="token number">2</span><span class="token punctuation">)</span> <span class="token keyword">return</span><span class="token punctuation">;</span>
+        last_fast_cycle <span class="token operator">=</span> start<span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+    <span class="token keyword">if</span> <span class="token punctuation">(</span>dbs_per_call <span class="token operator">&gt;</span> server<span class="token punctuation">.</span>dbnum <span class="token operator">||</span> timelimit_exit<span class="token punctuation">)</span>
+        dbs_per_call <span class="token operator">=</span> server<span class="token punctuation">.</span>dbnum<span class="token punctuation">;</span>
+    <span class="token comment">// 慢速定期删除的执行时长</span>
+    timelimit <span class="token operator">=</span> <span class="token number">1000000</span><span class="token operator">*</span>ACTIVE_EXPIRE_CYCLE_SLOW_TIME_PERC<span class="token operator">/</span>server<span class="token punctuation">.</span>hz<span class="token operator">/</span><span class="token number">100</span><span class="token punctuation">;</span>
+    timelimit_exit <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span>
+    <span class="token keyword">if</span> <span class="token punctuation">(</span>timelimit <span class="token operator">&lt;=</span> <span class="token number">0</span><span class="token punctuation">)</span> timelimit <span class="token operator">=</span> <span class="token number">1</span><span class="token punctuation">;</span>
+    <span class="token keyword">if</span> <span class="token punctuation">(</span>type <span class="token operator">==</span> ACTIVE_EXPIRE_CYCLE_FAST<span class="token punctuation">)</span>
+        timelimit <span class="token operator">=</span> ACTIVE_EXPIRE_CYCLE_FAST_DURATION<span class="token punctuation">;</span> <span class="token comment">/* 删除操作的执行时长 */</span>
+    <span class="token keyword">long</span> total_sampled <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span>
+    <span class="token keyword">long</span> total_expired <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span>
+    <span class="token keyword">for</span> <span class="token punctuation">(</span>j <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span> j <span class="token operator">&lt;</span> dbs_per_call <span class="token operator">&amp;&amp;</span> timelimit_exit <span class="token operator">==</span> <span class="token number">0</span><span class="token punctuation">;</span> j<span class="token operator">++</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+        <span class="token keyword">int</span> expired<span class="token punctuation">;</span>
+        redisDb <span class="token operator">*</span>db <span class="token operator">=</span> server<span class="token punctuation">.</span>db<span class="token operator">+</span><span class="token punctuation">(</span>current_db <span class="token operator">%</span> server<span class="token punctuation">.</span>dbnum<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        current_db<span class="token operator">++</span><span class="token punctuation">;</span>
+        <span class="token keyword">do</span> <span class="token punctuation">{</span>
+            <span class="token comment">// .......</span>
+            expired <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span>
+            ttl_sum <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span>
+            ttl_samples <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span>
+            <span class="token comment">// 每个数据库中检查的键的数量</span>
+            <span class="token keyword">if</span> <span class="token punctuation">(</span>num <span class="token operator">&gt;</span> ACTIVE_EXPIRE_CYCLE_LOOKUPS_PER_LOOP<span class="token punctuation">)</span>
+                num <span class="token operator">=</span> ACTIVE_EXPIRE_CYCLE_LOOKUPS_PER_LOOP<span class="token punctuation">;</span>
+            <span class="token comment">// 从数据库中随机选取 num 个键进行检查</span>
+            <span class="token keyword">while</span> <span class="token punctuation">(</span>num<span class="token operator">--</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+                dictEntry <span class="token operator">*</span>de<span class="token punctuation">;</span>
+                <span class="token keyword">long</span> <span class="token keyword">long</span> ttl<span class="token punctuation">;</span>
+                <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token punctuation">(</span>de <span class="token operator">=</span> <span class="token function">dictGetRandomKey</span><span class="token punctuation">(</span>db<span class="token operator">-&gt;</span>expires<span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token operator">==</span> <span class="token constant">NULL</span><span class="token punctuation">)</span> <span class="token keyword">break</span><span class="token punctuation">;</span>
+                ttl <span class="token operator">=</span> dictGetSignedInteger
+                <span class="token comment">// 过期检查，并对过期键进行删除</span>
+                <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token function">activeExpireCycleTryExpire</span><span class="token punctuation">(</span>db<span class="token punctuation">,</span>de<span class="token punctuation">,</span>now<span class="token punctuation">)</span><span class="token punctuation">)</span> expired<span class="token operator">++</span><span class="token punctuation">;</span>
+                <span class="token keyword">if</span> <span class="token punctuation">(</span>ttl <span class="token operator">&gt;</span> <span class="token number">0</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+                    <span class="token comment">/* We want the average TTL of keys yet not expired. */</span>
+                    ttl_sum <span class="token operator">+=</span> ttl<span class="token punctuation">;</span>
+                    ttl_samples<span class="token operator">++</span><span class="token punctuation">;</span>
+                <span class="token punctuation">}</span>
+                total_sampled<span class="token operator">++</span><span class="token punctuation">;</span>
+            <span class="token punctuation">}</span>
+            total_expired <span class="token operator">+=</span> expired<span class="token punctuation">;</span>
+            <span class="token keyword">if</span> <span class="token punctuation">(</span>ttl_samples<span class="token punctuation">)</span> <span class="token punctuation">{</span>
+                <span class="token keyword">long</span> <span class="token keyword">long</span> avg_ttl <span class="token operator">=</span> ttl_sum<span class="token operator">/</span>ttl_samples<span class="token punctuation">;</span>
+                <span class="token keyword">if</span> <span class="token punctuation">(</span>db<span class="token operator">-&gt;</span>avg_ttl <span class="token operator">==</span> <span class="token number">0</span><span class="token punctuation">)</span> db<span class="token operator">-&gt;</span>avg_ttl <span class="token operator">=</span> avg_ttl<span class="token punctuation">;</span>
+                db<span class="token operator">-&gt;</span>avg_ttl <span class="token operator">=</span> <span class="token punctuation">(</span>db<span class="token operator">-&gt;</span>avg_ttl<span class="token operator">/</span><span class="token number">50</span><span class="token punctuation">)</span><span class="token operator">*</span><span class="token number">49</span> <span class="token operator">+</span> <span class="token punctuation">(</span>avg_ttl<span class="token operator">/</span><span class="token number">50</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+            <span class="token punctuation">}</span>
+            <span class="token keyword">if</span> <span class="token punctuation">(</span><span class="token punctuation">(</span>iteration <span class="token operator">&amp;</span> <span class="token number">0xf</span><span class="token punctuation">)</span> <span class="token operator">==</span> <span class="token number">0</span><span class="token punctuation">)</span> <span class="token punctuation">{</span> <span class="token comment">/* check once every 16 iterations. */</span>
+                elapsed <span class="token operator">=</span> <span class="token function">ustime</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token operator">-</span>start<span class="token punctuation">;</span>
+                <span class="token keyword">if</span> <span class="token punctuation">(</span>elapsed <span class="token operator">&gt;</span> timelimit<span class="token punctuation">)</span> <span class="token punctuation">{</span>
+                    timelimit_exit <span class="token operator">=</span> <span class="token number">1</span><span class="token punctuation">;</span>
+                    server<span class="token punctuation">.</span>stat_expired_time_cap_reached_count<span class="token operator">++</span><span class="token punctuation">;</span>
+                    <span class="token keyword">break</span><span class="token punctuation">;</span>
+                <span class="token punctuation">}</span>
+            <span class="token punctuation">}</span>
+            <span class="token comment">/* 每次检查只删除 ACTIVE_EXPIRE_CYCLE_LOOKUPS_PER_LOOP/4 个过期键 */</span>
+        <span class="token punctuation">}</span> <span class="token keyword">while</span> <span class="token punctuation">(</span>expired <span class="token operator">&gt;</span> ACTIVE_EXPIRE_CYCLE_LOOKUPS_PER_LOOP<span class="token operator">/</span><span class="token number">4</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token punctuation">}</span>
+    <span class="token comment">// .......</span>
+<span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>activeExpireCycle 方法在规定的时间，分多次遍历各个数据库，从过期字典中随机检查一部分过期键的过期时间，删除其中的过期键。</p>
+<p>这个函数有两种执行模式，一个是快速模式一个是慢速模式，体现是代码中的 timelimit 变量，这个变量是用来约束此函数的运行时间的。<br>快速模式下 timelimit 的值是固定的，等于预定义常量 <code>ACTIVE_EXPIRE_CYCLE_FAST_DURATION</code>，慢速模式下，这个变量的值是通过 <code>1000000*ACTIVE_EXPIRE_CYCLE_SLOW_TIME_PERC/server.hz/100</code> 计算的。</p>
+<h4 id="Redis-使用的过期策略"><a href="#Redis-使用的过期策略" class="headerlink" title="Redis 使用的过期策略"></a>Redis 使用的过期策略</h4><p>Redis 使用的是惰性删除加定期删除的过期策略。</p>
+<h2 id="19-Redis-管道技术——Pipeline"><a href="#19-Redis-管道技术——Pipeline" class="headerlink" title="19 Redis 管道技术——Pipeline"></a>19 Redis 管道技术——Pipeline</h2><p><a target="_blank" rel="noopener" href="https://www.cnblogs.com/wan-ming-zhu/p/18079991">https://www.cnblogs.com/wan-ming-zhu/p/18079991</a></p>
+<p>管道技术（Pipeline）是客户端提供的一种批处理技术，用于一次处理多个 Redis 命令，从而提高整个交互的性能。</p>
+<p>通常情况下 Redis 是单行执行的，客户端先向服务器发送请求，服务端接收并处理请求后再把结果返回给客户端，这种处理模式在非频繁请求时不会有任何问题。</p>
+<p>但如果出现集中大批量的请求时，因为每个请求都要经历先请求再响应的过程，这就会造成网络资源浪费，此时就需要管道技术来把所有的命令整合一次发给服务端，再一次响应给客户端，这样就能大大的提升了 Redis 的响应速度。</p>
+<p>普通命令模式，如下图所示：</p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《Redis核心原理与实战》学习笔记/普通命令模式.png" alt="普通命令模式"></p>
+<p>管道模式，如下图所示：</p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《Redis核心原理与实战》学习笔记/管道模式.png" alt="管道模式"></p>
+<blockquote>
+<p>小贴士：管道中命令越多，管道技术的作用就更大，相比于普通模式来说执行效率就越高。</p>
+</blockquote>
+<h3 id="管道技术解决了什么问题？"><a href="#管道技术解决了什么问题？" class="headerlink" title="管道技术解决了什么问题？"></a>管道技术解决了什么问题？</h3><p>管道技术解决了多个命令集中请求时造成网络资源浪费的问题，加快了 Redis 的响应速度，让 Redis 拥有更高的运行速度。但要注意的一点是，管道技术本质上是客户端提供的功能，而非 Redis 服务器端的功能。</p>
+<h3 id="管道技术需要注意的事项"><a href="#管道技术需要注意的事项" class="headerlink" title="管道技术需要注意的事项"></a>管道技术需要注意的事项</h3><p>管道技术虽然有它的优势，但在使用时还需注意以下几个细节：</p>
+<ul>
+<li>发送的命令数量不会被限制，但输入缓存区也就是命令的最大存储体积为 1GB，当发送的命令超过此限制时，命令不会被执行，并且会被 Redis 服务器端断开此链接；</li>
+<li>如果管道的数据过多可能会导致客户端的等待时间过长，导致网络阻塞；</li>
+<li>部分客户端自己本身也有缓存区大小的设置，如果管道命令没有没执行或者是执行不完整，可以排查此情况或较少管道内的命令重新尝试执行。</li>
+</ul>
+<h2 id="20-查询附近的人——GEO"><a href="#20-查询附近的人——GEO" class="headerlink" title="20 查询附近的人——GEO"></a>20 查询附近的人——GEO</h2><p>Redis 在 3.2 版本中增加了 GEO 类型用于存储和查询地理位置，关于 GEO 的命令不多，主要包含以下 6 个：</p>
+<ul>
+<li>geoadd：添加地理位置</li>
+<li>geopos：查询位置信息</li>
+<li>geodist：距离统计</li>
+<li>georadius：查询某位置内的其他成员信息</li>
+<li>geohash：查询位置的哈希值</li>
+<li>zrem：删除地理位置</li>
+</ul>
+<h3 id="小结-4"><a href="#小结-4" class="headerlink" title="小结"></a>小结</h3><p>GEO 是 Redis 3.2 版本中新增的功能，只有升级到 3.2+ 才能使用，GEO 本质上是基于 ZSet 实现的，这点在 Redis 源码找到相关信息，我们可以 GEO 使用实现查找附近的人或者附近的地点，还可以用它来计算两个位置相隔的直线距离。</p>
 
                 
             </div>
