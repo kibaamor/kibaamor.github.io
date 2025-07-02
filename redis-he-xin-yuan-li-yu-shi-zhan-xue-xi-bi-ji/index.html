@@ -395,21 +395,21 @@
                 
                 <div class="post-date info-break-policy">
                     <i class="far fa-calendar-check fa-fw"></i>更新日期:&nbsp;&nbsp;
-                    2025-07-01
+                    2025-07-02
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-file-word fa-fw"></i>文章字数:&nbsp;&nbsp;
-                    23.7k
+                    28.5k
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-clock fa-fw"></i>阅读时长:&nbsp;&nbsp;
-                    91 分
+                    110 分
                 </div>
                 
 
@@ -1484,7 +1484,8 @@ OK<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><
 <h4 id="主从库的过期键"><a href="#主从库的过期键" class="headerlink" title="主从库的过期键"></a>主从库的过期键</h4><p>当 Redis 运行在主从模式下时，从库不会进行过期扫描，从库对过期的处理是被动的。也就是即使从库中的 key 过期了，如果有客户端访问从库时，依然可以得到 key 对应的值，像未过期的键值对一样返回。</p>
 <p>从库的过期键处理依靠主服务器控制，主库在 key 到期时，会在 AOF 文件里增加一条 del 指令，同步到所有的从库，从库通过执行这条 del 指令来删除过期的 key。</p>
 <h3 id="小结-3"><a href="#小结-3" class="headerlink" title="小结"></a>小结</h3><p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《Redis核心原理与实战》学习笔记/Redis键值过期操作小结.png" alt="Redis键值过期操作小结"></p>
-<h2 id="18-Redis-过期策略与源码分析"><a href="#18-Redis-过期策略与源码分析" class="headerlink" title="18 Redis 过期策略与源码分析"></a>18 Redis 过期策略与源码分析</h2><h3 id="过期键执行流程"><a href="#过期键执行流程" class="headerlink" title="过期键执行流程"></a>过期键执行流程</h3><p>Redis 之所以能知道那些键值过期，是因为在 Redis 中维护了一个字典，存储了所有设置了过期时间的键值，我们称之为过期字典。</p>
+<h2 id="18-Redis-过期策略与源码分析"><a href="#18-Redis-过期策略与源码分析" class="headerlink" title="18 Redis 过期策略与源码分析"></a>18 Redis 过期策略与源码分析</h2><p><a target="_blank" rel="noopener" href="https://www.cnblogs.com/wan-ming-zhu/p/18080200">https://www.cnblogs.com/wan-ming-zhu/p/18080200</a></p>
+<h3 id="过期键执行流程"><a href="#过期键执行流程" class="headerlink" title="过期键执行流程"></a>过期键执行流程</h3><p>Redis 之所以能知道那些键值过期，是因为在 Redis 中维护了一个字典，存储了所有设置了过期时间的键值，我们称之为过期字典。</p>
 <p>过期键判断流程如下图所示：</p>
 <p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《Redis核心原理与实战》学习笔记/过期键判断流程.png" alt="过期键判断流程"></p>
 <h3 id="过期键源码分析"><a href="#过期键源码分析" class="headerlink" title="过期键源码分析"></a>过期键源码分析</h3><p>过期键存储在 redisDb 结构中，源代码在 src/server.h 文件中</p>
@@ -1510,6 +1511,9 @@ OK<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><
 <li>惰性删除</li>
 <li>定期删除</li>
 </ul>
+<blockquote>
+<p>Redis 不会为每个设置了过期时间的 key 创建一个定时器用于删除该 key。</p>
+</blockquote>
 <p>下面分别来看每种策略有何不同。</p>
 <h4 id="惰性删除"><a href="#惰性删除" class="headerlink" title="惰性删除"></a>惰性删除</h4><p>不主动删除过期键，每次从数据库获取键值时判断是否过期，如果过期则删除键值，并返回 null。</p>
 <ul>
@@ -1703,7 +1707,8 @@ OK<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><
 <li>Scan 可以保证在开始检索之前，被删除的元素一定不会被查询出来；</li>
 <li>在迭代过程中如果有元素被修改， Scan 不保证能查询出相关的元素。</li>
 </ol>
-<h2 id="22-优秀的基数统计算法——HyperLogLog"><a href="#22-优秀的基数统计算法——HyperLogLog" class="headerlink" title="22 优秀的基数统计算法——HyperLogLog"></a>22 优秀的基数统计算法——HyperLogLog</h2><h3 id="为什么要使用-HyperLogLog？"><a href="#为什么要使用-HyperLogLog？" class="headerlink" title="为什么要使用 HyperLogLog？"></a>为什么要使用 HyperLogLog？</h3><p>在我们实际开发的过程中，可能会遇到这样一个问题，当我们需要统计一个大型网站的独立访问次数时，该用什么的类型来统计？</p>
+<h2 id="22-优秀的基数统计算法——HyperLogLog"><a href="#22-优秀的基数统计算法——HyperLogLog" class="headerlink" title="22 优秀的基数统计算法——HyperLogLog"></a>22 优秀的基数统计算法——HyperLogLog</h2><p><a target="_blank" rel="noopener" href="https://www.cnblogs.com/wan-ming-zhu/p/18080102">https://www.cnblogs.com/wan-ming-zhu/p/18080102</a></p>
+<h3 id="为什么要使用-HyperLogLog？"><a href="#为什么要使用-HyperLogLog？" class="headerlink" title="为什么要使用 HyperLogLog？"></a>为什么要使用 HyperLogLog？</h3><p>在我们实际开发的过程中，可能会遇到这样一个问题，当我们需要统计一个大型网站的独立访问次数时，该用什么的类型来统计？</p>
 <p>如果我们使用 Redis 中的集合来统计，当它每天有数千万级别的访问时，将会是一个巨大的问题。因为这些访问量不能被清空，我们运营人员可能会随时查看这些信息，那么随着时间的推移，这些统计数据所占用的空间会越来越大，逐渐超出我们能承载最大空间。</p>
 <p>例如，我们用 IP 来作为独立访问的判断依据，那么我们就要把每个独立 IP 进行存储，以 IP4 来计算，IP4 最多需要 15 个字节来存储信息，例如：110.110.110.110。当有一千万个独立 IP 时，所占用的空间就是 15 bit*10000000 约定于 143MB，但这只是一个页面的统计信息，假如我们有 1 万个这样的页面，那我们就需要 1T 以上的空间来存储这些数据，而且随着 IP6 的普及，这个存储数字会越来越大，那我们就不能用集合的方式来存储了，这个时候我们需要开发新的数据类型 HyperLogLog 来做这件事了。</p>
 <h3 id="HyperLogLog-介绍"><a href="#HyperLogLog-介绍" class="headerlink" title="HyperLogLog 介绍"></a>HyperLogLog 介绍</h3><p>HyperLogLog（下文简称为 HLL）是 Redis 2.8.9 版本添加的数据结构，它用于高性能的基数（去重）统计功能，它的缺点就是存在极低的误差率。</p>
@@ -1759,7 +1764,393 @@ OK
 <p>例如小明的月工资是 1000 元，而小王的月工资是 100000 元，如果直接取平均数，那小明的平均工资就变成了 (1000+100000)/2=50500 元，这显然是不准确的，而使用调和平均数算法计算的结果是 2/(1⁄1000+1⁄100000)≈1998 元，显然此算法更符合实际平均数。</p>
 </blockquote>
 <p>所以综合以上情况，在 Redis 中使用 HLL 插入数据，相当于把存储的值经过 hash 之后，再将 hash 值转换为二进制，存入到不同的桶中，这样就可以用很小的空间存储很多的数据，统计时再去相应的位置进行对比很快就能得出结论，这就是 HLL 算法的基本原理，想要更深入的了解算法及其推理过程，可以看去原版的论文。</p>
+<h2 id="23-内存淘汰机制与算法"><a href="#23-内存淘汰机制与算法" class="headerlink" title="23 内存淘汰机制与算法"></a>23 内存淘汰机制与算法</h2><p>在本文开始之前，我们先要明白：在 Redis 中，过期策略和内存淘汰策略两个完全不同的概念，但很多人会把两者搞混。</p>
+<p>首先，Redis 过期策略指的是 Redis 使用那种策略，来删除已经过期的键值对；而 Redis 内存淘汰机制指的是，当 Redis 运行内存已经超过 Redis 设置的最大内存之后，将采用什么策略来删除符合条件的键值对，以此来保障 Redis 高效的运行。</p>
+<h3 id="Redis-最大运行内存"><a href="#Redis-最大运行内存" class="headerlink" title="Redis 最大运行内存"></a>Redis 最大运行内存</h3><p>只有在 Redis 的运行内存达到了某个阀值，才会触发内存淘汰机制，这个阀值就是我们设置的最大运行内存，此值在 Redis 的配置文件中可以找到，配置项为 maxmemory。</p>
+<p>内存淘汰执行流程，如下图所示：</p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《Redis核心原理与实战》学习笔记/内存淘汰执行流程.png" alt="内存淘汰执行流程"></p>
+<h4 id="查询最大运行内存"><a href="#查询最大运行内存" class="headerlink" title="查询最大运行内存"></a>查询最大运行内存</h4><p>我们可以使用命令 <code>config get maxmemory</code> 来查看设置的最大运行内存，命令如下：</p>
+<pre class="line-numbers language-text" data-language="text"><code class="language-text">127.0.0.1:6379&gt; config get maxmemory
+1) "maxmemory"
+2) "0"<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span></span></code></pre>
+<p>我们发现此值竟然是 0，这是 64 位操作系统默认的值，当 maxmemory 为 0 时，表示没有内存大小限制。</p>
+<blockquote>
+<p>小贴士：32 位操作系统，默认的最大内存值是 3GB。</p>
+</blockquote>
+<h3 id="内存淘汰策略"><a href="#内存淘汰策略" class="headerlink" title="内存淘汰策略"></a>内存淘汰策略</h3><h4 id="查看-Redis-内存淘汰策略"><a href="#查看-Redis-内存淘汰策略" class="headerlink" title="查看 Redis 内存淘汰策略"></a>查看 Redis 内存淘汰策略</h4><p>我们可以使用 <code>config get maxmemory-policy</code> 命令，来查看当前 Redis 的内存淘汰策略，命令如下：</p>
+<pre class="line-numbers language-text" data-language="text"><code class="language-text">127.0.0.1:6379&gt; config get maxmemory-policy
+1) "maxmemory-policy"
+2) "noeviction"<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span></span></code></pre>
+<p>可以看出此 Redis 使用的是 noeviction 类型的内存淘汰机制，它表示当运行内存超过最大设置内存时，不淘汰任何数据，但新增操作会报错。</p>
+<h4 id="内存淘汰策略分类"><a href="#内存淘汰策略分类" class="headerlink" title="内存淘汰策略分类"></a>内存淘汰策略分类</h4><p>早期版本的 Redis 有以下 6 种淘汰策略：</p>
+<ul>
+<li>noeviction：不淘汰任何数据，当内存不足时，新增操作会报错，Redis 默认内存淘汰策略；</li>
+<li>allkeys-lru：淘汰整个键值中最久未使用的键值；</li>
+<li>allkeys-random：随机淘汰任意键值;</li>
+<li>volatile-lru：淘汰所有设置了过期时间的键值中最久未使用的键值；</li>
+<li>volatile-random：随机淘汰设置了过期时间的任意键值；</li>
+<li>volatile-ttl：优先淘汰更早过期的键值。</li>
+</ul>
+<p>在 Redis 4.0 版本中又新增了 2 种淘汰策略：</p>
+<ul>
+<li>volatile-lfu：淘汰所有设置了过期时间的键值中，最少使用的键值；</li>
+<li>allkeys-lfu：淘汰整个键值中最少使用的键值。</li>
+</ul>
+<p>其中 <code>allkeys-xxx</code> 表示从所有的键值中淘汰数据，而 <code>volatile-xxx</code> 表示从设置了过期键的键值中淘汰数据。</p>
+<h4 id="修改-Redis-内存淘汰策略"><a href="#修改-Redis-内存淘汰策略" class="headerlink" title="修改 Redis 内存淘汰策略"></a>修改 Redis 内存淘汰策略</h4><p>设置内存淘汰策略有两种方法，这两种方法各有利弊，需要使用者自己去权衡。</p>
+<ul>
+<li>方式一：通过”config set maxmemory-policy 策略”命令设置。它的优点是设置之后立即生效，不需要重启 Redis 服务，缺点是重启 Redis 之后，设置就会失效。</li>
+<li>方式二：通过修改 Redis 配置文件修改，设置”maxmemory-policy 策略”，它的优点是重启 Redis 服务后配置不会丢失，缺点是必须重启 Redis 服务，设置才能生效。</li>
+</ul>
+<h3 id="内存淘汰算法"><a href="#内存淘汰算法" class="headerlink" title="内存淘汰算法"></a>内存淘汰算法</h3><p>从内测淘汰策略分类上，我们可以得知，除了随机删除和不删除之外，主要有两种淘汰算法：LRU 算法和 LFU 算法。</p>
+<h4 id="LRU-算法"><a href="#LRU-算法" class="headerlink" title="LRU 算法"></a>LRU 算法</h4><p>LRU 全称是 Least Recently Used 译为最近最少使用，是一种常用的页面置换算法，选择最近最久未使用的页面予以淘汰。</p>
+<h5 id="1-LRU-算法实现"><a href="#1-LRU-算法实现" class="headerlink" title="1. LRU 算法实现"></a>1. LRU 算法实现</h5><p>LRU 算法需要基于链表结构，链表中的元素按照操作顺序从前往后排列，最新操作的键会被移动到表头，当需要内存淘汰时，只需要删除链表尾部的元素即可。</p>
+<h5 id="2-近-LRU-算法"><a href="#2-近-LRU-算法" class="headerlink" title="2. 近 LRU 算法"></a>2. 近 LRU 算法</h5><p>Redis 使用的是一种近似 LRU 算法，目的是为了更好的节约内存，它的实现方式是给现有的数据结构添加一个额外的字段，用于记录此键值的最后一次访问时间，Redis 内存淘汰时，会使用随机采样的方式来淘汰数据，它是随机取 5 个值（此值可配置），然后淘汰最久没有使用的那个。</p>
+<h5 id="3-LRU-算法缺点"><a href="#3-LRU-算法缺点" class="headerlink" title="3. LRU 算法缺点"></a>3. LRU 算法缺点</h5><p>LRU 算法有一个缺点，比如说很久没有使用的一个键值，如果最近被访问了一次，那么它就不会被淘汰，即使它是使用次数最少的缓存，那它也不会被淘汰，因此在 Redis 4.0 之后引入了 LFU 算法，下面我们一起来看。</p>
+<h4 id="LFU-算法"><a href="#LFU-算法" class="headerlink" title="LFU 算法"></a>LFU 算法</h4><p>LFU 全称是 Least Frequently Used 翻译为最不常用的，最不常用的算法是根据总访问次数来淘汰数据的，它的核心思想是”如果数据过去被访问多次，那么将来被访问的频率也更高”。</p>
+<p>LFU 解决了偶尔被访问一次之后，数据就不会被淘汰的问题，相比于 LRU 算法也更合理一些。</p>
+<p>在 Redis 中每个对象头中记录着 LFU 的信息，源码如下：</p>
+<pre class="line-numbers language-c" data-language="c"><code class="language-c"><span class="token keyword">typedef</span> <span class="token keyword">struct</span> <span class="token class-name">redisObject</span> <span class="token punctuation">{</span>
+    <span class="token keyword">unsigned</span> type<span class="token operator">:</span><span class="token number">4</span><span class="token punctuation">;</span>
+    <span class="token keyword">unsigned</span> encoding<span class="token operator">:</span><span class="token number">4</span><span class="token punctuation">;</span>
+    <span class="token keyword">unsigned</span> lru<span class="token operator">:</span>LRU_BITS<span class="token punctuation">;</span> <span class="token comment">/* LRU time (relative to global lru_clock) or
+                            * LFU data (least significant 8 bits frequency
+                            * and most significant 16 bits access time). */</span>
+    <span class="token keyword">int</span> refcount<span class="token punctuation">;</span>
+    <span class="token keyword">void</span> <span class="token operator">*</span>ptr<span class="token punctuation">;</span>
+<span class="token punctuation">}</span> robj<span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>在 Redis 中 LFU 存储分为两部分，16 bit 的 ldt（last decrement time）和 8 bit 的 logc（logistic counter）。</p>
+<ul>
+<li>logc 是用来存储访问频次，8 bit 能表示的最大整数值为 255，它的值越小表示使用频率越低，越容易淘汰；</li>
+<li>ldt 是用来存储上一次 logc 的更新时间。</li>
+</ul>
+<h3 id="小结-6"><a href="#小结-6" class="headerlink" title="小结"></a>小结</h3><p>通过本文我们了解到，Redis 内存淘汰策略和过期回收策略是完全不同的概念，内存淘汰策略是解决 Redis 运行内存过大的问题的，通过与 maxmemory 比较，决定要不要淘汰数据，根据 maxmemory-policy 参数，决定使用何种淘汰策略，在 Redis 4.0 之后已经有 8 种淘汰策略了，默认的策略是 noeviction 当内存超出时不淘汰任何键值，只是新增操作会报错。</p>
+<h2 id="24-消息队列——发布订阅模式"><a href="#24-消息队列——发布订阅模式" class="headerlink" title="24 消息队列——发布订阅模式"></a>24 消息队列——发布订阅模式</h2><p><a target="_blank" rel="noopener" href="https://www.cnblogs.com/wan-ming-zhu/p/18080541">https://www.cnblogs.com/wan-ming-zhu/p/18080541</a></p>
+<h3 id="普通订阅与发布"><a href="#普通订阅与发布" class="headerlink" title="普通订阅与发布"></a>普通订阅与发布</h3><p>消息队列有两个重要的角色，一个是发送者，另一个就是订阅者，对应的命令如下：</p>
+<ul>
+<li>发布消息：publish channel “message”</li>
+<li>订阅消息：subscribe channel</li>
+</ul>
+<p>下面我们来看具体的命令实现。</p>
+<h4 id="订阅消息"><a href="#订阅消息" class="headerlink" title="订阅消息"></a>订阅消息</h4><pre class="line-numbers language-text" data-language="text"><code class="language-text">127.0.0.1:6379&gt; subscribe channel #订阅消息channel
+Reading messages...
+1) "subscribe"
+2) "channel"
+3) (integer) 1<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>相关语法：</p>
+<pre class="line-numbers language-text" data-language="text"><code class="language-text">subscribe channel [channel ...]<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>此命令支持订阅一个或多个频道的命令，也就是说一个订阅者可以订阅多个频道。例如，某个客户端订阅了两个频道 channel 和 channel2，当两个发布者分别推送消息后，订阅者的信息输出如下：</p>
+<pre class="line-numbers language-text" data-language="text"><code class="language-text">127.0.0.1:6379&gt; subscribe channel channel2 #订阅 channel 和 channel2
+Reading messages... (press Ctrl-C to quit)
+1) "subscribe"
+2) "channel"
+3) (integer) 1
+1) "subscribe"
+2) "channel2"
+3) (integer) 2
+1) "message"
+2) "channel" # 收到 channel 消息
+3) "message 1."
+1) "message"
+2) "channel2" # 收到 channel2 消息
+3) "message 2."<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>可以看出此订阅者可以收到来自两个频道的消息推送。</p>
+<h4 id="发送消息"><a href="#发送消息" class="headerlink" title="发送消息"></a>发送消息</h4><pre class="line-numbers language-text" data-language="text"><code class="language-text">127.0.0.1:6379&gt; publish channel "hello,redis." #发布消息
+(integer) 1<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre>
+<p>相关语法：</p>
+<pre class="line-numbers language-text" data-language="text"><code class="language-text">publish channel message<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>最后的返回值表示成功发送给几个订阅方，1 表示成功发给了一个订阅者，这个数字可以是 0~n，这是由订阅者的数量决定的。</p>
+<p>例如，当有两个订阅者时，推送的结果为 2，如下代码所示。</p>
+<p>订阅者一：</p>
+<pre class="line-numbers language-text" data-language="text"><code class="language-text">127.0.0.1:6379&gt; subscribe channel
+Reading messages... (press Ctrl-C to quit)
+1) "subscribe"
+2) "channel"
+3) (integer) 1<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>订阅者二：</p>
+<pre class="line-numbers language-text" data-language="text"><code class="language-text">127.0.0.1:6379&gt; subscribe channel
+Reading messages... (press Ctrl-C to quit)
+1) "subscribe"
+2) "channel"
+3) (integer) 1
+```text
 
+发送消息：
+
+```text
+127.0.0.1:6379&gt; publish channel "message"
+(integer) 2<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>可以看出，此消息已成功发给两个订阅者，结果也变成 2 了。</p>
+<h3 id="主题订阅"><a href="#主题订阅" class="headerlink" title="主题订阅"></a>主题订阅</h3><p>面介绍了普通的订阅与发布模式，但如果我要订阅某一个类型的消息就不适用了，例如我要订阅日志类的消息队列，它们的命名都是 logXXX，这个时候就需要使用 Redis 提供的另一个功能 Pattern Subscribe 主题订阅，这种方式可以使用 * 来匹配多个频道。</p>
+<p>主题模式的具体实现代码如下，订阅者：</p>
+<pre class="line-numbers language-text" data-language="text"><code class="language-text">127.0.0.1:6379&gt; psubscribe log_* #主题订阅 log_*
+1) "psubscribe"
+2) "log_*"
+3) (integer) 1
+1) "pmessage"
+2) "log_*"
+3) "log_user" #接收到频道 log_user 的消息推送
+4) "user message."
+1) "pmessage"
+2) "log_*"
+3) "log_sys" #接收到频道 log_sys 的消息推送
+4) "sys message."
+1) "pmessage"
+2) "log_*"
+3) "log_db" #接收到频道 log_db 的消息推送
+4) "db message"<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>从上面的运行结果，可以看出使用命令 psubscribe log_* 可以接收到所有频道包含 log_XXX 的消息。</p>
+<p>相关语法：</p>
+<pre class="line-numbers language-text" data-language="text"><code class="language-text">psubscribe pattern [pattern ...]<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>生产者的代码如下：</p>
+<pre class="line-numbers language-text" data-language="text"><code class="language-text">127.0.0.1:6379&gt; publish log_user "user message."
+(integer) 1
+127.0.0.1:6379&gt; publish log_sys "sys message."
+(integer) 1
+127.0.0.1:6379&gt; publish log_db "db message"
+(integer) 1<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<h3 id="注意事项"><a href="#注意事项" class="headerlink" title="注意事项"></a>注意事项</h3><p>发布订阅模式存在以下两个缺点：</p>
+<ul>
+<li>无法持久化保存消息，如果 Redis 服务器宕机或重启，那么所有的消息将会丢失；</li>
+<li>发布订阅模式是”发后既忘”的工作模式，如果有订阅者离线重连之后不能消费之前的历史消息。</li>
+</ul>
+<p>然而这些缺点在 Redis 5.0 添加了 Stream 类型之后会被彻底的解决。</p>
+<p>除了以上缺点外，发布订阅模式还有另一个需要注意问题：当消费端有一定的消息积压时，也就是生产者发送的消息，消费者消费不过来时，如果超过 32M 或者是 60s 内持续保持在 8M 以上，消费端会被强行断开，这个参数是在配置文件中设置的，默认值是 <code>client-output-buffer-limit pubsub 32mb 8mb 60</code>。</p>
+<h2 id="25-消息队列的其他实现方式"><a href="#25-消息队列的其他实现方式" class="headerlink" title="25 消息队列的其他实现方式"></a>25 消息队列的其他实现方式</h2><h3 id="List-版消息队列"><a href="#List-版消息队列" class="headerlink" title="List 版消息队列"></a>List 版消息队列</h3><p>lpush 用于生产消息， rpop/brpop 拉取消息。</p>
+<p>List 优点：</p>
+<ul>
+<li>消息可以被持久化，借助 Redis 本身的持久化（AOF、RDB 或者是混合持久化），可以有效的保存数据；</li>
+<li>消费者可以积压消息，不会因为客户端的消息过多而被强行断开。</li>
+</ul>
+<p>List 缺点：</p>
+<ul>
+<li>消息不能被重复消费，一个消息消费完就会被删除；</li>
+<li>没有主题订阅的功能。</li>
+</ul>
+<h3 id="ZSet-版消息队列"><a href="#ZSet-版消息队列" class="headerlink" title="ZSet 版消息队列"></a>ZSet 版消息队列</h3><p>利用 zadd 和 zrangebyscore 来实现存入和读取。</p>
+<p>ZSet 优点：</p>
+<ul>
+<li>支持消息持久化；</li>
+<li>相比于 List 查询更方便，ZSet 可以利用 score 属性很方便的完成检索，而 List 则需要遍历整个元素才能检索到某个值。</li>
+</ul>
+<p>ZSet 缺点：</p>
+<ul>
+<li>ZSet 不能存储相同元素的值，也就是如果有消息是重复的，那么只能插入一条信息在有序集合中；</li>
+<li>ZSet 是根据 score 值排序的，不能像 List 一样，按照插入顺序来排序；</li>
+<li>ZSet 没有向 List 的 brpop 那样的阻塞弹出的功能。</li>
+</ul>
+<h2 id="26-消息队列终极解决方案——Stream（上）"><a href="#26-消息队列终极解决方案——Stream（上）" class="headerlink" title="26 消息队列终极解决方案——Stream（上）"></a>26 消息队列终极解决方案——Stream（上）</h2><p><a target="_blank" rel="noopener" href="https://www.cnblogs.com/wan-ming-zhu/p/18080644">https://www.cnblogs.com/wan-ming-zhu/p/18080644</a></p>
+<p>在 Redis 5.0 Stream 没出来之前，消息队列的实现方式都有着各自的缺陷，例如：</p>
+<ul>
+<li>发布订阅模式 PubSub，不能持久化也就无法可靠的保存消息，并且对于离线重连的客户端不能读取历史消息的缺陷；</li>
+<li>列表实现消息队列的方式不能重复消费，一个消息消费完就会被删除；</li>
+<li>有序集合消息队列的实现方式不能存储相同 value 的消息，并且不能阻塞读取消息。</li>
+</ul>
+<p>并且以上三种方式在实现消息队列时，只能存储单 value 值，也就是如果你要存储一个对象的情况下，必须先序列化成 JSON 字符串，在读取之后还要反序列化成对象才行，这也给用户的使用带来的不便，基于以上问题，Redis 5.0 便推出了 Stream 类型也是此版本最重要的功能，用于完美地实现消息队列，它借鉴了 Kafka 的设计思路，它支持消息的持久化和消息轨迹的消费，支持 ack 确认消息的模式，让消息队列更加的稳定和可靠。</p>
+<p>接下来我们先来了解 Stream 自身的一些特性，然后在综合 Stream 的特性，结合 Java 代码完整的实现一个完美的消息队列示例。</p>
+<h3 id="基础使用-1"><a href="#基础使用-1" class="headerlink" title="基础使用"></a>基础使用</h3><p>Stream 既然是一个数据类型，那么和其他数据类型相似，它也有一些自己的操作方法，例如：</p>
+<ul>
+<li>xadd 添加消息；</li>
+<li>xlen 查询消息长度；</li>
+<li>xdel 根据消息 ID 删除消息；</li>
+<li>del 删除整个 Stream；</li>
+<li>xrange 读取区间消息</li>
+<li>xread 读取某个消息之后的消息。</li>
+</ul>
+<p>具体使用如下所述。</p>
+<h4 id="添加消息"><a href="#添加消息" class="headerlink" title="添加消息"></a>添加消息</h4><pre class="line-numbers language-text" data-language="text"><code class="language-text">127.0.0.1:6379&gt; xadd key * name redis age 10
+"1580880750844-0" #结果返回的是消息 id<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre>
+<p>其中 <code>*</code> 表示使用 Redis 的规则：时间戳 + 序号的方式自动生成 ID，用户也可以自己指定 ID。</p>
+<p>相关语法：</p>
+<pre class="line-numbers language-text" data-language="text"><code class="language-text">xadd key ID field string [field string ...]<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<h4 id="查询消息的长度"><a href="#查询消息的长度" class="headerlink" title="查询消息的长度"></a>查询消息的长度</h4><pre class="line-numbers language-text" data-language="text"><code class="language-text">127.0.0.1:6379&gt; xlen key
+(integer) 1<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre>
+<p>相关语法：</p>
+<pre class="line-numbers language-text" data-language="text"><code class="language-text">xlen key<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<h4 id="删除消息"><a href="#删除消息" class="headerlink" title="删除消息"></a>删除消息</h4><pre class="line-numbers language-text" data-language="text"><code class="language-text">127.0.0.1:6379&gt; xadd key * name redis
+"1580881585129-0" #消息 ID
+127.0.0.1:6379&gt; xlen key
+(integer) 1
+127.0.0.1:6379&gt; xdel key 1580881585129-0 #删除消息，根据 ID
+(integer) 1
+127.0.0.1:6379&gt; xlen key
+(integer) 0<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>相关语法：</p>
+<pre class="line-numbers language-text" data-language="text"><code class="language-text">xdel key ID [ID ...]<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>此命令支持删除一条或多条消息，根据消息 ID。</p>
+<h4 id="删除整个-Stream"><a href="#删除整个-Stream" class="headerlink" title="删除整个 Stream"></a>删除整个 Stream</h4><pre class="line-numbers language-text" data-language="text"><code class="language-text">127.0.0.1:6379&gt; del key #删除整个 Stream
+(integer) 1
+127.0.0.1:6379&gt; xlen key
+(integer) 0<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span></span></code></pre>
+<p>相关语法：</p>
+<pre class="line-numbers language-text" data-language="text"><code class="language-text">del key [key ...]<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>此命令支持删除一个或多个 Stream。</p>
+<h4 id="查询区间消息"><a href="#查询区间消息" class="headerlink" title="查询区间消息"></a>查询区间消息</h4><pre class="line-numbers language-text" data-language="text"><code class="language-text">127.0.0.1:6379&gt; xrange mq - +
+1) 1) "1580882060464-0"
+   2) 1) "name"
+      2) "redis"
+      3) "age"
+      4) "10"
+2) 1) "1580882071524-0"
+   2) 1) "name"
+      2) "java"
+      3) "age"
+      4) "20"<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>其中：- 表示第一条消息，+ 表示最后一条消息。</p>
+<p>相关语法：</p>
+<pre class="line-numbers language-text" data-language="text"><code class="language-text">xrange key start end [COUNT count]<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<h4 id="查询某个消息之后的消息"><a href="#查询某个消息之后的消息" class="headerlink" title="查询某个消息之后的消息"></a>查询某个消息之后的消息</h4><pre class="line-numbers language-text" data-language="text"><code class="language-text">127.0.0.1:6379&gt; xread count 1 streams mq 1580882060464-0
+1) 1) "mq"
+   2) 1) 1) "1580882071524-0"
+         2) 1) "name"
+            2) "java"
+            3) "age"
+            4) "20"<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>在名称为 mq 的 Stream 中，从消息 ID 为 1580882060464-0 的，往后查询一条消息。</p>
+<p>相关语法：</p>
+<pre class="line-numbers language-text" data-language="text"><code class="language-text">xread [COUNT count] [BLOCK milliseconds] STREAMS key [key ...] ID [ID ...]<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>此命令提供了阻塞读的参数 block，我们可以使用它读取从当前数据以后新增数据，命令如下：</p>
+<pre class="line-numbers language-text" data-language="text"><code class="language-text">127.0.0.1:6379&gt; xread count 1 block 0 streams mq $<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>其中 block 0 表示一直阻塞，$ 表示从最后开始读取，这个时候新开一个命令行插入一条数据，此命令展示的结果如下：</p>
+<pre class="line-numbers language-text" data-language="text"><code class="language-text">127.0.0.1:6379&gt; xadd mq * name sql age 20 #新窗口添加数据
+"1580890737890-0"
+#阻塞读取到的新数据
+127.0.0.1:6379&gt; xread count 1 block 0 streams mq $
+1) 1) "mq"
+   2) 1) 1) "1580890737890-0"
+         2) 1) "name"
+            2) "sql"
+            3) "age"
+            4) "20"
+(36.37s)<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<h3 id="小结-7"><a href="#小结-7" class="headerlink" title="小结"></a>小结</h3><p>本文介绍了 Stream 的基础方法，并使用 xadd 存入消息和 xread 循环阻塞读取消息的方式实现了简易版的消息队列，交互流程如下图所示：</p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《Redis核心原理与实战》学习笔记/Stream的基础用法.png" alt="Stream的基础用法"></p>
+<h2 id="27-消息队列终极解决方案——Stream（下）"><a href="#27-消息队列终极解决方案——Stream（下）" class="headerlink" title="27 消息队列终极解决方案——Stream（下）"></a>27 消息队列终极解决方案——Stream（下）</h2><p>在开始使用消息分组之前，我们必须手动创建分组才行，以下是几个和 Stream 分组有关的命令，我们先来学习一下它的使用。</p>
+<h3 id="消息分组命令"><a href="#消息分组命令" class="headerlink" title="消息分组命令"></a>消息分组命令</h3><h4 id="创建消费者群组"><a href="#创建消费者群组" class="headerlink" title="创建消费者群组"></a>创建消费者群组</h4><pre class="line-numbers language-text" data-language="text"><code class="language-text">127.0.0.1:6379&gt; xgroup create mq group1 0-0 
+OK
+```text
+
+相关语法：
+
+```text
+xgroup create stream-key group-key ID<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>其中：</p>
+<ul>
+<li>mq 为 Stream 的 key；</li>
+<li>group1 为分组的名称；</li>
+<li>0-0 表示从第一条消息开始读取。</li>
+</ul>
+<p>如果要从当前最后一条消息向后读取，使用 <code>$</code> 即可，命令如下：</p>
+<pre class="line-numbers language-text" data-language="text"><code class="language-text">127.0.0.1:6379&gt; xgroup create mq group2 $
+OK<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre>
+<h4 id="读取消息"><a href="#读取消息" class="headerlink" title="读取消息"></a>读取消息</h4><pre class="line-numbers language-text" data-language="text"><code class="language-text">127.0.0.1:6379&gt; xreadgroup group group1 c1 count 1 streams mq &gt;
+1) 1) "mq"
+   2) 1) 1) "1580959593553-0"
+         2) 1) "name"
+            2) "redis"
+            3) "age"
+            4) "10"<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>相关语法：</p>
+<pre class="line-numbers language-text" data-language="text"><code class="language-text">xreadgroup group group-key consumer-key streams stream-key<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>其中：</p>
+<ul>
+<li><code>&gt;</code> 表示读取下一条消息；</li>
+<li>group1 表示分组名称；</li>
+<li>c1 表示 consumer（消费者）名称。</li>
+</ul>
+<p>xreadgroup 命令和 xread 使用类似，也可以设置阻塞读取，命令如下：</p>
+<pre class="line-numbers language-text" data-language="text"><code class="language-text">127.0.0.1:6379&gt; xreadgroup group group1 c2 streams mq &gt;
+1) 1) "mq"
+   2) 1) 1) "1580959606181-0"
+         2) 1) "name"
+            2) "java"
+            3) "age"
+            4) "20"
+127.0.0.1:6379&gt; xreadgroup group group1 c2 streams mq &gt;
+(nil) #队列中的消息已经被读取完
+127.0.0.1:6379&gt; xreadgroup group group1 c1 count 1 block 0 streams mq &gt; #阻塞读取<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>此时打开另一个命令行创建使用 xadd 添加一条消息，阻塞命令执行结果如下：</p>
+<pre class="line-numbers language-text" data-language="text"><code class="language-text">127.0.0.1:6379&gt; xreadgroup group group1 c1 count 1 block 0 streams mq &gt;
+1) 1) "mq"
+   2) 1) 1) "1580961475368-0"
+         2) 1) "name"
+            2) "sql"
+            3) "age"
+            4) "20"
+(86.14s)<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<h4 id="消息消费确认"><a href="#消息消费确认" class="headerlink" title="消息消费确认"></a>消息消费确认</h4><p>接收到消息之后，我们要手动确认一下（ack），命令如下：</p>
+<pre class="line-numbers language-text" data-language="text"><code class="language-text">127.0.0.1:6379&gt; xack mq group1 1580959593553-0
+(integer) 1<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre>
+<p>相关语法：</p>
+<pre class="line-numbers language-text" data-language="text"><code class="language-text">xack key group-key ID [ID ...]<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>消费确认增加了消息的可靠性，一般在业务处理完成之后，需要执行 ack 确认消息已经被消费完成，整个流程的执行如下图所示：</p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《Redis核心原理与实战》学习笔记/消息消费确认.png" alt="消息消费确认"></p>
+<h4 id="查询未确认的消费队列"><a href="#查询未确认的消费队列" class="headerlink" title="查询未确认的消费队列"></a>查询未确认的消费队列</h4><pre class="line-numbers language-text" data-language="text"><code class="language-text">127.0.0.1:6379&gt; xpending mq group1
+1) (integer) 1 #未确认（ack）的消息数量为 1 条
+2) "1580994063971-0"
+3) "1580994063971-0"
+4) 1) 1) "c1"
+      2) "1"
+127.0.0.1:6379&gt; xack  mq group1 1580994063971-0 #消费确认
+(integer) 1
+127.0.0.1:6379&gt; xpending mq group1
+1) (integer) 0 #没有未确认的消息
+2) (nil)
+3) (nil)
+4) (nil)<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<h4 id="xinfo-查询相关命令"><a href="#xinfo-查询相关命令" class="headerlink" title="xinfo 查询相关命令"></a>xinfo 查询相关命令</h4><h5 id="1-查询流信息"><a href="#1-查询流信息" class="headerlink" title="1. 查询流信息"></a>1. 查询流信息</h5><pre class="line-numbers language-text" data-language="text"><code class="language-text">127.0.0.1:6379&gt; xinfo stream mq
+ 1) "length"
+ 2) (integer) 2 #队列中有两个消息
+ 3) "radix-tree-keys"
+ 4) (integer) 1
+ 5) "radix-tree-nodes"
+ 6) (integer) 2
+ 7) "groups"
+ 8) (integer) 1 #一个消费分组
+ 9) "last-generated-id"
+10) "1580959606181-0"
+11) "first-entry"
+12) 1) "1580959593553-0"
+    2) 1) "name"
+       2) "redis"
+       3) "age"
+       4) "10"
+13) "last-entry"
+14) 1) "1580959606181-0"
+    2) 1) "name"
+       2) "java"
+       3) "age"
+       4) "20"<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>相关语法：</p>
+<pre class="line-numbers language-text" data-language="text"><code class="language-text">xinfo stream stream-key<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<h5 id="2-查询消费组消息"><a href="#2-查询消费组消息" class="headerlink" title="2. 查询消费组消息"></a>2. 查询消费组消息</h5><pre class="line-numbers language-text" data-language="text"><code class="language-text">127.0.0.1:6379&gt; xinfo groups mq
+1) 1) "name"
+   2) "group1" #消息分组名称
+   3) "consumers"
+   4) (integer) 1 #一个消费者客户端
+   5) "pending"
+   6) (integer) 1 #一个未确认消息
+   7) "last-delivered-id"
+   8) "1580959593553-0" #读取的最后一条消息 ID<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>相关语法：</p>
+<pre class="line-numbers language-text" data-language="text"><code class="language-text">xinfo groups stream-key<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<h5 id="3-查看消费者组成员信息"><a href="#3-查看消费者组成员信息" class="headerlink" title="3. 查看消费者组成员信息"></a>3. 查看消费者组成员信息</h5><pre class="line-numbers language-text" data-language="text"><code class="language-text">127.0.0.1:6379&gt; xinfo consumers mq group1
+1) 1) "name"
+   2) "c1" #消费者名称
+   3) "pending"
+   4) (integer) 0 #未确认消息
+   5) "idle"
+   6) (integer) 481855<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>相关语法：</p>
+<pre class="line-numbers language-text" data-language="text"><code class="language-text">xinfo consumers stream group-key<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<h4 id="删除消费者"><a href="#删除消费者" class="headerlink" title="删除消费者"></a>删除消费者</h4><pre class="line-numbers language-text" data-language="text"><code class="language-text">127.0.0.1:6379&gt; xgroup delconsumer mq group1 c1
+(integer) 1<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre>
+<p>相关语法：</p>
+<pre class="line-numbers language-text" data-language="text"><code class="language-text">xgroup delconsumer stream-key group-key consumer-key<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<h4 id="删除消费组"><a href="#删除消费组" class="headerlink" title="删除消费组"></a>删除消费组</h4><pre class="line-numbers language-text" data-language="text"><code class="language-text">127.0.0.1:6379&gt; xgroup destroy mq group1
+(integer) 1<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre>
+<p>相关语法：</p>
+<pre class="line-numbers language-text" data-language="text"><code class="language-text">xgroup destroy stream-key group-key<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
                 
             </div>
             <hr/>
