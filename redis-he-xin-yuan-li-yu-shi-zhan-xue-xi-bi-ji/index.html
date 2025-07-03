@@ -395,21 +395,21 @@
                 
                 <div class="post-date info-break-policy">
                     <i class="far fa-calendar-check fa-fw"></i>更新日期:&nbsp;&nbsp;
-                    2025-07-02
+                    2025-07-03
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-file-word fa-fw"></i>文章字数:&nbsp;&nbsp;
-                    28.5k
+                    38.9k
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-clock fa-fw"></i>阅读时长:&nbsp;&nbsp;
-                    110 分
+                    153 分
                 </div>
                 
 
@@ -2151,6 +2151,810 @@ OK<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><
 (integer) 1<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre>
 <p>相关语法：</p>
 <pre class="line-numbers language-text" data-language="text"><code class="language-text">xgroup destroy stream-key group-key<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<h2 id="28-实战：分布式锁详解与代码"><a href="#28-实战：分布式锁详解与代码" class="headerlink" title="28 实战：分布式锁详解与代码"></a>28 实战：分布式锁详解与代码</h2><p>加锁(Redis &gt;= 2.6.12)</p>
+<pre class="line-numbers language-text" data-language="text"><code class="language-text">set lock true ex 30 nx<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>释放</p>
+<pre class="line-numbers language-lua" data-language="lua"><code class="language-lua"><span class="token keyword">if</span> redis<span class="token punctuation">.</span><span class="token function">call</span><span class="token punctuation">(</span><span class="token string">'get'</span><span class="token punctuation">,</span> KEYS<span class="token punctuation">[</span><span class="token number">1</span><span class="token punctuation">]</span><span class="token punctuation">)</span> <span class="token operator">==</span> ARGV<span class="token punctuation">[</span><span class="token number">1</span><span class="token punctuation">]</span> <span class="token keyword">then</span> <span class="token keyword">return</span> redis<span class="token punctuation">.</span><span class="token function">call</span><span class="token punctuation">(</span><span class="token string">'del'</span><span class="token punctuation">,</span> KEYS<span class="token punctuation">[</span><span class="token number">1</span><span class="token punctuation">]</span><span class="token punctuation">)</span> <span class="token keyword">else</span> <span class="token keyword">return</span> <span class="token number">0</span> <span class="token keyword">end</span><span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<h2 id="29-实战：布隆过滤器安装与使用及原理分析"><a href="#29-实战：布隆过滤器安装与使用及原理分析" class="headerlink" title="29 实战：布隆过滤器安装与使用及原理分析"></a>29 实战：布隆过滤器安装与使用及原理分析</h2><p><a target="_blank" rel="noopener" href="https://www.cnblogs.com/wan-ming-zhu/p/18080491">https://www.cnblogs.com/wan-ming-zhu/p/18080491</a></p>
+<p>我们前面有讲到过 HyperLogLog 可以用来做基数统计，但它没提供判断一个值是否存在的查询方法，那我们如何才能查询一个值是否存在于海量数据之中呢？</p>
+<p>如果使用传统的方式，例如 SQL 中的传统查询，因为数据量太多，查询效率又低有占用系统的资源，因此我们需要一个优秀的算法和功能来实现这个需求，这是我们今天要讲的——布隆过滤器。</p>
+<h3 id="开启布隆过滤器"><a href="#开启布隆过滤器" class="headerlink" title="开启布隆过滤器"></a>开启布隆过滤器</h3><p>在 Redis 中不能直接使用布隆过滤器，但我们可以通过 Redis 4.0 版本之后提供的 modules（扩展模块）的方式引入，本文提供两种方式的开启方式。</p>
+<h4 id="方式一：编译方式"><a href="#方式一：编译方式" class="headerlink" title="方式一：编译方式"></a>方式一：编译方式</h4><pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token function">git</span> clone https://github.com/RedisLabsModules/redisbloom.git
+<span class="token builtin class-name">cd</span> redisbloom
+<span class="token function">make</span> <span class="token comment"># 编译redisbloom</span>
+
+./src/redis-server redis.conf --loadmodule ./src/modules/RedisBloom-master/redisbloom.so<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>其中 <code>--loadmodule</code> 为加载扩展模块的意思，后面跟的是 redisbloom.so 文件的目录。</p>
+<h5 id="方式二：Docker-方式"><a href="#方式二：Docker-方式" class="headerlink" title="方式二：Docker 方式"></a>方式二：Docker 方式</h5><pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">docker pull redislabs/rebloom <span class="token comment"># 拉取镜像</span>
+docker run -p6379:6379 redislabs/rebloom <span class="token comment"># 运行容器</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre>
+<h3 id="启动验证"><a href="#启动验证" class="headerlink" title="启动验证"></a>启动验证</h3><p>服务启动之后，我们需要判断布隆过滤器是否正常开启，此时我们只需使用 redis-cli 连接到服务端，输入 bf.add 看有没有命令提示，就可以判断是否正常启动了，如下图所示：</p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《Redis核心原理与实战》学习笔记/启动验证布隆过滤器.png" alt="启动验证布隆过滤器"></p>
+<p>如果有命令提示则表名 Redis 服务器已经开启了布隆过滤器。</p>
+<h3 id="布隆过滤器的使用"><a href="#布隆过滤器的使用" class="headerlink" title="布隆过滤器的使用"></a>布隆过滤器的使用</h3><p>布隆过滤器的命令不是很多，主要包含以下几个：</p>
+<ul>
+<li>bf.add：添加元素</li>
+<li>bf.exists：判断某个元素是否存在</li>
+<li>bf.madd：添加多个元素</li>
+<li>bf.mexists：判断多个元素是否存在</li>
+<li>bf.reserve：设置布隆过滤器的准确率</li>
+</ul>
+<p>具体使用如下所示：</p>
+<pre class="line-numbers language-text" data-language="text"><code class="language-text">127.0.0.1:6379&gt; bf.add user xiaoming
+(integer) 1
+127.0.0.1:6379&gt; bf.add user xiaohong
+(integer) 1
+127.0.0.1:6379&gt; bf.add user laowang
+(integer) 1
+127.0.0.1:6379&gt; bf.exists user laowang
+(integer) 1
+127.0.0.1:6379&gt; bf.exists user lao
+(integer) 0
+127.0.0.1:6379&gt; bf.madd user huahua feifei
+1) (integer) 1
+2) (integer) 1
+127.0.0.1:6379&gt; bf.mexists user feifei laomiao
+1) (integer) 1
+2) (integer) 0<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>可以看出以上结果没有任何误差，我们再来看一下准确率 bf.reserve 的使用：</p>
+<pre class="line-numbers language-text" data-language="text"><code class="language-text">127.0.0.1:6379&gt; bf.reserve user 0.01 200
+(error) ERR item exists #已经存的 key 设置会报错
+127.0.0.1:6379&gt; bf.reserve userlist 0.9 10
+OK<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span></span></code></pre>
+<p>可以看出此命令必须在元素刚开始执行，否则会报错，它有三个参数：key、error_rate 和 initial_size。</p>
+<p>其中：</p>
+<ul>
+<li>error_rate：允许布隆过滤器的错误率，这个值越低过滤器占用空间也就越大，以为此值决定了位数组的大小，位数组是用来存储结果的，它的空间占用的越大（存储的信息越多），错误率就越低，它的默认值是 0.01。</li>
+<li>initial_size：布隆过滤器存储的元素大小，实际存储的值大于此值，准确率就会降低，它的默认值是 100。</li>
+</ul>
+<p>后面原理部分会讲到 error_rate 和 initial_size 对准确率影响的具体原因。</p>
+<h3 id="原理"><a href="#原理" class="headerlink" title="原理"></a>原理</h3><p>Redis 布隆过滤器的实现，依靠的是它数据结构中的一个位数组，每次存储键值的时候，不是直接把数据存储在数据结构中，因为这样太占空间了，它是利用几个不同的无偏哈希函数，把此元素的 hash 值均匀的存储在位数组中，也就是说，每次添加时会通过几个无偏哈希函数算出它的位置，把这些位置设置成 1 就完成了添加操作。</p>
+<p>当进行元素判断时，查询此元素的几个哈希位置上的值是否为 1，如果全部为 1，则表示此值存在，如果有一个值为 0，则表示不存在。因为此位置是通过 hash 计算得来的，所以即使这个位置是 1，并不能确定是那个元素把它标识为 1 的，因此<strong>布隆过滤器查询此值存在时，此值不一定存在，但查询此值不存在时，此值一定不存在。</strong></p>
+<p>并且当位数组存储值比较稀疏的时候，查询的准确率越高，而当位数组存储的值越来越多时，误差也会增大。</p>
+<p>位数组和 key 之间的关系，如下图所示：</p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《Redis核心原理与实战》学习笔记/布隆过滤器位数组和key之间的关系.png" alt="布隆过滤器位数组和key之间的关系"></p>
+<h3 id="布隆过滤器使用场景"><a href="#布隆过滤器使用场景" class="headerlink" title="布隆过滤器使用场景"></a>布隆过滤器使用场景</h3><p>它的经典使用场景包括以下几个：</p>
+<ul>
+<li>垃圾邮件过滤</li>
+<li>爬虫里的 URL 去重</li>
+<li>判断一个元素在亿级数据中是否存在</li>
+</ul>
+<p>布隆过滤器在数据库领域的使用也比较广泛，例如：HBase、Cassandra、LevelDB、RocksDB 内部都有使用布隆过滤器。</p>
+<h2 id="30-完整案例：实现延迟队列的两种方法"><a href="#30-完整案例：实现延迟队列的两种方法" class="headerlink" title="30 完整案例：实现延迟队列的两种方法"></a>30 完整案例：实现延迟队列的两种方法</h2><p>延迟队列是指把当前要做的事情，往后推迟一段时间再做。</p>
+<p>延迟队列在实际工作中和面试中都比较常见，它的实现方式有很多种，然而每种实现方式也都有它的优缺点，接下来我们来看。</p>
+<h3 id="延迟队列的使用场景"><a href="#延迟队列的使用场景" class="headerlink" title="延迟队列的使用场景"></a>延迟队列的使用场景</h3><p>延迟队列的常见使用场景有以下几种：</p>
+<ul>
+<li>超过 30 分钟未支付的订单，将会被取消</li>
+<li>外卖商家超过 5 分钟未接单的订单，将会被取消</li>
+<li>在平台注册但 30 天内未登录的用户，发短信提醒</li>
+</ul>
+<p>等类似的应用场景，都可以使用延迟队列来实现。</p>
+<h3 id="常见实现方式"><a href="#常见实现方式" class="headerlink" title="常见实现方式"></a>常见实现方式</h3><p>目前市面上延迟队列的实现方式基本分为三类，</p>
+<ol>
+<li>第一类是通过程序的方式实现，例如 JDK 自带的延迟队列 DelayQueue，</li>
+<li>第二类是通过 MQ 框架来实现，例如 RabbitMQ 可以通过 rabbitmq-delayed-message-exchange 插件来实现延迟队列，</li>
+<li>第三类就是通过 Redis 的方式来实现延迟队列。Redis 是通过有序集合（ZSet）的方式来实现延迟消息队列的，ZSet 有一个 Score 属性可以用来存储延迟执行的时间。</li>
+</ol>
+<h2 id="31-实战：定时任务案例"><a href="#31-实战：定时任务案例" class="headerlink" title="31 实战：定时任务案例"></a>31 实战：定时任务案例</h2><p>我在开发的时候曾经遇到了这样一个问题，产品要求给每个在线预约看病的患者，距离预约时间的前一天发送一条提醒推送，以防止患者错过看病的时间。这个时候就要求我们给每个人设置一个定时任务，用前面文章说的延迟队列也可以实现，但延迟队列的实现方式需要开启一个无限循环任务，那有没有其他的实现方式呢？</p>
+<p>答案是肯定的，接下来我们就用 Keyspace Notifications（键空间通知）来实现定时任务，<strong>定时任务指的是指定一个时间来执行某个任务，就叫做定时任务。</strong></p>
+<h3 id="开启键空间通知"><a href="#开启键空间通知" class="headerlink" title="开启键空间通知"></a>开启键空间通知</h3><p>默认情况下 Redis 服务器端是不开启键空间通知的，需要我们手动开启。</p>
+<p>键空间开启分为两种方式：</p>
+<ol>
+<li><p>命令设置方式</p>
+<p> 使用 redis-cli 连接到服务器端之后，输入 <code>config set notify-keyspace-events Ex</code> 命令，可以直接开启键空间通知功能，返回”OK”则表示开启成功</p>
+</li>
+<li><p>配置文件设置方式</p>
+<p> 找到 Redis 的配置文件 redis.conf，设置配置项 <code>notify-keyspace-events Ex</code>，然后重启 Redis 服务器。</p>
+</li>
+</ol>
+<h3 id="配置说明-2"><a href="#配置说明-2" class="headerlink" title="配置说明"></a>配置说明</h3><p>可以看出无论是那种方式，都是设置 <code>notify-keyspace-events Ex</code>，其中 Ex 表示开启键事件通知里面的 key 过期事件。</p>
+<p>更多配置项说明如下：</p>
+<ul>
+<li>K：键空间通知，所有通知以 <code>__keyspace@&lt;db&gt;__</code> 为前缀</li>
+<li>E：键事件通知，所有通知以 <code>__keyevent@&lt;db&gt;__</code> 为前缀</li>
+<li>g：DEL、EXPIRE、RENAME 等类型无关的通用命令的通知</li>
+<li>$：字符串命令的通知</li>
+<li>l：列表命令的通知</li>
+<li>s：集合命令的通知</li>
+<li>h：哈希命令的通知</li>
+<li>z：有序集合命令的通知</li>
+<li>x：过期事件，每当有过期键被删除时发送</li>
+<li>e：驱逐（evict）事件，每当有键因为 maxmemory 政策而被删除时发送</li>
+<li>A：参数 <code>g$lshzxe</code> 的别名</li>
+</ul>
+<p>以上配置项可以自由组合，例如我们订阅列表事件就是 <code>El</code>，但需要注意的是，如果 <code>notify-keyspace-event</code> 的值设置为空，则表示不开启任何通知，有值则表示开启通知。</p>
+<h3 id="功能实现"><a href="#功能实现" class="headerlink" title="功能实现"></a>功能实现</h3><p>我们要实现定时任务需要使用 Pub/Sub 订阅者和发布者的功能，使用订阅者订阅元素的过期事件，然后再执行固定的任务，这就是定时任务的实现思路。</p>
+<p>以本文开头的问题为例，我们是这样实现此定时任务的，首先根据每个患者预约的时间往前推一天，然后再计算出当前时间和目标时间（预约前一天的时间）的毫秒值，把这个值作为元素的过期时间设置到 Redis 中，当这个键过期的时候，我们使用订阅者模式就可以订阅到此信息，然后再发提醒消息给此用户，这样就实现了给每个患者开启一个单独的分布式定时任务的功能。</p>
+<p>我们先用命令的模式来模拟一下此功能的实现，首先，我们使用 redis-cli 开启一个客户端，监听 <code>__keyevent@0__:expired</code> 键过期事件，此监听值 <code>__keyevent@0__:expired</code> 为固定的写法，其中 0 表示第一个数据库，我们知道 Redis 中一共有 16 个数据，默认使用的是第 0 个，我们建议新开一个非 0 的数据库专门用来实现定时任务，这样就可以避免很多无效的事件监听。</p>
+<p>命令监听如下：</p>
+<pre class="line-numbers language-text" data-language="text"><code class="language-text">127.0.0.1:6379&gt; psubscribe __keyevent@0__:expired
+1) "psubscribe"
+2) "__keyevent@0__:expired"
+3) (integer) 1<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span></span></code></pre>
+<p>此时我们开启另一个客户端，添加两条测试数据试试，命令如下：</p>
+<pre class="line-numbers language-text" data-language="text"><code class="language-text">127.0.0.1:6379&gt; set key value ex 3
+OK
+127.0.0.1:6379&gt; set user xiaoming ex 3
+OK<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span></span></code></pre>
+<p>等过去 3 秒钟之后，我们去看监听结果如下：</p>
+<pre class="line-numbers language-text" data-language="text"><code class="language-text">127.0.0.1:6379&gt; psubscribe __keyevent@0__:expired
+1) "psubscribe"
+2) "__keyevent@0__:expired"
+3) (integer) 1
+1) "pmessage" 
+2) "__keyevent@0__:expired"
+3) "__keyevent@0__:expired"
+4) "key" #接收到过期信息 key
+1) "pmessage"
+2) "__keyevent@0__:expired"
+3) "__keyevent@0__:expired"
+4) "user" #接收到过期信息 user<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>已经成功的介绍到两条过期信息了。</p>
+<h2 id="32-实战：RediSearch-高性能的全文搜索引擎"><a href="#32-实战：RediSearch-高性能的全文搜索引擎" class="headerlink" title="32 实战：RediSearch 高性能的全文搜索引擎"></a>32 实战：RediSearch 高性能的全文搜索引擎</h2><p><a target="_blank" rel="noopener" href="https://github.com/RediSearch/RediSearch">https://github.com/RediSearch/RediSearch</a></p>
+<p>RediSearch 是一个高性能的全文搜索引擎，它可以作为一个 Redis Module（扩展模块）运行在 Redis 服务器上。</p>
+<p>RediSearch 主要特性如下：</p>
+<ul>
+<li>基于文档的多个字段全文索引</li>
+<li>高性能增量索引</li>
+<li>文档排序（由用户在索引时手动提供）</li>
+<li>在子查询之间使用 AND 或 NOT 操作符的复杂布尔查询</li>
+<li>可选的查询子句</li>
+<li>基于前缀的搜索</li>
+<li>支持字段权重设置</li>
+<li>自动完成建议（带有模糊前缀建议）</li>
+<li>精确的短语搜索</li>
+<li>在许多语言中基于词干分析的查询扩展</li>
+<li>支持用于查询扩展和评分的自定义函数</li>
+<li>将搜索限制到特定的文档字段</li>
+<li>数字过滤器和范围</li>
+<li>使用 Redis 自己的地理命令进行地理过滤</li>
+<li>Unicode 支持（需要 UTF-8 字符集）</li>
+<li>检索完整的文档内容或只是 ID 的检索</li>
+<li>支持文档删除和更新与索引垃圾收集</li>
+<li>支持部分更新和条件文档更新</li>
+</ul>
+<h3 id="安装"><a href="#安装" class="headerlink" title="安装"></a>安装</h3><h4 id="Docker"><a href="#Docker" class="headerlink" title="Docker"></a>Docker</h4><p>和前面讲到布隆过滤器的引入方式一样，我们可以使用 RediSearch 官方推荐的 Docker 方式来安装并启动 RediSearch 功能，操作命令如下：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">docker run -p <span class="token number">6379</span>:6379 redislabs/redisearch:latest<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>安装完成之后使用 redis-cli 来检查 RediSearch 模块是否加载成功，使用 Docker 启动 redis-cli，命令如下：</p>
+<p>``bash<br>docker exec -it myredis redis-cli<br></p><pre class="line-numbers language-none"><code class="language-none">
+其中"myredis"为 Redis 服务器的名称，执行结果如下：
+
+```text
+127.0.0.1:6379&gt; module list
+1) 1) "name"
+   2) "ft"
+   3) "ver"
+   4) (integer) 10610<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre><br>返回数组存在”ft”，表明 RediSearch 模块已经成功加载。<p></p>
+<h4 id="源码方式安装"><a href="#源码方式安装" class="headerlink" title="源码方式安装"></a>源码方式安装</h4><p>如果不想使用 Docker，我们也可以使用源码的方式进行安装，安装命令如下：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token function">git</span> clone https://github.com/RedisLabsModules/RediSearch.git
+<span class="token builtin class-name">cd</span> RediSearch <span class="token comment"># 进入模块目录</span>
+<span class="token function">make</span> all<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span></span></code></pre>
+<p>安装完成之后，可以使用如下命令启动 Redis 并加载 RediSearch 模块，命令如下：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">src/redis-server redis.conf --loadmodule <span class="token punctuation">..</span>/RediSearch/src/redisearch.so<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<h3 id="使用"><a href="#使用" class="headerlink" title="使用"></a>使用</h3><p>我们先使用 redis-cli 来对 RediSearch 进行相关的操作。</p>
+<h4 id="创建索引和字段"><a href="#创建索引和字段" class="headerlink" title="创建索引和字段"></a>创建索引和字段</h4><pre class="line-numbers language-text" data-language="text"><code class="language-text">127.0.0.1:6379&gt; ft.create myidx schema title text weight 5.0 desc text
+OK<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre>
+<p>其中”myidx”为索引的ID，此索引包含了两个字段”title”和”desc”，”weight”为权重，默认值为 1.0。</p>
+<h4 id="将内容添加到索引"><a href="#将内容添加到索引" class="headerlink" title="将内容添加到索引"></a>将内容添加到索引</h4><pre class="line-numbers language-text" data-language="text"><code class="language-text">127.0.0.1:6379&gt; ft.add myidx doc1 1.0 fields title "He urged her to study English" desc "good idea"
+OK<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre>
+<p>其中”doc1”为文档 ID（docid），”1.0”为评分（score）。</p>
+<h4 id="根据关键查询"><a href="#根据关键查询" class="headerlink" title="根据关键查询"></a>根据关键查询</h4><pre class="line-numbers language-text" data-language="text"><code class="language-text">127.0.0.1:6379&gt; ft.search myidx "english" limit 0 10
+1) (integer) 1
+2) "doc1"
+3) 1) "title"
+   2) "He urged her to study English"
+   3) "desc"
+   4) "good idea"<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>可以看出我们使用 title 字段中的关键字”english”查询出了一条满足查询条件的数据。</p>
+<h4 id="中文搜索"><a href="#中文搜索" class="headerlink" title="中文搜索"></a>中文搜索</h4><p>首先我们需要先给索引中，添加一条中文数据，执行命令如下：</p>
+<pre class="line-numbers language-text" data-language="text"><code class="language-text">127.0.0.1:6379&gt; ft.add myidx doc2 1.0 language "chinese" fields title "Java 14 发布了！新功能速览" desc "Java 14 在 2020.3.17 日发布正式版了，但现在很多公司还在使用 Java 7 或 Java 8"
+OK<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre>
+<p>注意：这里必须要设置语言编码为中文，也就是”language “chinese””，默认是英文编码，如果不设置则无法支持中文查询（无法查出结果）。</p>
+<p>我们使用之前的查询方式，命令如下：</p>
+<pre class="line-numbers language-text" data-language="text"><code class="language-text">127.0.0.1:6379&gt; ft.search myidx "正式版"
+1) (integer) 0<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre>
+<p>我们发现并没有查到任何信息，这是因为我们没有指定搜索的语言，不但保存时候要指定编码，查询时也需要指定，查询命令如下：</p>
+<pre class="line-numbers language-text" data-language="text"><code class="language-text">127.0.0.1:6379&gt; ft.search myidx "发布了" language "chinese"
+1) (integer) 1
+2) "doc2"
+3) 1) "desc"
+   2) "Java 14 \xe5\x9c\xa8 2020.3.17 \xe6\x97\xa5\xe5\x8f\x91\xe5\xb8\x83\xe6\xad\xa3\xe5\xbc\x8f\xe7\x89\x88\xe4\xba\x86\xef\xbc\x8c\xe4\xbd\x86\xe7\x8e\xb0\xe5\x9c\xa8\xe5\xbe\x88\xe5\xa4\x9a\xe5\x85\xac\xe5\x8f\xb8\xe8\xbf\x98\xe5\x9c\xa8\xe4\xbd\xbf\xe7\x94\xa8 Java 7 \xe6\x88\x96 Java 8"
+   3) "title"
+   4) "Java 14 \xe5\x8f\x91\xe5\xb8\x83\xe4\xba\x86\xef\xbc\x81\xe6\x96\xb0\xe5\x8a\x9f\xe8\x83\xbd\xe9\x80\x9f\xe8\xa7\x88"<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>从结果可以看出中文信息已经被顺利的查询出来了。</p>
+<h4 id="删除索引的数据"><a href="#删除索引的数据" class="headerlink" title="删除索引的数据"></a>删除索引的数据</h4><pre class="line-numbers language-text" data-language="text"><code class="language-text">127.0.0.1:6379&gt; ft.del myidx doc1
+(integer) 1<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre>
+<p>我们使用索引加文档 ID 就可以实现删除数据的功能。</p>
+<h4 id="删除索引"><a href="#删除索引" class="headerlink" title="删除索引"></a>删除索引</h4><p>我们可以使用”ft.drop”关键字删除整个索引，执行命令如下：</p>
+<pre class="line-numbers language-text" data-language="text"><code class="language-text">127.0.0.1:6379&gt; ft.drop myidx
+OK<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre>
+<h4 id="查询索引详细信息"><a href="#查询索引详细信息" class="headerlink" title="查询索引详细信息"></a>查询索引详细信息</h4><p>我们可以使用”ft.info”关键查询索引相关信息，执行命令如下：</p>
+<pre class="line-numbers language-text" data-language="text"><code class="language-text">127.0.0.1:6379&gt; ft.info myidx
+ 1) index_name
+ 2) myidx
+ 3) index_options
+ 4) (empty list or set)
+ 5) fields
+ 6) 1) 1) title
+       2) type
+       3) TEXT
+       4) WEIGHT
+       5) "5"
+    2) 1) desc
+       2) type
+       3) TEXT
+       4) WEIGHT
+       5) "1"
+ 7) num_docs
+ 8) "2"
+ 9) max_doc_id
+10) "2"
+11) num_terms
+12) "9"
+13) num_records
+14) "18"
+15) inverted_sz_mb
+16) "0.000102996826171875"
+17) total_inverted_index_blocks
+18) "29"
+19) offset_vectors_sz_mb
+20) "1.71661376953125e-05"
+21) doc_table_size_mb
+22) "0.000164031982421875"
+23) sortable_values_size_mb
+24) "0"
+25) key_table_size_mb
+26) "8.0108642578125e-05"
+27) records_per_doc_avg
+28) "9"
+29) bytes_per_record_avg
+30) "6"
+31) offsets_per_term_avg
+32) "1"
+33) offset_bits_per_record_avg
+34) "8"
+35) gc_stats
+36)  1) bytes_collected
+     2) "0"
+     3) total_ms_run
+     4) "16"
+     5) total_cycles
+     6) "14"
+     7) avarage_cycle_time_ms
+     8) "1.1428571428571428"
+     9) last_run_time_ms
+    10) "2"
+    11) gc_numeric_trees_missed
+    12) "0"
+    13) gc_blocks_denied
+    14) "0"
+37) cursor_stats
+38) 1) global_idle
+    2) (integer) 0
+    3) global_total
+    4) (integer) 0
+    5) index_capacity
+    6) (integer) 128
+    7) index_total
+    8) (integer) 0<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>其中”num_docs”表示存储的数据数量。</p>
+<h2 id="33-实战：Redis-性能测试"><a href="#33-实战：Redis-性能测试" class="headerlink" title="33 实战：Redis 性能测试"></a>33 实战：Redis 性能测试</h2><h3 id="为什么需要性能测试？"><a href="#为什么需要性能测试？" class="headerlink" title="为什么需要性能测试？"></a>为什么需要性能测试？</h3><p>性能测试的使用场景有很多，例如以下几个：</p>
+<ol>
+<li>技术选型，比如测试 Memcached 和 Redis；</li>
+<li>对比单机 Redis 和集群 Redis 的吞吐量；</li>
+<li>评估不同类型的存储性能，例如集合和有序集合；</li>
+<li>对比开启持久化和关闭持久化的吞吐量；</li>
+<li>对比调优和未调优的吞吐量；</li>
+<li>对比不同 Redis 版本的吞吐量，作为是否升级的一个参考标准。</li>
+</ol>
+<p>等等，诸如此类的情况，我们都需要进行性能测试。</p>
+<h3 id="性能测试的几种方式"><a href="#性能测试的几种方式" class="headerlink" title="性能测试的几种方式"></a>性能测试的几种方式</h3><p>既然性能测试使用场景那么多，那要怎么进行性能测试呢？</p>
+<p>目前比较主流的性能测试分为两种：</p>
+<ol>
+<li>编写代码模拟并发进行性能测试；</li>
+<li>使用 redis-benchmark 进行测试。</li>
+</ol>
+<p>因为自己编写代码进行性能测试的方式不够灵活，且很难短时间内模拟大量的并发数，所有作者并不建议使用这种方式。幸运的是 Redis 本身给我们提供了性能测试工具 redis-benchmark（Redis 基准测试），因此我们本文重点来介绍 redis-benchmark 的使用。</p>
+<h3 id="基准测试实战"><a href="#基准测试实战" class="headerlink" title="基准测试实战"></a>基准测试实战</h3><p>redis-benchmark 位于 Redis 的 src 目录下，我们可以使用 <code>./redis-benchmark -h</code> 来查看基准测试的使用，执行结果如下：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">Usage: redis-benchmark <span class="token punctuation">[</span>-h <span class="token operator">&lt;</span>host<span class="token operator">&gt;</span><span class="token punctuation">]</span> <span class="token punctuation">[</span>-p <span class="token operator">&lt;</span>port<span class="token operator">&gt;</span><span class="token punctuation">]</span> <span class="token punctuation">[</span>-c <span class="token operator">&lt;</span>clients<span class="token operator">&gt;</span><span class="token punctuation">]</span> <span class="token punctuation">[</span>-n <span class="token operator">&lt;</span>requests<span class="token operator">&gt;</span><span class="token punctuation">]</span> <span class="token punctuation">[</span>-k <span class="token operator">&lt;</span>boolean<span class="token operator">&gt;</span><span class="token punctuation">]</span>
+
+ -h <span class="token operator">&lt;</span>hostname<span class="token operator">&gt;</span>      Server <span class="token function">hostname</span> <span class="token punctuation">(</span>default <span class="token number">127.0</span>.0.1<span class="token punctuation">)</span>
+ -p <span class="token operator">&lt;</span>port<span class="token operator">&gt;</span>          Server port <span class="token punctuation">(</span>default <span class="token number">6379</span><span class="token punctuation">)</span>
+ -s <span class="token operator">&lt;</span>socket<span class="token operator">&gt;</span>        Server socket <span class="token punctuation">(</span>overrides <span class="token function">host</span> and port<span class="token punctuation">)</span>
+ -a <span class="token operator">&lt;</span>password<span class="token operator">&gt;</span>      Password <span class="token keyword">for</span> Redis Auth
+ -c <span class="token operator">&lt;</span>clients<span class="token operator">&gt;</span>       Number of parallel connections <span class="token punctuation">(</span>default <span class="token number">50</span><span class="token punctuation">)</span>
+ -n <span class="token operator">&lt;</span>requests<span class="token operator">&gt;</span>      Total number of requests <span class="token punctuation">(</span>default <span class="token number">100000</span><span class="token punctuation">)</span>
+ -d <span class="token operator">&lt;</span>size<span class="token operator">&gt;</span>          Data size of SET/GET value <span class="token keyword">in</span> bytes <span class="token punctuation">(</span>default <span class="token number">3</span><span class="token punctuation">)</span>
+ --dbnum <span class="token operator">&lt;</span>db<span class="token operator">&gt;</span>       SELECT the specified db number <span class="token punctuation">(</span>default <span class="token number">0</span><span class="token punctuation">)</span>
+ -k <span class="token operator">&lt;</span>boolean<span class="token operator">&gt;</span>       <span class="token assign-left variable">1</span><span class="token operator">=</span>keep alive <span class="token assign-left variable">0</span><span class="token operator">=</span>reconnect <span class="token punctuation">(</span>default <span class="token number">1</span><span class="token punctuation">)</span>
+ -r <span class="token operator">&lt;</span>keyspacelen<span class="token operator">&gt;</span>   Use random keys <span class="token keyword">for</span> SET/GET/INCR, random values <span class="token keyword">for</span> SADD
+  Using this option the benchmark will <span class="token function">expand</span> the string __rand_int__
+  inside an argument with a <span class="token number">12</span> digits number <span class="token keyword">in</span> the specified range
+  from <span class="token number">0</span> to keyspacelen-1. The substitution changes every <span class="token function">time</span> a <span class="token builtin class-name">command</span>
+  is executed. Default tests use this to hit random keys <span class="token keyword">in</span> the
+  specified range.
+ -P <span class="token operator">&lt;</span>numreq<span class="token operator">&gt;</span>        Pipeline <span class="token operator">&lt;</span>numreq<span class="token operator">&gt;</span> requests. Default <span class="token number">1</span> <span class="token punctuation">(</span>no pipeline<span class="token punctuation">)</span>.
+ -e                 If server replies with errors, show them on stdout.
+                    <span class="token punctuation">(</span>no <span class="token function">more</span> than <span class="token number">1</span> error per second is displayed<span class="token punctuation">)</span>
+ -q                 Quiet. Just show query/sec values
+ --csv              Output <span class="token keyword">in</span> CSV <span class="token function">format</span>
+ -l                 Loop. Run the tests forever
+ -t <span class="token operator">&lt;</span>tests<span class="token operator">&gt;</span>         Only run the comma separated list of tests. The <span class="token builtin class-name">test</span>
+                    names are the same as the ones produced as output.
+ -I                 Idle mode. Just <span class="token function">open</span> N idle connections and wait.<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>可以看出 redis-benchmark 支持以下选项：</p>
+<ul>
+<li><code>-h &lt;hostname&gt;</code>：服务器的主机名（默认值为 127.0.0.1）。</li>
+<li><code>-p &lt;port&gt;</code>：服务器的端口号（默认值为 6379）。</li>
+<li><code>-s &lt;socket&gt;</code>：服务器的套接字（会覆盖主机名和端口号）。</li>
+<li><code>-a &lt;password&gt;</code>：登录 Redis 时进行身份验证的密码。</li>
+<li><code>-c &lt;clients&gt;</code>：并发的连接数量（默认值为 50）。</li>
+<li><code>-n &lt;requests&gt;</code>：发出的请求总数（默认值为 100000）。</li>
+<li><code>-d &lt;size&gt;</code>：SET/GET 命令所操作的值的数据大小，以字节为单位（默认值为 2）。</li>
+<li><code>-dbnum &lt;db&gt;</code>：选择用于性能测试的数据库的编号（默认值为 0）。</li>
+<li><code>-k &lt;boolean&gt;</code>：1 = 保持连接；0 = 重新连接（默认值为 1）。</li>
+<li><code>-r &lt;keyspacelen&gt;</code>：SET/GET/INCR 命令使用随机键，SADD 命令使用随机值。通过这个选项，基准测试会将参数中的 <strong>rand_int</strong> 字符串替换为一个 12 位的整数，这个整数的取值范围从 0 到 keyspacelen-1。每次执行一条命令的时候，用于替换的整数值都会改变。通过这个参数，默认的测试方案会在指定范围之内尝试命中随机键。</li>
+<li><code>-P &lt;numreq&gt;</code>：使用管道机制处理 <numreq> 条 Redis 请求。默认值为 1（不使用管道机制）。</numreq></li>
+<li><code>-q</code>：静默测试，只显示 QPS 的值。</li>
+<li><code>-csv</code>：将测试结果输出为 CSV 格式的文件。</li>
+<li><code>-l</code>：循环测试。基准测试会永远运行下去。</li>
+<li><code>-t</code> <tests>：基准测试只会运行列表中用逗号分隔的命令。测试命令的名称和结果输出产生的名称相同。</tests></li>
+<li><code>-I</code>：空闲模式，只会打开 N 个空闲的连接，然后等待。</li>
+</ul>
+<p>可以看出 redis-benchmark 带的功能还是比较全的。</p>
+<h3 id="基本使用"><a href="#基本使用" class="headerlink" title="基本使用"></a>基本使用</h3><p>在安装 Redis 服务端的机器上，我们可以不带任何参数直接执行 <code>./redis-benchmark</code> 执行结果如下：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token punctuation">[</span>@iZ2ze0nc5n41zomzyqtksmZ:src<span class="token punctuation">]</span>$ ./redis-benchmark
+<span class="token operator">==</span><span class="token operator">==</span><span class="token operator">==</span> PING_INLINE <span class="token operator">==</span><span class="token operator">==</span><span class="token operator">==</span>
+  <span class="token number">100000</span> requests completed <span class="token keyword">in</span> <span class="token number">1.26</span> seconds
+  <span class="token number">50</span> parallel clients
+  <span class="token number">3</span> bytes payload
+  keep alive: <span class="token number">1</span>
+
+<span class="token number">99.81</span>% <span class="token operator">&lt;</span><span class="token operator">=</span> <span class="token number">1</span> milliseconds
+<span class="token number">100.00</span>% <span class="token operator">&lt;</span><span class="token operator">=</span> <span class="token number">2</span> milliseconds
+<span class="token number">79302.14</span> requests per second
+
+<span class="token operator">==</span><span class="token operator">==</span><span class="token operator">==</span> PING_BULK <span class="token operator">==</span><span class="token operator">==</span><span class="token operator">==</span>
+  <span class="token number">100000</span> requests completed <span class="token keyword">in</span> <span class="token number">1.29</span> seconds
+  <span class="token number">50</span> parallel clients
+  <span class="token number">3</span> bytes payload
+  keep alive: <span class="token number">1</span>
+
+<span class="token number">99.83</span>% <span class="token operator">&lt;</span><span class="token operator">=</span> <span class="token number">1</span> milliseconds
+<span class="token number">100.00</span>% <span class="token operator">&lt;</span><span class="token operator">=</span> <span class="token number">1</span> milliseconds
+<span class="token number">77459.34</span> requests per second
+
+<span class="token operator">==</span><span class="token operator">==</span><span class="token operator">==</span> SET <span class="token operator">==</span><span class="token operator">==</span><span class="token operator">==</span>
+  <span class="token number">100000</span> requests completed <span class="token keyword">in</span> <span class="token number">1.26</span> seconds
+  <span class="token number">50</span> parallel clients
+  <span class="token number">3</span> bytes payload
+  keep alive: <span class="token number">1</span>
+
+<span class="token number">99.80</span>% <span class="token operator">&lt;</span><span class="token operator">=</span> <span class="token number">1</span> milliseconds
+<span class="token number">99.99</span>% <span class="token operator">&lt;</span><span class="token operator">=</span> <span class="token number">2</span> milliseconds
+<span class="token number">100.00</span>% <span class="token operator">&lt;</span><span class="token operator">=</span> <span class="token number">2</span> milliseconds
+<span class="token number">79239.30</span> requests per second
+
+<span class="token operator">==</span><span class="token operator">==</span><span class="token operator">==</span> GET <span class="token operator">==</span><span class="token operator">==</span><span class="token operator">==</span>
+  <span class="token number">100000</span> requests completed <span class="token keyword">in</span> <span class="token number">1.19</span> seconds
+  <span class="token number">50</span> parallel clients
+  <span class="token number">3</span> bytes payload
+  keep alive: <span class="token number">1</span>
+
+<span class="token number">99.72</span>% <span class="token operator">&lt;</span><span class="token operator">=</span> <span class="token number">1</span> milliseconds
+<span class="token number">99.95</span>% <span class="token operator">&lt;</span><span class="token operator">=</span> <span class="token number">15</span> milliseconds
+<span class="token number">100.00</span>% <span class="token operator">&lt;</span><span class="token operator">=</span> <span class="token number">16</span> milliseconds
+<span class="token number">100.00</span>% <span class="token operator">&lt;</span><span class="token operator">=</span> <span class="token number">16</span> milliseconds
+<span class="token number">84104.29</span> requests per second
+
+<span class="token operator">==</span><span class="token operator">==</span><span class="token operator">==</span> INCR <span class="token operator">==</span><span class="token operator">==</span><span class="token operator">==</span>
+  <span class="token number">100000</span> requests completed <span class="token keyword">in</span> <span class="token number">1.17</span> seconds
+  <span class="token number">50</span> parallel clients
+  <span class="token number">3</span> bytes payload
+  keep alive: <span class="token number">1</span>
+
+<span class="token number">99.86</span>% <span class="token operator">&lt;</span><span class="token operator">=</span> <span class="token number">1</span> milliseconds
+<span class="token number">100.00</span>% <span class="token operator">&lt;</span><span class="token operator">=</span> <span class="token number">1</span> milliseconds
+<span class="token number">85397.09</span> requests per second
+
+<span class="token operator">==</span><span class="token operator">==</span><span class="token operator">==</span> LPUSH <span class="token operator">==</span><span class="token operator">==</span><span class="token operator">==</span>
+  <span class="token number">100000</span> requests completed <span class="token keyword">in</span> <span class="token number">1.22</span> seconds
+  <span class="token number">50</span> parallel clients
+  <span class="token number">3</span> bytes payload
+  keep alive: <span class="token number">1</span>
+
+<span class="token number">99.79</span>% <span class="token operator">&lt;</span><span class="token operator">=</span> <span class="token number">1</span> milliseconds
+<span class="token number">100.00</span>% <span class="token operator">&lt;</span><span class="token operator">=</span> <span class="token number">1</span> milliseconds
+<span class="token number">82169.27</span> requests per second
+
+<span class="token operator">==</span><span class="token operator">==</span><span class="token operator">==</span> RPUSH <span class="token operator">==</span><span class="token operator">==</span><span class="token operator">==</span>
+  <span class="token number">100000</span> requests completed <span class="token keyword">in</span> <span class="token number">1.22</span> seconds
+  <span class="token number">50</span> parallel clients
+  <span class="token number">3</span> bytes payload
+  keep alive: <span class="token number">1</span>
+
+<span class="token number">99.71</span>% <span class="token operator">&lt;</span><span class="token operator">=</span> <span class="token number">1</span> milliseconds
+<span class="token number">100.00</span>% <span class="token operator">&lt;</span><span class="token operator">=</span> <span class="token number">1</span> milliseconds
+<span class="token number">81900.09</span> requests per second
+
+<span class="token operator">==</span><span class="token operator">==</span><span class="token operator">==</span> LPOP <span class="token operator">==</span><span class="token operator">==</span><span class="token operator">==</span>
+  <span class="token number">100000</span> requests completed <span class="token keyword">in</span> <span class="token number">1.29</span> seconds
+  <span class="token number">50</span> parallel clients
+  <span class="token number">3</span> bytes payload
+  keep alive: <span class="token number">1</span>
+
+<span class="token number">99.78</span>% <span class="token operator">&lt;</span><span class="token operator">=</span> <span class="token number">1</span> milliseconds
+<span class="token number">99.95</span>% <span class="token operator">&lt;</span><span class="token operator">=</span> <span class="token number">13</span> milliseconds
+<span class="token number">99.97</span>% <span class="token operator">&lt;</span><span class="token operator">=</span> <span class="token number">14</span> milliseconds
+<span class="token number">100.00</span>% <span class="token operator">&lt;</span><span class="token operator">=</span> <span class="token number">14</span> milliseconds
+<span class="token number">77399.38</span> requests per second
+
+<span class="token operator">==</span><span class="token operator">==</span><span class="token operator">==</span> RPOP <span class="token operator">==</span><span class="token operator">==</span><span class="token operator">==</span>
+  <span class="token number">100000</span> requests completed <span class="token keyword">in</span> <span class="token number">1.25</span> seconds
+  <span class="token number">50</span> parallel clients
+  <span class="token number">3</span> bytes payload
+  keep alive: <span class="token number">1</span>
+
+<span class="token number">99.82</span>% <span class="token operator">&lt;</span><span class="token operator">=</span> <span class="token number">1</span> milliseconds
+<span class="token number">100.00</span>% <span class="token operator">&lt;</span><span class="token operator">=</span> <span class="token number">1</span> milliseconds
+<span class="token number">80192.46</span> requests per second
+
+<span class="token operator">==</span><span class="token operator">==</span><span class="token operator">==</span> SADD <span class="token operator">==</span><span class="token operator">==</span><span class="token operator">==</span>
+  <span class="token number">100000</span> requests completed <span class="token keyword">in</span> <span class="token number">1.25</span> seconds
+  <span class="token number">50</span> parallel clients
+  <span class="token number">3</span> bytes payload
+  keep alive: <span class="token number">1</span>
+
+<span class="token number">99.74</span>% <span class="token operator">&lt;</span><span class="token operator">=</span> <span class="token number">1</span> milliseconds
+<span class="token number">100.00</span>% <span class="token operator">&lt;</span><span class="token operator">=</span> <span class="token number">1</span> milliseconds
+<span class="token number">80192.46</span> requests per second
+
+<span class="token operator">==</span><span class="token operator">==</span><span class="token operator">==</span> HSET <span class="token operator">==</span><span class="token operator">==</span><span class="token operator">==</span>
+  <span class="token number">100000</span> requests completed <span class="token keyword">in</span> <span class="token number">1.21</span> seconds
+  <span class="token number">50</span> parallel clients
+  <span class="token number">3</span> bytes payload
+  keep alive: <span class="token number">1</span>
+
+<span class="token number">99.86</span>% <span class="token operator">&lt;</span><span class="token operator">=</span> <span class="token number">1</span> milliseconds
+<span class="token number">100.00</span>% <span class="token operator">&lt;</span><span class="token operator">=</span> <span class="token number">1</span> milliseconds
+<span class="token number">82440.23</span> requests per second
+
+<span class="token operator">==</span><span class="token operator">==</span><span class="token operator">==</span> SPOP <span class="token operator">==</span><span class="token operator">==</span><span class="token operator">==</span>
+  <span class="token number">100000</span> requests completed <span class="token keyword">in</span> <span class="token number">1.22</span> seconds
+  <span class="token number">50</span> parallel clients
+  <span class="token number">3</span> bytes payload
+  keep alive: <span class="token number">1</span>
+
+<span class="token number">99.92</span>% <span class="token operator">&lt;</span><span class="token operator">=</span> <span class="token number">1</span> milliseconds
+<span class="token number">100.00</span>% <span class="token operator">&lt;</span><span class="token operator">=</span> <span class="token number">1</span> milliseconds
+<span class="token number">81699.35</span> requests per second
+
+<span class="token operator">==</span><span class="token operator">==</span><span class="token operator">==</span> LPUSH <span class="token punctuation">(</span>needed to benchmark LRANGE<span class="token punctuation">)</span> <span class="token operator">==</span><span class="token operator">==</span><span class="token operator">==</span>
+  <span class="token number">100000</span> requests completed <span class="token keyword">in</span> <span class="token number">1.26</span> seconds
+  <span class="token number">50</span> parallel clients
+  <span class="token number">3</span> bytes payload
+  keep alive: <span class="token number">1</span>
+
+<span class="token number">99.69</span>% <span class="token operator">&lt;</span><span class="token operator">=</span> <span class="token number">1</span> milliseconds
+<span class="token number">99.95</span>% <span class="token operator">&lt;</span><span class="token operator">=</span> <span class="token number">13</span> milliseconds
+<span class="token number">99.99</span>% <span class="token operator">&lt;</span><span class="token operator">=</span> <span class="token number">14</span> milliseconds
+<span class="token number">100.00</span>% <span class="token operator">&lt;</span><span class="token operator">=</span> <span class="token number">14</span> milliseconds
+<span class="token number">79176.56</span> requests per second
+
+<span class="token operator">==</span><span class="token operator">==</span><span class="token operator">==</span> LRANGE_100 <span class="token punctuation">(</span>first <span class="token number">100</span> elements<span class="token punctuation">)</span> <span class="token operator">==</span><span class="token operator">==</span><span class="token operator">==</span>
+  <span class="token number">100000</span> requests completed <span class="token keyword">in</span> <span class="token number">1.25</span> seconds
+  <span class="token number">50</span> parallel clients
+  <span class="token number">3</span> bytes payload
+  keep alive: <span class="token number">1</span>
+
+<span class="token number">99.57</span>% <span class="token operator">&lt;</span><span class="token operator">=</span> <span class="token number">1</span> milliseconds
+<span class="token number">99.98</span>% <span class="token operator">&lt;</span><span class="token operator">=</span> <span class="token number">2</span> milliseconds
+<span class="token number">100.00</span>% <span class="token operator">&lt;</span><span class="token operator">=</span> <span class="token number">2</span> milliseconds
+<span class="token number">80128.20</span> requests per second
+
+<span class="token operator">==</span><span class="token operator">==</span><span class="token operator">==</span> LRANGE_300 <span class="token punctuation">(</span>first <span class="token number">300</span> elements<span class="token punctuation">)</span> <span class="token operator">==</span><span class="token operator">==</span><span class="token operator">==</span>
+  <span class="token number">100000</span> requests completed <span class="token keyword">in</span> <span class="token number">1.25</span> seconds
+  <span class="token number">50</span> parallel clients
+  <span class="token number">3</span> bytes payload
+  keep alive: <span class="token number">1</span>
+
+<span class="token number">99.91</span>% <span class="token operator">&lt;</span><span class="token operator">=</span> <span class="token number">1</span> milliseconds
+<span class="token number">100.00</span>% <span class="token operator">&lt;</span><span class="token operator">=</span> <span class="token number">1</span> milliseconds
+<span class="token number">80064.05</span> requests per second
+
+<span class="token operator">==</span><span class="token operator">==</span><span class="token operator">==</span> LRANGE_500 <span class="token punctuation">(</span>first <span class="token number">450</span> elements<span class="token punctuation">)</span> <span class="token operator">==</span><span class="token operator">==</span><span class="token operator">==</span>
+  <span class="token number">100000</span> requests completed <span class="token keyword">in</span> <span class="token number">1.30</span> seconds
+  <span class="token number">50</span> parallel clients
+  <span class="token number">3</span> bytes payload
+  keep alive: <span class="token number">1</span>
+
+<span class="token number">99.78</span>% <span class="token operator">&lt;</span><span class="token operator">=</span> <span class="token number">1</span> milliseconds
+<span class="token number">100.00</span>% <span class="token operator">&lt;</span><span class="token operator">=</span> <span class="token number">1</span> milliseconds
+<span class="token number">76863.95</span> requests per second
+
+<span class="token operator">==</span><span class="token operator">==</span><span class="token operator">==</span> LRANGE_600 <span class="token punctuation">(</span>first <span class="token number">600</span> elements<span class="token punctuation">)</span> <span class="token operator">==</span><span class="token operator">==</span><span class="token operator">==</span>
+  <span class="token number">100000</span> requests completed <span class="token keyword">in</span> <span class="token number">1.20</span> seconds
+  <span class="token number">50</span> parallel clients
+  <span class="token number">3</span> bytes payload
+  keep alive: <span class="token number">1</span>
+
+<span class="token number">99.85</span>% <span class="token operator">&lt;</span><span class="token operator">=</span> <span class="token number">1</span> milliseconds
+<span class="token number">100.00</span>% <span class="token operator">&lt;</span><span class="token operator">=</span> <span class="token number">1</span> milliseconds
+<span class="token number">83263.95</span> requests per second
+
+<span class="token operator">==</span><span class="token operator">==</span><span class="token operator">==</span> MSET <span class="token punctuation">(</span><span class="token number">10</span> keys<span class="token punctuation">)</span> <span class="token operator">==</span><span class="token operator">==</span><span class="token operator">==</span>
+  <span class="token number">100000</span> requests completed <span class="token keyword">in</span> <span class="token number">1.27</span> seconds
+  <span class="token number">50</span> parallel clients
+  <span class="token number">3</span> bytes payload
+  keep alive: <span class="token number">1</span>
+
+<span class="token number">99.65</span>% <span class="token operator">&lt;</span><span class="token operator">=</span> <span class="token number">1</span> milliseconds
+<span class="token number">100.00</span>% <span class="token operator">&lt;</span><span class="token operator">=</span> <span class="token number">1</span> milliseconds
+<span class="token number">78740.16</span> requests per second<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>可以看出以上都是对常用的方法 Set、Get、Incr 等进行测试，基本能达到每秒 8W 的处理级别。</p>
+<h3 id="精简测试"><a href="#精简测试" class="headerlink" title="精简测试"></a>精简测试</h3><p>我们可以使用 <code>./redis-benchmark -t set,get,incr -n 1000000 -q</code> 命令，来对 Redis 服务器进行精简测试，测试结果如下：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token punctuation">[</span>@iZ2ze0nc5n41zomzyqtksmZ:src<span class="token punctuation">]</span>$ ./redis-benchmark -t set,get,incr -n <span class="token number">1000000</span> -q
+SET: <span class="token number">81726.05</span> requests per second
+GET: <span class="token number">81466.40</span> requests per second
+INCR: <span class="token number">82481.03</span> requests per second<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span></span></code></pre>
+<p>可以看出以上测试展示的结果非常的精简，这是因为我们设置了 <code>-q</code> 参数，此选项的意思是设置输出结果为精简模式，其中 <code>-t</code> 表示指定测试指令，<code>-n</code> 设置每个指令测试 100w 次。</p>
+<h3 id="管道测试"><a href="#管道测试" class="headerlink" title="管道测试"></a>管道测试</h3><p>本课程的前面章节介绍了 Pipeline（管道）的知识，它是用于客户端把命令批量发给服务器端执行的，以此来提高程序的整体执行效率，那接下来我们测试一下 Pipeline 的吞吐量能到达多少，执行命令如下：</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash"><span class="token punctuation">[</span>@iZ2ze0nc5n41zomzyqtksmZ:src<span class="token punctuation">]</span>$ ./redis-benchmark -t set,get,incr -n <span class="token number">1000000</span> -q -P <span class="token number">10</span>
+SET: <span class="token number">628535.50</span> requests per second
+GET: <span class="token number">654450.25</span> requests per second
+INCR: <span class="token number">647249.19</span> requests per second<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span></span></code></pre>
+<p>我们发现 Pipeline 的测试很快就执行完了，同样是每个指令执行 100w 次，可以看出 Pipeline 的性能几乎是普通命令的 8 倍， <code>-P 10</code> 表示每次执行 10 个 Redis 命令。</p>
+<h3 id="基准测试的影响元素"><a href="#基准测试的影响元素" class="headerlink" title="基准测试的影响元素"></a>基准测试的影响元素</h3><p>为什么每次执行 10 个 Redis 命令，Pipeline 的效率为什么达不到普通命令的 10 倍呢？</p>
+<p>这是因为基准测试会受到很大外部因素的影响，例如以下几个：</p>
+<ol>
+<li>网络带宽和网络延迟可能是 Redis 操作最大的性能瓶颈，比如有 10w q/s，平均每个请求负责传输 8 KB 的字符，那我们需要的理论带宽是 7.6 Gbits/s，如果服务器配置的是 1 Gbits/s，那么一定会有很多信息在排队等候传输，因此运行效率可想而知，这也是很多 Redis 生产坏境之所以效率不高的原因；</li>
+<li>CPU 可能是 Redis 运行的另一个重要的影响因素，如果 CPU 的计算能力跟不上 Redis 要求的话，也会影响 Redis 的运行效率；</li>
+<li>如果 Redis 运行在虚拟设备上，性能也会受影响，因为普通操作在虚拟设备上会有额外的消耗；</li>
+<li>普通操作和批量操作（Pipeline）对 Redis 的吞吐量也有很大的影响。</li>
+</ol>
+<h2 id="34-实战：Redis-慢查询"><a href="#34-实战：Redis-慢查询" class="headerlink" title="34 实战：Redis 慢查询"></a>34 实战：Redis 慢查询</h2><p>Redis 慢查询作用和 MySQL 慢查询作用类似，都是为我们查询出不合理的执行命令，然后让开发人员和运维人员一起来规避这些耗时的命令，从而让服务器更加高效和健康的运行。对于单线程的 Redis 来说，不合理的使用更是致命的，因此掌握 Redis 慢查询技能对我们来说非常的关键。</p>
+<h3 id="如何进行慢查询？"><a href="#如何进行慢查询？" class="headerlink" title="如何进行慢查询？"></a>如何进行慢查询？</h3><p>在开始之前，我们先要了解一下 Redis 中和慢查询相关的配置项，Redis 慢查询重要的配置项有以下两个：</p>
+<ul>
+<li>slowlog-log-slower-than：用于设置慢查询的评定时间，也就是说超过此配置项的命令，将会被当成慢操作记录在慢查询日志中，它执行单位是微秒（1 秒等于 1000000 微秒）；</li>
+<li>slowlog-max-len：用来配置慢查询日志的最大记录数。</li>
+</ul>
+<p>我们先来看它们的默认配置值：</p>
+<pre class="line-numbers language-text" data-language="text"><code class="language-text">127.0.0.1:6379&gt; config get slowlog-log-slower-than #慢查询判断时间
+1) "slowlog-log-slower-than"
+2) "10000"
+127.0.0.1:6379&gt; config get slowlog-max-len #慢查询最大记录条数
+1) "slowlog-max-len"
+2) "128"<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>可以看出慢查询的临界值是 10000 微秒，默认保存 128 条慢查询记录。</p>
+<h3 id="修改配置项"><a href="#修改配置项" class="headerlink" title="修改配置项"></a>修改配置项</h3><p>slowlog-log-slower-than 和 slowlog-max-len 可以通过 <code>config set xxx</code> 的模式来修改，例如 <code>config set slowlog-max-len 200</code> 设置慢查询最大记录数为 200 条。</p>
+<h3 id="慢查询演示"><a href="#慢查询演示" class="headerlink" title="慢查询演示"></a>慢查询演示</h3><p>我们先来设置慢查询的判断时间为 0 微秒，这样所有的执行命令都会被记录，设置命令如下：</p>
+<pre class="line-numbers language-text" data-language="text"><code class="language-text">127.0.0.1:6379&gt; config set slowlog-log-slower-than 0
+OK<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre>
+<p>接下来我们执行两条插入命令：</p>
+<pre class="line-numbers language-text" data-language="text"><code class="language-text">127.0.0.1:6379&gt; set msg xiaoming
+OK
+127.0.0.1:6379&gt; set lang java
+OK<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span></span></code></pre>
+<p>最后我们使用 slowlog show 来查询慢日志，结果如下：</p>
+<pre class="line-numbers language-text" data-language="text"><code class="language-text">127.0.0.1:6379&gt; slowlog get #慢日志查询
+1) 1) (integer) 2 #慢日志下标
+   2) (integer) 1581994139 #执行时间
+   3) (integer) 5 #花费时间 (单位微秒)
+   4) 1) "set" #执行的具体命令
+      2) "lang"
+      3) "java"
+   5) "127.0.0.1:47068"
+   6) ""
+2) 1) (integer) 1
+   2) (integer) 1581994131
+   3) (integer) 6
+   4) 1) "set"
+      2) "msg"
+      3) "xiaoming"
+   5) "127.0.0.1:47068"
+   6) ""
+3) 1) (integer) 0
+   2) (integer) 1581994093
+   3) (integer) 5
+   4) 1) "config"
+      2) "set"
+      3) "slowlog-log-slower-than"
+      4) "0"
+   5) "127.0.0.1:47068"
+   6) ""<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>加上本身的设置命令一共有三条“慢操作”记录，按照插入的顺序倒序存入慢查询日志中。</p>
+<blockquote>
+<p>小贴士：当慢查询日志超过设定的最大存储条数之后，会把最早的执行命令依次舍弃。</p>
+</blockquote>
+<h3 id="查询指定条数慢日志"><a href="#查询指定条数慢日志" class="headerlink" title="查询指定条数慢日志"></a>查询指定条数慢日志</h3><p>语法：<code>slowlog get n</code>。</p>
+<pre class="line-numbers language-text" data-language="text"><code class="language-text">127.0.0.1:6379&gt; slowlog get 2 #查询两条
+1) 1) (integer) 20
+   2) (integer) 1581997567
+   3) (integer) 14
+   4) 1) "slowlog"
+      2) "get"
+      3) "4"
+   5) "127.0.0.1:47068"
+   6) ""
+2) 1) (integer) 19
+   2) (integer) 1581997544
+   3) (integer) 11
+   4) 1) "slowlog"
+      2) "get"
+      3) "3"
+   5) "127.0.0.1:47068"
+   6) ""
+127.0.0.1:6379&gt; slowlog get 3 #查询三条
+1) 1) (integer) 22
+   2) (integer) 1581997649
+   3) (integer) 25
+   4) 1) "set"
+      2) "msg"
+      3) "hi"
+   5) "127.0.0.1:47068"
+   6) ""
+2) 1) (integer) 21
+   2) (integer) 1581997613
+   3) (integer) 9
+   4) 1) "slowlog"
+      2) "get"
+      3) "2"
+   5) "127.0.0.1:47068"
+   6) ""
+3) 1) (integer) 20
+   2) (integer) 1581997567
+   3) (integer) 14
+   4) 1) "slowlog"
+      2) "get"
+      3) "4"
+   5) "127.0.0.1:47068"
+   6) ""<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<h3 id="获取慢查询队列长度"><a href="#获取慢查询队列长度" class="headerlink" title="获取慢查询队列长度"></a>获取慢查询队列长度</h3><p>语法：<code>slowlog len</code>。</p>
+<pre class="line-numbers language-text" data-language="text"><code class="language-text">127.0.0.1:6379&gt; slowlog len
+(integer) 16<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre>
+<h3 id="清空慢查询日志"><a href="#清空慢查询日志" class="headerlink" title="清空慢查询日志"></a>清空慢查询日志</h3><p>使用 slowlog reset 来清空所有的慢查询日志，执行命令如下：</p>
+<pre class="line-numbers language-text" data-language="text"><code class="language-text">127.0.0.1:6379&gt; slowlog reset
+OK<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre>
+<h2 id="35-实战：Redis-性能优化方案"><a href="#35-实战：Redis-性能优化方案" class="headerlink" title="35 实战：Redis 性能优化方案"></a>35 实战：Redis 性能优化方案</h2><p>Redis 是基于单线程模型实现的，也就是 Redis 是使用一个线程来处理所有的客户端请求的，尽管 Redis 使用了非阻塞式 IO，并且对各种命令都做了优化（大部分命令操作时间复杂度都是 O(1)），但由于 Redis 是单线程执行的特点，因此它对性能的要求更加苛刻，本文我们将通过一些优化手段，让 Redis 更加高效的运行。</p>
+<p>本文我们将使用以下手段，来提升 Redis 的运行速度：</p>
+<ol>
+<li>缩短键值对的存储长度；</li>
+<li>使用 lazy free（延迟删除）特性；</li>
+<li>设置键值的过期时间；</li>
+<li>禁用耗时长的查询命令；</li>
+<li>使用 slowlog 优化耗时命令；</li>
+<li>使用 Pipeline 批量操作数据；</li>
+<li>避免大量数据同时失效；</li>
+<li>客户端使用优化；</li>
+<li>限制 Redis 内存大小；</li>
+<li>使用物理机而非虚拟机安装 Redis 服务；</li>
+<li>检查数据持久化策略；</li>
+<li>使用分布式架构来增加读写速度。</li>
+</ol>
+<h3 id="缩短键值对的存储长度"><a href="#缩短键值对的存储长度" class="headerlink" title="缩短键值对的存储长度"></a>缩短键值对的存储长度</h3><p>键值对的长度是和性能成反比的，比如我们来做一组写入数据的性能测试，执行结果如下：</p>
+<div class="table-container">
+<table>
+<thead>
+<tr>
+<th>数据量</th>
+<th>key 大小</th>
+<th>value 大小</th>
+<th>string:set 平均耗时</th>
+<th>hash:hset 平均耗时</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>100w</td>
+<td>20byte</td>
+<td>512byte</td>
+<td>1.13 微秒</td>
+<td>10.28 微秒</td>
+</tr>
+<tr>
+<td>100w</td>
+<td>20byte</td>
+<td>200byte</td>
+<td>0.74 微秒</td>
+<td>8.08 微秒</td>
+</tr>
+<tr>
+<td>100w</td>
+<td>20byte</td>
+<td>100byte</td>
+<td>0.65 微秒</td>
+<td>7.92 微秒</td>
+</tr>
+<tr>
+<td>100w</td>
+<td>20byte</td>
+<td>50byte</td>
+<td>0.59 微秒</td>
+<td>6.74 微秒</td>
+</tr>
+<tr>
+<td>100w</td>
+<td>20byte</td>
+<td>20byte</td>
+<td>0.55 微秒</td>
+<td>6.60 微秒</td>
+</tr>
+<tr>
+<td>100w</td>
+<td>20byte</td>
+<td>5byte</td>
+<td>0.53 微秒</td>
+<td>6.53 微秒</td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>从以上数据可以看出，在 key 不变的情况下，value 值越大操作效率越慢，因为 Redis 对于同一种数据类型会使用不同的内部编码进行存储，比如字符串的内部编码就有三种：int（整数编码）、raw（优化内存分配的字符串编码）、embstr（动态字符串编码），这是因为 Redis 的作者是想通过不同编码实现效率和空间的平衡，然而数据量越大使用的内部编码就越复杂，而越是复杂的内部编码存储的性能就越低。</p>
+<p>这还只是写入时的速度，当键值对内容较大时，还会带来另外几个问题：</p>
+<ul>
+<li>内容越大需要的持久化时间就越长，需要挂起的时间越长，Redis 的性能就会越低；</li>
+<li>内容越大在网络上传输的内容就越多，需要的时间就越长，整体的运行速度就越低；</li>
+<li>内容越大占用的内存就越多，就会更频繁地触发内存淘汰机制，从而给 Redis 带来了更多的运行负担。</li>
+</ul>
+<p>因此在保证完整语义的同时，我们要尽量地缩短键值对的存储长度，必要时要对数据进行序列化和压缩再存储，以 Java 为例，序列化我们可以使用 protostuff 或 kryo，压缩我们可以使用 snappy。</p>
+<h3 id="使用-lazy-free-特性"><a href="#使用-lazy-free-特性" class="headerlink" title="使用 lazy free 特性"></a>使用 lazy free 特性</h3><p>lazy free 特性是 Redis 4.0 新增的一个非常实用的功能，它可以理解为惰性删除或延迟删除。意思是在删除的时候提供异步延时释放键值的功能，把键值释放操作放在 BIO（Background I/O）单独的子线程处理中，以减少删除对 Redis 主线程的阻塞，可以有效地避免删除 big key 时带来的性能和可用性问题。</p>
+<p>lazy free 对应了 4 种场景，默认都是关闭的：</p>
+<pre class="line-numbers language-text" data-language="text"><code class="language-text">lazyfree-lazy-eviction no
+lazyfree-lazy-expire no
+lazyfree-lazy-server-del no
+slave-lazy-flush no<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span></span></code></pre>
+<p>它们代表的含义如下：</p>
+<ul>
+<li><code>lazyfree-lazy-eviction</code>：表示当 Redis 运行内存超过 maxmeory 时，是否开启 lazy free 机制删除；</li>
+<li><code>lazyfree-lazy-expire</code>：表示设置了过期时间的键值，当过期之后是否开启 lazy free 机制删除；</li>
+<li><code>lazyfree-lazy-server-del</code>：有些指令在处理已存在的键时，会带有一个隐式的 del 键的操作，比如 rename 命令，当目标键已存在，Redis 会先删除目标键，如果这些目标键是一个 big key，就会造成阻塞删除的问题，此配置表示在这种场景中是否开启 lazy free 机制删除；</li>
+<li><code>slave-lazy-flush</code>：针对 slave（从节点）进行全量数据同步，slave 在加载 master 的 RDB 文件前，会运行 flushall 来清理自己的数据，它表示此时是否开启 lazy free 机制删除。</li>
+</ul>
+<p>建议开启其中的 lazyfree-lazy-eviction、lazyfree-lazy-expire、lazyfree-lazy-server-del 等配置，这样就可以有效的提高主线程的执行效率。</p>
+<h3 id="设置键值的过期时间"><a href="#设置键值的过期时间" class="headerlink" title="设置键值的过期时间"></a>设置键值的过期时间</h3><p>我们应该根据实际的业务情况，对键值设置合理的过期时间，这样 Redis 会帮你自动清除过期的键值对，以节约对内存的占用，以避免键值过多的堆积，频繁的触发内存淘汰策略。</p>
+<h3 id="禁用耗时长的查询命令"><a href="#禁用耗时长的查询命令" class="headerlink" title="禁用耗时长的查询命令"></a>禁用耗时长的查询命令</h3><p>Redis 绝大多数读写命令的时间复杂度都在 O(1) 到 O(N) 之间，在官方文档对每命令都有时间复杂度说明。 <a target="_blank" rel="noopener" href="https://redis.io/commands">https://redis.io/commands</a></p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《Redis核心原理与实战》学习笔记/KEYS.png" alt="KEYS"></p>
+<p>其中 <code>O(1)</code> 表示可以安全使用的，而 <code>O(N)</code> 就应该当心了，N 表示不确定，数据越大查询的速度可能会越慢。因为 Redis 只用一个线程来做数据查询，如果这些指令耗时很长，就会阻塞 Redis，造成大量延时。</p>
+<p>要避免 O(N) 命令对 Redis 造成的影响，可以从以下几个方面入手改造：</p>
+<ul>
+<li>决定禁止使用 <code>keys</code> 命令；</li>
+<li>避免一次查询所有的成员，要使用 scan 命令进行分批的，游标式的遍历；</li>
+<li>通过机制严格控制 Hash、Set、Sorted Set 等结构的数据大小；</li>
+<li>将排序、并集、交集等操作放在客户端执行，以减少 Redis 服务器运行压力；</li>
+<li>删除（del）一个大数据的时候，可能会需要很长时间，所以建议用<strong>异步删除的方式 unlink</strong>，它会启动一个新的线程来删除目标数据，而不阻塞 Redis 的主线程。</li>
+</ul>
+<h3 id="使用-slowlog-优化耗时命令"><a href="#使用-slowlog-优化耗时命令" class="headerlink" title="使用 slowlog 优化耗时命令"></a>使用 slowlog 优化耗时命令</h3><p>我们可以使用 slowlog 功能找出最耗时的 Redis 命令进行相关的优化，以提升 Redis 的运行速度，慢查询有两个重要的配置项：</p>
+<ul>
+<li>slowlog-log-slower-than：用于设置慢查询的评定时间，也就是说超过此配置项的命令，将会被当成慢操作记录在慢查询日志中，它执行单位是微秒（1 秒等于 1000000 微秒）；</li>
+<li>slowlog-max-len：用来配置慢查询日志的最大记录数。</li>
+</ul>
+<p>我们可以根据实际的业务情况进行相应的配置，其中慢日志是按照插入的顺序倒序存入慢查询日志中，我们可以使用 <code>slowlog get n</code> 来获取相关的慢查询日志，再找到这些慢查询对应的业务进行相关的优化。</p>
+<h3 id="使用-Pipeline-批量操作数据"><a href="#使用-Pipeline-批量操作数据" class="headerlink" title="使用 Pipeline 批量操作数据"></a>使用 Pipeline 批量操作数据</h3><p>Pipeline（管道技术）是客户端提供的一种批处理技术，用于一次处理多个 Redis 命令，从而提高整个交互的性能。</p>
+<h3 id="避免大量数据同时失效"><a href="#避免大量数据同时失效" class="headerlink" title="避免大量数据同时失效"></a>避免大量数据同时失效</h3><p>Redis 过期键值删除使用的是贪心策略，它每秒会进行 10 次过期扫描，此配置可在 redis.conf 进行配置，默认值是 hz 10，Redis 会随机抽取 20 个值，删除这 20 个键中过期的键，如果过期 key 的比例超过 25%，重复执行此流程。</p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《Redis核心原理与实战》学习笔记/过期键值删除.png" alt="过期键值删除"></p>
+<p>如果在大型系统中有大量缓存在同一时间同时过期，那么会导致 Redis 循环多次持续扫描删除过期字典，直到过期字典中过期键值被删除的比较稀疏为止，而在整个执行过程会导致 Redis 的读写出现明显的卡顿，卡顿的另一种原因是内存管理器需要频繁回收内存页，因此也会消耗一定的 CPU。</p>
+<p>为了避免这种卡顿现象的产生，我们需要预防大量的缓存在同一时刻一起过期，最简单的解决方案就是在过期时间的基础上添加一个指定范围的随机数。</p>
+<h3 id="客户端使用优化"><a href="#客户端使用优化" class="headerlink" title="客户端使用优化"></a>客户端使用优化</h3><p>在客户端的使用上我们除了要尽量使用 Pipeline 的技术外，还需要注意要尽量使用 Redis 连接池，而不是频繁创建销毁 Redis 连接，这样就可以减少网络传输次数和减少了非必要调用指令。</p>
+<h3 id="限制-Redis-内存大小"><a href="#限制-Redis-内存大小" class="headerlink" title="限制 Redis 内存大小"></a>限制 Redis 内存大小</h3><p>在 64 位操作系统中 Redis 的内存大小是没有限制的，也就是配置项 · 是被注释掉的，这样就会导致在物理内存不足时，使用 swap 空间既交换空间，而当操心系统将 Redis 所用的内存分页移至 swap 空间时，将会阻塞 Redis 进程，导致 Redis 出现延迟，从而影响 Redis 的整体性能。因此我们需要限制 Redis 的内存大小为一个固定的值，当 Redis 的运行到达此值时会触发内存淘汰策略，内存淘汰策略在 Redis 4.0 之后有 8 种：</p>
+<ul>
+<li>noeviction：不淘汰任何数据，当内存不足时，新增操作会报错，Redis 默认内存淘汰策略；</li>
+<li>allkeys-lru：淘汰整个键值中最久未使用的键值；</li>
+<li>allkeys-random：随机淘汰任意键值;</li>
+<li>volatile-lru：淘汰所有设置了过期时间的键值中最久未使用的键值；</li>
+<li>volatile-random：随机淘汰设置了过期时间的任意键值；</li>
+<li>volatile-ttl：优先淘汰更早过期的键值。</li>
+</ul>
+<p>在 Redis 4.0 版本中又新增了 2 种淘汰策略：</p>
+<ul>
+<li>volatile-lfu：淘汰所有设置了过期时间的键值中，最少使用的键值；</li>
+<li>allkeys-lfu：淘汰整个键值中最少使用的键值。</li>
+</ul>
+<p>其中 <code>allkeys-xxx</code> 表示从所有的键值中淘汰数据，而 <code>volatile-xxx</code> 表示从设置了过期键的键值中淘汰数据。</p>
+<p>我们可以根据实际的业务情况进行设置，默认的淘汰策略不淘汰任何数据，在新增时会报错。</p>
+<h3 id="使用物理机而非虚拟机"><a href="#使用物理机而非虚拟机" class="headerlink" title="使用物理机而非虚拟机"></a>使用物理机而非虚拟机</h3><p>在虚拟机中运行 Redis 服务器，因为和物理机共享一个物理网口，并且一台物理机可能有多个虚拟机在运行，因此在内存占用上和网络延迟方面都会有很糟糕的表现，我们可以通过 <code>./redis-cli --intrinsic-latency 100</code> 命令查看延迟时间，如果对 Redis 的性能有较高要求的话，应尽可能在物理机上直接部署 Redis 服务器。</p>
+<p>检查数据持久化策略<br>Redis 的持久化策略是将内存数据复制到硬盘上，这样才可以进行容灾恢复或者数据迁移，但维护此持久化的功能，需要很大的性能开销。</p>
+<p>在 Redis 4.0 之后，Redis 有 3 种持久化的方式：</p>
+<p>RDB（Redis DataBase，快照方式）将某一个时刻的内存数据，以二进制的方式写入磁盘；<br>AOF（Append Only File，文件追加方式），记录所有的操作命令，并以文本的形式追加到文件中；<br>混合持久化方式，Redis 4.0 之后新增的方式，混合持久化是结合了 RDB 和 AOF 的优点，在写入的时候，先把当前的数据以 RDB 的形式写入文件的开头，再将后续的操作命令以 AOF 的格式存入文件，这样既能保证 Redis 重启时的速度，又能减低数据丢失的风险。<br>RDB 和 AOF 持久化各有利弊，RDB 可能会导致一定时间内的数据丢失，而 AOF 由于文件较大则会影响 Redis 的启动速度，为了能同时拥有 RDB 和 AOF 的优点，Redis 4.0 之后新增了混合持久化的方式，因此我们在必须要进行持久化操作时，应该选择混合持久化的方式。</p>
+
                 
             </div>
             <hr/>
