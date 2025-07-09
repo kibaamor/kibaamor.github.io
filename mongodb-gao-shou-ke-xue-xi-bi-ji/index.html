@@ -399,21 +399,21 @@
                 
                 <div class="post-date info-break-policy">
                     <i class="far fa-calendar-check fa-fw"></i>更新日期:&nbsp;&nbsp;
-                    2025-07-07
+                    2025-07-09
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-file-word fa-fw"></i>文章字数:&nbsp;&nbsp;
-                    3.8k
+                    4.8k
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-clock fa-fw"></i>阅读时长:&nbsp;&nbsp;
-                    15 分
+                    19 分
                 </div>
                 
 
@@ -1032,6 +1032,137 @@ rs0 <span class="token punctuation">[</span>direct: secondary<span class="token 
 <p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《MongoDB高手课》学习笔记/MongoDB无模式由来.png" alt="MongoDB无模式由来"></p>
 <p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《MongoDB高手课》学习笔记/JSON模型.png" alt="JSON模型"></p>
 <h4 id="关系模型-vs-文档模型"><a href="#关系模型-vs-文档模型" class="headerlink" title="关系模型 vs 文档模型"></a>关系模型 vs 文档模型</h4><p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《MongoDB高手课》学习笔记/关系模型vs文档模型.png" alt="关系模型vs文档模型"></p>
+<h3 id="15-文档模型设计之一：基础设计"><a href="#15-文档模型设计之一：基础设计" class="headerlink" title="15 | 文档模型设计之一：基础设计"></a>15 | 文档模型设计之一：基础设计</h3><p>MongoDB 文档模型设计三步曲</p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《MongoDB高手课》学习笔记/MongoDB文档模型设计三步曲.png" alt="MongoDB文档模型设计三步曲"></p>
+<h4 id="第一步-建立基础文档模型"><a href="#第一步-建立基础文档模型" class="headerlink" title="第一步:建立基础文档模型"></a>第一步:建立基础文档模型</h4><ol>
+<li>根据概念模型或者业务需求推导出逻辑模型-找到对象</li>
+<li>列出实体之间的关系(及基数)-明确关系</li>
+<li>套用逻辑设计原则来决定内嵌方式-进行建</li>
+<li>完成基础模型构建</li>
+</ol>
+<p>一个联系人管理应用的例子</p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《MongoDB高手课》学习笔记/一个联系人管理应用的例子.png" alt="一个联系人管理应用的例子"></p>
+<ol>
+<li><p>1-1 关系建模: portraits</p>
+<ol>
+<li>基本原则<ul>
+<li>一对一关系以内嵌为主作为子文档形式 或者直接在顶级不涉及到数据冗余</li>
+</ul>
+</li>
+<li><p>例外情况</p>
+<ul>
+<li>如果内嵌后导致文档大小超过16MB</li>
+</ul>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《MongoDB高手课》学习笔记/1对1关系建模.png" alt="1对1关系建模"></p>
+</li>
+</ol>
+</li>
+<li><p>1-N 关系建模: Addresses</p>
+<ol>
+<li>基本原则<ul>
+<li>一对多关系同样以内嵌为主</li>
+<li>用数组来表示一对多</li>
+<li>不涉及到数据冗余</li>
+</ul>
+</li>
+<li><p>例外情况</p>
+<ul>
+<li>内嵌后导致文档大小超过16MB</li>
+<li>数组长度太大(数万或更多)</li>
+<li>数组长度不确定</li>
+</ul>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《MongoDB高手课》学习笔记/1对N关系建模.png" alt="1对N关系建模"></p>
+</li>
+</ol>
+</li>
+<li><p>N-N 关系建模:内嵌数组模式</p>
+<ol>
+<li>基本原则<ul>
+<li>不需要映射表</li>
+<li>一般用内嵌数组来表示一对多</li>
+<li>通过冗余来实现N-N</li>
+</ul>
+</li>
+<li><p>例外情况</p>
+<ul>
+<li>内嵌后导致文档大小超过16MB</li>
+<li>数组长度太大(数万或更多)</li>
+<li>数组长度不确定</li>
+</ul>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《MongoDB高手课》学习笔记/N对N关系建模.png" alt="N对N关系建模"></p>
+</li>
+</ol>
+</li>
+</ol>
+<h3 id="16-文档模型设计之二：工况细化"><a href="#16-文档模型设计之二：工况细化" class="headerlink" title="16 | 文档模型设计之二：工况细化"></a>16 | 文档模型设计之二：工况细化</h3><h4 id="第二步-根据读写工况细化"><a href="#第二步-根据读写工况细化" class="headerlink" title="第二步:根据读写工况细化"></a>第二步:根据读写工况细化</h4><ul>
+<li>最频繁的数据查询模式</li>
+<li>最常用的查询参数最频繁的数据写入模式</li>
+<li>读写操作的比例</li>
+<li>数据量的大小</li>
+</ul>
+<p>基于内嵌的文档模型，根据业务需求，使用引用来避免性能瓶颈、使用冗余来优化访问性能。</p>
+<h5 id="联系人管理应用的分组需求"><a href="#联系人管理应用的分组需求" class="headerlink" title="联系人管理应用的分组需求"></a>联系人管理应用的分组需求</h5><ol>
+<li>用于客户营销</li>
+<li>有千万级联系人</li>
+<li>需要频繁变动分组(group)的信息，如增加分组及修改名称及描述以及营销状态</li>
+<li>一个分组可以有百万级联系人</li>
+</ol>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《MongoDB高手课》学习笔记/联系人管理应用的分组需求.png" alt="联系人管理应用的分组需求"></p>
+<p>解决方案: Group 使用单独的集合</p>
+<ol>
+<li>类似于关系型设计</li>
+<li>用 id 或者唯一键关联</li>
+<li>使用 $lookup 来提供一次查询多表的能力(类似关联)</li>
+</ol>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《MongoDB高手课》学习笔记/联系人管理应用的分组需求解决方案.png" alt="联系人管理应用的分组需求解决方案"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《MongoDB高手课》学习笔记/引用模式下的关联查询.png" alt="引用模式下的关联查询"></p>
+<h5 id="联系人的头像-引用模式"><a href="#联系人的头像-引用模式" class="headerlink" title="联系人的头像:引用模式"></a>联系人的头像:引用模式</h5><ol>
+<li>头像使用高保真，大小在5MB-10MB</li>
+<li>头像一旦上传:一个月不可更换</li>
+<li>基础信息查询(不含头像)和 头像查询的比例为9:1</li>
+<li>建议: 使用引用方式，把头像数据放到另外一个集合，可以显著提升 90% 的查询效率</li>
+</ol>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《MongoDB高手课》学习笔记/联系人的头像.png" alt="联系人的头像"></p>
+<p>什么时候该使用引用方式?</p>
+<ul>
+<li>内嵌文档太大，数 MB 或者超过16MB</li>
+<li>内嵌文档或数组元素会频繁修改</li>
+<li>内嵌数组元素会持续增长并且没有封顶</li>
+</ul>
+<p>MongoDB引用设计的限制</p>
+<ol>
+<li>MongoDB 对使用引用的集合之间并无主外键检查</li>
+<li>MongoDB 使用聚合框架的 $lookup 来模仿关联查询</li>
+<li>$lookup 只支持 left outer join</li>
+<li>$lookup 的关联目标(from)不能是分片表</li>
+</ol>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《MongoDB高手课》学习笔记/MongoDB引用设计的限制.png" alt="MongoDB引用设计的限制"></p>
+<h3 id="17-文档模型设计之三：模式套用"><a href="#17-文档模型设计之三：模式套用" class="headerlink" title="17 | 文档模型设计之三：模式套用"></a>17 | 文档模型设计之三：模式套用</h3><h4 id="第三步-套用设计模式"><a href="#第三步-套用设计模式" class="headerlink" title="第三步:套用设计模式"></a>第三步:套用设计模式</h4><p>文档模型:无范式，无思维定式，充分发挥想象力</p>
+<p>设计模式:实战过屡试不爽的设计技巧，快速应用</p>
+<p>举例:一个IOT场景的分桶设计模式，可以帮助把存储空间降低10倍并且查询效率提升数十倍.</p>
+<h5 id="问题-物联网场景下的海量数据处理-飞机监控数据"><a href="#问题-物联网场景下的海量数据处理-飞机监控数据" class="headerlink" title="问题:物联网场景下的海量数据处理-飞机监控数据"></a>问题:物联网场景下的海量数据处理-飞机监控数据</h5><pre class="line-numbers language-json" data-language="json"><code class="language-json"><span class="token punctuation">{</span>
+    <span class="token property">"_id"</span><span class="token operator">:</span><span class="token string">"20160101050000:CA2790"</span><span class="token punctuation">,</span>
+    <span class="token property">"icao"</span><span class="token operator">:</span><span class="token string">"CA2790"</span><span class="token punctuation">,</span>
+    <span class="token property">"callsign"</span><span class="token operator">:</span><span class="token string">"CA2790"</span><span class="token punctuation">,</span>
+    <span class="token property">"ts"</span><span class="token operator">:</span>ISoDate(<span class="token string">"2016-01-01T05:00:00.000+0000"</span>)<span class="token punctuation">,</span>
+    <span class="token property">"events"</span><span class="token operator">:</span><span class="token punctuation">{</span>
+        <span class="token property">"a"</span><span class="token operator">:</span><span class="token number">31418</span><span class="token punctuation">,</span>
+        <span class="token property">"b"</span><span class="token operator">:</span> <span class="token operator">:</span> <span class="token number">173</span><span class="token punctuation">,</span>
+        <span class="token property">"p"</span><span class="token operator">:</span><span class="token punctuation">[</span><span class="token number">115</span>，<span class="token number">-134</span><span class="token punctuation">]</span><span class="token punctuation">,</span>
+        <span class="token property">"s"</span><span class="token operator">:</span><span class="token number">91</span><span class="token punctuation">,</span>
+        <span class="token property">"v"</span><span class="token operator">:</span> <span class="token number">80</span>
+        <span class="token punctuation">}</span>
+    <span class="token punctuation">}</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《MongoDB高手课》学习笔记/海量数据.png" alt="海量数据"></p>
+<p>模式小结:分桶</p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《MongoDB高手课》学习笔记/模式小结分桶.png" alt="模式小结分桶"></p>
+<h3 id="本讲小结"><a href="#本讲小结" class="headerlink" title="本讲小结"></a>本讲小结</h3><p>一个好的设计模式可以显著地:</p>
+<ul>
+<li>提升数据读写的效率</li>
+<li>降低资源的需求</li>
+</ul>
+<p>更多的MongoDB设计模式:</p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《MongoDB高手课》学习笔记/更多的MongoDB设计模式.png" alt="更多的MongoDB设计模式"></p>
 
                 
             </div>
