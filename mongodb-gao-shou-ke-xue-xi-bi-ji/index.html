@@ -406,14 +406,14 @@
                 
                 <div class="info-break-policy">
                     <i class="far fa-file-word fa-fw"></i>文章字数:&nbsp;&nbsp;
-                    8.5k
+                    9.9k
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-clock fa-fw"></i>阅读时长:&nbsp;&nbsp;
-                    32 分
+                    37 分
                 </div>
                 
 
@@ -1466,6 +1466,86 @@ processManagement:
 <li>Change stream 依赖于 oplog，因此中断时间不可超过 oplog 回收的最大时间窗</li>
 <li>在执行 update 操作时，如果只更新了部分数据，那么 Change Stream 通知的也是增量部分;</li>
 <li>同理，删除数据时通知的仅是删除数据的 id。</li>
+</ul>
+<h3 id="24丨MongoDB开发最佳实践"><a href="#24丨MongoDB开发最佳实践" class="headerlink" title="24丨MongoDB开发最佳实践"></a>24丨MongoDB开发最佳实践</h3><h4 id="连接到-MongoDB"><a href="#连接到-MongoDB" class="headerlink" title="连接到 MongoDB"></a>连接到 MongoDB</h4><ul>
+<li>关于驱动程序: 总是选择与所用之 MongoDB 相兼容的驱动程序。这可以很容易地从 <a target="_blank" rel="noopener" href="https://www.mongodb.com/docs/drivers/about-compatibility/">驱动兼容对照表</a> 中查到;<ul>
+<li>如果使用第三方框架(如 Spring Data)，则还需要考虑框架版本与驱动的兼容性</li>
+</ul>
+</li>
+<li>关于连接对象 MongoClient: 使用 MongoClient 对象连接到 MongoDB 实例时总是应该保证它单例，并且在整个生命周期中都从它获取其他操作对象。</li>
+<li>关于连接字符串: 连接字符串中可以配置大部分连接选项，建议总是在连接字符串中配置这些选项;</li>
+</ul>
+<pre class="line-numbers language-javascript" data-language="javascript"><code class="language-javascript"><span class="token comment">// 连接到复制集</span>
+mongodb<span class="token operator">:</span><span class="token operator">/</span><span class="token operator">/</span>节点<span class="token number">1</span><span class="token punctuation">,</span>节点<span class="token number">2</span><span class="token punctuation">,</span>节点<span class="token number">3.</span><span class="token punctuation">.</span><span class="token punctuation">.</span><span class="token operator">/</span>database<span class="token operator">?</span><span class="token punctuation">[</span>options<span class="token punctuation">]</span>
+<span class="token comment">//连接到分片集</span>
+mongodb<span class="token operator">:</span><span class="token operator">/</span><span class="token operator">/</span>mongos1<span class="token punctuation">,</span>mongos2<span class="token punctuation">,</span>mongos3<span class="token operator">...</span><span class="token operator">/</span>database<span class="token operator">?</span><span class="token punctuation">[</span>options<span class="token punctuation">]</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span></span></code></pre>
+<h4 id="常见连接字符串参数"><a href="#常见连接字符串参数" class="headerlink" title="常见连接字符串参数"></a>常见连接字符串参数</h4><ul>
+<li>maxPoolSize 连接池大小</li>
+<li>Max Wait Time 建议设置，自动杀掉太慢的查询</li>
+<li>Write Concern 建议 majority 保证数据安全</li>
+<li>Read Concern 对于数据一致性要求高的场景适当使用</li>
+</ul>
+<h4 id="连接字符串节点和地址"><a href="#连接字符串节点和地址" class="headerlink" title="连接字符串节点和地址"></a>连接字符串节点和地址</h4><ul>
+<li>无论对于复制集或分片集，连接字符串中都应尽可能多地提供节点地址，建议全部列出;<ul>
+<li>复制集利用这些地址可以更有效地发现集群成员;</li>
+<li>分片集利用这些地址可以更有效地分散负载;</li>
+</ul>
+</li>
+<li>连接字符串中尽可能使用与复制集内部配置相同的域名或IP;</li>
+</ul>
+<h4 id="使用域名连接集群"><a href="#使用域名连接集群" class="headerlink" title="使用域名连接集群"></a>使用域名连接集群</h4><p>在配置集群时使用域名可以为集群变更时提供一层额外的保护。例如需要将集群整体迁移到新网段，直接修改域名解析即可。</p>
+<p>另外，MongoDB 提供的 <code>mongodb+srv://</code> 协议可以提供额外一层的保护。该协议允许通过域名解析得到所有 mongos 或节点的地址，而不是写在连接字符串中。</p>
+<pre class="line-numbers language-text" data-language="text"><code class="language-text">mongodb+srv://server.example.com/
+
+Record TTL Class Priority Weight Port Target 
+_mongodb._tcp.server.example.com.86400 IN SRV 0 5 27317 mongodb1.example.com.
+_mongodb._tcp.server.example.com.86400 IN SRV 0 5 27017 mongodb2.example.com.<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<h4 id="不要在mongos前面使用负载均衡"><a href="#不要在mongos前面使用负载均衡" class="headerlink" title="不要在mongos前面使用负载均衡"></a>不要在mongos前面使用负载均衡</h4><p>基于前面提到的原因，驱动已经知晓在不同的 mongos 之间实现负载均衡，而复制集则需要根据节点的角色来选择发送请求的目标。如果在 mongos 或复制集上层部署负载均衡:</p>
+<ul>
+<li>驱动会无法探测具体哪个节点存活，从而无法完成自动故障恢复</li>
+<li>驱动会无法判断游标是在哪个节点创建的，从而遍历游标时出错</li>
+</ul>
+<p>结论:不要在 mongos 或复制集上层放置负载均衡器，让驱动处理负载均衡和自动故障恢复。</p>
+<h4 id="游标使用"><a href="#游标使用" class="headerlink" title="游标使用"></a>游标使用</h4><p>如果一个游标已经遍历完，则会自动关闭;如果没有遍历完，则需要手动调用 <code>close()</code> 方法，否则该游标将在服务器上存在 10 分钟(默认值)后超时释放，造成不必要的资源浪费。</p>
+<p>但是，如果不能遍历完一个游标，通常意味着查询条件太宽泛，更应该考虑的问题是如何将条件收紧</p>
+<h4 id="关于查询及索引"><a href="#关于查询及索引" class="headerlink" title="关于查询及索引"></a>关于查询及索引</h4><ul>
+<li>每一个查询都必须要有对应的索引</li>
+<li>尽量使用覆盖索引 Covered Indexes (可以避免读数据文件)</li>
+<li>使用 projection 来减少返回到客户端的的文档的内容</li>
+</ul>
+<h4 id="关于写入"><a href="#关于写入" class="headerlink" title="关于写入"></a>关于写入</h4><ul>
+<li>在update语句里只包括需要更新的字段</li>
+<li>尽可能使用批量插入来提升写入性能</li>
+<li>使用TTL自动过期日志类型的数据</li>
+</ul>
+<h4 id="关于文档结构"><a href="#关于文档结构" class="headerlink" title="关于文档结构"></a>关于文档结构</h4><ul>
+<li>防止使用太长的字段名(浪费空间)</li>
+<li>防止使用太深的数组嵌套(超过2层操作比较复杂)</li>
+<li>不使用中文，标点符号等非拉丁字母作为字段名</li>
+</ul>
+<h4 id="处理分页问题-避免使用count"><a href="#处理分页问题-避免使用count" class="headerlink" title="处理分页问题-避免使用count"></a>处理分页问题-避免使用count</h4><p>尽可能不要计算总页数，特别是数据量大和查询条件不能完整命中索引时。</p>
+<p>考虑以下场景: 假设集合总共有 1000w 条数据，在没有索引的情况下考虑以下查询:</p>
+<pre class="line-numbers language-javascript" data-language="javascript"><code class="language-javascript">db<span class="token punctuation">.</span>coll<span class="token punctuation">.</span><span class="token function">find</span><span class="token punctuation">(</span><span class="token punctuation">{</span>x<span class="token operator">:</span><span class="token number">100</span><span class="token punctuation">}</span><span class="token punctuation">)</span><span class="token punctuation">.</span><span class="token function">limit</span><span class="token punctuation">(</span><span class="token number">50</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+db<span class="token punctuation">.</span>coll<span class="token punctuation">.</span><span class="token function">count</span><span class="token punctuation">(</span><span class="token punctuation">{</span>x<span class="token operator">:</span><span class="token number">100</span><span class="token punctuation">}</span><span class="token punctuation">)</span><span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre>
+<ul>
+<li>前者只需要遍历前 n 条，直到找到 50 条队伍 x=100 的文档即可结束。</li>
+<li>后者需要遍历完 1000w 条找到所有符合要求的文档才能得到结果</li>
+</ul>
+<p>为了计算总页数而进行的 <code>count()</code> 往往是拖慢页面整体加载速度的原因</p>
+<h4 id="处理分页问题-巧分页"><a href="#处理分页问题-巧分页" class="headerlink" title="处理分页问题-巧分页"></a>处理分页问题-巧分页</h4><p>避免使用 <code>skip/limit</code> 形式的分页，特别是数据量大的时候;</p>
+<p>替代方案: 使用查询条件+唯一排序条件;</p>
+<p>例如:</p>
+<ol>
+<li>第一页: <code>db.posts.find({}).sort({ id: 1}).limit(20);</code></li>
+<li>第二页: <code>db.posts.find({ id: {$gt:&lt;第一页最后一个 id&gt;}}).sort({ id: 1}).limit(20);</code></li>
+<li>第三页: <code>db.posts.find({ id: {$gt:&lt;第二页最后一个 id&gt;}}).sort({ id: 1}).limit(20);</code><br>…</li>
+</ol>
+<h4 id="关于事务"><a href="#关于事务" class="headerlink" title="关于事务"></a>关于事务</h4><p>使用事务的原则:</p>
+<ul>
+<li>无论何时，事务的使用总是能避免则避免;</li>
+<li>模型设计先于事务，尽可能用模型设计规避事务</li>
+<li>不要使用过大的事务(尽量控制在 1000个文档更新以内);</li>
+<li>当必须使用事务时，尽可能让涉及事务的文档分布在同一个分片上，这将有效地提高效率;</li>
 </ul>
 
                 
