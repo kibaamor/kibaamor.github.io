@@ -406,14 +406,14 @@
                 
                 <div class="info-break-policy">
                     <i class="far fa-file-word fa-fw"></i>文章字数:&nbsp;&nbsp;
-                    7.5k
+                    8.5k
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-clock fa-fw"></i>阅读时长:&nbsp;&nbsp;
-                    29 分
+                    32 分
                 </div>
                 
 
@@ -431,7 +431,8 @@
 
         <div class="card-content article-card-content">
             <div id="articleContent">
-                <h2 id="第一章：MongoDB再入门"><a href="#第一章：MongoDB再入门" class="headerlink" title="第一章：MongoDB再入门"></a>第一章：MongoDB再入门</h2><h3 id="03-认识文档数据库MongoDB"><a href="#03-认识文档数据库MongoDB" class="headerlink" title="03 | 认识文档数据库MongoDB"></a>03 | 认识文档数据库MongoDB</h3><h4 id="关于-MongoDB"><a href="#关于-MongoDB" class="headerlink" title="关于 MongoDB"></a>关于 MongoDB</h4><div class="table-container">
+                <p><a target="_blank" rel="noopener" href="https://github.com/kibaamor/geektime-mongodb-course">https://github.com/kibaamor/geektime-mongodb-course</a></p>
+<h2 id="第一章：MongoDB再入门"><a href="#第一章：MongoDB再入门" class="headerlink" title="第一章：MongoDB再入门"></a>第一章：MongoDB再入门</h2><h3 id="03-认识文档数据库MongoDB"><a href="#03-认识文档数据库MongoDB" class="headerlink" title="03 | 认识文档数据库MongoDB"></a>03 | 认识文档数据库MongoDB</h3><h4 id="关于-MongoDB"><a href="#关于-MongoDB" class="headerlink" title="关于 MongoDB"></a>关于 MongoDB</h4><div class="table-container">
 <table>
 <thead>
 <tr>
@@ -593,7 +594,7 @@ db<span class="token punctuation">.</span>movies<span class="token punctuation">
     name<span class="token operator">:</span> <span class="token string">"apple"</span>
     <span class="token keyword">from</span><span class="token operator">:</span><span class="token punctuation">{</span>
         country<span class="token operator">:</span><span class="token string">"China"</span>
-        province<span class="token operator">:</span><span class="token string">"Guangdon"</span>
+        province<span class="token operator">:</span><span class="token string">"Guangdong"</span>
     <span class="token punctuation">}</span>
 <span class="token punctuation">}</span><span class="token punctuation">)</span>
 
@@ -1392,6 +1393,80 @@ db<span class="token punctuation">.</span>test<span class="token punctuation">.<
 <li>不出现幻读。</li>
 </ul>
 <p>因为所有的读都将使用同一个快照，直到事务提交为止该快照才被释放。</p>
+<h3 id="22丨事务开发：多文档事务"><a href="#22丨事务开发：多文档事务" class="headerlink" title="22丨事务开发：多文档事务"></a>22丨事务开发：多文档事务</h3><p>MongoDB 虽然已经在 4.2 开始全面支持了多文档事务，但并不代表大家应该毫无节制地使用它。相反，对事务的使用原则应该是:能不用尽量不用。</p>
+<p>通过合理地设计文档模型，可以规避绝大部分使用事务的必要性</p>
+<p>为什么?事务=锁，节点协调，额外开销，性能影响</p>
+<h4 id="MongoDB-ACID-多文档事务支持"><a href="#MongoDB-ACID-多文档事务支持" class="headerlink" title="MongoDB ACID 多文档事务支持"></a>MongoDB ACID 多文档事务支持</h4><p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《MongoDB高手课》学习笔记/ACID多文档事务支持.png" alt="ACID多文档事务支持"></p>
+<h5 id="使用方法"><a href="#使用方法" class="headerlink" title="使用方法"></a>使用方法</h5><p>MongoDB 多文档事务的使用方式与关系数据库非常相似:</p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《MongoDB高手课》学习笔记/多文档事务支持使用方法.png" alt="多文档事务支持使用方法"></p>
+<h5 id="事务的隔离级别"><a href="#事务的隔离级别" class="headerlink" title="事务的隔离级别"></a>事务的隔离级别</h5><p>事务完成前，<strong>事务外的操作</strong> 对该事务所做的修改不可访问</p>
+<p>如果事务内使用<code>{readconcern:"snapshot"}</code>，则可以达到可重复读 Repeatable Read</p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《MongoDB高手课》学习笔记/启用事务后的隔离性.png" alt="启用事务后的隔离性"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《MongoDB高手课》学习笔记/可重复读RepeatableRead.png" alt="可重复读RepeatableRead"></p>
+<h4 id="事务写机制"><a href="#事务写机制" class="headerlink" title="事务写机制"></a>事务写机制</h4><p>MongoDB 的事务错误处理机制不同于关系数据库:</p>
+<ul>
+<li>当一个事务开始后，如果事务要修改的文档在事务外部被修改过，则事务修改这个文档时会触发 Abort 错误，因为此时的修改冲突了;</li>
+<li>这种情况下，只需要简单地重做事务就可以了，</li>
+<li>如果一个事务已经开始修改一个文档，在事务以外尝试修改同一个文档，则事务以外的修改会等待事务完成才能继续进行(<a target="_blank" rel="noopener" href="https://github.com/kibaamor/geektime-mongodb-course/blob/master/transaction/write-wait.md">write-wait.md</a>实验)。</li>
+</ul>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《MongoDB高手课》学习笔记/事务写冲突.png" alt="事务写冲突"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《MongoDB高手课》学习笔记/事务写冲突2.png" alt="事务写冲突2"></p>
+<h4 id="注意事项-1"><a href="#注意事项-1" class="headerlink" title="注意事项"></a>注意事项</h4><ul>
+<li>可以实现和关系型数据库类似的事务场景</li>
+<li>必须使用与 MongoDB 4.2 兼容的驱动;</li>
+<li>事务默认必须在 60 秒(可调)内完成，否则将被取消</li>
+<li>涉及事务的分片不能使用仲裁节点;</li>
+<li>事务会影响 chunk 迁移效率。正在迁移的 chunk也可能造成事务提交失败(重试即可);</li>
+<li>多文档事务中的读操作必须使用主节点读</li>
+<li>readConcern 只应该在事务级别设置，不能设置在每次读写操作上。</li>
+</ul>
+<h3 id="23丨Change-Stream"><a href="#23丨Change-Stream" class="headerlink" title="23丨Change Stream"></a>23丨Change Stream</h3><h4 id="什么是-Change-Stream"><a href="#什么是-Change-Stream" class="headerlink" title="什么是 Change Stream"></a>什么是 Change Stream</h4><p>Change Stream 是 MongoDB 用于实现变更追踪的解决方案，类似于关系数据库的触发器，但原理不完全相同:</p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《MongoDB高手课》学习笔记/ChangeStream.png" alt="ChangeStream"></p>
+<h4 id="Change-stream-的实现原理"><a href="#Change-stream-的实现原理" class="headerlink" title="Change stream 的实现原理"></a>Change stream 的实现原理</h4><p>Change stream 是基于 oplog 实现的。它在 oplog 上开启一个 tailable cursor 来追踪所有复制集上的变更操作，最终调用应用中定义的回调函数。</p>
+<ul>
+<li>insert/update/delete: 插入、更新、删除;</li>
+<li>drop: 集合被删除;</li>
+<li>rename: 集合被重命名;</li>
+<li>数据库被删除: dropDatabase;</li>
+<li>invalidate: drop/rename/dropDatabase 将导致invalidate 被触发并关闭 change stream;</li>
+</ul>
+<h4 id="Change-stream-与可重复读"><a href="#Change-stream-与可重复读" class="headerlink" title="Change stream 与可重复读"></a>Change stream 与可重复读</h4><p>Change Stream 只推送已经在大多数节点上提交的变更操作。即”可重复读”的变更这个验证是通过 <code>{readconcern:"majority"}</code> 实现的。因此:</p>
+<ul>
+<li>未开启 majority readconcern 的集群无法使用 Change Stream;</li>
+<li>当集群无法满足 <code>{w:"majority"}</code> 时，不会触发 Change Stream(例如 PSA 架构中的S因故障宕机)。</li>
+</ul>
+<h4 id="Change-Stream-变更过滤"><a href="#Change-Stream-变更过滤" class="headerlink" title="Change Stream 变更过滤"></a>Change Stream 变更过滤</h4><p>如果只对某些类型的变更事件感兴趣，可以使用使用聚合管道的过滤步骤过滤事件</p>
+<p>例如:</p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《MongoDB高手课》学习笔记/ChangeStream变更过滤举例.png" alt="ChangeStream变更过滤举例"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《MongoDB高手课》学习笔记/ChangeStream变更过滤实验.png" alt="ChangeStream变更过滤实验"></p>
+<p>配置中必须打开 <code>enableMajorityReadConcern: true</code>。</p>
+<pre class="line-numbers language-text" data-language="text"><code class="language-text">systemLog:
+  destination: file
+  path: ./db1/mongod.log
+  logAppend: true
+storage:
+  dbPath: ./db1
+net:
+  bindIp: 0.0.0.0
+  port: 28017
+replication:
+  replSetName: rs0
+  enableMajorityReadConcern: true # &lt;--------------------
+processManagement:
+  fork: true<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<h4 id="Change-stream-故障恢复"><a href="#Change-stream-故障恢复" class="headerlink" title="Change stream 故障恢复"></a>Change stream 故障恢复</h4><p>假设在一系列写入操作的过程中，订阅 Change stream 的应用在接收到”写3”之后于 t0 时刻崩溃，重启后后续的变更怎么办?</p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《MongoDB高手课》学习笔记/Changestream故障恢复.png" alt="Changestream故障恢复"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《MongoDB高手课》学习笔记/Changestream故障恢复2.png" alt="Changestream故障恢复2"></p>
+<h4 id="Change-Stream-使用场景"><a href="#Change-Stream-使用场景" class="headerlink" title="Change Stream 使用场景"></a>Change Stream 使用场景</h4><ul>
+<li>跨集群的变更复制 —— 在源集群中订阅 Change Stream，一旦得到任何变更立即写入目标集群。</li>
+<li>微服务联动 —— 当一个微服务变更数据库时，其他微服务得到通知并做出相应的变更。</li>
+<li>其他任何需要系统联动的场景。</li>
+</ul>
+<h4 id="注意事项-2"><a href="#注意事项-2" class="headerlink" title="注意事项"></a>注意事项</h4><ul>
+<li>Change stream 依赖于 oplog，因此中断时间不可超过 oplog 回收的最大时间窗</li>
+<li>在执行 update 操作时，如果只更新了部分数据，那么 Change Stream 通知的也是增量部分;</li>
+<li>同理，删除数据时通知的仅是删除数据的 id。</li>
+</ul>
 
                 
             </div>
