@@ -406,14 +406,14 @@
                 
                 <div class="info-break-policy">
                     <i class="far fa-file-word fa-fw"></i>文章字数:&nbsp;&nbsp;
-                    12k
+                    13k
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-clock fa-fw"></i>阅读时长:&nbsp;&nbsp;
-                    45 分
+                    49 分
                 </div>
                 
 
@@ -1815,6 +1815,96 @@ db<span class="token punctuation">.</span>coll<span class="token punctuation">.<
 <p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《MongoDB高手课》学习笔记/oplog的幂等性.png" alt="oplog的幂等性"></p>
 <p>用幂等性解决一致性问题</p>
 <p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《MongoDB高手课》学习笔记/用幂等性解决一致性问题.png" alt="用幂等性解决一致性问题"></p>
+<h3 id="30丨备份与恢复操作"><a href="#30丨备份与恢复操作" class="headerlink" title="30丨备份与恢复操作"></a>30丨备份与恢复操作</h3><h4 id="备份和恢复工具参数"><a href="#备份和恢复工具参数" class="headerlink" title="备份和恢复工具参数"></a>备份和恢复工具参数</h4><p>几个重要参数:</p>
+<p>mongodump</p>
+<ul>
+<li>—oplog:复制 mongodump 开始到结束过程中的所有 oplog 并输出到结果中。输出文件位于 dump/oplog.bson</li>
+</ul>
+<p>mongorestore</p>
+<ul>
+<li>—oplogReplay: 恢复完数据文件后再重放 oplog。默认重放 <code>dump/oplog.bson</code> =&gt; <code>&lt;dump-directory&gt;/local/oplog.rs.bson</code>。如果 oplog 不在这，则可以:</li>
+<li>—oplogFile:指定需要重放的 oplog 文件位置</li>
+<li>—oplogLimit: 重放 oplog 时截止到指定时间点</li>
+</ul>
+<p>更多说明：</p>
+<ul>
+<li><a target="_blank" rel="noopener" href="https://www.mongodb.com/docs/database-tools/mongodump/">https://www.mongodb.com/docs/database-tools/mongodump/</a></li>
+<li><a target="_blank" rel="noopener" href="https://www.mongodb.com/docs/database-tools/mongorestore/">https://www.mongodb.com/docs/database-tools/mongorestore/</a></li>
+</ul>
+<h4 id="实际操作-mongodump-mongorestore"><a href="#实际操作-mongodump-mongorestore" class="headerlink" title="实际操作:mongodump/mongorestore"></a>实际操作:mongodump/mongorestore</h4><p>为了模拟dump过程中的数据变化，我们开启一个循环插入数据的线程:</p>
+<pre class="line-numbers language-javascript" data-language="javascript"><code class="language-javascript"><span class="token keyword">for</span><span class="token punctuation">(</span>vari<span class="token operator">=</span><span class="token number">0</span><span class="token punctuation">;</span>i<span class="token operator">&lt;</span><span class="token number">100000</span><span class="token punctuation">;</span> i<span class="token operator">++</span><span class="token punctuation">)</span><span class="token punctuation">{</span>db<span class="token punctuation">.</span>random<span class="token punctuation">.</span><span class="token function">insertOne</span><span class="token punctuation">(</span><span class="token punctuation">{</span><span class="token operator">:</span>Math<span class="token punctuation">.</span><span class="token function">random</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token operator">*</span> <span class="token number">100000</span><span class="token punctuation">}</span><span class="token punctuation">)</span><span class="token punctuation">;</span><span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>在另一个窗口中我们对其进行mongodump:</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">mongodump -h <span class="token number">127.0</span>.1:27017 --oplog<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>使用mongorestore恢复到一个新集群:</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">mongorestore --host <span class="token number">127.0</span>.0.1 --oplogReplay dump<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>更复杂的重放oplog</p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《MongoDB高手课》学习笔记/更复杂的重放oplog.png" alt="更复杂的重放oplog"></p>
+<p><a target="_blank" rel="noopener" href="https://www.mongodb.com/docs/database-tools/bsondump/">https://www.mongodb.com/docs/database-tools/bsondump/</a></p>
+<h4 id="分片集备份"><a href="#分片集备份" class="headerlink" title="分片集备份"></a>分片集备份</h4><p>分片集备份大致与复制集原理相同，不过存在以下差异:</p>
+<ul>
+<li>应分别为每个片和config备份;</li>
+<li>分片集备份不仅要考虑一个分片内的一致性问题，还要考虑分片间的一致性问题。因此每个片要能够恢复到同一个时间点;</li>
+</ul>
+<p>尽管理论上我们可以使用与复制集同样的方式来为分片集完成增量备份，但实际上分片集的情况更加复杂。这种复杂性来自两个方面:</p>
+<ul>
+<li>各个数据节点的时间不一致:每个数据节点很难完全恢复到一个真正的一致时间点上，通常只能做到大致一致，而这种大致一致通常足够好，除了以下情况;</li>
+<li>分片间的数据迁移:当一部分数据从一个片迁移到另一个片时，最终数据到底在哪里取决于config中的元数据。如果元数据与数据节点之间的时间差异正好导致数据实际已经迁移到新分片上，而元数据仍然认为数据在旧分片上，就会导致数据丢失情况发生。虽然这种情况发生的概率很小，但仍有可能导致问题。</li>
+</ul>
+<p>要避免上述问题的发生，只有定期停止均衡器;只有在均衡器停止期间，增量恢复才能保证正确，</p>
+<h3 id="31丨MongoDB安全架构"><a href="#31丨MongoDB安全架构" class="headerlink" title="31丨MongoDB安全架构"></a>31丨MongoDB安全架构</h3><h4 id="MongoDB-安全架构一览"><a href="#MongoDB-安全架构一览" class="headerlink" title="MongoDB 安全架构一览"></a>MongoDB 安全架构一览</h4><ul>
+<li>认证</li>
+<li>鉴权</li>
+<li>审计</li>
+<li>加密</li>
+</ul>
+<h4 id="MongoDB-用户认证方式"><a href="#MongoDB-用户认证方式" class="headerlink" title="MongoDB 用户认证方式"></a>MongoDB 用户认证方式</h4><p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《MongoDB高手课》学习笔记/MongoDB用户认证方式.png" alt="MongoDB用户认证方式"></p>
+<h4 id="MongoDB-集群节点认证"><a href="#MongoDB-集群节点认证" class="headerlink" title="MongoDB 集群节点认证"></a>MongoDB 集群节点认证</h4><p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《MongoDB高手课》学习笔记/MongoDB集群节点认证.png" alt="MongoDB集群节点认证"></p>
+<h4 id="MongoDB-鉴权-基于角色的权限机制"><a href="#MongoDB-鉴权-基于角色的权限机制" class="headerlink" title="MongoDB 鉴权-基于角色的权限机制"></a>MongoDB 鉴权-基于角色的权限机制</h4><p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《MongoDB高手课》学习笔记/基于角色的权限机制.png" alt="基于角色的权限机制"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《MongoDB高手课》学习笔记/角色的组成.png" alt="角色的组成"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《MongoDB高手课》学习笔记/MongoDB内置角色及权限继承关系.png" alt="MongoDB内置角色及权限继承关系"></p>
+<h4 id="自定义角色"><a href="#自定义角色" class="headerlink" title="自定义角色"></a>自定义角色</h4><p>MongoDB 支持按需自定义角色，适合一些高安全要求的业务场景</p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《MongoDB高手课》学习笔记/自定义角色.png" alt="自定义角色"></p>
+<h4 id="传输加密"><a href="#传输加密" class="headerlink" title="传输加密"></a>传输加密</h4><p>MongoDB支持TLS/SSL来加密 MongoDB 的所有网络传输(客户端应用和服务器端之间，内部复制集之间)</p>
+<p>TLS/SSL确保 MongoDB 网络传输仅可由允许的客户端读取。</p>
+<h4 id="落盘加密"><a href="#落盘加密" class="headerlink" title="落盘加密"></a>落盘加密</h4><blockquote>
+<p>企业版功能</p>
+</blockquote>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《MongoDB高手课》学习笔记/落盘加密.png" alt="落盘加密"></p>
+<h4 id="字段级加密"><a href="#字段级加密" class="headerlink" title="字段级加密"></a>字段级加密</h4><ul>
+<li>单独文档字段通过自身密钥加密</li>
+<li>数据库只看见密文</li>
+<li>优势<ul>
+<li>便捷:自动及透明</li>
+<li>任务分开:(简化基于服务的系统步骤，因为没有服务工程师能够看到纯文本)</li>
+<li>合规:监管”被遗忘权”</li>
+<li>快速:最小性能代偿</li>
+</ul>
+</li>
+</ul>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《MongoDB高手课》学习笔记/字段级加密查询流程.png" alt="字段级加密查询流程"></p>
+<h4 id="审计"><a href="#审计" class="headerlink" title="审计"></a>审计</h4><ul>
+<li>数据库等记录型系统通常使用审计监控数据库相关的一些活动，以及对一些可疑的操作进行调查。</li>
+<li>记录格式:JSON</li>
+<li>记录方式:本地文件 或 syslog</li>
+<li>记录内容:<ul>
+<li>Schema change (DDL)</li>
+<li>CRUD 操作(DML)</li>
+<li>用户认证</li>
+</ul>
+</li>
+</ul>
+<h4 id="审计配置参数举例"><a href="#审计配置参数举例" class="headerlink" title="审计配置参数举例"></a>审计配置参数举例</h4><p>审计日志记录到 syslog</p>
+<ul>
+<li><code>--auditDestination syslog</code></li>
+</ul>
+<p>审计日志记录写到指定文件</p>
+<ul>
+<li><code>--auditDestination file --auditFormat jSON --auditPath /path/to/auditLog.json</code></li>
+</ul>
+<p>对删表和创建表动作进行审计日志记录</p>
+<ul>
+<li><code>--auditDestination file --auditFormatjSON --auditPath auditLog.json --auditFilter'{atype: {$in:["createCollection","dropCollection"]}}'</code></li>
+</ul>
 
                 
             </div>
