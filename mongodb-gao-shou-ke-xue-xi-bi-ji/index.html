@@ -399,21 +399,21 @@
                 
                 <div class="post-date info-break-policy">
                     <i class="far fa-calendar-check fa-fw"></i>更新日期:&nbsp;&nbsp;
-                    2025-09-02
+                    2025-09-03
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-file-word fa-fw"></i>文章字数:&nbsp;&nbsp;
-                    11.6k
+                    12k
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-clock fa-fw"></i>阅读时长:&nbsp;&nbsp;
-                    44 分
+                    45 分
                 </div>
                 
 
@@ -1747,7 +1747,7 @@ db<span class="token punctuation">.</span>coll<span class="token punctuation">.<
 <li>network: 网络使用情况统计</li>
 <li>opcounters: CRUD的执行次数统计</li>
 <li>repl: 复制集配置信息</li>
-<li><p>wiredTiger:包含大量WirdTiger执行情况的信息</p>
+<li><p>wiredTiger:包含大量WiredTiger执行情况的信息</p>
 <ul>
 <li>block-manager: WT数据块的读写情况</li>
 <li>session: session使用数量</li>
@@ -1768,6 +1768,53 @@ db<span class="token punctuation">.</span>coll<span class="token punctuation">.<
 <h4 id="建议监控指标"><a href="#建议监控指标" class="headerlink" title="建议监控指标"></a>建议监控指标</h4><p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《MongoDB高手课》学习笔记/建议监控指标.png" alt="建议监控指标"></p>
 <p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《MongoDB高手课》学习笔记/建议监控指标2.png" alt="建议监控指标2"></p>
 <p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《MongoDB高手课》学习笔记/建议监控指标3.png" alt="建议监控指标3"></p>
+<h3 id="29丨MongoDB备份与恢复"><a href="#29丨MongoDB备份与恢复" class="headerlink" title="29丨MongoDB备份与恢复"></a>29丨MongoDB备份与恢复</h3><h4 id="为何备份"><a href="#为何备份" class="headerlink" title="为何备份"></a>为何备份</h4><p>备份的目的:</p>
+<ul>
+<li>防止硬件故障引起的数据丢失</li>
+<li>防止人为错误误删数据</li>
+<li>时间回溯</li>
+<li>监管要求</li>
+</ul>
+<p>第一点MongoDB生产集群已经通过复制集的多节点实现，本讲的备份主要是为其他几个目的。</p>
+<h4 id="MongoDB的备份"><a href="#MongoDB的备份" class="headerlink" title="MongoDB的备份"></a>MongoDB的备份</h4><p>MongoDB的备份机制分为:</p>
+<ul>
+<li>延迟节点备份</li>
+<li>全量备份+Oplog 增量</li>
+</ul>
+<p>最常见的全量备份方式包括</p>
+<ul>
+<li>mongodump;</li>
+<li>复制数据文件;</li>
+<li>文件系统快照;</li>
+</ul>
+<h4 id="方案一-延迟节点备份"><a href="#方案一-延迟节点备份" class="headerlink" title="方案一:延迟节点备份"></a>方案一:延迟节点备份</h4><p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《MongoDB高手课》学习笔记/延迟节点备份.png" alt="延迟节点备份"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《MongoDB高手课》学习笔记/延迟节点备份2.png" alt="延迟节点备份2"></p>
+<h4 id="方案二-全量备份加oplog"><a href="#方案二-全量备份加oplog" class="headerlink" title="方案二:全量备份加oplog"></a>方案二:全量备份加oplog</h4><p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《MongoDB高手课》学习笔记/全量备份加oplog.png" alt="全量备份加oplog"></p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《MongoDB高手课》学习笔记/全量备份加oplog2.png" alt="全量备份加oplog2"></p>
+<h4 id="复制文件全量备份注意事项"><a href="#复制文件全量备份注意事项" class="headerlink" title="复制文件全量备份注意事项"></a>复制文件全量备份注意事项</h4><p>复制数据库文件:</p>
+<ul>
+<li>必须先关闭节点才能复制，否则复制到的文件无效;</li>
+<li>也可以选择 <code>db.fsyncLock()</code> 锁定节点，但完成后不要忘记 <code>db.fsyncUnlock()</code> 解锁;</li>
+<li>可以且应该在从节点上完成;</li>
+<li>该方法实际上会暂时宕机一个从节点，所以整个过程中应注意投票节点总数。</li>
+</ul>
+<p>文件系统快照:</p>
+<ul>
+<li>MongoDB支持使用文件系统快照直接获取数据文件在某一时刻的镜像;</li>
+<li>快照过程中可以不用停机;</li>
+<li>数据文件和Journal必须在同一个卷上;</li>
+<li>快照完成后请尽快复制文件并删除快照;</li>
+</ul>
+<h4 id="Mongodump全量备份注意事项"><a href="#Mongodump全量备份注意事项" class="headerlink" title="Mongodump全量备份注意事项"></a>Mongodump全量备份注意事项</h4><p>mongodump:</p>
+<ul>
+<li>使用mongodump备份最灵活，但速度上也是最慢的;</li>
+<li>mongodump 出来的数据不能表示某个个时间点，只是某个时间段</li>
+</ul>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《MongoDB高手课》学习笔记/Mongodump全量备份注意事项.png" alt="Mongodump全量备份注意事项"></p>
+<p>解决方案:幂等性</p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《MongoDB高手课》学习笔记/oplog的幂等性.png" alt="oplog的幂等性"></p>
+<p>用幂等性解决一致性问题</p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《MongoDB高手课》学习笔记/用幂等性解决一致性问题.png" alt="用幂等性解决一致性问题"></p>
 
                 
             </div>
