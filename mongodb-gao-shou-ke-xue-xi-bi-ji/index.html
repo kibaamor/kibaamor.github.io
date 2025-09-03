@@ -406,14 +406,14 @@
                 
                 <div class="info-break-policy">
                     <i class="far fa-file-word fa-fw"></i>文章字数:&nbsp;&nbsp;
-                    13k
+                    13.5k
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-clock fa-fw"></i>阅读时长:&nbsp;&nbsp;
-                    49 分
+                    51 分
                 </div>
                 
 
@@ -1905,7 +1905,71 @@ db<span class="token punctuation">.</span>coll<span class="token punctuation">.<
 <ul>
 <li><code>--auditDestination file --auditFormatjSON --auditPath auditLog.json --auditFilter'{atype: {$in:["createCollection","dropCollection"]}}'</code></li>
 </ul>
-
+<h3 id="32丨MongoDB安全加固实践"><a href="#32丨MongoDB安全加固实践" class="headerlink" title="32丨MongoDB安全加固实践"></a>32丨MongoDB安全加固实践</h3><h4 id="MongoDB-安全最佳实践"><a href="#MongoDB-安全最佳实践" class="headerlink" title="MongoDB 安全最佳实践"></a>MongoDB 安全最佳实践</h4><ol>
+<li><p>启用身份认证</p>
+<p> 启用访问控制并强制执行身份认证</p>
+<p> 使用强密码</p>
+</li>
+<li><p>权限控制</p>
+<p> 基于 Deny All 原则</p>
+<p> 不多给多余权限</p>
+</li>
+<li><p>加密和审计</p>
+<p> 启用传输加密、数据保护和活动审计</p>
+</li>
+<li><p>网络加固</p>
+<p> 内网部署服务器</p>
+<p> 设置防火墙</p>
+<p> 操作系统设置</p>
+</li>
+<li><p>遵循安全准则</p>
+<p> 遵守不同行业或地区安全标准合规性要求</p>
+</li>
+</ol>
+<h4 id="合理配置权限"><a href="#合理配置权限" class="headerlink" title="合理配置权限"></a>合理配置权限</h4><ul>
+<li>创建管理员</li>
+<li>使用复杂密码</li>
+<li>不同用户不同账户</li>
+<li>应用隔离</li>
+<li>最小权限原则</li>
+</ul>
+<h4 id="启用加密"><a href="#启用加密" class="headerlink" title="启用加密"></a>启用加密</h4><ul>
+<li>使用 TLS 作为传输协议</li>
+<li>使用4.2版本的字段级加密对敏感字段加密</li>
+<li>如有需要，使用企业版进行落盘加密</li>
+<li>如有需要，使用企业版并启用审计日志</li>
+</ul>
+<h4 id="网络和操作系统加固"><a href="#网络和操作系统加固" class="headerlink" title="网络和操作系统加固"></a>网络和操作系统加固</h4><p>使用专用用户运行 MongoDB</p>
+<ul>
+<li>不建议在操作系统层使用 root用户运行 MongoDB</li>
+</ul>
+<p>限制网络开放度</p>
+<ul>
+<li>通过防火墙，iptables 规则控制对 MongoDB 的访问</li>
+<li>使用 VPN/VPCS 可以创建一个安全通道，MongoDB 服务不应该直接暴露在互联网上</li>
+<li>使用白名单列表限制允许访问的网段</li>
+<li>使用 bind ip 绑定一个具体地址</li>
+<li>修改默认监听端口:27017</li>
+</ul>
+<p>使用安全配置选项运行 MongoDB</p>
+<ul>
+<li>如果不需要执行 JavaScript 脚本，使用 <code>--noscripting</code> 禁止脚本执行</li>
+<li>如果使用老版本MongoDB,关闭http接口: <code>net.http.enabled=False net.http.JSONPEnabled= False</code></li>
+<li>如果使用老版本 MongoDB,关闭 Rest API接囗: <code>net.http.RESTInterfaceEnabled= False</code></li>
+</ul>
+<h4 id="Demo-启用认证"><a href="#Demo-启用认证" class="headerlink" title="Demo:启用认证"></a>Demo:启用认证</h4><ol>
+<li>方式一: 命令行方式通过”—auth”参数</li>
+<li>方式二:配置文件方式在 security下添加<code>authorization:enabled</code></li>
+</ol>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">mongod --auth--port <span class="token number">27017</span>--dbpath /data/db<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<p>启用鉴权后，无密码可以登录，但是只能执行创建用户操作mongo</p>
+<pre class="line-numbers language-javascript" data-language="javascript"><code class="language-javascript"><span class="token operator">&gt;</span> use admin
+<span class="token operator">&gt;</span> db<span class="token punctuation">.</span><span class="token function">createUser</span><span class="token punctuation">(</span><span class="token punctuation">{</span>user<span class="token operator">:</span> <span class="token string">"superuser"</span><span class="token punctuation">,</span> pwd<span class="token operator">:</span> <span class="token string">"password"</span><span class="token punctuation">,</span> roles<span class="token operator">:</span> <span class="token punctuation">[</span><span class="token punctuation">{</span>role<span class="token operator">:</span> <span class="token string">"root"</span><span class="token punctuation">,</span> db<span class="token operator">:</span> <span class="token string">"admin"</span><span class="token punctuation">}</span><span class="token punctuation">]</span><span class="token punctuation">}</span> <span class="token punctuation">)</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre>
+<p>安全登录，执行如下命令查看认证机制</p>
+<pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">mongo -usuperuser -p password --authenticationDatabase admin
+db.runCommand<span class="token punctuation">(</span><span class="token punctuation">{</span>getParameter:1,authenticationMechanisms:1<span class="token punctuation">}</span><span class="token punctuation">)</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre>
+<p>从数据库中查看用户</p>
+<pre class="line-numbers language-javascript" data-language="javascript"><code class="language-javascript">db<span class="token punctuation">.</span>system<span class="token punctuation">.</span>users<span class="token punctuation">.</span><span class="token function">find</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
                 
             </div>
             <hr/>
