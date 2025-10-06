@@ -406,14 +406,14 @@
                 
                 <div class="info-break-policy">
                     <i class="far fa-file-word fa-fw"></i>文章字数:&nbsp;&nbsp;
-                    15.1k
+                    15.6k
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-clock fa-fw"></i>阅读时长:&nbsp;&nbsp;
-                    57 分
+                    58 分
                 </div>
                 
 
@@ -2305,6 +2305,44 @@ insert query update delete getmore <span class="token builtin class-name">comman
 <h4 id="mongod日志"><a href="#mongod日志" class="headerlink" title="mongod日志"></a>mongod日志</h4><p>日志中会记录执行超过 100ms 的查询及其执行计划。</p>
 <p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《MongoDB高手课》学习笔记/mongod日志.png" alt="mongod日志"></p>
 <h4 id="mtools"><a href="#mtools" class="headerlink" title="mtools"></a>mtools</h4><p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《MongoDB高手课》学习笔记/mtools.png" alt="mtools"></p>
+<h3 id="37丨高级集群设计：两地三中心"><a href="#37丨高级集群设计：两地三中心" class="headerlink" title="37丨高级集群设计：两地三中心"></a>37丨高级集群设计：两地三中心</h3><h4 id="容灾级别"><a href="#容灾级别" class="headerlink" title="容灾级别"></a>容灾级别</h4><p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《MongoDB高手课》学习笔记/容灾级别.png" alt="容灾级别.png"></p>
+<ol>
+<li><p>RPO — 数据丢失容忍度</p>
+<p> Recovery Point Objective（恢复点目标）</p>
+<ul>
+<li>含义：系统或数据在灾难发生时允许丢失的最大数据量或时间窗口。它衡量数据备份的频率和容忍的数据丢失程度。</li>
+<li>核心意义：在灾难发生时，你能接受丢失多少数据？</li>
+<li>举例：如果 RPO = 15 分钟，意味着系统发生故障后，你最多能容忍最近 15 分钟内的数据丢失。如果数据库每小时备份一次，RPO 可能就是 1 小时。</li>
+<li>应用：决定数据备份频率（如增量备份、实时复制）。评估系统设计是否满足业务需求。</li>
+</ul>
+</li>
+<li><p>RTO — 系统恢复时限</p>
+<p> Recovery Time Objective（恢复时间目标）</p>
+<ul>
+<li>含义：系统或服务在发生故障后恢复到正常运行状态所允许的最长时间。它衡量业务可接受的中断时间长度。</li>
+<li>核心意义：灾难发生后，你需要多快将系统恢复运行？</li>
+<li>举例：如果 RTO = 2 小时，意味着系统宕机后必须在 2 小时内恢复业务。RTO 越短，通常意味着需要更多的高可用架构和资源投入。</li>
+<li>应用：设计容灾架构（热备、冷备、异地灾备）。决定自动化恢复和故障转移方案。</li>
+</ul>
+</li>
+</ol>
+<h4 id="双活的技术组件"><a href="#双活的技术组件" class="headerlink" title="双活的技术组件"></a>双活的技术组件</h4><p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《MongoDB高手课》学习笔记/双活的技术组件.png" alt="双活的技术组件"></p>
+<h5 id="网络层解决方案"><a href="#网络层解决方案" class="headerlink" title="网络层解决方案"></a>网络层解决方案</h5><p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《MongoDB高手课》学习笔记/网络层解决方案.png" alt="网络层解决方案"></p>
+<h5 id="应用层解决方案"><a href="#应用层解决方案" class="headerlink" title="应用层解决方案"></a>应用层解决方案</h5><p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《MongoDB高手课》学习笔记/应用层解决方案.png" alt="应用层解决方案"></p>
+<h5 id="数据库解决方案"><a href="#数据库解决方案" class="headerlink" title="数据库解决方案"></a>数据库解决方案</h5><p>数据跨中心同步</p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《MongoDB高手课》学习笔记/数据库解决方案.png" alt="数据库解决方案"></p>
+<h4 id="MongoDB-三中心方案"><a href="#MongoDB-三中心方案" class="headerlink" title="MongoDB 三中心方案"></a>MongoDB 三中心方案</h4><p><img src="MongoDB三中心方案1.png" alt="MongoDB三中心方案1.png"></p>
+<p><img src="MongoDB三中心方案2.png" alt="MongoDB三中心方案2.png"></p>
+<p><img src="MongoDB三中心方案3.png" alt="MongoDB三中心方案3.png"></p>
+<p><img src="MongoDB三中心方案4.png" alt="MongoDB三中心方案4.png"></p>
+<p><img src="MongoDB三中心方案5.png" alt="MongoDB三中心方案5.png"></p>
+<ul>
+<li>节点数量建议要5个，2+2+1模式</li>
+<li>主数据中心的两个节点要设置高一点的优先级，减少跨中心换主节点</li>
+<li>同城双中心之间的网络要保证低延迟和频宽，满足 <code>writeConcern:Majority</code> 的双中心写需求</li>
+<li>使用 Retryable Writes and Retryable Reads 来保证零下线时间</li>
+<li>用户需要自行处理好业务层的双中心切换</li>
+</ul>
 
                 
             </div>
