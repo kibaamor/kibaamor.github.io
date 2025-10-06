@@ -399,21 +399,21 @@
                 
                 <div class="post-date info-break-policy">
                     <i class="far fa-calendar-check fa-fw"></i>更新日期:&nbsp;&nbsp;
-                    2025-09-21
+                    2025-10-06
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-file-word fa-fw"></i>文章字数:&nbsp;&nbsp;
-                    14.1k
+                    15.1k
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-clock fa-fw"></i>阅读时长:&nbsp;&nbsp;
-                    53 分
+                    57 分
                 </div>
                 
 
@@ -2053,6 +2053,258 @@ db.runCommand<span class="token punctuation">(</span><span class="token punctuat
 <h5 id="合并结果"><a href="#合并结果" class="headerlink" title="合并结果"></a>合并结果</h5><p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《MongoDB高手课》学习笔记/数据库端合并结果.png" alt="数据库端合并结果"></p>
 <h4 id="网络的考量"><a href="#网络的考量" class="headerlink" title="网络的考量"></a>网络的考量</h4><p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《MongoDB高手课》学习笔记/网络的考量.png" alt="网络的考量"></p>
 <h4 id="性能瓶颈总结"><a href="#性能瓶颈总结" class="headerlink" title="性能瓶颈总结"></a>性能瓶颈总结</h4><p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《MongoDB高手课》学习笔记/性能瓶颈总结.png" alt="性能瓶颈总结"></p>
+<h3 id="36丨性能诊断工具"><a href="#36丨性能诊断工具" class="headerlink" title="36丨性能诊断工具"></a>36丨性能诊断工具</h3><h4 id="mongostat"><a href="#mongostat" class="headerlink" title="mongostat"></a>mongostat</h4><p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《MongoDB高手课》学习笔记/mongostat.png" alt="mongostat"></p>
+<p>mongostat 是 MongoDB 自带的实时监控工具，用于展示实例的运行状态与性能指标。</p>
+<p>它会每隔一段时间（默认 1 秒）采样一次，输出数据库的关键统计信息。</p>
+<h5 id="命令示例"><a href="#命令示例" class="headerlink" title="命令示例"></a>命令示例</h5><pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">$ mongostat --host localhost --port <span class="token number">27017</span>
+insert query update delete getmore <span class="token builtin class-name">command</span> dirty used flushes vsize  res qr<span class="token operator">|</span>qw ar<span class="token operator">|</span>aw net_in net_out conn
+    <span class="token number">10</span>     <span class="token number">3</span>      <span class="token number">5</span>      <span class="token number">1</span>       <span class="token number">2</span>     <span class="token number">25</span><span class="token operator">|</span><span class="token number">0</span>  <span class="token number">3.2</span>%  <span class="token number">76.8</span>%       <span class="token number">1</span>  <span class="token number">5</span>.80G <span class="token number">3</span>.20G <span class="token number">0</span><span class="token operator">|</span><span class="token number">0</span> <span class="token number">1</span><span class="token operator">|</span><span class="token number">0</span>   40kB   120kB   <span class="token number">58</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span></span></code></pre>
+<h5 id="各字段详细说明"><a href="#各字段详细说明" class="headerlink" title="各字段详细说明"></a>各字段详细说明</h5><div class="table-container">
+<table>
+<thead>
+<tr>
+<th>字段</th>
+<th>含义</th>
+<th>示例值</th>
+<th>说明</th>
+<th></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>insert</strong></td>
+<td>每秒插入操作次数</td>
+<td>10</td>
+<td>每秒执行的 <code>insert</code> 操作数量（包括批量插入）。</td>
+<td></td>
+</tr>
+<tr>
+<td><strong>query</strong></td>
+<td>每秒查询操作次数</td>
+<td>3</td>
+<td>每秒执行的 <code>find</code> 操作数量。</td>
+<td></td>
+</tr>
+<tr>
+<td><strong>update</strong></td>
+<td>每秒更新操作次数</td>
+<td>5</td>
+<td>每秒执行的 <code>update</code> 操作数量。</td>
+<td></td>
+</tr>
+<tr>
+<td><strong>delete</strong></td>
+<td>每秒删除操作次数</td>
+<td>1</td>
+<td>每秒执行的 <code>remove</code> 操作数量。</td>
+<td></td>
+</tr>
+<tr>
+<td><strong>getmore</strong></td>
+<td>每秒从游标获取更多文档的次数</td>
+<td>2</td>
+<td>主要反映分页或游标查询的频率。</td>
+<td></td>
+</tr>
+<tr>
+<td><strong>command</strong></td>
+<td>每秒执行的命令次数</td>
+<td>25\</td>
+<td>0</td>
+<td>前者是普通命令（如 findAndModify、aggregate），后者是内部命令数。</td>
+<td></td>
+</tr>
+<tr>
+<td><strong>flushes</strong></td>
+<td>WiredTiger checkpoint 次数</td>
+<td>1</td>
+<td>表示在采样间隔内，缓存同步到磁盘的次数（通常每分钟约 1 次）。</td>
+<td></td>
+</tr>
+<tr>
+<td><strong>dirty</strong></td>
+<td>缓存中未落盘的脏页比例</td>
+<td>3.2%</td>
+<td>WiredTiger 缓存中已修改但未写入磁盘的页占比。</td>
+<td></td>
+</tr>
+<tr>
+<td><strong>used</strong></td>
+<td>缓存使用率</td>
+<td>76.8%</td>
+<td>表示 WiredTiger 缓存已使用的百分比。</td>
+<td></td>
+</tr>
+<tr>
+<td><strong>vsize</strong></td>
+<td>虚拟内存占用</td>
+<td>5.80G</td>
+<td>MongoDB 进程使用的虚拟内存大小。</td>
+<td></td>
+</tr>
+<tr>
+<td><strong>res</strong></td>
+<td>常驻内存（物理内存）占用</td>
+<td>3.20G</td>
+<td>MongoDB 实际驻留在物理内存中的大小。</td>
+<td></td>
+</tr>
+<tr>
+<td>**qr\</td>
+<td>qw**</td>
+<td>等待队列中的读/写请求数</td>
+<td>0\</td>
+<td>0</td>
+<td>当前阻塞等待的读写操作数量。</td>
+</tr>
+<tr>
+<td>**ar\</td>
+<td>aw**</td>
+<td>活跃的读/写请求数</td>
+<td>1\</td>
+<td>0</td>
+<td>当前正在执行的读写操作数量。</td>
+</tr>
+<tr>
+<td><strong>net_in</strong></td>
+<td>网络输入流量</td>
+<td>40kB</td>
+<td>MongoDB 每秒接收的数据量。</td>
+<td></td>
+</tr>
+<tr>
+<td><strong>net_out</strong></td>
+<td>网络输出流量</td>
+<td>120kB</td>
+<td>MongoDB 每秒发送的数据量。</td>
+<td></td>
+</tr>
+<tr>
+<td><strong>conn</strong></td>
+<td>当前活动连接数</td>
+<td>58</td>
+<td>当前连接到 mongod 实例的客户端数量。</td>
+<td></td>
+</tr>
+<tr>
+<td><strong>time</strong>（部分版本）</td>
+<td>采样时间戳</td>
+<td>—</td>
+<td>显示统计采样的时间点。</td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>WiredTiger 默认缓存大小为 <code>max(0.5 * (RAM - 1 GB), 256 MB)</code>。</p>
+<blockquote>
+<p>注意：在某些情况下（例如在容器中运行时），数据库的内存限制可能低于系统总内存。此时，该<a target="_blank" rel="noopener" href="https://www.mongodb.com/docs/manual/reference/command/hostInfo/#mongodb-data-hostInfo.system.memLimitMB">内存限制(hostInfo.system.memLimitMB)</a>而非系统总内存将被用作可用的最大RAM。</p>
+<p>参考： <a target="_blank" rel="noopener" href="https://www.mongodb.com/docs/manual/core/wiredtiger/#memory-use">https://www.mongodb.com/docs/manual/core/wiredtiger/#memory-use</a></p>
+</blockquote>
+<h5 id="辅助字段（在某些版本或参数下出现）"><a href="#辅助字段（在某些版本或参数下出现）" class="headerlink" title="辅助字段（在某些版本或参数下出现）"></a>辅助字段（在某些版本或参数下出现）</h5><div class="table-container">
+<table>
+<thead>
+<tr>
+<th>字段</th>
+<th>含义</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>faults</strong></td>
+<td>页面错误（Page Faults）</td>
+<td>MongoDB 从磁盘加载数据到内存的次数，过高表示内存不足。</td>
+</tr>
+<tr>
+<td><strong>repl</strong></td>
+<td>副本集同步状态</td>
+<td>对副本集节点显示同步操作的相关统计。</td>
+</tr>
+<tr>
+<td><strong>opcounters</strong></td>
+<td>操作计数</td>
+<td>如果使用 <code>--json</code> 输出，可查看详细操作计数器。</td>
+</tr>
+<tr>
+<td><strong>ttl_deletes / ttl_passes</strong></td>
+<td>TTL 索引相关</td>
+<td>TTL 索引触发的删除次数与扫描次数。</td>
+</tr>
+<tr>
+<td><strong>scan_and_order</strong></td>
+<td>排序扫描次数</td>
+<td>查询中使用内存排序的次数。</td>
+</tr>
+<tr>
+<td><strong>journaled / written</strong></td>
+<td>日志写入量</td>
+<td>写入 journal 和数据文件的字节数。</td>
+</tr>
+</tbody>
+</table>
+</div>
+<h5 id="重点指标解释与诊断建议"><a href="#重点指标解释与诊断建议" class="headerlink" title="重点指标解释与诊断建议"></a>重点指标解释与诊断建议</h5><div class="table-container">
+<table>
+<thead>
+<tr>
+<th>指标</th>
+<th>意义</th>
+<th>异常表现</th>
+<th>可能原因</th>
+<th>建议</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>dirty / used</strong></td>
+<td>缓存健康度</td>
+<td>长期偏高</td>
+<td>写入压力大 / I/O 性能差</td>
+<td>检查磁盘延迟，调整缓存大小</td>
+</tr>
+<tr>
+<td><strong>qr / qw</strong></td>
+<td>请求等待</td>
+<td>持续非 0</td>
+<td>锁竞争 / 慢查询</td>
+<td>优化查询或增加资源</td>
+</tr>
+<tr>
+<td><strong>ar / aw</strong></td>
+<td>活跃操作</td>
+<td>持续高</td>
+<td>写入量大</td>
+<td>分析操作类型与索引情况</td>
+</tr>
+<tr>
+<td><strong>conn</strong></td>
+<td>连接数</td>
+<td>过高</td>
+<td>应用连接池未复用</td>
+<td>优化连接池配置</td>
+</tr>
+<tr>
+<td><strong>net_in / net_out</strong></td>
+<td>网络流量</td>
+<td>异常激增</td>
+<td>应用暴增或复制压力</td>
+<td>检查客户端或复制链路</td>
+</tr>
+</tbody>
+</table>
+</div>
+<h5 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h5><p><code>mongostat</code> 是监控 MongoDB 性能的首选命令之一，尤其适合快速判断：</p>
+<ul>
+<li>数据库写入是否积压（dirty、used）</li>
+<li>锁竞争情况（qr|qw）</li>
+<li>网络及连接状态（net_in/out、conn）</li>
+<li>I/O 压力与内存健康状况（flushes、vsize、res）</li>
+</ul>
+<p>配合 <code>mongotop</code> 与监控系统（如 Cloud Manager、Prometheus、Grafana）使用，可以获得更全面的性能视图。</p>
+<h4 id="mongotop"><a href="#mongotop" class="headerlink" title="mongotop"></a>mongotop</h4><p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《MongoDB高手课》学习笔记/mongotop.png" alt="mongotop"></p>
+<h4 id="mongod日志"><a href="#mongod日志" class="headerlink" title="mongod日志"></a>mongod日志</h4><p>日志中会记录执行超过 100ms 的查询及其执行计划。</p>
+<p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《MongoDB高手课》学习笔记/mongod日志.png" alt="mongod日志"></p>
+<h4 id="mtools"><a href="#mtools" class="headerlink" title="mtools"></a>mtools</h4><p><img src="https://cdn.jsdelivr.net/gh/kibaamor/kibaamor.github.io/images/《MongoDB高手课》学习笔记/mtools.png" alt="mtools"></p>
 
                 
             </div>
