@@ -3,26 +3,24 @@ set -efu
 
 TMPDIR_BACKUP="${TMPDIR:-}"
 INSTALL_TMP="$HOME/.install_dotfiles"
+CUSTOM_RC="$HOME/.customrc.pre.sh"
 
-mkdir -p "$INSTALL_TMP"
+mkdir -p -- "$INSTALL_TMP"
 export TMPDIR="$INSTALL_TMP"
 
 cleanup() {
-    if [ -n "${INSTALL_TMP:-}" ] && [ -d "$INSTALL_TMP" ]; then
+    if [ -n "${INSTALL_TMP:-}" ] && [ -d "$INSTALL_TMP" ] && [ "$INSTALL_TMP" != "/" ]; then
         rm -rf -- "$INSTALL_TMP"
     fi
 
     if [ -n "${TMPDIR_BACKUP:-}" ]; then
-        TMPDIR="$TMPDIR_BACKUP"
-        export TMPDIR
+        export TMPDIR="$TMPDIR_BACKUP"
     else
         unset TMPDIR
     fi
 }
 
-trap cleanup EXIT INT
-
-CUSTOM_RC="$HOME/.customrc.pre.sh"
+trap cleanup EXIT INT TERM
 
 if [ ! -s "$CUSTOM_RC" ]; then
     [ -n "${DOTFILES_INSTALL_EXTRA_BINS:-}" ] && echo "export DOTFILES_INSTALL_EXTRA_BINS='$DOTFILES_INSTALL_EXTRA_BINS'" >>"$CUSTOM_RC"
@@ -42,7 +40,7 @@ fi
 
 sh -c "$(curl -fsLS get.chezmoi.io)" -- -b "$HOME"/.local/bin init --apply kibaamor "$@"
 
-trap '' EXIT INT
+trap '' EXIT INT TERM
 cleanup
 
 exec /usr/bin/zsh -l
