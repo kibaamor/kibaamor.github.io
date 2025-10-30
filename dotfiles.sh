@@ -2,13 +2,14 @@
 set -efu
 
 TMPDIR_BACKUP="${TMPDIR:-}"
+INSTALL_TMP="$HOME/.install_dotfiles"
 
-mkdir -p "$HOME"/.install_dotfiles
-export TMPDIR="$HOME"/.install_dotfiles
+mkdir -p "$INSTALL_TMP"
+export TMPDIR="$INSTALL_TMP"
 
 cleanup() {
-    if [ -n "${TMPDIR:-}" ] && [ -d "$TMPDIR" ]; then
-        rm -rf -- "$TMPDIR"
+    if [ -n "${INSTALL_TMP:-}" ] && [ -d "$INSTALL_TMP" ]; then
+        rm -rf -- "$INSTALL_TMP"
     fi
 
     if [ -n "${TMPDIR_BACKUP:-}" ]; then
@@ -39,4 +40,5 @@ fi
 
 curl -fsLS get.chezmoi.io | sh -s -- -b "$HOME/.local/bin" init --apply kibaamor "$@"
 
+cleanup
 exec /usr/bin/zsh -l
