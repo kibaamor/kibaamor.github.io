@@ -38,7 +38,7 @@ fi
 # shellcheck source=/dev/null
 [ -s "$CUSTOM_RC" ] && \. "$CUSTOM_RC"
 
-curl -fsLS get.chezmoi.io | sh -s -- -b "$HOME/.local/bin" init --apply kibaamor "$@"
+sh -c "$(curl -fsLS get.chezmoi.io)" -- -b "$HOME"/.local/bin init --apply kibaamor "$@"
 
 cleanup
 exec /usr/bin/zsh -l
