@@ -19,9 +19,11 @@ cleanup() {
         unset TMPDIR
     fi
 }
+
 trap cleanup EXIT INT
 
 CUSTOM_RC="$HOME/.customrc.pre.sh"
+
 if [ ! -s "$CUSTOM_RC" ]; then
     [ -n "${DOTFILES_INSTALL_EXTRA_BINS:-}" ] && echo "export DOTFILES_INSTALL_EXTRA_BINS='$DOTFILES_INSTALL_EXTRA_BINS'" >>"$CUSTOM_RC"
     [ -n "${DOTFILES_INSTALL_ARKADE_BINS:-}" ] && echo "export DOTFILES_INSTALL_ARKADE_BINS='$DOTFILES_INSTALL_ARKADE_BINS'" >>"$CUSTOM_RC"
@@ -38,9 +40,9 @@ fi
 # shellcheck source=/dev/null
 [ -s "$CUSTOM_RC" ] && \. "$CUSTOM_RC"
 
-sh -c "$(curl -fsLS get.chezmoi.io)" -- -b "$HOME"/.local/bin
+sh -c "$(curl -fsLS get.chezmoi.io)" -- -b "$HOME"/.local/bin init --apply kibaamor "$@"
 
-"$HOME"/.local/bin/chezmoi init --apply kibaamor "$@"
-
+trap '' EXIT INT
 cleanup
+
 exec /usr/bin/zsh -l
