@@ -402,7 +402,7 @@
                 
                 <div class="info-break-policy">
                     <i class="far fa-file-word fa-fw"></i>文章字数:&nbsp;&nbsp;
-                    2.9k
+                    2.8k
                 </div>
                 
 
@@ -496,10 +496,13 @@
 </blockquote>
 <h2 id="七、结论"><a href="#七、结论" class="headerlink" title="七、结论"></a>七、结论</h2><p>好了，让我们来看看CAP定理到底在说什么。CAP定理说的是：当你设计分布式系统时，无法同时让系统满足<code>一致性</code>、<code>可用性</code>和<code>分区容忍性</code>。顶多只能满足其中的两个：</p>
 <ol>
-<li><code>一致性</code>：对你的客户来说，一旦他们更新要记住的事。无论何时，他们总是能获取到最新的记录内容。</li>
-<li><code>可用性</code>：只要你和你的妻子中有人在上班，公司就能正常且正确运行。</li>
-<li><code>分区容忍性</code>：即使你和你的妻子有一段时间不沟通了，公司依然能正常且正确的运行。</li>
+<li><code>一致性（C，Consistency）</code>：对你的客户来说，一旦他们更新要记住的事。无论何时，他们总是能获取到最新的记录内容。</li>
+<li><code>可用性（A，Availability）</code>：只要你和你的妻子中有人在上班，公司就能正常且正确运行。</li>
+<li><code>分区容忍性（P，Partition Tolerance）</code>：即使你和你的妻子有一段时间不沟通了，公司依然能正常且正确的运行。</li>
 </ol>
+<blockquote>
+<p>注意：在分布式系统中，P 是必须满足的。一旦发生网络分区，只能在 C 和 A 之间二选一。</p>
+</blockquote>
 <h2 id="额外奖励：-请一个可以来回跑的秘书来保证最终结果的一致性"><a href="#额外奖励：-请一个可以来回跑的秘书来保证最终结果的一致性" class="headerlink" title="额外奖励： 请一个可以来回跑的秘书来保证最终结果的一致性"></a>额外奖励： 请一个可以来回跑的秘书来保证最终结果的一致性</h2><p>这里还有一个其他的解决方法。可以请一个秘书，当你或你的妻子笔记本更新时，她可以帮你们自动的更新其他人的笔记本上。这么做的最大好处就是：在有记录更新时，就不用等待其他人的笔记本更新完了才能接下一个电话了。这也是很多NoSQL系统的工作原理：数据库节点本地更新自己，然后一个后台进程再将这些修改同步到其他的数据库节点。这种方法的唯一问题就在于会在短时间内丢失一致性。比如：你的妻子接到了客户的更新电话，在秘书把你妻子笔记本上的这个变化同步到你的笔记本上之前，这个客户又打电话来问，但是是你接到了这个电话，这时他就会得到一个错误的回答。话虽如此，这种情况还是比较少的。比如：假如你的客户不会在5分钟内就来打电话问呢。</p>
 <p>这个就是CAP和最终一致性，本文到此结束。</p>
 <hr>
@@ -509,14 +512,29 @@
 <li>如果为了保证 A，则会出现正常的分区可以写入数据，有故障的分区不能写入数据，则与 C 冲突了。</li>
 </ol>
 <hr>
-<h2 id="Redis-满足的-CAP"><a href="#Redis-满足的-CAP" class="headerlink" title="Redis 满足的 CAP"></a>Redis 满足的 CAP</h2><ol>
-<li><p>单机版的 Redis 满足 CP 。</p>
-<p> Redis 能够保证所有用户看到相同的数据（一致性，因为 Redis 不自动冗余数据）和网络通信出问题时，暂时隔离开的子系统能继续运行（分区容忍性，因为 Master 之间没有直接关系，不需要通信），但是不保证某些结点故障时，所有请求都能被响应（可用性，某个 Master 结点挂了的话，那么它上面分片的数据就无法访问了）。</p>
-</li>
-<li><p>集群版的 Redis 满足 AP 。</p>
-<p> 通过自动分片和冗余数据，Redis 具有了真正的分布式能力，某个结点挂了的话，因为数据在其他结点上有备份，所以其他结点顶上来就可以继续提供服务，保证了 Availability 。然而，也正因为这一点，Redis 无法保证曾经的强一致性了。</p>
-</li>
-</ol>
+<h2 id="Redis-满足的-CAP"><a href="#Redis-满足的-CAP" class="headerlink" title="Redis 满足的 CAP"></a>Redis 满足的 CAP</h2><div class="table-container">
+<table>
+<thead>
+<tr>
+<th><strong>结构</strong></th>
+<th style="text-align:right"><strong>CAP 取向</strong></th>
+<th><strong>关键原因</strong></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>主从复制</strong></td>
+<td style="text-align:right"><strong>AP 倾向</strong></td>
+<td>主节点异步向从节点复制；分区时从节点可能返回过期数据以保持可用。</td>
+</tr>
+<tr>
+<td><strong>Redis Cluster</strong></td>
+<td style="text-align:right"><strong>AP（弱一致）</strong></td>
+<td>数据分片 + 异步复制 + 多主架构，容忍分区并尽量保持多数主节点可用；一致性为 best‑effort。</td>
+</tr>
+</tbody>
+</table>
+</div>
 
                 
             </div>
