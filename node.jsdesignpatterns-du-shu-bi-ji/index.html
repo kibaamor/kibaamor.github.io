@@ -395,21 +395,21 @@
                 
                 <div class="post-date info-break-policy">
                     <i class="far fa-calendar-check fa-fw"></i>更新日期:&nbsp;&nbsp;
-                    2026-10-07
+                    2026-10-08
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-file-word fa-fw"></i>文章字数:&nbsp;&nbsp;
-                    12.3k
+                    12.5k
                 </div>
                 
 
                 
                 <div class="info-break-policy">
                     <i class="far fa-clock fa-fw"></i>阅读时长:&nbsp;&nbsp;
-                    53 分
+                    54 分
                 </div>
                 
 
@@ -427,7 +427,10 @@
 
         <div class="card-content article-card-content">
             <div id="articleContent">
-                <h1 id="1-The-Node-js-Platform"><a href="#1-The-Node-js-Platform" class="headerlink" title="1. The Node.js Platform"></a>1. The Node.js Platform</h1><p>本章建立后续所有章节的基础：理解 <strong>Node.js 为什么这样工作，以及为什么 Node.js 的设计方式与传统服务器端编程不同</strong>。原书将这一章的核心归结为 Node way、Reactor Pattern、V8 + libuv + Node.js Core。</p>
+                <blockquote>
+<p>相关代码：<a target="_blank" rel="noopener" href="https://github.com/PacktPublishing/Node.js-Design-Patterns-Third-Edition">https://github.com/PacktPublishing/Node.js-Design-Patterns-Third-Edition</a></p>
+</blockquote>
+<h1 id="1-The-Node-js-Platform"><a href="#1-The-Node-js-Platform" class="headerlink" title="1. The Node.js Platform"></a>1. The Node.js Platform</h1><p>本章建立后续所有章节的基础：理解 <strong>Node.js 为什么这样工作，以及为什么 Node.js 的设计方式与传统服务器端编程不同</strong>。原书将这一章的核心归结为 Node way、Reactor Pattern、V8 + libuv + Node.js Core。</p>
 <h2 id="1-1-The-Node-js-philosophy"><a href="#1-1-The-Node-js-philosophy" class="headerlink" title="1.1 The Node.js philosophy"></a>1.1 The Node.js philosophy</h2><h3 id="Small-core"><a href="#Small-core" class="headerlink" title="Small core"></a>Small core</h3><p>Node.js Core 应尽可能保持小，把大量能力放到 userland。</p>
 <p>核心思想：</p>
 <ul>
@@ -1125,6 +1128,49 @@ cache miss → asynchronous<span aria-hidden="true" class="line-numbers-rows"><s
 <li>其他异步调度</li>
 </ul>
 <p>把 callback 推迟执行。</p>
+<div class="table-container">
+<table>
+<thead>
+<tr>
+<th>API</th>
+<th>所属机制</th>
+<th style="text-align:right">优先级</th>
+<th>典型执行时机</th>
+<th>是否可能阻塞 I/O</th>
+<th>常见用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>process.nextTick()</code></td>
+<td>Next Tick Queue</td>
+<td style="text-align:right"><strong>最高</strong></td>
+<td>当前 JS 调用栈结束后，立即执行</td>
+<td>⚠️ 是</td>
+<td>异步化回调、错误处理、兼容 API</td>
+</tr>
+<tr>
+<td><code>setImmediate()</code></td>
+<td>Check Phase</td>
+<td style="text-align:right">高</td>
+<td>当前 Event Loop iteration 的 Check 阶段</td>
+<td>否</td>
+<td>I/O 完成后尽快执行</td>
+</tr>
+<tr>
+<td><code>setTimeout(fn, 0)</code></td>
+<td>Timers Phase</td>
+<td style="text-align:right">较低</td>
+<td>下一轮满足 timer 条件后</td>
+<td>否</td>
+<td>延迟执行、定时任务</td>
+</tr>
+</tbody>
+</table>
+</div>
+<blockquote>
+<p>process.nextTick() 是 Node.js 的高优先级微任务式队列；setImmediate() 是 Check Phase；setTimeout(0) 是 Timers Phase。nextTick 会优先于 Event Loop 的其他阶段，而 setImmediate 与 setTimeout(0) 的先后取决于调用上下文，尤其在 I/O callback 中通常 setImmediate 先执行。</p>
+</blockquote>
 <p>但要知道：</p>
 <blockquote>
 <p><code>process.nextTick()</code> 的优先级非常高，大量递归使用可能导致 I/O starvation。</p>
