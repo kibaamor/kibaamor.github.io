@@ -3145,21 +3145,21 @@ browser 又请求一次<span aria-hidden="true" class="line-numbers-rows"><span>
 <p>作者也强调具体 bundler/framework 会快速演化，但底层概念会长期存在。</p>
 <hr>
 <h1 id="11-Advanced-Recipes"><a href="#11-Advanced-Recipes" class="headerlink" title="11. Advanced Recipes"></a>11. Advanced Recipes</h1><p>这一章从”通用模式”转向<strong>真实生产中常见的棘手问题</strong>。目录包括异步初始化、请求 batching/caching、取消异步操作以及 CPU-bound task。</p>
-<h1 id="11-1-Dealing-with-asynchronously-initialized-components"><a href="#11-1-Dealing-with-asynchronously-initialized-components" class="headerlink" title="11.1 Dealing with asynchronously initialized components"></a>11.1 Dealing with asynchronously initialized components</h1><p>典型问题：</p>
+<h2 id="11-1-Dealing-with-asynchronously-initialized-components"><a href="#11-1-Dealing-with-asynchronously-initialized-components" class="headerlink" title="11.1 Dealing with asynchronously initialized components"></a>11.1 Dealing with asynchronously initialized components</h2><p>典型问题：</p>
 <pre class="line-numbers language-text" data-language="text"><code class="language-text">constructor()
  ↓
 需要 async initialization
  ↓
 component 尚未 ready<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span></span></code></pre>
 <p>但 consumer 可能马上调用：</p>
-<h2 id="-48"><a href="#-48" class="headerlink" title=""></a><pre class="line-numbers language-js" data-language="js"><code class="language-js">component<span class="token punctuation">.</span><span class="token function">doSomething</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre></h2><h2 id="Local-initialization-check"><a href="#Local-initialization-check" class="headerlink" title="Local initialization check"></a>Local initialization check</h2><p>每个方法检查：</p>
+<h2 id="-48"><a href="#-48" class="headerlink" title=""></a><pre class="line-numbers language-js" data-language="js"><code class="language-js">component<span class="token punctuation">.</span><span class="token function">doSomething</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre></h2><h3 id="Local-initialization-check"><a href="#Local-initialization-check" class="headerlink" title="Local initialization check"></a>Local initialization check</h3><p>每个方法检查：</p>
 <pre class="line-numbers language-text" data-language="text"><code class="language-text">initialized?<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
 <p>简单，但问题是：</p>
 <blockquote>
 <p>所有方法都必须重复处理初始化状态。</p>
 </blockquote>
 <hr>
-<h2 id="Delayed-startup"><a href="#Delayed-startup" class="headerlink" title="Delayed startup"></a>Delayed startup</h2><p>整个系统：</p>
+<h3 id="Delayed-startup"><a href="#Delayed-startup" class="headerlink" title="Delayed startup"></a>Delayed startup</h3><p>整个系统：</p>
 <pre class="line-numbers language-text" data-language="text"><code class="language-text">initialize()
  ↓
 ready
@@ -3175,7 +3175,7 @@ start serving<span aria-hidden="true" class="line-numbers-rows"><span></span><sp
 <li>某些场景无法接受整个系统 delayed startup。</li>
 </ul>
 <hr>
-<h2 id="Pre-initialization-queues"><a href="#Pre-initialization-queues" class="headerlink" title="Pre-initialization queues"></a>Pre-initialization queues</h2><p>最通用的方法：</p>
+<h3 id="Pre-initialization-queues"><a href="#Pre-initialization-queues" class="headerlink" title="Pre-initialization queues"></a>Pre-initialization queues</h3><p>最通用的方法：</p>
 <pre class="line-numbers language-text" data-language="text"><code class="language-text">call method
      ↓
 not initialized
@@ -3191,8 +3191,8 @@ replay queued requests<span aria-hidden="true" class="line-numbers-rows"><span><
 <p><strong>把”尚未 ready 的调用”转换为延迟执行。</strong></p>
 </blockquote>
 <hr>
-<h1 id="11-2-Asynchronous-request-batching-and-caching"><a href="#11-2-Asynchronous-request-batching-and-caching" class="headerlink" title="11.2 Asynchronous request batching and caching"></a>11.2 Asynchronous request batching and caching</h1><p>两个非常重要的优化。</p>
-<h2 id="Batching"><a href="#Batching" class="headerlink" title="Batching"></a>Batching</h2><p>例如多个请求：</p>
+<h2 id="11-2-Asynchronous-request-batching-and-caching"><a href="#11-2-Asynchronous-request-batching-and-caching" class="headerlink" title="11.2 Asynchronous request batching and caching"></a>11.2 Asynchronous request batching and caching</h2><p>两个非常重要的优化。</p>
+<h3 id="Batching"><a href="#Batching" class="headerlink" title="Batching"></a>Batching</h3><p>例如多个请求：</p>
 <pre class="line-numbers language-text" data-language="text"><code class="language-text">getUser(1)
 getUser(2)
 getUser(3)<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span></span></code></pre>
@@ -3212,7 +3212,7 @@ C<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><s
 <li>overhead。</li>
 </ul>
 <hr>
-<h2 id="Optimal-asynchronous-request-caching"><a href="#Optimal-asynchronous-request-caching" class="headerlink" title="Optimal asynchronous request caching"></a>Optimal asynchronous request caching</h2><p>重点不是只缓存最终结果。</p>
+<h3 id="Optimal-asynchronous-request-caching"><a href="#Optimal-asynchronous-request-caching" class="headerlink" title="Optimal asynchronous request caching"></a>Optimal asynchronous request caching</h3><p>重点不是只缓存最终结果。</p>
 <p>还可以缓存：</p>
 <blockquote>
 <p><strong>正在进行中的 Promise。</strong></p>
@@ -3237,7 +3237,7 @@ reuse P<span aria-hidden="true" class="line-numbers-rows"><span></span><span></s
 <p><strong>cache in-flight request。</strong></p>
 </blockquote>
 <hr>
-<h2 id="Batching-caching"><a href="#Batching-caching" class="headerlink" title="Batching + caching"></a>Batching + caching</h2><p>两者可以结合：</p>
+<h3 id="Batching-caching"><a href="#Batching-caching" class="headerlink" title="Batching + caching"></a>Batching + caching</h3><p>两者可以结合：</p>
 <pre class="line-numbers language-text" data-language="text"><code class="language-text">cache hit
    ↓
 return cached result
@@ -3253,21 +3253,21 @@ batch execute
 resolve all waiters<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
 <p>这是非常重要的高并发优化模式。</p>
 <hr>
-<h1 id="11-3-Canceling-asynchronous-operations"><a href="#11-3-Canceling-asynchronous-operations" class="headerlink" title="11.3 Canceling asynchronous operations"></a>11.3 Canceling asynchronous operations</h1><p>JavaScript 的传统 Promise 本身并不自动提供：</p>
+<h2 id="11-3-Canceling-asynchronous-operations"><a href="#11-3-Canceling-asynchronous-operations" class="headerlink" title="11.3 Canceling asynchronous operations"></a>11.3 Canceling asynchronous operations</h2><p>JavaScript 的传统 Promise 本身并不自动提供：</p>
 <pre class="line-numbers language-text" data-language="text"><code class="language-text">cancel Promise<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
 <p>因此需要额外设计 cancellation semantics。</p>
 <hr>
-<h2 id="A-basic-recipe-for-creating-cancelable-functions"><a href="#A-basic-recipe-for-creating-cancelable-functions" class="headerlink" title="A basic recipe for creating cancelable functions"></a>A basic recipe for creating cancelable functions</h2><p>核心：</p>
+<h3 id="A-basic-recipe-for-creating-cancelable-functions"><a href="#A-basic-recipe-for-creating-cancelable-functions" class="headerlink" title="A basic recipe for creating cancelable functions"></a>A basic recipe for creating cancelable functions</h3><p>核心：</p>
 <pre class="line-numbers language-text" data-language="text"><code class="language-text">operation
  +
 cancel()<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span></span></code></pre>
 <p>取消后：</p>
 <h2 id="-49"><a href="#-49" class="headerlink" title=""></a><pre class="line-numbers language-text" data-language="text"><code class="language-text">don't start further work
 ignore result
-cleanup resources<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span></span></code></pre></h2><h2 id="Wrapping-asynchronous-invocations"><a href="#Wrapping-asynchronous-invocations" class="headerlink" title="Wrapping asynchronous invocations"></a>Wrapping asynchronous invocations</h2><p>可以将普通 async function 包装成：</p>
+cleanup resources<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span></span></code></pre></h2><h3 id="Wrapping-asynchronous-invocations"><a href="#Wrapping-asynchronous-invocations" class="headerlink" title="Wrapping asynchronous invocations"></a>Wrapping asynchronous invocations</h3><p>可以将普通 async function 包装成：</p>
 <pre class="line-numbers language-text" data-language="text"><code class="language-text">Cancelable operation<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
 <p>维护：</p>
-<h2 id="-50"><a href="#-50" class="headerlink" title=""></a><pre class="line-numbers language-text" data-language="text"><code class="language-text">cancel state<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre></h2><h2 id="Cancelable-async-functions-with-generators"><a href="#Cancelable-async-functions-with-generators" class="headerlink" title="Cancelable async functions with generators"></a>Cancelable async functions with generators</h2><p>Generator 可以让 cancellation 更容易控制：</p>
+<h2 id="-50"><a href="#-50" class="headerlink" title=""></a><pre class="line-numbers language-text" data-language="text"><code class="language-text">cancel state<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre></h2><h3 id="Cancelable-async-functions-with-generators"><a href="#Cancelable-async-functions-with-generators" class="headerlink" title="Cancelable async functions with generators"></a>Cancelable async functions with generators</h3><p>Generator 可以让 cancellation 更容易控制：</p>
 <pre class="line-numbers language-text" data-language="text"><code class="language-text">yield async operation
         ↓
 resume
@@ -3275,7 +3275,7 @@ resume
 check cancellation<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span></span></code></pre>
 <p>因此可以在控制流层面实现取消。</p>
 <hr>
-<h1 id="11-4-Running-CPU-bound-tasks"><a href="#11-4-Running-CPU-bound-tasks" class="headerlink" title="11.4 Running CPU-bound tasks"></a>11.4 Running CPU-bound tasks</h1><p>这是理解 Node.js 性能边界最重要的部分之一。</p>
+<h2 id="11-4-Running-CPU-bound-tasks"><a href="#11-4-Running-CPU-bound-tasks" class="headerlink" title="11.4 Running CPU-bound tasks"></a>11.4 Running CPU-bound tasks</h2><p>这是理解 Node.js 性能边界最重要的部分之一。</p>
 <p>Node.js 擅长：</p>
 <pre class="line-numbers language-text" data-language="text"><code class="language-text">I/O-bound<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
 <p>不擅长直接在 event loop 上执行：</p>
@@ -3293,7 +3293,7 @@ check cancellation<span aria-hidden="true" class="line-numbers-rows"><span></spa
  ↓
 block event loop
  ↓
-所有请求都受影响<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span></span></code></pre></h2><h1 id="11-5-Interleaving-with-setImmediate"><a href="#11-5-Interleaving-with-setImmediate" class="headerlink" title="11.5 Interleaving with setImmediate"></a>11.5 Interleaving with setImmediate</h1><p>第一种方案：</p>
+所有请求都受影响<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span></span></code></pre></h2><h2 id="11-5-Interleaving-with-setImmediate"><a href="#11-5-Interleaving-with-setImmediate" class="headerlink" title="11.5 Interleaving with setImmediate"></a>11.5 Interleaving with setImmediate</h2><p>第一种方案：</p>
 <pre class="line-numbers language-text" data-language="text"><code class="language-text">CPU task
  ↓
 step 1
@@ -3319,12 +3319,12 @@ step 3<span aria-hidden="true" class="line-numbers-rows"><span></span><span></sp
 <li>单个 step 太重仍然会阻塞。</li>
 </ul>
 <hr>
-<h2 id="process-nextTick-vs-setImmediate"><a href="#process-nextTick-vs-setImmediate" class="headerlink" title="process.nextTick vs setImmediate"></a>process.nextTick vs setImmediate</h2><p>非常重要：</p>
+<h3 id="process-nextTick-vs-setImmediate"><a href="#process-nextTick-vs-setImmediate" class="headerlink" title="process.nextTick vs setImmediate"></a>process.nextTick vs setImmediate</h3><p>非常重要：</p>
 <blockquote>
 <p>不要使用 <code>process.nextTick()</code> 来实现这种长期 CPU task interleaving。</p>
 </blockquote>
 <p>因为 nextTick 会优先于正常 I/O 执行，递归 nextTick 可能造成：</p>
-<h2 id="-52"><a href="#-52" class="headerlink" title=""></a><pre class="line-numbers language-text" data-language="text"><code class="language-text">I/O starvation<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre></h2><h1 id="11-6-Using-external-processes"><a href="#11-6-Using-external-processes" class="headerlink" title="11.6 Using external processes"></a>11.6 Using external processes</h1><p>更可靠：</p>
+<h2 id="-52"><a href="#-52" class="headerlink" title=""></a><pre class="line-numbers language-text" data-language="text"><code class="language-text">I/O starvation<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre></h2><h2 id="11-6-Using-external-processes"><a href="#11-6-Using-external-processes" class="headerlink" title="11.6 Using external processes"></a>11.6 Using external processes</h2><p>更可靠：</p>
 <pre class="line-numbers language-text" data-language="text"><code class="language-text">Main process
       ↓
 Child process
@@ -3342,7 +3342,7 @@ CPU task<span aria-hidden="true" class="line-numbers-rows"><span></span><span></
 <p>重 CPU、运行时间长的任务。</p>
 </blockquote>
 <hr>
-<h2 id="Process-pool"><a href="#Process-pool" class="headerlink" title="Process pool"></a>Process pool</h2><p>不要：</p>
+<h3 id="Process-pool"><a href="#Process-pool" class="headerlink" title="Process pool"></a>Process pool</h3><p>不要：</p>
 <pre class="line-numbers language-text" data-language="text"><code class="language-text">每个请求
  ↓
 new process<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span></span></code></pre>
@@ -3357,7 +3357,7 @@ new process<span aria-hidden="true" class="line-numbers-rows"><span></span><span
 <p>限制 worker 数量也可以防止过度资源消耗甚至 DoS 风险。</p>
 </blockquote>
 <hr>
-<h1 id="11-7-Using-worker-threads"><a href="#11-7-Using-worker-threads" class="headerlink" title="11.7 Using worker threads"></a>11.7 Using worker threads</h1><p>Worker Threads：</p>
+<h2 id="11-7-Using-worker-threads"><a href="#11-7-Using-worker-threads" class="headerlink" title="11.7 Using worker threads"></a>11.7 Using worker threads</h2><p>Worker Threads：</p>
 <pre class="line-numbers language-text" data-language="text"><code class="language-text">Main Thread
       ↓
 Worker Thread<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span></span></code></pre>
@@ -3377,7 +3377,7 @@ Worker Thread<span aria-hidden="true" class="line-numbers-rows"><span></span><sp
 </ul>
 <p>等复杂度。</p>
 <hr>
-<h1 id="11-8-Running-CPU-bound-tasks-in-production"><a href="#11-8-Running-CPU-bound-tasks-in-production" class="headerlink" title="11.8 Running CPU-bound tasks in production"></a>11.8 Running CPU-bound tasks in production</h1><p>选择顺序可以理解为：</p>
+<h2 id="11-8-Running-CPU-bound-tasks-in-production"><a href="#11-8-Running-CPU-bound-tasks-in-production" class="headerlink" title="11.8 Running CPU-bound tasks in production"></a>11.8 Running CPU-bound tasks in production</h2><p>选择顺序可以理解为：</p>
 <pre class="line-numbers language-text" data-language="text"><code class="language-text">任务很短
 → setImmediate interleaving
 
@@ -3408,7 +3408,7 @@ Worker Thread<span aria-hidden="true" class="line-numbers-rows"><span></span><sp
 <h2 id="-53"><a href="#-53" class="headerlink" title=""></a><pre class="line-numbers language-text" data-language="text"><code class="language-text">complexity ↑
 team size ↑
 failure tolerance ↑
-availability ↑<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span></span></code></pre></h2><h1 id="12-2-Scaling-Node-js-applications"><a href="#12-2-Scaling-Node-js-applications" class="headerlink" title="12.2 Scaling Node.js applications"></a>12.2 Scaling Node.js applications</h1><p>Node.js 单线程模型非常适合 I/O-bound。</p>
+availability ↑<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span></span></code></pre></h2><h2 id="12-2-Scaling-Node-js-applications"><a href="#12-2-Scaling-Node-js-applications" class="headerlink" title="12.2 Scaling Node.js applications"></a>12.2 Scaling Node.js applications</h2><p>Node.js 单线程模型非常适合 I/O-bound。</p>
 <p>但单个 JavaScript thread：</p>
 <blockquote>
 <p>最终仍有容量上限。</p>
@@ -3418,7 +3418,7 @@ availability ↑<span aria-hidden="true" class="line-numbers-rows"><span></span>
  ↓
 multiple processes
  ↓
-multiple machines<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span></span></code></pre></h2><h1 id="12-3-The-three-dimensions-of-scalability"><a href="#12-3-The-three-dimensions-of-scalability" class="headerlink" title="12.3 The three dimensions of scalability"></a>12.3 The three dimensions of scalability</h1><p>Scale Cube：</p>
+multiple machines<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span></span></code></pre></h2><h2 id="12-3-The-three-dimensions-of-scalability"><a href="#12-3-The-three-dimensions-of-scalability" class="headerlink" title="12.3 The three dimensions of scalability"></a>12.3 The three dimensions of scalability</h2><p>Scale Cube：</p>
 <h3 id="X-axis"><a href="#X-axis" class="headerlink" title="X-axis"></a>X-axis</h3><p>复制相同实例：</p>
 <pre class="line-numbers language-text" data-language="text"><code class="language-text">A
 A
@@ -3443,7 +3443,7 @@ Shard C<span aria-hidden="true" class="line-numbers-rows"><span></span><span></s
 </blockquote>
 <p>本书重点深入 X 和 Y。</p>
 <hr>
-<h1 id="12-4-Cloning-and-load-balancing"><a href="#12-4-Cloning-and-load-balancing" class="headerlink" title="12.4 Cloning and load balancing"></a>12.4 Cloning and load balancing</h1><p>最简单的扩展方式：</p>
+<h2 id="12-4-Cloning-and-load-balancing"><a href="#12-4-Cloning-and-load-balancing" class="headerlink" title="12.4 Cloning and load balancing"></a>12.4 Cloning and load balancing</h2><p>最简单的扩展方式：</p>
 <pre class="line-numbers language-text" data-language="text"><code class="language-text">Load Balancer
  ├─ Node A
  ├─ Node B
@@ -3455,13 +3455,13 @@ Shard C<span aria-hidden="true" class="line-numbers-rows"><span></span><span></s
 <li>容易横向扩展。</li>
 </ul>
 <hr>
-<h1 id="12-5-Cluster-module"><a href="#12-5-Cluster-module" class="headerlink" title="12.5 Cluster module"></a>12.5 Cluster module</h1><p>Node.js <code>cluster</code> 可以：</p>
+<h2 id="12-5-Cluster-module"><a href="#12-5-Cluster-module" class="headerlink" title="12.5 Cluster module"></a>12.5 Cluster module</h2><p>Node.js <code>cluster</code> 可以：</p>
 <pre class="line-numbers language-text" data-language="text"><code class="language-text">Master/Primary
        ↓
 Worker processes<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span></span></code></pre>
 <p>使多个 process 使用同一台机器的多个 CPU core。</p>
 <hr>
-<h2 id="Notes-on-cluster"><a href="#Notes-on-cluster" class="headerlink" title="Notes on cluster"></a>Notes on cluster</h2><p>cluster 的本质不是：</p>
+<h3 id="Notes-on-cluster"><a href="#Notes-on-cluster" class="headerlink" title="Notes on cluster"></a>Notes on cluster</h3><p>cluster 的本质不是：</p>
 <blockquote>
 <p>把一个 JS thread 变成 multi-thread。</p>
 </blockquote>
@@ -3476,14 +3476,14 @@ Worker processes<span aria-hidden="true" class="line-numbers-rows"><span></span>
 <li>有自己的 module cache。</li>
 </ul>
 <hr>
-<h1 id="12-6-Resiliency-and-availability"><a href="#12-6-Resiliency-and-availability" class="headerlink" title="12.6 Resiliency and availability"></a>12.6 Resiliency and availability</h1><p>多个 instance 不只是为了吞吐量。</p>
+<h2 id="12-6-Resiliency-and-availability"><a href="#12-6-Resiliency-and-availability" class="headerlink" title="12.6 Resiliency and availability"></a>12.6 Resiliency and availability</h2><p>多个 instance 不只是为了吞吐量。</p>
 <p>还可以：</p>
 <pre class="line-numbers language-text" data-language="text"><code class="language-text">Worker A crash
      ↓
 Worker B/C continue<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span></span></code></pre>
 <p>提高 availability。</p>
 <hr>
-<h1 id="12-7-Zero-downtime-restart"><a href="#12-7-Zero-downtime-restart" class="headerlink" title="12.7 Zero-downtime restart"></a>12.7 Zero-downtime restart</h1><p>部署：</p>
+<h2 id="12-7-Zero-downtime-restart"><a href="#12-7-Zero-downtime-restart" class="headerlink" title="12.7 Zero-downtime restart"></a>12.7 Zero-downtime restart</h2><p>部署：</p>
 <pre class="line-numbers language-text" data-language="text"><code class="language-text">Old workers
      ↓
 New workers ready
@@ -3496,7 +3496,7 @@ old workers exit<span aria-hidden="true" class="line-numbers-rows"><span></span>
 <p>deployment 不应导致用户可见 downtime。</p>
 </blockquote>
 <hr>
-<h1 id="12-8-Dealing-with-stateful-communications"><a href="#12-8-Dealing-with-stateful-communications" class="headerlink" title="12.8 Dealing with stateful communications"></a>12.8 Dealing with stateful communications</h1><p>多实例以后出现重要问题：</p>
+<h2 id="12-8-Dealing-with-stateful-communications"><a href="#12-8-Dealing-with-stateful-communications" class="headerlink" title="12.8 Dealing with stateful communications"></a>12.8 Dealing with stateful communications</h2><p>多实例以后出现重要问题：</p>
 <pre class="line-numbers language-text" data-language="text"><code class="language-text">Request 1 → Server A
 Request 2 → Server B<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre>
 <p>如果 session 在 A：</p>
@@ -3512,7 +3512,7 @@ Request 2 → Server B<span aria-hidden="true" class="line-numbers-rows"><span><
 <pre class="line-numbers language-text" data-language="text"><code class="language-text">client → same worker<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
 <p>简单但降低负载均衡灵活性。</p>
 <hr>
-<h1 id="12-9-Scaling-with-a-reverse-proxy"><a href="#12-9-Scaling-with-a-reverse-proxy" class="headerlink" title="12.9 Scaling with a reverse proxy"></a>12.9 Scaling with a reverse proxy</h1><pre class="line-numbers language-text" data-language="text"><code class="language-text">Client
+<h2 id="12-9-Scaling-with-a-reverse-proxy"><a href="#12-9-Scaling-with-a-reverse-proxy" class="headerlink" title="12.9 Scaling with a reverse proxy"></a>12.9 Scaling with a reverse proxy</h2><pre class="line-numbers language-text" data-language="text"><code class="language-text">Client
  ↓
 Reverse Proxy
  ↓
@@ -3526,11 +3526,11 @@ Node instances<span aria-hidden="true" class="line-numbers-rows"><span></span><s
 <li>health checks。</li>
 </ul>
 <hr>
-<h2 id="Load-balancing-with-Nginx"><a href="#Load-balancing-with-Nginx" class="headerlink" title="Load balancing with Nginx"></a>Load balancing with Nginx</h2><p>Nginx 是典型：</p>
+<h3 id="Load-balancing-with-Nginx"><a href="#Load-balancing-with-Nginx" class="headerlink" title="Load balancing with Nginx"></a>Load balancing with Nginx</h3><p>Nginx 是典型：</p>
 <h2 id="-55"><a href="#-55" class="headerlink" title=""></a><pre class="line-numbers language-text" data-language="text"><code class="language-text">Nginx
  ├─ Node 1
  ├─ Node 2
- └─ Node 3<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span></span></code></pre></h2><h1 id="12-10-Dynamic-horizontal-scaling"><a href="#12-10-Dynamic-horizontal-scaling" class="headerlink" title="12.10 Dynamic horizontal scaling"></a>12.10 Dynamic horizontal scaling</h1><p>静态配置：</p>
+ └─ Node 3<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span></span></code></pre></h2><h2 id="12-10-Dynamic-horizontal-scaling"><a href="#12-10-Dynamic-horizontal-scaling" class="headerlink" title="12.10 Dynamic horizontal scaling"></a>12.10 Dynamic horizontal scaling</h2><p>静态配置：</p>
 <pre class="line-numbers language-text" data-language="text"><code class="language-text">server1
 server2
 server3<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span></span></code></pre>
@@ -3540,7 +3540,7 @@ server3<span aria-hidden="true" class="line-numbers-rows"><span></span><span></s
 traffic distribution update<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span></span></code></pre>
 <p>因此需要 service discovery。</p>
 <hr>
-<h1 id="12-11-Service-registry"><a href="#12-11-Service-registry" class="headerlink" title="12.11 Service registry"></a>12.11 Service registry</h1><p>Registry：</p>
+<h2 id="12-11-Service-registry"><a href="#12-11-Service-registry" class="headerlink" title="12.11 Service registry"></a>12.11 Service registry</h2><p>Registry：</p>
 <pre class="line-numbers language-text" data-language="text"><code class="language-text">Service
  ↓
 register
@@ -3559,7 +3559,7 @@ Client/Load Balancer<span aria-hidden="true" class="line-numbers-rows"><span></s
 <li>ephemeral services。</li>
 </ul>
 <hr>
-<h1 id="12-12-Peer-to-peer-load-balancing"><a href="#12-12-Peer-to-peer-load-balancing" class="headerlink" title="12.12 Peer-to-peer load balancing"></a>12.12 Peer-to-peer load balancing</h1><p>不一定必须：</p>
+<h2 id="12-12-Peer-to-peer-load-balancing"><a href="#12-12-Peer-to-peer-load-balancing" class="headerlink" title="12.12 Peer-to-peer load balancing"></a>12.12 Peer-to-peer load balancing</h2><p>不一定必须：</p>
 <pre class="line-numbers language-text" data-language="text"><code class="language-text">Central LB<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
 <p>也可以：</p>
 <pre class="line-numbers language-text" data-language="text"><code class="language-text">Node A ↔ Node B ↔ Node C<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
@@ -3578,7 +3578,7 @@ Client/Load Balancer<span aria-hidden="true" class="line-numbers-rows"><span></s
 </ul>
 <p>更复杂。</p>
 <hr>
-<h1 id="12-13-Scaling-applications-using-containers"><a href="#12-13-Scaling-applications-using-containers" class="headerlink" title="12.13 Scaling applications using containers"></a>12.13 Scaling applications using containers</h1><p>Container：</p>
+<h2 id="12-13-Scaling-applications-using-containers"><a href="#12-13-Scaling-applications-using-containers" class="headerlink" title="12.13 Scaling applications using containers"></a>12.13 Scaling applications using containers</h2><p>Container：</p>
 <blockquote>
 <p>将应用及其运行环境打包成可部署单元。</p>
 </blockquote>
@@ -3591,7 +3591,7 @@ Client/Load Balancer<span aria-hidden="true" class="line-numbers-rows"><span></s
 <li>deployment。</li>
 </ul>
 <hr>
-<h1 id="12-14-Docker"><a href="#12-14-Docker" class="headerlink" title="12.14 Docker"></a>12.14 Docker</h1><p>Docker 的核心思想：</p>
+<h2 id="12-14-Docker"><a href="#12-14-Docker" class="headerlink" title="12.14 Docker"></a>12.14 Docker</h2><p>Docker 的核心思想：</p>
 <pre class="line-numbers language-text" data-language="text"><code class="language-text">Image
  ↓
 Container<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span></span></code></pre>
@@ -3604,7 +3604,7 @@ Container<span aria-hidden="true" class="line-numbers-rows"><span></span><span><
 </ul>
 <p>打包。</p>
 <hr>
-<h1 id="12-15-Kubernetes"><a href="#12-15-Kubernetes" class="headerlink" title="12.15 Kubernetes"></a>12.15 Kubernetes</h1><p>Kubernetes 是 container orchestration platform。</p>
+<h2 id="12-15-Kubernetes"><a href="#12-15-Kubernetes" class="headerlink" title="12.15 Kubernetes"></a>12.15 Kubernetes</h2><p>Kubernetes 是 container orchestration platform。</p>
 <p>它解决：</p>
 <ul>
 <li>deployment；</li>
@@ -3620,12 +3620,12 @@ Container<span aria-hidden="true" class="line-numbers-rows"><span></span><span><
 <p><strong>声明最终状态，而不是手工描述每一步操作。</strong></p>
 </blockquote>
 <hr>
-<h1 id="12-16-Decomposing-complex-applications"><a href="#12-16-Decomposing-complex-applications" class="headerlink" title="12.16 Decomposing complex applications"></a>12.16 Decomposing complex applications</h1><p>复杂系统可以：</p>
+<h2 id="12-16-Decomposing-complex-applications"><a href="#12-16-Decomposing-complex-applications" class="headerlink" title="12.16 Decomposing complex applications"></a>12.16 Decomposing complex applications</h2><p>复杂系统可以：</p>
 <h2 id="-56"><a href="#-56" class="headerlink" title=""></a><pre class="line-numbers language-text" data-language="text"><code class="language-text">Monolith
  ↓
 Decompose
  ↓
-Services<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span></span></code></pre></h2><h2 id="Monolithic-architecture"><a href="#Monolithic-architecture" class="headerlink" title="Monolithic architecture"></a>Monolithic architecture</h2><p>所有能力：</p>
+Services<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span></span></code></pre></h2><h3 id="Monolithic-architecture"><a href="#Monolithic-architecture" class="headerlink" title="Monolithic architecture"></a>Monolithic architecture</h3><p>所有能力：</p>
 <pre class="line-numbers language-text" data-language="text"><code class="language-text">one deployment
 one application<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre>
 <p>优点：</p>
@@ -3642,7 +3642,7 @@ one application<span aria-hidden="true" class="line-numbers-rows"><span></span><
 <li>team coupling。</li>
 </ul>
 <hr>
-<h1 id="12-17-Microservice-architecture"><a href="#12-17-Microservice-architecture" class="headerlink" title="12.17 Microservice architecture"></a>12.17 Microservice architecture</h1><p>按业务能力拆：</p>
+<h2 id="12-17-Microservice-architecture"><a href="#12-17-Microservice-architecture" class="headerlink" title="12.17 Microservice architecture"></a>12.17 Microservice architecture</h2><p>按业务能力拆：</p>
 <pre class="line-numbers language-text" data-language="text"><code class="language-text">Auth
 Orders
 Payments
@@ -3651,14 +3651,14 @@ Inventory<span aria-hidden="true" class="line-numbers-rows"><span></span><span><
 <h3 id="High-cohesion"><a href="#High-cohesion" class="headerlink" title="High cohesion"></a>High cohesion</h3><p>一个 service 内的功能高度相关。</p>
 <h3 id="Loose-coupling"><a href="#Loose-coupling" class="headerlink" title="Loose coupling"></a>Loose coupling</h3><p>service 之间尽量减少依赖。</p>
 <hr>
-<h2 id="Microservices-advantages"><a href="#Microservices-advantages" class="headerlink" title="Microservices advantages"></a>Microservices advantages</h2><ul>
+<h3 id="Microservices-advantages"><a href="#Microservices-advantages" class="headerlink" title="Microservices advantages"></a>Microservices advantages</h3><ul>
 <li>独立部署；</li>
 <li>独立扩展；</li>
 <li>团队自治；</li>
 <li>故障隔离；</li>
 <li>技术独立。</li>
 </ul>
-<h2 id="Disadvantages"><a href="#Disadvantages" class="headerlink" title="Disadvantages"></a>Disadvantages</h2><p>最大的代价：</p>
+<h3 id="Disadvantages"><a href="#Disadvantages" class="headerlink" title="Disadvantages"></a>Disadvantages</h3><p>最大的代价：</p>
 <blockquote>
 <p><strong>把代码复杂度变成了 distributed systems complexity。</strong></p>
 </blockquote>
@@ -3674,7 +3674,7 @@ Inventory<span aria-hidden="true" class="line-numbers-rows"><span></span><span><
 <li>integration complexity。</li>
 </ul>
 <hr>
-<h1 id="12-18-Integration-patterns"><a href="#12-18-Integration-patterns" class="headerlink" title="12.18 Integration patterns"></a>12.18 Integration patterns</h1><h2 id="API-proxy"><a href="#API-proxy" class="headerlink" title="API proxy"></a>API proxy</h2><pre class="line-numbers language-text" data-language="text"><code class="language-text">Client
+<h2 id="12-18-Integration-patterns"><a href="#12-18-Integration-patterns" class="headerlink" title="12.18 Integration patterns"></a>12.18 Integration patterns</h2><h3 id="API-proxy"><a href="#API-proxy" class="headerlink" title="API proxy"></a>API proxy</h3><pre class="line-numbers language-text" data-language="text"><code class="language-text">Client
  ↓
 API Proxy
  ↓
@@ -3687,7 +3687,7 @@ Services<span aria-hidden="true" class="line-numbers-rows"><span></span><span></
 <li>aggregation。</li>
 </ul>
 <hr>
-<h2 id="API-orchestration"><a href="#API-orchestration" class="headerlink" title="API orchestration"></a>API orchestration</h2><p>由一个 orchestrator：</p>
+<h3 id="API-orchestration"><a href="#API-orchestration" class="headerlink" title="API orchestration"></a>API orchestration</h3><p>由一个 orchestrator：</p>
 <pre class="line-numbers language-text" data-language="text"><code class="language-text">Request
  ↓
 Service A
@@ -3699,7 +3699,7 @@ Service C
 Aggregate result<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
 <p>适合复杂业务流程。</p>
 <hr>
-<h2 id="Integration-with-a-message-broker"><a href="#Integration-with-a-message-broker" class="headerlink" title="Integration with a message broker"></a>Integration with a message broker</h2><pre class="line-numbers language-text" data-language="text"><code class="language-text">Service A
+<h3 id="Integration-with-a-message-broker"><a href="#Integration-with-a-message-broker" class="headerlink" title="Integration with a message broker"></a>Integration with a message broker</h3><pre class="line-numbers language-text" data-language="text"><code class="language-text">Service A
   ↓
 Broker
   ↓
@@ -3729,7 +3729,7 @@ Service B<span aria-hidden="true" class="line-numbers-rows"><span></span><span><
 Task Distribution
 Request/Reply<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span></span></code></pre>
 <p>并分别讨论 peer-to-peer 与 broker-based 实现。</p>
-<h1 id="13-1-Fundamentals-of-a-messaging-system"><a href="#13-1-Fundamentals-of-a-messaging-system" class="headerlink" title="13.1 Fundamentals of a messaging system"></a>13.1 Fundamentals of a messaging system</h1><p>设计 messaging system 时首先回答四个问题：</p>
+<h2 id="13-1-Fundamentals-of-a-messaging-system"><a href="#13-1-Fundamentals-of-a-messaging-system" class="headerlink" title="13.1 Fundamentals of a messaging system"></a>13.1 Fundamentals of a messaging system</h2><p>设计 messaging system 时首先回答四个问题：</p>
 <h3 id="1-Direction"><a href="#1-Direction" class="headerlink" title="1. Direction"></a>1. Direction</h3><pre class="line-numbers language-text" data-language="text"><code class="language-text">One-way
 Request/Reply<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre>
 <h3 id="2-Purpose"><a href="#2-Purpose" class="headerlink" title="2. Purpose"></a>2. Purpose</h3><p>消息是什么：</p>
@@ -3742,7 +3742,7 @@ Asynchronous<span aria-hidden="true" class="line-numbers-rows"><span></span><spa
 Broker<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre>
 <p>这四个维度基本构成后续所有 Messaging Pattern 的坐标系。</p>
 <hr>
-<h1 id="13-2-One-way-versus-request-reply"><a href="#13-2-One-way-versus-request-reply" class="headerlink" title="13.2 One way versus request/reply"></a>13.2 One way versus request/reply</h1><h2 id="One-way"><a href="#One-way" class="headerlink" title="One-way"></a>One-way</h2><pre class="line-numbers language-text" data-language="text"><code class="language-text">A → B<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<h2 id="13-2-One-way-versus-request-reply"><a href="#13-2-One-way-versus-request-reply" class="headerlink" title="13.2 One way versus request/reply"></a>13.2 One way versus request/reply</h2><h3 id="One-way"><a href="#One-way" class="headerlink" title="One-way"></a>One-way</h3><pre class="line-numbers language-text" data-language="text"><code class="language-text">A → B<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
 <p>A 不等待返回。</p>
 <p>适合：</p>
 <ul>
@@ -3750,7 +3750,7 @@ Broker<span aria-hidden="true" class="line-numbers-rows"><span></span><span></sp
 <li>command；</li>
 <li>fire-and-forget。</li>
 </ul>
-<h2 id="Request-Reply"><a href="#Request-Reply" class="headerlink" title="Request/Reply"></a>Request/Reply</h2><pre class="line-numbers language-text" data-language="text"><code class="language-text">A → Request → B
+<h3 id="Request-Reply"><a href="#Request-Reply" class="headerlink" title="Request/Reply"></a>Request/Reply</h3><pre class="line-numbers language-text" data-language="text"><code class="language-text">A → Request → B
 A ← Reply ← B<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre>
 <p>适合：</p>
 <ul>
@@ -3759,7 +3759,7 @@ A ← Reply ← B<span aria-hidden="true" class="line-numbers-rows"><span></span
 <li>command with result。</li>
 </ul>
 <hr>
-<h1 id="13-3-Message-types"><a href="#13-3-Message-types" class="headerlink" title="13.3 Message types"></a>13.3 Message types</h1><h2 id="Command-Messages"><a href="#Command-Messages" class="headerlink" title="Command Messages"></a>Command Messages</h2><p>表达：</p>
+<h2 id="13-3-Message-types"><a href="#13-3-Message-types" class="headerlink" title="13.3 Message types"></a>13.3 Message types</h2><h3 id="Command-Messages"><a href="#Command-Messages" class="headerlink" title="Command Messages"></a>Command Messages</h3><p>表达：</p>
 <blockquote>
 <p>请执行某件事。</p>
 </blockquote>
@@ -3772,7 +3772,7 @@ ProcessPayment<span aria-hidden="true" class="line-numbers-rows"><span></span><s
 <p><strong>动作。</strong></p>
 </blockquote>
 <hr>
-<h2 id="Event-Messages"><a href="#Event-Messages" class="headerlink" title="Event Messages"></a>Event Messages</h2><p>表达：</p>
+<h3 id="Event-Messages"><a href="#Event-Messages" class="headerlink" title="Event Messages"></a>Event Messages</h3><p>表达：</p>
 <blockquote>
 <p>某件事已经发生。</p>
 </blockquote>
@@ -3786,7 +3786,7 @@ PlayerLevelUp<span aria-hidden="true" class="line-numbers-rows"><span></span><sp
 </blockquote>
 <p>因此天然适合解耦。</p>
 <hr>
-<h2 id="Document-Messages"><a href="#Document-Messages" class="headerlink" title="Document Messages"></a>Document Messages</h2><p>携带：</p>
+<h3 id="Document-Messages"><a href="#Document-Messages" class="headerlink" title="Document Messages"></a>Document Messages</h3><p>携带：</p>
 <blockquote>
 <p>一份完整的数据描述。</p>
 </blockquote>
@@ -3801,7 +3801,7 @@ PlayerLevelUp<span aria-hidden="true" class="line-numbers-rows"><span></span><sp
 <p><strong>描述当前状态/数据。</strong></p>
 </blockquote>
 <hr>
-<h1 id="13-4-Asynchronous-messaging-queues-and-streams"><a href="#13-4-Asynchronous-messaging-queues-and-streams" class="headerlink" title="13.4 Asynchronous messaging, queues, and streams"></a>13.4 Asynchronous messaging, queues, and streams</h1><p>异步 messaging 的价值：</p>
+<h2 id="13-4-Asynchronous-messaging-queues-and-streams"><a href="#13-4-Asynchronous-messaging-queues-and-streams" class="headerlink" title="13.4 Asynchronous messaging, queues, and streams"></a>13.4 Asynchronous messaging, queues, and streams</h2><p>异步 messaging 的价值：</p>
 <pre class="line-numbers language-text" data-language="text"><code class="language-text">Producer
    ↓
 queue/buffer
@@ -3809,7 +3809,7 @@ queue/buffer
 Consumer<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span></span></code></pre>
 <p>Producer 与 Consumer 不需要同时在线。</p>
 <hr>
-<h1 id="13-5-Peer-to-peer-or-broker-based-messaging"><a href="#13-5-Peer-to-peer-or-broker-based-messaging" class="headerlink" title="13.5 Peer-to-peer or broker-based messaging"></a>13.5 Peer-to-peer or broker-based messaging</h1><h2 id="Peer-to-peer"><a href="#Peer-to-peer" class="headerlink" title="Peer-to-peer"></a>Peer-to-peer</h2><pre class="line-numbers language-text" data-language="text"><code class="language-text">A ↔ B<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<h2 id="13-5-Peer-to-peer-or-broker-based-messaging"><a href="#13-5-Peer-to-peer-or-broker-based-messaging" class="headerlink" title="13.5 Peer-to-peer or broker-based messaging"></a>13.5 Peer-to-peer or broker-based messaging</h2><h3 id="Peer-to-peer"><a href="#Peer-to-peer" class="headerlink" title="Peer-to-peer"></a>Peer-to-peer</h3><pre class="line-numbers language-text" data-language="text"><code class="language-text">A ↔ B<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
 <p>优点：</p>
 <ul>
 <li>少一个中心组件；</li>
@@ -3825,7 +3825,7 @@ Consumer<span aria-hidden="true" class="line-numbers-rows"><span></span><span></
 </ul>
 <p>都由自己负责。</p>
 <hr>
-<h2 id="Broker-based"><a href="#Broker-based" class="headerlink" title="Broker-based"></a>Broker-based</h2><pre class="line-numbers language-text" data-language="text"><code class="language-text">A → Broker → B<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
+<h3 id="Broker-based"><a href="#Broker-based" class="headerlink" title="Broker-based"></a>Broker-based</h3><pre class="line-numbers language-text" data-language="text"><code class="language-text">A → Broker → B<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
 <p>Broker 可以提供：</p>
 <ul>
 <li>buffering；</li>
@@ -3840,7 +3840,7 @@ Consumer<span aria-hidden="true" class="line-numbers-rows"><span></span><span></
 <p>增加了一个必须维护和扩展的基础设施。</p>
 </blockquote>
 <hr>
-<h1 id="13-6-Publish-Subscribe"><a href="#13-6-Publish-Subscribe" class="headerlink" title="13.6 Publish/Subscribe"></a>13.6 Publish/Subscribe</h1><p>Pub/Sub：</p>
+<h2 id="13-6-Publish-Subscribe"><a href="#13-6-Publish-Subscribe" class="headerlink" title="13.6 Publish/Subscribe"></a>13.6 Publish/Subscribe</h2><p>Pub/Sub：</p>
 <pre class="line-numbers language-text" data-language="text"><code class="language-text">Publisher
     ↓
  Topic
@@ -3855,7 +3855,7 @@ S1 S2 S3<span aria-hidden="true" class="line-numbers-rows"><span></span><span></
 <li>realtime updates。</li>
 </ul>
 <hr>
-<h1 id="13-7-Redis-as-a-message-broker"><a href="#13-7-Redis-as-a-message-broker" class="headerlink" title="13.7 Redis as a message broker"></a>13.7 Redis as a message broker</h1><p>Redis Pub/Sub 可以非常简单地：</p>
+<h2 id="13-7-Redis-as-a-message-broker"><a href="#13-7-Redis-as-a-message-broker" class="headerlink" title="13.7 Redis as a message broker"></a>13.7 Redis as a message broker</h2><p>Redis Pub/Sub 可以非常简单地：</p>
 <pre class="line-numbers language-text" data-language="text"><code class="language-text">publish(topic, message)
 subscribe(topic)<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span></span></code></pre>
 <p>优点：</p>
@@ -3866,7 +3866,7 @@ subscribe(topic)<span aria-hidden="true" class="line-numbers-rows"><span></span>
 </ul>
 <p>但传统 Redis Pub/Sub 本身并不提供完整的 durable delivery guarantee。</p>
 <hr>
-<h1 id="13-8-Peer-to-peer-Publish-Subscribe-with-ZeroMQ"><a href="#13-8-Peer-to-peer-Publish-Subscribe-with-ZeroMQ" class="headerlink" title="13.8 Peer-to-peer Publish/Subscribe with ZeroMQ"></a>13.8 Peer-to-peer Publish/Subscribe with ZeroMQ</h1><p>ZeroMQ 提供：</p>
+<h2 id="13-8-Peer-to-peer-Publish-Subscribe-with-ZeroMQ"><a href="#13-8-Peer-to-peer-Publish-Subscribe-with-ZeroMQ" class="headerlink" title="13.8 Peer-to-peer Publish/Subscribe with ZeroMQ"></a>13.8 Peer-to-peer Publish/Subscribe with ZeroMQ</h2><p>ZeroMQ 提供：</p>
 <ul>
 <li>PUB；</li>
 <li>SUB；</li>
@@ -3878,7 +3878,7 @@ subscribe(topic)<span aria-hidden="true" class="line-numbers-rows"><span></span>
 </blockquote>
 <p>因此灵活，但需要自己承担更多架构职责。</p>
 <hr>
-<h1 id="13-9-Reliable-message-delivery-with-queues"><a href="#13-9-Reliable-message-delivery-with-queues" class="headerlink" title="13.9 Reliable message delivery with queues"></a>13.9 Reliable message delivery with queues</h1><p>Queue：</p>
+<h2 id="13-9-Reliable-message-delivery-with-queues"><a href="#13-9-Reliable-message-delivery-with-queues" class="headerlink" title="13.9 Reliable message delivery with queues"></a>13.9 Reliable message delivery with queues</h2><p>Queue：</p>
 <pre class="line-numbers language-text" data-language="text"><code class="language-text">Producer
  ↓
 Queue
@@ -3888,7 +3888,7 @@ Consumer<span aria-hidden="true" class="line-numbers-rows"><span></span><span></
 <pre class="line-numbers language-text" data-language="text"><code class="language-text">message remains queued<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
 <p>因此能实现可靠交付。</p>
 <hr>
-<h1 id="13-10-AMQP-RabbitMQ"><a href="#13-10-AMQP-RabbitMQ" class="headerlink" title="13.10 AMQP / RabbitMQ"></a>13.10 AMQP / RabbitMQ</h1><p>AMQP 提供更完整的 messaging abstraction：</p>
+<h2 id="13-10-AMQP-RabbitMQ"><a href="#13-10-AMQP-RabbitMQ" class="headerlink" title="13.10 AMQP / RabbitMQ"></a>13.10 AMQP / RabbitMQ</h2><p>AMQP 提供更完整的 messaging abstraction：</p>
 <ul>
 <li>exchanges；</li>
 <li>queues；</li>
@@ -3899,7 +3899,7 @@ Consumer<span aria-hidden="true" class="line-numbers-rows"><span></span><span></
 </ul>
 <p>RabbitMQ 是典型实现。</p>
 <hr>
-<h2 id="Durable-subscribers"><a href="#Durable-subscribers" class="headerlink" title="Durable subscribers"></a>Durable subscribers</h2><p>重要思想：</p>
+<h3 id="Durable-subscribers"><a href="#Durable-subscribers" class="headerlink" title="Durable subscribers"></a>Durable subscribers</h3><p>重要思想：</p>
 <blockquote>
 <p>Consumer 不在线时，消息仍可以留在 durable queue。</p>
 </blockquote>
@@ -3910,7 +3910,7 @@ messages accumulate
    ↓
 Consumer restarts
    ↓
-messages continue<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre></h2><h1 id="13-11-Reliable-messaging-with-streams"><a href="#13-11-Reliable-messaging-with-streams" class="headerlink" title="13.11 Reliable messaging with streams"></a>13.11 Reliable messaging with streams</h1><p>Stream 与 queue 不同。</p>
+messages continue<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre></h2><h2 id="13-11-Reliable-messaging-with-streams"><a href="#13-11-Reliable-messaging-with-streams" class="headerlink" title="13.11 Reliable messaging with streams"></a>13.11 Reliable messaging with streams</h2><p>Stream 与 queue 不同。</p>
 <p>Stream 更接近：</p>
 <pre class="line-numbers language-text" data-language="text"><code class="language-text">append-only log<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
 <p>消息有：</p>
@@ -3923,7 +3923,7 @@ messages continue<span aria-hidden="true" class="line-numbers-rows"><span></span
 <li>independent positions。</li>
 </ul>
 <hr>
-<h1 id="13-12-Streams-versus-message-queues"><a href="#13-12-Streams-versus-message-queues" class="headerlink" title="13.12 Streams versus message queues"></a>13.12 Streams versus message queues</h1><p>Queue：</p>
+<h2 id="13-12-Streams-versus-message-queues"><a href="#13-12-Streams-versus-message-queues" class="headerlink" title="13.12 Streams versus message queues"></a>13.12 Streams versus message queues</h2><p>Queue：</p>
 <pre class="line-numbers language-text" data-language="text"><code class="language-text">message
  ↓
 consumer
@@ -3942,7 +3942,7 @@ consumer C reads<span aria-hidden="true" class="line-numbers-rows"><span></span>
 <p>Queue 更强调 task delivery；Stream 更强调 durable ordered history。</p>
 </blockquote>
 <hr>
-<h1 id="13-13-Redis-Streams"><a href="#13-13-Redis-Streams" class="headerlink" title="13.13 Redis Streams"></a>13.13 Redis Streams</h1><p>Redis Streams 可以用于：</p>
+<h2 id="13-13-Redis-Streams"><a href="#13-13-Redis-Streams" class="headerlink" title="13.13 Redis Streams"></a>13.13 Redis Streams</h2><p>Redis Streams 可以用于：</p>
 <ul>
 <li>persistent messages；</li>
 <li>history；</li>
@@ -3950,12 +3950,12 @@ consumer C reads<span aria-hidden="true" class="line-numbers-rows"><span></span>
 <li>task distribution。</li>
 </ul>
 <hr>
-<h1 id="13-14-Task-distribution-patterns"><a href="#13-14-Task-distribution-patterns" class="headerlink" title="13.14 Task distribution patterns"></a>13.14 Task distribution patterns</h1><p>目标：</p>
+<h2 id="13-14-Task-distribution-patterns"><a href="#13-14-Task-distribution-patterns" class="headerlink" title="13.14 Task distribution patterns"></a>13.14 Task distribution patterns</h2><p>目标：</p>
 <h2 id="-58"><a href="#-58" class="headerlink" title=""></a><pre class="line-numbers language-text" data-language="text"><code class="language-text">Task producer
       ↓
 Workers
       ↓
-Results<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span></span></code></pre></h2><h1 id="13-15-Fanout-Fanin"><a href="#13-15-Fanout-Fanin" class="headerlink" title="13.15 Fanout/Fanin"></a>13.15 Fanout/Fanin</h1><h3 id="Fanout"><a href="#Fanout" class="headerlink" title="Fanout"></a>Fanout</h3><p>一个任务拆成多个并行任务：</p>
+Results<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span></span></code></pre></h2><h2 id="13-15-Fanout-Fanin"><a href="#13-15-Fanout-Fanin" class="headerlink" title="13.15 Fanout/Fanin"></a>13.15 Fanout/Fanin</h2><h3 id="Fanout"><a href="#Fanout" class="headerlink" title="Fanout"></a>Fanout</h3><p>一个任务拆成多个并行任务：</p>
 <pre class="line-numbers language-text" data-language="text"><code class="language-text">       ┌→ worker A
 Task → ┼→ worker B
        └→ worker C<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span></span></code></pre>
@@ -3967,7 +3967,7 @@ Task → ┼→ worker B
 <li>distributed processing。</li>
 </ul>
 <hr>
-<h1 id="13-16-PUSH-PULL-sockets"><a href="#13-16-PUSH-PULL-sockets" class="headerlink" title="13.16 PUSH/PULL sockets"></a>13.16 PUSH/PULL sockets</h1><p>ZeroMQ：</p>
+<h2 id="13-16-PUSH-PULL-sockets"><a href="#13-16-PUSH-PULL-sockets" class="headerlink" title="13.16 PUSH/PULL sockets"></a>13.16 PUSH/PULL sockets</h2><p>ZeroMQ：</p>
 <pre class="line-numbers language-text" data-language="text"><code class="language-text">PUSH → PULL<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
 <p>多个 PULL 可以形成：</p>
 <pre class="line-numbers language-text" data-language="text"><code class="language-text">load-balanced workers<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
@@ -3977,7 +3977,7 @@ Task → ┼→ worker B
 </blockquote>
 <p>因此可以天然实现 distributed worker pool。</p>
 <hr>
-<h1 id="13-17-Pipelines-and-competing-consumers"><a href="#13-17-Pipelines-and-competing-consumers" class="headerlink" title="13.17 Pipelines and competing consumers"></a>13.17 Pipelines and competing consumers</h1><p>Competing Consumers：</p>
+<h2 id="13-17-Pipelines-and-competing-consumers"><a href="#13-17-Pipelines-and-competing-consumers" class="headerlink" title="13.17 Pipelines and competing consumers"></a>13.17 Pipelines and competing consumers</h2><p>Competing Consumers：</p>
 <pre class="line-numbers language-text" data-language="text"><code class="language-text">Queue
  ↓
 Consumer A
@@ -3989,7 +3989,7 @@ Consumer C<span aria-hidden="true" class="line-numbers-rows"><span></span><span>
 <p>task distribution。</p>
 </blockquote>
 <hr>
-<h1 id="13-18-Redis-consumer-groups"><a href="#13-18-Redis-consumer-groups" class="headerlink" title="13.18 Redis consumer groups"></a>13.18 Redis consumer groups</h1><p>Redis Streams consumer groups 提供：</p>
+<h2 id="13-18-Redis-consumer-groups"><a href="#13-18-Redis-consumer-groups" class="headerlink" title="13.18 Redis consumer groups"></a>13.18 Redis consumer groups</h2><p>Redis Streams consumer groups 提供：</p>
 <ul>
 <li>多 consumer；</li>
 <li>task distribution；</li>
@@ -4006,7 +4006,7 @@ Consumer Group
  └─ Worker C<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
 <p>非常适合工作队列。</p>
 <hr>
-<h1 id="13-19-Request-Reply-patterns"><a href="#13-19-Request-Reply-patterns" class="headerlink" title="13.19 Request/Reply patterns"></a>13.19 Request/Reply patterns</h1><p>基本：</p>
+<h2 id="13-19-Request-Reply-patterns"><a href="#13-19-Request-Reply-patterns" class="headerlink" title="13.19 Request/Reply patterns"></a>13.19 Request/Reply patterns</h2><p>基本：</p>
 <pre class="line-numbers language-text" data-language="text"><code class="language-text">Requestor
    ↓
 request
@@ -4021,7 +4021,7 @@ Requestor<span aria-hidden="true" class="line-numbers-rows"><span></span><span><
 <p>当有很多 request 同时进行时，如何知道 reply 属于哪个 request？</p>
 </blockquote>
 <hr>
-<h1 id="13-20-Correlation-Identifier"><a href="#13-20-Correlation-Identifier" class="headerlink" title="13.20 Correlation Identifier"></a>13.20 Correlation Identifier</h1><p>每一个 request：</p>
+<h2 id="13-20-Correlation-Identifier"><a href="#13-20-Correlation-Identifier" class="headerlink" title="13.20 Correlation Identifier"></a>13.20 Correlation Identifier</h2><p>每一个 request：</p>
 <pre class="line-numbers language-text" data-language="text"><code class="language-text">correlationId = X<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
 <p>reply：</p>
 <pre class="line-numbers language-text" data-language="text"><code class="language-text">correlationId = X<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
@@ -4035,7 +4035,7 @@ pending[X]
 resolve Promise<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span></span></code></pre>
 <p>这是实现异步 Request/Reply 的核心技术。</p>
 <hr>
-<h1 id="13-21-Return-Address"><a href="#13-21-Return-Address" class="headerlink" title="13.21 Return Address"></a>13.21 Return Address</h1><p>Request 除了：</p>
+<h2 id="13-21-Return-Address"><a href="#13-21-Return-Address" class="headerlink" title="13.21 Return Address"></a>13.21 Return Address</h2><p>Request 除了：</p>
 <pre class="line-numbers language-text" data-language="text"><code class="language-text">correlationId<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
 <p>还可以携带：</p>
 <pre class="line-numbers language-text" data-language="text"><code class="language-text">replyTo<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
@@ -4051,7 +4051,7 @@ resolve Promise<span aria-hidden="true" class="line-numbers-rows"><span></span><
 <pre class="line-numbers language-text" data-language="text"><code class="language-text">send reply → replyTo<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre>
 <p>这使 Request/Reply 不必固定使用同一个响应通道。</p>
 <hr>
-<h1 id="13-22-Request-Reply-durable-queue"><a href="#13-22-Request-Reply-durable-queue" class="headerlink" title="13.22 Request/Reply + durable queue"></a>13.22 Request/Reply + durable queue</h1><p>AMQP 的一个重要结果：</p>
+<h2 id="13-22-Request-Reply-durable-queue"><a href="#13-22-Request-Reply-durable-queue" class="headerlink" title="13.22 Request/Reply + durable queue"></a>13.22 Request/Reply + durable queue</h2><p>AMQP 的一个重要结果：</p>
 <pre class="line-numbers language-text" data-language="text"><code class="language-text">Requestor
     ↓
 durable queue
@@ -4067,7 +4067,7 @@ Queue ─┼→ Replier B
 <p>Request/Reply 本身还可以天然获得一定的水平扩展能力。</p>
 </blockquote>
 <hr>
-<h1 id="本章核心结论-4"><a href="#本章核心结论-4" class="headerlink" title="本章核心结论"></a>本章核心结论</h1><p>Messaging architecture 最重要的不是记 Redis、RabbitMQ、ZeroMQ 的 API，而是选择正确的 communication pattern：</p>
+<h2 id="本章核心结论-4"><a href="#本章核心结论-4" class="headerlink" title="本章核心结论"></a>本章核心结论</h2><p>Messaging architecture 最重要的不是记 Redis、RabbitMQ、ZeroMQ 的 API，而是选择正确的 communication pattern：</p>
 <pre class="line-numbers language-text" data-language="text"><code class="language-text">事件广播
 → Publish/Subscribe
 
@@ -4090,7 +4090,7 @@ Queue ─┼→ Replier B
 → Broker<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
 <p>作者在结尾明确把 <strong>Publish/Subscribe、Task Distribution、Request/Reply</strong> 视为本书最重要的三类消息交换模式，并指出 Broker 可以较容易地提供可靠、可扩展的消息系统，但代价是多维护一个基础设施。</p>
 <hr>
-<h1 id="全书最值得反复复习的核心知识框架"><a href="#全书最值得反复复习的核心知识框架" class="headerlink" title="全书最值得反复复习的核心知识框架"></a>全书最值得反复复习的核心知识框架</h1><p>虽然上面严格按照原书章节组织，但把 13 章串起来，可以得到一条非常清晰的学习路线：</p>
+<h2 id="全书最值得反复复习的核心知识框架"><a href="#全书最值得反复复习的核心知识框架" class="headerlink" title="全书最值得反复复习的核心知识框架"></a>全书最值得反复复习的核心知识框架</h2><p>虽然上面严格按照原书章节组织，但把 13 章串起来，可以得到一条非常清晰的学习路线：</p>
 <pre class="line-numbers language-text" data-language="text"><code class="language-text">Chapter 1
 Node.js Platform
     │
