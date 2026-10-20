@@ -1,0 +1,341 @@
+<!DOCTYPE html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="generator" content="Astro"><meta name="description" content="木叶禅，记录软件开发的学习与实践。"><link rel="icon" type="image/svg+xml" href="/favicon.svg"><link rel="canonical" href="https://kibazen.cn/posts/iptables-jianjie/"><link rel="alternate" type="application/atom+xml" title="木叶禅 · Atom" href="/atom.xml"><link rel="preconnect" href="https://fontsapi.zeoseven.com" crossorigin=""><link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin=""><link rel="stylesheet" href="https://fontsapi.zeoseven.com/285/main/result.css"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource-variable/noto-serif-sc/index.css"><title>iptables简介 · 木叶禅</title><link rel="stylesheet" href="/_astro/SiteLayout.ByqF9Kdn.css"></head><body><div class="page-canvas"><div class="site"><header class="site-header"><div class="header-inner"><a class="brand" href="/" aria-label="木叶禅，返回首页"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10z"></path><path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12"></path></svg><span>木叶禅</span></a><button class="search-trigger search-trigger-mobile" type="button" data-search-trigger="" aria-haspopup="dialog"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="11" cy="11" r="7.4"></circle><path d="m20.8 20.8-4.2-4.2"></path></svg><span>搜索</span></button><nav class="site-nav" aria-label="主导航"><ul class="nav-list"><li class="nav-item is-current"><a href="/posts/" aria-current="page"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M14 3.5H7.5a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h9a2 2 0 0 0 2-2V8z"></path><path d="M14 3.5V8.5h5M9.2 13h5.6M9.2 16.5h3.6"></path></svg>全部文章</a></li><li class="nav-item"><a href="/topics/"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="4" y="4" width="7" height="7" rx="1.6"></rect><rect x="13" y="4" width="7" height="7" rx="1.6"></rect><rect x="4" y="13" width="7" height="7" rx="1.6"></rect><rect x="13" y="13" width="7" height="7" rx="1.6"></rect></svg>主题</a></li><li class="nav-item has-dropdown"><a href="/notes/"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M2 3.5h6a4 4 0 0 1 4 4V21a3 3 0 0 0-3-3H2zM22 3.5h-6a4 4 0 0 0-4 4V21a3 3 0 0 1 3-3h7z"></path></svg>笔记</a><ul class="nav-dropdown"><li><a href="/notes/books/"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path></svg>读书笔记</a></li><li><a href="/notes/study/"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m22 10-10-5-10 5 10 5zM6 12.2V17c0 1.7 2.7 3 6 3s6-1.3 6-3v-4.8"></path></svg>学习笔记</a></li></ul></li><li class="nav-item"><a href="/memo/"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m4 17 6-5-6-5m8 12h8"></path></svg>备忘</a></li><li class="nav-item"><a href="/about/"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7.5" r="4"></circle></svg>关于</a></li></ul></nav><button class="search-trigger search-trigger-desktop" type="button" data-search-trigger="" aria-haspopup="dialog"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="11" cy="11" r="7.4"></circle><path d="m20.8 20.8-4.2-4.2"></path></svg><span>搜索</span></button></div></header><main id="main-content" class="site-main"><div class="article-page"><nav class="breadcrumbs" aria-label="当前位置"><ol><li><a href="/"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M3 9.5 12 2.5l9 7V21a1.5 1.5 0 0 1-1.5 1.5H15v-7H9v7H4.5A1.5 1.5 0 0 1 3 21z"></path></svg>首页</a></li><li><span class="breadcrumb-separator" aria-hidden="true">/</span><a href="/posts/"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M14 3.5H7.5a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h9a2 2 0 0 0 2-2V8z"></path><path d="M14 3.5V8.5h5M9.2 13h5.6M9.2 16.5h3.6"></path></svg>全部文章</a></li><li><span class="breadcrumb-separator" aria-hidden="true">/</span><span aria-current="page"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M14 3.5H7.5a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h9a2 2 0 0 0 2-2V8z"></path><path d="M14 3.5V8.5h5M9.2 13h5.6M9.2 16.5h3.6"></path></svg>iptables简介</span></li></ol></nav><header class="article-header"><h1 tabindex="-1">iptables简介</h1><div class="article-meta"><span class="meta-type"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M14 3.5H7.5a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h9a2 2 0 0 0 2-2V8z"></path><path d="M14 3.5V8.5h5M9.2 13h5.6M9.2 16.5h3.6"></path></svg>普通文章</span><span class="meta-dot" aria-hidden="true">•</span><a class="meta-topic topic-networking" data-topic="networking-and-protocols" href="/topics/networking-and-protocols/"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="2.6"></circle><circle cx="5" cy="5" r="2.2"></circle><circle cx="19" cy="5" r="2.2"></circle><circle cx="5" cy="19" r="2.2"></circle><circle cx="19" cy="19" r="2.2"></circle><path d="m6.6 6.6 3.5 3.5m7.3-3.5-3.5 3.5m-7.3 7.3 3.5-3.5m7.3 3.5-3.5-3.5"></path></svg>网络与协议</a></div><div class="article-dates"><span><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="3.5" y="5" width="17" height="15.5" rx="2.5"></rect><path d="M3.5 10.2h17M8.5 3v4M15.5 3v4"></path></svg>发布日期 <time datetime="2021-08-01">2021.08.01</time></span></div></header><div class="article-layout" data-article-layout=""><main class="article-main"><details class="mobile-toc" data-mobile-toc=""><summary><span><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M8.5 6h12M8.5 12h12M8.5 18h12M3.6 6h.01M3.6 12h.01M3.6 18h.01"></path></svg>本文目录</span><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m6 9.5 6 6 6-6"></path></svg></summary><nav class="toc-panel" aria-label="本文目录" data-toc-root=""><ul class="toc-list"><li><a class="toc-link" href="#一netfilter-项目" data-toc-link="一netfilter-项目">一、netfilter 项目</a></li><li><details class="toc-branch" open=""><summary><a href="#二iptables-中的基本概念" data-toc-link="二iptables-中的基本概念">二、iptables 中的基本概念</a></summary><ul class="toc-list"><li><a class="toc-link" href="#21-预定义的链" data-toc-link="21-预定义的链">2.1 预定义的链</a></li><li><a class="toc-link" href="#22-表" data-toc-link="22-表">2.2 表</a></li><li><a class="toc-link" href="#23-自定义的链" data-toc-link="23-自定义的链">2.3 自定义的链</a></li><li><a class="toc-link" href="#24-连接状态" data-toc-link="24-连接状态">2.4 连接状态</a></li></ul></details></li><li><a class="toc-link" href="#三iptables-规则的匹配条件" data-toc-link="三iptables-规则的匹配条件">三、iptables 规则的匹配条件</a></li><li><a class="toc-link" href="#四iptables-规则的执行动作" data-toc-link="四iptables-规则的执行动作">四、iptables 规则的执行动作</a></li><li><details class="toc-branch" open=""><summary><a href="#五常见问题" data-toc-link="五常见问题">五、常见问题</a></summary><ul class="toc-list"><li><a class="toc-link" href="#1-nat-能建立多少连接" data-toc-link="1-nat-能建立多少连接">1. NAT 能建立多少连接</a></li><li><a class="toc-link" href="#2-iptables-的规则对-unix-domain-socket-无效" data-toc-link="2-iptables-的规则对-unix-domain-socket-无效">2. iptables 的规则对 Unix Domain Socket 无效</a></li><li><a class="toc-link" href="#3-nfmark-和-ctmark" data-toc-link="3-nfmark-和-ctmark">3. nfmark 和 ctmark</a></li></ul></details></li><li><a class="toc-link" href="#六参考资料" data-toc-link="六参考资料">六、参考资料</a></li></ul></nav></details><article id="article-body" class="article-body"><h2 id="一netfilter-项目">一、netfilter 项目</h2>
+<p><a href="https://www.netfilter.org/">netfilter 项目</a>是 <a href="https://www.kernel.org/">Linux</a> 内核中用于数据包过滤的框架。</p>
+<p>netfilter 项目有两个常用的子项目：iptables 和 nftables。</p>
+<p><a href="https://www.nftables.org/projects/iptables/index.html">iptables 项目</a>中包含了一系列用于配置 Linux 内核中包过滤规则集命令行工具：iptables，ip6tables，arptables，ebtables。</p>
+<p><a href="https://www.nftables.org/projects/nftables/index.html">nftables 项目</a>则是 iptables 项目的继承者，它允许更灵活、可扩展和性能更高的数据包分类。</p>
+<p><strong>本文只介绍使用 iptables 命令行工具管理 ip 协议时所需的相关内容。</strong></p>
+<h2 id="二iptables-中的基本概念">二、iptables 中的基本概念</h2>
+<p>netfilter 框架的核心是在 Linux 内核处理数据包过程中的几个关键地方调用 <code>NF_HOOK</code> 函数，拦截数据包来进行处理。</p>
+<p><img src="/images/iptables%E7%AE%80%E4%BB%8B/nf-hooks.png" alt="nf-hooks" width="1116" height="586"></p>
+<blockquote>
+<p>图片来源：<a href="https://wiki.nftables.org/wiki-nftables/index.php/Netfilter_hooks">Netfilter hooks</a></p>
+</blockquote>
+<p>利用 netfilter 框架可实现的功能包括检查、修改、转发、重定向和/或丢弃数据包。</p>
+<ol>
+<li>根据用途的不同，将内核中处理数据包的代码组织成了几个不同的表（table）。</li>
+<li>表由一组的链（chain）组成。</li>
+<li>链中包含一系列规则（rule）。</li>
+<li>规则由匹配条件和相应的执行动作组成（如果条件匹配成功，则执行相应的动作）。</li>
+<li>链中的规则会按顺序的逐一执行，直到某个匹配的动作处理的结果是终止处理或<a href="#%E9%A2%84%E5%AE%9A%E4%B9%89%E7%9A%84%E9%93%BE">预定义的链</a>内的规则都执行完。</li>
+</ol>
+<h3 id="21-预定义的链">2.1 预定义的链</h3>
+<p>链的本质其实是 Linux 内核处理数据包的过程中，netfilter 框架嵌入 HOOK 函数的地方。</p>
+<p>netfilter 框架在 Linux 内核处理很多协议（比如：ip，ip6，arp等）的过程中都嵌入了 HOOK 函数，本文只关注 iptables 处理 ip 协议用到的。</p>
+<p>iptables 在每一个嵌入了 HOOK 函数的地方都预定义了一些链：</p>
+<ol>
+<li><strong>PREROUTING</strong>：处理由网络设备进入的报文，包括由本机外部通过网络设备如 <code>eth0</code> 进入本机的报文，或者本机访问环回网络设备 <code>lo</code> 后再次进入的报文。</li>
+<li><strong>INPUT</strong>：报文经过 <strong>PREROUTING</strong> 链处理后，经过路由判断，判断出目标为本机时进入 <strong>INPUT</strong> 链，经过 <strong>INPUT</strong> 链处理后报文将被发往本机内的进程。</li>
+<li><strong>FORWARD</strong>：报文经过 <strong>PREROUTING</strong> 链处理后，经过路由判断，判断出目标不为本机时进入 <strong>FORWARD</strong> 链，经过 <strong>FORWARD</strong> 链处理后将通过 <strong>POSTROUTING</strong> 链向外转发。</li>
+<li><strong>OUTPUT</strong>：报文由本机内进程发出，经过路由处理后首先进入 <strong>OUTPUT</strong> 链，如果在此链上包含目标重定向规则，则会再次计算路由，在 <strong>OUTPUT</strong> 链完成处理后将进入 <strong>POSTROUTING</strong> 链进行处理。</li>
+<li><strong>POSTROUTING</strong>：报文经过 <strong>FORWARD</strong> 链或 <strong>OUTPUT</strong> 链处理后，都将进入 <strong>POSTROUTING</strong> 链，在进入此链前已经完成了目标路由的计算，因此在本链中不能使用目标重定向规则，但可以使用 SNAT 修改报文的源地址，最后报文经过网络设备如 <code>eth0</code> 被发送到其他主机，或经过环回网络设备 <code>lo</code> 再次回到 <strong>PREROUTING</strong> 链。</li>
+</ol>
+<p><img src="/images/iptables%E7%AE%80%E4%BB%8B/iptables%E9%A2%84%E5%AE%9A%E4%B9%89%E7%9A%84%E9%93%BE.jpg" alt="iptables预定义的链" width="958" height="432"></p>
+<p>预定义的链支持设置默认的数据包处理策略。</p>
+<pre class="astro-code dracula" style="background-color:#282A36;color:#F8F8F2; overflow-x: auto;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#6272A4"># 将 INPUT 链的默认数据包处理策略设置为 ACCEPT（允许包通过）</span></span>
+<span class="line"><span style="color:#50FA7B">sudo</span><span style="color:#F1FA8C"> iptables</span><span style="color:#BD93F9"> -P</span><span style="color:#F1FA8C"> INPUT</span><span style="color:#F1FA8C"> ACCEPT</span></span>
+<span class="line"><span style="color:#6272A4"># 将 FORWARD 链的默认数据包处理策略设置为 DROP（丢弃所有的包）</span></span>
+<span class="line"><span style="color:#50FA7B">sudo</span><span style="color:#F1FA8C"> iptables</span><span style="color:#BD93F9"> -P</span><span style="color:#F1FA8C"> FORWARD</span><span style="color:#F1FA8C"> DROP</span></span></code></pre>
+
+<h3 id="22-表">2.2 表</h3>
+<p>根据表的功能和链所在的位置，并不是每个表都需要所有的链。</p>
+<ol>
+<li>
+<p>Raw 表</p>
+<p>在 iptables 1.2.9 版本之后新增的，优先级高于内置表 conntrack 及其他表，可用于决定是否继续执行本链上其他 iptables 表上配置的规则。比如 Raw 表在处理完成时，可跳过 conntrack 表内报文连接跟踪或 Nat 表内地址转换 DNAT/SNAT 处理。</p>
+<p>包含的链：</p>
+<ul>
+<li><strong>PREROUTING</strong></li>
+<li><strong>OUTPUT</strong></li>
+</ul>
+</li>
+<li>
+<p>Mangle 表</p>
+<p>主要用于修改报文的 TOS、TTL，以及为报文设置标记（Mark），以实现 QoS 调整及策略路由等（Tproxy模式会用到）。在设计上，Mangle 表将处理进入当前所在链的每个报文，因此需要考虑比 Nat 表更复杂的情形。而在经过 Nat 表处理及连接建立后，报文收发路径将固定，因为不用考虑如何正确发送和接收连接内的后续报文。相较之下，Mangle 表除了需要处理连接建立时的握手报文 SYN、ACK 如何重定向，还需要考虑连接建立后如何正确收发此连接上的后续报文。</p>
+<p>包含的链：</p>
+<ul>
+<li><strong>PREROUTING</strong></li>
+<li><strong>INPUT</strong></li>
+<li><strong>FORWARD</strong></li>
+<li><strong>OUTPUT</strong></li>
+<li><strong>POSTROUTING</strong>。</li>
+</ul>
+</li>
+<li>
+<p>Nat 表</p>
+<p>主要用于修改报文的 IP 地址、端口号等信息，在经过 Nat 表处理后，报文的原始地址将被保存到 Socket 连接内，可以在应用中通过 getsockopt 获取。另外在设计上，Nat 表在开始处理前都会判断当前 conntrack 表内的连接记录状态，如果连接已经建立成功，则不再执行 Nat 规则。这样就保证了请求报文在连接建立阶段与后续报文的收发路径一直，因此逻辑比较清晰。</p>
+<p>包含的链：</p>
+<ul>
+<li><strong>PREROUTING</strong>：处理到达本机的报文，典型的如 DNAT 在路由转发前修改报文的目标地址及端口。</li>
+<li><strong>INPUT</strong>：处理发往本机进程的报文，典型的如 SNAT 在发送到本机进程前修改报文的源地址及源端口。</li>
+<li><strong>OUTPUT</strong>：处理由本机进程发出的报文，典型的如 MASQUERADE 修改发完二层网络设备的报文的源地址及源端口。注意，在进行 DNAT 后，内核将判断目标地址是否比进入 <strong>INPUT</strong> 链发生变化，如果有变化，则将重新计算报文路由。</li>
+<li><strong>POSTROUTING</strong>：处理离开本机的报文，典型的如 SNAT 修改报文的源地址及源端口。</li>
+</ul>
+</li>
+<li>
+<p>Filter 表</p>
+<p>是 iptables 规则的默认表，如果在使用 iptables 命名行创建规则时未指定表，那么默认使用 Filter 表。 Filter 表主要用于过滤报文，根据具体规则决定是否放行该报文或进行日志记录（DROP、ACCEPT、REJECT、LOG）。</p>
+<p>包含的链：</p>
+<ul>
+<li><strong>INPUT</strong>：过滤流向本机进程的报文。</li>
+<li><strong>FORWARD</strong>：过滤经过本机但目标地址不是本机的所有报文。</li>
+<li><strong>OUTPUT</strong>：过滤本机进程产生的报文。</li>
+</ul>
+</li>
+<li>
+<p>Security 表</p>
+<p>用于完成与安全相关的标记功能。</p>
+<ul>
+<li><strong>INPUT</strong></li>
+<li><strong>FORWARD</strong></li>
+<li><strong>OUTPUT</strong></li>
+</ul>
+</li>
+</ol>
+<p><img src="/images/iptables%E7%AE%80%E4%BB%8B/iptables%E6%8A%A5%E6%96%87%E7%9A%84%E5%A4%84%E7%90%86%E6%B5%81%E7%A8%8B.jpg" alt="iptables报文的处理流程" width="2957" height="2229"></p>
+<p>接下里根据 iptables 规则链处理报文的时机，来解析 5 种规则链的作用方式。如上图所示，网络设备接收的报文在进入内核协议栈后被 <strong>PREROUTING</strong> 链处理，可以在这里决定是否对报文进行目标地址转换。之后进行路由判断，如果报文的目标地址是本机，则内核协议栈会将其传给 <strong>INPUT</strong> 链处理。<strong>INPUT</strong> 链在允许通过后，报文有内核空间进入用户空间，被主机进程处理。如果 <strong>PREROUTING</strong> 链处理后的报文的目标地址不是本机地址，则将其传给 <strong>FORWARD</strong> 链处理，最后交给 <strong>POSTROUTING</strong> 链处理。</p>
+<p>本机进程发出的报文首先经过 <strong>路由计算</strong> 来选择发送的目标网络设备，并且根据目标网络计算结果对源地址进行填充。需要说明的是，在填充时如果没有指定源地址，则将根据路由表找一个合适的源 IP 地址，保证通过此源 IP 地址对应的网络设备可以将报文发送到目标地址。如果已经手工配置（绑定）了源 IP 地址，但根据路由计算得知无法从此源 IP 地址对应的网络设备将报文发送到目标地址，则将此报文丢弃。一种特别情况是在 Socket 设置了 <code>IP_TRANSPARENT</code> 选项后将不做此检查，而是依赖配置的 <strong>策略路由</strong> 将报文发送到目标网络设备，其中策略路由指不基于报文目标网络地址（如报文标记等）进行转发的判断机制。经过路由计算后报文进入 <strong>OUTPUT</strong> 链，此时也可以进行报文目标地址转换，如果判断报文处理后的目标地址发生变化，则需要再次进行路由计算。完成处理的报文需要再次进行路由计算，检查并确保报文有对应的可以发送的网络设备。经过处理后的报文最终到达 <strong>POSTROUTING</strong> 链，在此处可以进行源地址转换。</p>
+<p>在使用 iptables 规则时要注意一下事项：</p>
+<ul>
+<li>
+<p>iptables 属于三层网络处理机制，与协议栈内的二层网络设备属于同一网络空间。从上图可以看出，不论报文是进入协议栈还是从协议栈发出，从报文的处理角度来说，只会经过一次路由判断，路由计算是当报文发出时根据请求的目标地址所对应的发送网络设备所在的子网信息填写报文源地址等信息的处理过程，而路由判断则为判断已经填写完整的报文是否可以继续被 iptables 链处理或采用哪条 iptables 链处理。注意，报文从 <strong>FORWARD</strong> 链出来后不再进行路由判断，在路由判断中如果发现目标不可达，则将被丢弃。</p>
+</li>
+<li>
+<p>在 <strong>POSTROUTING</strong> 链中， Nat 表只能添加 SNat 规则，因为在之前进行路由判断时，已经确定目标所适配的二层设备了，如果这里能够允许修改 DNat 规则，则还需要再次进行路由处理，这显然是不符合 iptables 处理逻辑的。</p>
+</li>
+</ul>
+<p>各个表在内核中的优先级定义如下（数值越小、优先级越高）：</p>
+<pre class="astro-code dracula" style="background-color:#282A36;color:#F8F8F2; overflow-x: auto;" tabindex="0" data-language="c"><code><span class="line"><span style="color:#6272A4">// include/uapi/linux/netfilter_ipv4.h</span></span>
+<span class="line"><span style="color:#FF79C6">enum</span><span style="color:#F8F8F2"> nf_ip_hook_priorities {</span></span>
+<span class="line"><span style="color:#F8F8F2">    NF_IP_PRI_FIRST </span><span style="color:#FF79C6">=</span><span style="color:#F8F8F2"> INT_MIN,</span></span>
+<span class="line"><span style="color:#F8F8F2">    NF_IP_PRI_RAW_BEFORE_DEFRAG </span><span style="color:#FF79C6">=</span><span style="color:#FF79C6"> -</span><span style="color:#BD93F9">450</span><span style="color:#F8F8F2">,</span></span>
+<span class="line"><span style="color:#F8F8F2">    NF_IP_PRI_CONNTRACK_DEFRAG </span><span style="color:#FF79C6">=</span><span style="color:#FF79C6"> -</span><span style="color:#BD93F9">400</span><span style="color:#F8F8F2">,</span></span>
+<span class="line"><span style="color:#F8F8F2">    NF_IP_PRI_RAW </span><span style="color:#FF79C6">=</span><span style="color:#FF79C6"> -</span><span style="color:#BD93F9">300</span><span style="color:#F8F8F2">,</span></span>
+<span class="line"><span style="color:#F8F8F2">    NF_IP_PRI_SELINUX_FIRST </span><span style="color:#FF79C6">=</span><span style="color:#FF79C6"> -</span><span style="color:#BD93F9">225</span><span style="color:#F8F8F2">,</span></span>
+<span class="line"><span style="color:#F8F8F2">    NF_IP_PRI_CONNTRACK </span><span style="color:#FF79C6">=</span><span style="color:#FF79C6"> -</span><span style="color:#BD93F9">200</span><span style="color:#F8F8F2">,</span></span>
+<span class="line"><span style="color:#F8F8F2">    NF_IP_PRI_MANGLE </span><span style="color:#FF79C6">=</span><span style="color:#FF79C6"> -</span><span style="color:#BD93F9">150</span><span style="color:#F8F8F2">,</span></span>
+<span class="line"><span style="color:#F8F8F2">    NF_IP_PRI_NAT_DST </span><span style="color:#FF79C6">=</span><span style="color:#FF79C6"> -</span><span style="color:#BD93F9">100</span><span style="color:#F8F8F2">,</span></span>
+<span class="line"><span style="color:#F8F8F2">    NF_IP_PRI_FILTER </span><span style="color:#FF79C6">=</span><span style="color:#BD93F9"> 0</span><span style="color:#F8F8F2">,</span></span>
+<span class="line"><span style="color:#F8F8F2">    NF_IP_PRI_SECURITY </span><span style="color:#FF79C6">=</span><span style="color:#BD93F9"> 50</span><span style="color:#F8F8F2">,</span></span>
+<span class="line"><span style="color:#F8F8F2">    NF_IP_PRI_NAT_SRC </span><span style="color:#FF79C6">=</span><span style="color:#BD93F9"> 100</span><span style="color:#F8F8F2">,</span></span>
+<span class="line"><span style="color:#F8F8F2">    NF_IP_PRI_SELINUX_LAST </span><span style="color:#FF79C6">=</span><span style="color:#BD93F9"> 225</span><span style="color:#F8F8F2">,</span></span>
+<span class="line"><span style="color:#F8F8F2">    NF_IP_PRI_CONNTRACK_HELPER </span><span style="color:#FF79C6">=</span><span style="color:#BD93F9"> 300</span><span style="color:#F8F8F2">,</span></span>
+<span class="line"><span style="color:#F8F8F2">    NF_IP_PRI_CONNTRACK_CONFIRM </span><span style="color:#FF79C6">=</span><span style="color:#F8F8F2"> INT_MAX,</span></span>
+<span class="line"><span style="color:#F8F8F2">    NF_IP_PRI_LAST </span><span style="color:#FF79C6">=</span><span style="color:#F8F8F2"> INT_MAX,</span></span>
+<span class="line"><span style="color:#F8F8F2">};</span></span></code></pre>
+<p>即各个表、NAT 和 connection tracking 之间的优先<strong>从高到低</strong>为：</p>
+<ol>
+<li>Raw</li>
+<li>Create connection tracking</li>
+<li>Mangle</li>
+<li>DNAT</li>
+<li>Filter</li>
+<li>Security</li>
+<li>SNAT</li>
+<li>Confirm connection tracking</li>
+</ol>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th align="center">Tables↓/Chains→</th><th align="center">PREROUTING</th><th align="center">INPUT</th><th align="center">FORWARD</th><th align="center">OUTPUT</th><th align="center">POSTROUTING</th></tr></thead><tbody><tr><td align="center">(routing decision)</td><td align="center"></td><td align="center"></td><td align="center"></td><td align="center">v</td><td align="center"></td></tr><tr><td align="center">raw</td><td align="center">v</td><td align="center"></td><td align="center"></td><td align="center">v</td><td align="center"></td></tr><tr><td align="center">(create connection tracking)</td><td align="center">v</td><td align="center"></td><td align="center"></td><td align="center">v</td><td align="center"></td></tr><tr><td align="center">mangle</td><td align="center">v</td><td align="center">v</td><td align="center">v</td><td align="center">v</td><td align="center">v</td></tr><tr><td align="center">nat (DNAT)</td><td align="center">v</td><td align="center"></td><td align="center"></td><td align="center">v</td><td align="center"></td></tr><tr><td align="center">(routing decision)</td><td align="center">v</td><td align="center"></td><td align="center"></td><td align="center">v</td><td align="center"></td></tr><tr><td align="center">filter</td><td align="center"></td><td align="center">v</td><td align="center">v</td><td align="center">v</td><td align="center"></td></tr><tr><td align="center">security</td><td align="center"></td><td align="center">v</td><td align="center">v</td><td align="center">v</td><td align="center"></td></tr><tr><td align="center">nat (SNAT)</td><td align="center"></td><td align="center">v</td><td align="center"></td><td align="center"></td><td align="center">v</td></tr><tr><td align="center">(confirm connection tracking)</td><td align="center"></td><td align="center">v</td><td align="center"></td><td align="center"></td><td align="center">v</td></tr></tbody></table>
+<h3 id="23-自定义的链">2.3 自定义的链</h3>
+<p>除了使用预定的链外，iptables还支持自定义链。数据包在处理的过程中能够通过 jump 动作跳转到同一个表的另一个链（这个链必须是自定义的，不能是预定于的）上继续处理。</p>
+<p>同时，自定义的链不支持设置默认数据包处理策略，其默认的处理策略是返回父链中继续进行处理。</p>
+<p>在下面的图中，在链 1 中的 规则 3 时匹配成功，跳到链 2 从头开始执行，最后通过链 2 返回到链 1 的规则 4 继续执行。</p>
+<p><img src="/images/iptables%E7%AE%80%E4%BB%8B/iptables%E8%87%AA%E5%AE%9A%E4%B9%89%E7%9A%84%E9%93%BE.jpg" alt="iptables自定义的链" width="700" height="460"></p>
+<blockquote>
+<p>图片来源：<a href="https://www.frozentux.net/iptables-tutorial/iptables-tutorial.html#USERTABLES">User specified chains</a></p>
+</blockquote>
+<h3 id="24-连接状态">2.4 连接状态</h3>
+<p>Linux 内核中一个名为 <code>conntrack</code> 的模块提供了连接状态的跟踪功能，可以跟踪各种协议的连接并标记状态。<strong>需要注意的是，连接跟踪中的连接与 TCP/IP 中 TCP 的连接不是同一个概念。</strong></p>
+<p>连接主要有五种状态：</p>
+<ol>
+<li>
+<p><strong>NEW</strong></p>
+<p>此状态表示数据包是系统看到的某个连接上的第一个数据包。比如，对于 TCP 来说，三次握手收到的一个包的状态就是这个状态。</p>
+<blockquote>
+<p>不管是收到的第一个数据包，还是发出的第一个数据包都都算是第一个。</p>
+<p>不管数据包是否是正常的，只要是第一个数据包都算。比如，对于 TCP 的三次握手来说，正常握手的第一个包中仅包括 SYN 标记，但是如果第一个包中包含了错误的标记（如：SYN，RST），也会算是第一个数据包。</p>
+</blockquote>
+</li>
+<li>
+<p><strong>ESTABLISHED</strong></p>
+<p>此状态表示系统在通信的双向都看到了流量通信，并且后续的数据包都会是这个状态。只需要一个机器发送一个数据包，并收到想要的应答数据包后，连接就会进入此状态（即使收到的是一个 ICMP 的错误报告）。</p>
+</li>
+<li>
+<p><strong>RELATED</strong></p>
+<p>此状态表明一个连接和另一个已经处于 <strong>ESTABLISHED</strong> 状态的连接有关时，就会被认为是这个状态。</p>
+<p>连接进入此状态的前提是已有一个处于 <strong>ESTABLISHED</strong> 状态，<strong>并且 Linux 内核能够理解这个连接</strong>，同时这个连接另外再产生了一个新的连接，这个新的连接的状态就是 <strong>RELATED</strong> 。比如 FTP 的 Data 连接就是根据 FTP 的 Control 连接产生的，所以 FTP 的 Control 连接是 <strong>ESTABLISHED</strong> 状态，FTP 的 Data 连接是 <strong>RELATED</strong> 状态。</p>
+</li>
+<li>
+<p><strong>INVALID</strong></p>
+<p>此状态表明数据包不能被识别或者它没有任何状态。导致的原因可能是系统内存不足或是 ICMP 的错误报告不能匹配上本地的任何连接。一般而言，推荐丢弃此状态的数据包。</p>
+</li>
+<li>
+<p><strong>UNTRACKED</strong></p>
+<p>此状态表明数据包被标记为了不跟踪，同时与此连接相关的原本是 <strong>RELATED</strong> 状态的连接也会是此状态。</p>
+</li>
+</ol>
+<p>内核对于每一种网络包，都设置了两个记录点：</p>
+<ol>
+<li>
+<p>对于发给本机的包，在 <strong>PREROUTING</strong> 调用 <code>ipv4_conntrack_in</code>，创建连接跟踪记录；在 <strong>INPUT</strong> 调用 <code>ipv4_confirm</code>，将这个连接跟踪记录挂在内核的连接跟踪表里面。</p>
+</li>
+<li>
+<p>对于本地发出的包，在 <strong>OUTPUT</strong> 调用 <code>ipv4_conntrack_local</code>，创建连接跟踪记录；在 <strong>POSTROUTING</strong> 调用 <code>ipv4_confirm</code>，将这个连接跟踪记录挂在内核的连接跟踪表里面。</p>
+</li>
+<li>
+<p>对于经过本机的包，在 <strong>PREROUTING</strong> 调用 <code>ipv4_conntrack_in</code>，创建连接跟踪记录；在 <strong>POSTROUTING</strong> 调用 <code>ipv4_confirm</code>，将这个连接跟踪记录挂在内核的连接跟踪表里面。</p>
+<blockquote>
+<p>对于经过本机的 NAT 包，在 <strong>PREROUTING</strong> 调用 <code>ipv4_conntrack_in</code>，创建连接跟踪记录，并调用 <code>nf_nat_ipv4_in</code> 进行地址转换；在 <strong>POSTROUTING</strong> 调用 <code>nf_nat_ipv4_out</code> 进行地址转换，并调用 <code>ipv4_confirm</code>，将这个连接跟踪记录挂在内核的连接跟踪表里面。</p>
+</blockquote>
+</li>
+</ol>
+<blockquote>
+<p>因为有 <strong>filter</strong> 表可能会把包过滤掉，也就是丢弃了，所以才需要两个记录点。</p>
+</blockquote>
+<h2 id="三iptables-规则的匹配条件">三、iptables 规则的匹配条件</h2>
+<p>参考：<a href="https://www.frozentux.net/iptables-tutorial/iptables-tutorial.html#MATCHES">Iptables matches</a>。</p>
+<h2 id="四iptables-规则的执行动作">四、iptables 规则的执行动作</h2>
+<p>参考：<a href="https://www.frozentux.net/iptables-tutorial/iptables-tutorial.html#TARGETS">Iptables targets and jumps</a>。</p>
+<h2 id="五常见问题">五、常见问题</h2>
+<h3 id="1-nat-能建立多少连接">1. NAT 能建立多少连接</h3>
+<p>DNAT 即外网访问内网的某个服务，是没有端口数目限制的。</p>
+<p>SNAT 即内网访问外网的场景，鉴于 conntrack 是由 <strong>{源 IP，源端口，目标 IP，目标端口}</strong>，hash 后确定的。所以如果内网机器很多，但是访问的是不同的外网，也即目标 IP 和目标端口很多，这样内网可承载的数量就非常大，可不止 65535 个。</p>
+<p>但是如果内网所有的机器，都一定要访问同一个目标 IP 和目标端口，这样源 IP 如果只有一个，这样的情况下，才受 65535 的端口数目限制，根据原理，一种方法就是多个源 IP，另外的方法就是多个 NAT 网关，来分摊不同的内网机器访问。</p>
+<h3 id="2-iptables-的规则对-unix-domain-socket-无效">2. iptables 的规则对 Unix Domain Socket 无效</h3>
+<h3 id="3-nfmark-和-ctmark">3. nfmark 和 ctmark</h3>
+<p><code>nfmark</code> 标记为网络协议栈的三层报文本身所携带，可配合 <strong>策略路由</strong> 影响路由计算结果。</p>
+<p><code>ctmark</code> 标记为 <code>conntrack</code> 表中对每个 Socket 连接维护的记录项，由 <code>conntrack</code> 表自身维护且与 TCP 状态不同，可以理解为帮助 iptables 规则判断 TCP 状态而存在，可以用 <code>Mangle</code> 表中的 iptables 规则，比如将当前连接上的 <code>ctmark</code> 标记复制到报文的 <code>nfmark</code> 标记上，保证响应报文继续采用 <strong>策略路由</strong> 进行处理等，同时 <code>Nat</code> 表依赖 <code>conntrack</code> 表内的连接记录状态决定是否跳过 <code>Nat</code> 表上的规则。</p>
+<p>一些例子</p>
+<blockquote>
+<p>下面的例子都应该在 <code>Mangle</code> 表中。</p>
+</blockquote>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>匹配规则</th><th>功能描述</th></tr></thead><tbody><tr><td><code>-A PREROUTING -p tcp -m mark --mark 0x539 -j CONNMARK --save-mark --nfmask 0xffffffff --ctmask 0xffffffff</code></td><td>对进入 <code>PREROUTING</code> 链且携带 <code>nfmark=0x539</code> 标记的 TCP 报文，调用 CONNMARK 规则将 <code>nfmark=0x539</code> 标记保存到连接标记 <code>ctmask</code> 上</td></tr><tr><td><code>-A OUTPUT -o lo -p tcp -m mark --mark 0x539 -j RETURN</code></td><td>对进入 <code>OUTPUT</code> 链、目标地址为本地且已经携带 <code>nfmark=0x539</code> 标记的 TCP 报文，不再做特殊处理</td></tr><tr><td><code>-A OUTPUT ! -d 127.0.0.1/32 -o lo -p tcp -m owner --uid-owner 1337 -j MARK --set-xmark 0x53a/0xffffffff</code></td><td>对进入 <code>OUTPUT</code> 链且目标地址为非 127.0.0.1 但目标网络设备为本地，即目标为本机地址的由 UID 为 1337 进程发出的 TCP 报文，添加 <code>nfmark=0x53a</code> 标记</td></tr><tr><td><code>-A OUTPUT -p tcp -m connmark --mark 0x539 -j CONNMARK --restore-mark --nfmask 0xffffffff --ctmask 0xffffffff</code></td><td>对进入 <code>OUTPUT</code> 连接且四层连接已经携带 <code>ctmark=0x539</code> 标记的 TCP 报文，经过 CONNMARK 规则恢复到三层报文的 <code>nfmark</code> 标记上</td></tr><tr><td><code>-A ISTIO_TPROXY ! -d 127.0.0.1/32 -p tcp -j TPROXY --on-port 15006 --on-ip 0.0.0.0 --tproxy-mark 0x539/0xffffffff</code></td><td>对进入 <code>ISTIO_TPROXY</code> 链的目标地址为非 127.0.0.1 的 TCP 报文，经过 TPROXY 规则的处理，直接发送到本地网络监听端口 0.0.0.0:15006，并为其设置 <code>nfmark=0x539</code> 标记</td></tr></tbody></table>
+<h2 id="六参考资料">六、参考资料</h2>
+<ol>
+<li><a href="https://book.douban.com/subject/6558550/">《Istio权威指南（上）》</a></li>
+<li><a href="https://wiki.archlinux.org/title/Iptables">iptables</a></li>
+<li><a href="https://ipset.netfilter.org/iptables-extensions.man.html#index">iptables-extensions</a></li>
+<li><a href="https://wiki.nftables.org/wiki-nftables/index.php/Configuring_chains">Configuring chains</a></li>
+<li><a href="https://www.frozentux.net/iptables-tutorial/iptables-tutorial.html">Iptables Tutorial 1.2.2</a></li>
+<li><a href="https://www.digitalocean.com/community/tutorials/a-deep-dive-into-iptables-and-netfilter-architecture">A Deep Dive into Iptables and Netfilter Architecture</a></li>
+</ol></article></main><aside class="desktop-toc" aria-label="本文目录" data-desktop-toc=""><div class="toc-title"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M8.5 6h12M8.5 12h12M8.5 18h12M3.6 6h.01M3.6 12h.01M3.6 18h.01"></path></svg>本文目录</div><nav data-toc-root=""><ul class="toc-list"><li><a class="toc-link" href="#一netfilter-项目" data-toc-link="一netfilter-项目">一、netfilter 项目</a></li><li><details class="toc-branch" open=""><summary><a href="#二iptables-中的基本概念" data-toc-link="二iptables-中的基本概念">二、iptables 中的基本概念</a></summary><ul class="toc-list"><li><a class="toc-link" href="#21-预定义的链" data-toc-link="21-预定义的链">2.1 预定义的链</a></li><li><a class="toc-link" href="#22-表" data-toc-link="22-表">2.2 表</a></li><li><a class="toc-link" href="#23-自定义的链" data-toc-link="23-自定义的链">2.3 自定义的链</a></li><li><a class="toc-link" href="#24-连接状态" data-toc-link="24-连接状态">2.4 连接状态</a></li></ul></details></li><li><a class="toc-link" href="#三iptables-规则的匹配条件" data-toc-link="三iptables-规则的匹配条件">三、iptables 规则的匹配条件</a></li><li><a class="toc-link" href="#四iptables-规则的执行动作" data-toc-link="四iptables-规则的执行动作">四、iptables 规则的执行动作</a></li><li><details class="toc-branch" open=""><summary><a href="#五常见问题" data-toc-link="五常见问题">五、常见问题</a></summary><ul class="toc-list"><li><a class="toc-link" href="#1-nat-能建立多少连接" data-toc-link="1-nat-能建立多少连接">1. NAT 能建立多少连接</a></li><li><a class="toc-link" href="#2-iptables-的规则对-unix-domain-socket-无效" data-toc-link="2-iptables-的规则对-unix-domain-socket-无效">2. iptables 的规则对 Unix Domain Socket 无效</a></li><li><a class="toc-link" href="#3-nfmark-和-ctmark" data-toc-link="3-nfmark-和-ctmark">3. nfmark 和 ctmark</a></li></ul></details></li><li><a class="toc-link" href="#六参考资料" data-toc-link="六参考资料">六、参考资料</a></li></ul></nav></aside></div><section class="recommendations"><div class="section-heading"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m11.6 3.2 1.7 5 5 1.8-5 1.8-1.7 5-1.7-5-5-1.8 5-1.8zM18.6 3.4l.6 1.8 1.8.6-1.8.6-.6 1.8-.6-1.8-1.8-.6 1.8-.6z"></path></svg><h2>同主题推荐</h2><span></span></div><div class="article-list"><article class="article-row"><time class="article-row-date" datetime="2024-08-26">2024.08.26</time><div class="article-row-content"><h3><a href="/notes/study/toushi-http-xieyi/">《透视HTTP协议》学习笔记</a></h3><div class="article-meta"><span class="meta-type"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m22 10-10-5-10 5 10 5zM6 12.2V17c0 1.7 2.7 3 6 3s6-1.3 6-3v-4.8"></path></svg><a href="/notes/study/">学习笔记</a></span><span class="meta-dot" aria-hidden="true">•</span><a class="meta-topic topic-networking" data-topic="networking-and-protocols" href="/topics/networking-and-protocols/"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="2.6"></circle><circle cx="5" cy="5" r="2.2"></circle><circle cx="19" cy="5" r="2.2"></circle><circle cx="5" cy="19" r="2.2"></circle><circle cx="19" cy="19" r="2.2"></circle><path d="m6.6 6.6 3.5 3.5m7.3-3.5-3.5 3.5m-7.3 7.3 3.5-3.5m7.3 3.5-3.5-3.5"></path></svg>网络与协议</a><span class="meta-dot" aria-hidden="true">•</span><span class="password-badge"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="4.5" y="10.5" width="15" height="10.5" rx="2.5"></rect><path d="M8 10.5V7.4a4 4 0 0 1 8 0v3.1"></path></svg>需密码</span></div></div></article><article class="article-row"><time class="article-row-date" datetime="2022-02-11">2022.02.11</time><div class="article-row-content"><h3><a href="/posts/ip-guojia-diqu-xianzhi-linux-fangwen/">根据IP所属的国家地区限制对Linux的访问</a></h3><div class="article-meta"><span class="meta-type"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M14 3.5H7.5a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h9a2 2 0 0 0 2-2V8z"></path><path d="M14 3.5V8.5h5M9.2 13h5.6M9.2 16.5h3.6"></path></svg>普通文章</span><span class="meta-dot" aria-hidden="true">•</span><a class="meta-topic topic-networking" data-topic="networking-and-protocols" href="/topics/networking-and-protocols/"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="2.6"></circle><circle cx="5" cy="5" r="2.2"></circle><circle cx="19" cy="5" r="2.2"></circle><circle cx="5" cy="19" r="2.2"></circle><circle cx="19" cy="19" r="2.2"></circle><path d="m6.6 6.6 3.5 3.5m7.3-3.5-3.5 3.5m-7.3 7.3 3.5-3.5m7.3 3.5-3.5-3.5"></path></svg>网络与协议</a></div></div></article><article class="article-row"><time class="article-row-date" datetime="2022-02-06">2022.02.06</time><div class="article-row-content"><h3><a href="/notes/study/qutan-wangluo-xieyi/">《趣谈网络协议》学习笔记</a></h3><div class="article-meta"><span class="meta-type"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m22 10-10-5-10 5 10 5zM6 12.2V17c0 1.7 2.7 3 6 3s6-1.3 6-3v-4.8"></path></svg><a href="/notes/study/">学习笔记</a></span><span class="meta-dot" aria-hidden="true">•</span><a class="meta-topic topic-networking" data-topic="networking-and-protocols" href="/topics/networking-and-protocols/"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="2.6"></circle><circle cx="5" cy="5" r="2.2"></circle><circle cx="19" cy="5" r="2.2"></circle><circle cx="5" cy="19" r="2.2"></circle><circle cx="19" cy="19" r="2.2"></circle><path d="m6.6 6.6 3.5 3.5m7.3-3.5-3.5 3.5m-7.3 7.3 3.5-3.5m7.3 3.5-3.5-3.5"></path></svg>网络与协议</a><span class="meta-dot" aria-hidden="true">•</span><span class="password-badge"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="4.5" y="10.5" width="15" height="10.5" rx="2.5"></rect><path d="M8 10.5V7.4a4 4 0 0 1 8 0v3.1"></path></svg>需密码</span></div></div></article></div></section><button class="back-to-top" type="button" aria-label="回到顶部" data-back-to-top="" hidden=""><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 19V5m-7 7 7-7 7 7"></path></svg></button><script type="module">var e=document.querySelector(`[data-back-to-top]`);if(e){let t=document.querySelector(`.article-header h1, .page-heading .page-title`);document.body.append(e);let n=()=>{e.hidden=window.scrollY<=400};window.addEventListener(`scroll`,n,{passive:!0}),e.addEventListener(`click`,()=>{t?.focus({preventScroll:!0});let e=window.matchMedia(`(prefers-reduced-motion: reduce)`).matches?`auto`:`smooth`;window.scrollTo({top:0,behavior:e})}),n()}</script></div><script type="module" src="/_astro/ArticleView.astro_astro_type_script_index_1_lang.CfwLsCvq.js"></script><script type="module" src="/_astro/ArticleView.astro_astro_type_script_index_2_lang.CIZiTr3q.js"></script></main><footer class="site-footer"><div class="footer-inner"><a class="footer-brand" href="/"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10z"></path><path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12"></path></svg>木叶禅 <span>·</span> Kiba Amor</a><nav aria-label="页脚导航"><a href="/atom.xml"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4.4 11.2a8.4 8.4 0 0 1 8.4 8.4M4.4 4.4a15.2 15.2 0 0 1 15.2 15.2"></path><circle cx="5.2" cy="18.8" r="1.4"></circle></svg>订阅</a><span aria-hidden="true"></span><a href="/about/#contact"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="2.5" y="4.5" width="19" height="15" rx="2.5"></rect><path d="M3.2 6.6 12 13l8.8-6.4"></path></svg>联系</a></nav></div></footer></div></div><dialog class="search-dialog" aria-labelledby="search-title" data-search-dialog=""><div class="search-dialog-inner"><header class="search-dialog-header"><h2 id="search-title"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="11" cy="11" r="7.4"></circle><path d="m20.8 20.8-4.2-4.2"></path></svg>搜索</h2><button class="dialog-close" type="button" aria-label="关闭搜索" data-search-close=""><span aria-hidden="true">×</span></button></header><form class="search-form" data-search-form=""><label class="visually-hidden" for="site-search-input">搜索页面或章节标题</label><input id="site-search-input" type="search" placeholder="输入页面或章节标题中的关键字" autocomplete="off" data-search-input=""><button class="button button-primary" type="submit"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="11" cy="11" r="7.4"></circle><path d="m20.8 20.8-4.2-4.2"></path></svg>搜索</button></form><div class="search-status"><p class="search-scope"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="9.2"></circle><path d="M12 11.2v5.2m0-8.8h.01"></path></svg>标题包含完整输入的关键字即可找到，每个命中单独显示。</p><p class="search-count" data-search-count="" hidden=""></p></div><div class="search-empty-state" data-search-empty=""><p>可搜索已发布文章、笔记和备忘的页面与章节标题，包括需密码文章。</p></div><ol class="search-results" data-search-results="" hidden=""></ol></div></dialog><script type="module" src="/_astro/SiteLayout.astro_astro_type_script_index_0_lang.DHLnwOGe.js"></script></body></html>

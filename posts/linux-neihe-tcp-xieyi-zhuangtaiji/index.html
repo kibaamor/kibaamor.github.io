@@ -1,0 +1,533 @@
+<!DOCTYPE html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="generator" content="Astro"><meta name="description" content="木叶禅，记录软件开发的学习与实践。"><link rel="icon" type="image/svg+xml" href="/favicon.svg"><link rel="canonical" href="https://kibazen.cn/posts/linux-neihe-tcp-xieyi-zhuangtaiji/"><link rel="alternate" type="application/atom+xml" title="木叶禅 · Atom" href="/atom.xml"><link rel="preconnect" href="https://fontsapi.zeoseven.com" crossorigin=""><link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin=""><link rel="stylesheet" href="https://fontsapi.zeoseven.com/285/main/result.css"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource-variable/noto-serif-sc/index.css"><title>结合Linux内核源码分析TCP协议状态机 · 木叶禅</title><link rel="stylesheet" href="/_astro/SiteLayout.ByqF9Kdn.css"></head><body><div class="page-canvas"><div class="site"><header class="site-header"><div class="header-inner"><a class="brand" href="/" aria-label="木叶禅，返回首页"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10z"></path><path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12"></path></svg><span>木叶禅</span></a><button class="search-trigger search-trigger-mobile" type="button" data-search-trigger="" aria-haspopup="dialog"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="11" cy="11" r="7.4"></circle><path d="m20.8 20.8-4.2-4.2"></path></svg><span>搜索</span></button><nav class="site-nav" aria-label="主导航"><ul class="nav-list"><li class="nav-item is-current"><a href="/posts/" aria-current="page"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M14 3.5H7.5a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h9a2 2 0 0 0 2-2V8z"></path><path d="M14 3.5V8.5h5M9.2 13h5.6M9.2 16.5h3.6"></path></svg>全部文章</a></li><li class="nav-item"><a href="/topics/"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="4" y="4" width="7" height="7" rx="1.6"></rect><rect x="13" y="4" width="7" height="7" rx="1.6"></rect><rect x="4" y="13" width="7" height="7" rx="1.6"></rect><rect x="13" y="13" width="7" height="7" rx="1.6"></rect></svg>主题</a></li><li class="nav-item has-dropdown"><a href="/notes/"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M2 3.5h6a4 4 0 0 1 4 4V21a3 3 0 0 0-3-3H2zM22 3.5h-6a4 4 0 0 0-4 4V21a3 3 0 0 1 3-3h7z"></path></svg>笔记</a><ul class="nav-dropdown"><li><a href="/notes/books/"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path></svg>读书笔记</a></li><li><a href="/notes/study/"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m22 10-10-5-10 5 10 5zM6 12.2V17c0 1.7 2.7 3 6 3s6-1.3 6-3v-4.8"></path></svg>学习笔记</a></li></ul></li><li class="nav-item"><a href="/memo/"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m4 17 6-5-6-5m8 12h8"></path></svg>备忘</a></li><li class="nav-item"><a href="/about/"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7.5" r="4"></circle></svg>关于</a></li></ul></nav><button class="search-trigger search-trigger-desktop" type="button" data-search-trigger="" aria-haspopup="dialog"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="11" cy="11" r="7.4"></circle><path d="m20.8 20.8-4.2-4.2"></path></svg><span>搜索</span></button></div></header><main id="main-content" class="site-main"><div class="article-page"><nav class="breadcrumbs" aria-label="当前位置"><ol><li><a href="/"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M3 9.5 12 2.5l9 7V21a1.5 1.5 0 0 1-1.5 1.5H15v-7H9v7H4.5A1.5 1.5 0 0 1 3 21z"></path></svg>首页</a></li><li><span class="breadcrumb-separator" aria-hidden="true">/</span><a href="/posts/"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M14 3.5H7.5a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h9a2 2 0 0 0 2-2V8z"></path><path d="M14 3.5V8.5h5M9.2 13h5.6M9.2 16.5h3.6"></path></svg>全部文章</a></li><li><span class="breadcrumb-separator" aria-hidden="true">/</span><span aria-current="page"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M14 3.5H7.5a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h9a2 2 0 0 0 2-2V8z"></path><path d="M14 3.5V8.5h5M9.2 13h5.6M9.2 16.5h3.6"></path></svg>结合Linux内核源码分析TCP协议状态机</span></li></ol></nav><header class="article-header"><h1 tabindex="-1">结合Linux内核源码分析TCP协议状态机</h1><div class="article-meta"><span class="meta-type"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M14 3.5H7.5a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h9a2 2 0 0 0 2-2V8z"></path><path d="M14 3.5V8.5h5M9.2 13h5.6M9.2 16.5h3.6"></path></svg>普通文章</span><span class="meta-dot" aria-hidden="true">•</span><a class="meta-topic topic-networking" data-topic="networking-and-protocols" href="/topics/networking-and-protocols/"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="2.6"></circle><circle cx="5" cy="5" r="2.2"></circle><circle cx="19" cy="5" r="2.2"></circle><circle cx="5" cy="19" r="2.2"></circle><circle cx="19" cy="19" r="2.2"></circle><path d="m6.6 6.6 3.5 3.5m7.3-3.5-3.5 3.5m-7.3 7.3 3.5-3.5m7.3 3.5-3.5-3.5"></path></svg>网络与协议</a></div><div class="article-dates"><span><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="3.5" y="5" width="17" height="15.5" rx="2.5"></rect><path d="M3.5 10.2h17M8.5 3v4M15.5 3v4"></path></svg>发布日期 <time datetime="2021-06-17">2021.06.17</time></span></div></header><div class="article-layout" data-article-layout=""><main class="article-main"><details class="mobile-toc" data-mobile-toc=""><summary><span><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M8.5 6h12M8.5 12h12M8.5 18h12M3.6 6h.01M3.6 12h.01M3.6 18h.01"></path></svg>本文目录</span><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m6 9.5 6 6 6-6"></path></svg></summary><nav class="toc-panel" aria-label="本文目录" data-toc-root=""><ul class="toc-list"><li><details class="toc-branch" open=""><summary><a href="#一准备环境" data-toc-link="一准备环境">一、准备环境</a></summary><ul class="toc-list"><li><a class="toc-link" href="#1-下载编译内核源码" data-toc-link="1-下载编译内核源码">1. 下载编译内核源码</a></li><li><a class="toc-link" href="#2-分析编译时的宏定义" data-toc-link="2-分析编译时的宏定义">2. 分析编译时的宏定义</a></li></ul></details></li><li><details class="toc-branch" open=""><summary><a href="#二确定套接字调用对应的内核实现函数" data-toc-link="二确定套接字调用对应的内核实现函数">二、确定套接字调用对应的内核实现函数</a></summary><ul class="toc-list"><li><a class="toc-link" href="#1-确定socket调用的syscall号" data-toc-link="1-确定socket调用的syscall号">1. 确定socket调用的syscall号</a></li><li><a class="toc-link" href="#2-确定socket对应的内核实现" data-toc-link="2-确定socket对应的内核实现">2. 确定socket对应的内核实现</a></li></ul></details></li><li><details class="toc-branch" open=""><summary><a href="#三分析tcp协议状态机" data-toc-link="三分析tcp协议状态机">三、分析TCP协议状态机</a></summary><ul class="toc-list"><li><a class="toc-link" href="#1-socket" data-toc-link="1-socket">1. socket</a></li><li><a class="toc-link" href="#2-listen" data-toc-link="2-listen">2. listen</a></li><li><a class="toc-link" href="#3-connect" data-toc-link="3-connect">3. connect</a></li><li><a class="toc-link" href="#4-accept" data-toc-link="4-accept">4. accept</a></li><li><a class="toc-link" href="#5-close" data-toc-link="5-close">5. close</a></li><li><a class="toc-link" href="#6-shutdown" data-toc-link="6-shutdown">6. shutdown</a></li></ul></details></li><li><details class="toc-branch" open=""><summary><a href="#四ip层及以下层的工作" data-toc-link="四ip层及以下层的工作">四、IP层及以下层的工作</a></summary><ul class="toc-list"><li><a class="toc-link" href="#1-ip层发送包" data-toc-link="1-ip层发送包">1. IP层发送包</a></li><li><a class="toc-link" href="#2-intel的igb网卡驱动的发送流程" data-toc-link="2-intel的igb网卡驱动的发送流程">2. Intel的igb网卡驱动的发送流程</a></li><li><a class="toc-link" href="#3-intel的igb网卡驱动的初始化" data-toc-link="3-intel的igb网卡驱动的初始化">3. Intel的igb网卡驱动的初始化</a></li><li><a class="toc-link" href="#4-intel的igb网卡驱动的接收流程" data-toc-link="4-intel的igb网卡驱动的接收流程">4. Intel的igb网卡驱动的接收流程</a></li><li><a class="toc-link" href="#5-接收ip包" data-toc-link="5-接收ip包">5. 接收IP包</a></li></ul></details></li><li><a class="toc-link" href="#五参考资料" data-toc-link="五参考资料">五、参考资料</a></li></ul></nav></details><article id="article-body" class="article-body"><h2 id="一准备环境">一、准备环境</h2>
+<blockquote>
+<p>环境：Ubuntu18.04</p>
+<p>编辑器：VSCode</p>
+<p>内核版本：<a href="https://mirrors.edge.kernel.org/pub/linux/kernel/v4.x/linux-4.19.194.tar.xz">linux-4.19.194</a></p>
+</blockquote>
+<h3 id="1-下载编译内核源码">1. 下载编译内核源码</h3>
+<pre class="astro-code dracula" style="background-color:#282A36;color:#F8F8F2; overflow-x: auto;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#50FA7B">wget</span><span style="color:#F1FA8C"> https://mirrors.edge.kernel.org/pub/linux/kernel/v4.x/linux-4.19.194.tar.xz</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#50FA7B">tar</span><span style="color:#F1FA8C"> xf</span><span style="color:#F1FA8C"> linux-4.19.194.tar.xz</span></span>
+<span class="line"><span style="color:#8BE9FD">cd</span><span style="color:#F1FA8C"> linux-4.19.194</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#6272A4"># 想要编译什么架构就指定什么值，所有合法的值在源码的arch文件夹下必须存在同名的文件夹</span></span>
+<span class="line"><span style="color:#FF79C6">export</span><span style="color:#BD93F9"> ARCH</span><span style="color:#FF79C6">=</span><span style="color:#BD93F9">x86</span><span style="color:#6272A4"> #x86架构</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#6272A4"># make命令的参数可以通过 make help 获取</span></span>
+<span class="line"><span style="color:#50FA7B">make</span><span style="color:#F1FA8C"> x86_64_defconfig</span><span style="color:#6272A4"> # 生成64位平台的默认配置</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#50FA7B">make</span><span style="color:#6272A4"> # 编译内核</span></span></code></pre>
+<blockquote>
+<p>如果想要下载与当前正在运行的 Ubuntu 内核对应的源代码，可以使用命令 <code>apt-get source linux-image-unsigned-$(uname -r)</code> 来获取。</p>
+<p><a href="https://wiki.ubuntu.com/Kernel/BuildYourOwnKernel">BuildYourOwnKernel</a></p>
+</blockquote>
+<h3 id="2-分析编译时的宏定义">2. 分析编译时的宏定义</h3>
+<p>在第一步 <a href="#1-%E4%B8%8B%E8%BD%BD%E7%BC%96%E8%AF%91%E5%86%85%E6%A0%B8%E6%BA%90%E7%A0%81">下载编译内核源码</a> 成功后，源代码目录下会生成一个名为 <code>.config</code> 的文件，该文件指明了编译内核时所用到的设置。可以使用下面的命令来生成编译内核代码时使用的宏定义列表：</p>
+<pre class="astro-code dracula" style="background-color:#282A36;color:#F8F8F2; overflow-x: auto;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#50FA7B">grep</span><span style="color:#E9F284"> "</span><span style="color:#F1FA8C">^CONFIG_.*</span><span style="color:#E9F284">"</span><span style="color:#F1FA8C"> .config</span><span style="color:#FF79C6"> |</span><span style="color:#50FA7B"> sed</span><span style="color:#E9F284"> "</span><span style="color:#F1FA8C">s/=y/=1/g</span><span style="color:#E9F284">"</span><span style="color:#FF79C6"> |</span><span style="color:#50FA7B"> sed</span><span style="color:#E9F284"> "</span><span style="color:#F1FA8C">s/=m/_MODULE=1/g</span><span style="color:#E9F284">"</span><span style="color:#FF79C6"> |</span><span style="color:#50FA7B"> cat</span><span style="color:#F1FA8C"> -</span><span style="color:#E9F284"> &lt;(</span><span style="color:#8BE9FD">echo</span><span style="color:#F1FA8C"> __KERNEL__</span><span style="color:#E9F284">)</span></span></code></pre>
+<blockquote>
+<p>如果想要生成与当前正在运行的 Ubuntu 内核对应的配置，使用下面的命令：</p>
+<p><code>cat /boot/config-$(uname -r) | grep "^CONFIG_.*" | sed "s/=y/=1/g" | sed "s/=m/_MODULE=1/g" | cat - &lt;(echo __KERNEL__)</code></p>
+<p>最后添加的宏 <code>__KERNEL__</code> 来自源代码根目录下 <code>Makefile</code> 文件的443行。</p>
+</blockquote>
+<p>将上面命令生成的结果配置到vscode中，可以更加方面有效的查看内核代码。</p>
+<h2 id="二确定套接字调用对应的内核实现函数">二、确定套接字调用对应的内核实现函数</h2>
+<blockquote>
+<p>下面以创建套接字的函数 <code>socket</code> 为例。</p>
+</blockquote>
+<h3 id="1-确定socket调用的syscall号">1. 确定socket调用的syscall号</h3>
+<pre class="astro-code dracula" style="background-color:#282A36;color:#F8F8F2; overflow-x: auto;" tabindex="0" data-language="c"><code><span class="line"><span style="color:#6272A4">// file: main.c</span></span>
+<span class="line"><span style="color:#6272A4">// compile: gcc -ggdb main.c</span></span>
+<span class="line"><span style="color:#FF79C6">#include</span><span style="color:#E9F284"> &lt;</span><span style="color:#F1FA8C">sys/types.h</span><span style="color:#E9F284">&gt;</span></span>
+<span class="line"><span style="color:#FF79C6">#include</span><span style="color:#E9F284"> &lt;</span><span style="color:#F1FA8C">sys/socket.h</span><span style="color:#E9F284">&gt;</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#FF79C6">int</span><span style="color:#50FA7B"> main</span><span style="color:#F8F8F2">(</span><span style="color:#FF79C6">int</span><span style="color:#FFB86C;font-style:italic"> argc</span><span style="color:#F8F8F2">, </span><span style="color:#FF79C6">char**</span><span style="color:#FFB86C;font-style:italic"> argv</span><span style="color:#F8F8F2">)</span></span>
+<span class="line"><span style="color:#F8F8F2">{</span></span>
+<span class="line"><span style="color:#FF79C6">    int</span><span style="color:#F8F8F2"> s </span><span style="color:#FF79C6">=</span><span style="color:#50FA7B"> socket</span><span style="color:#F8F8F2">(AF_INET, SOCK_DGRAM, </span><span style="color:#BD93F9">0</span><span style="color:#F8F8F2">);</span></span>
+<span class="line"><span style="color:#FF79C6">    return</span><span style="color:#F8F8F2"> s;</span></span>
+<span class="line"><span style="color:#F8F8F2">}</span></span></code></pre>
+<p>GDB反汇编调试socket调用</p>
+<pre class="astro-code dracula" style="background-color:#282A36;color:#F8F8F2; overflow-x: auto;" tabindex="0" data-language="asm"><code><span class="line"><span style="color:#BD93F9">0x7ffff7b04d50</span><span style="color:#F8F8F2"> &lt;socket&gt;         </span><span style="color:#FF79C6">mov</span><span style="color:#F8F8F2">    $0x29,%</span><span style="color:#BD93F9">eax</span></span>
+<span class="line"><span style="color:#BD93F9">0x7ffff7b04d55</span><span style="color:#F8F8F2"> &lt;socket+</span><span style="color:#BD93F9">5</span><span style="color:#F8F8F2">&gt;       </span><span style="color:#FF79C6">syscall</span></span></code></pre>
+<p>可以发现socket调用的syscall号为0x29（即41）。</p>
+<blockquote>
+<p>命令 <code>man syscall</code> 可以获取更多关于 syscall 调用的信息。</p>
+</blockquote>
+<h3 id="2-确定socket对应的内核实现">2. 确定socket对应的内核实现</h3>
+<p>系统调用表定义在 <code>arch/x86/entry/syscall_64.c</code> 文件中：</p>
+<pre class="astro-code dracula" style="background-color:#282A36;color:#F8F8F2; overflow-x: auto;" tabindex="0" data-language="c"><code><span class="line"><span style="color:#6272A4">// file: arch/x86/entry/syscall_64.c</span></span>
+<span class="line"><span style="color:#F8F8F2">asmlinkage </span><span style="color:#FF79C6">const</span><span style="color:#8BE9FD;font-style:italic"> sys_call_ptr_t</span><span style="color:#F8F8F2"> sys_call_table[__NR_syscall_max</span><span style="color:#FF79C6">+</span><span style="color:#BD93F9">1</span><span style="color:#F8F8F2">] </span><span style="color:#FF79C6">=</span><span style="color:#F8F8F2"> {</span></span>
+<span class="line"><span style="color:#6272A4">    /*</span></span>
+<span class="line"><span style="color:#6272A4">     * Smells like a compiler bug -- it doesn't work</span></span>
+<span class="line"><span style="color:#6272A4">     * when the &amp; below is removed.</span></span>
+<span class="line"><span style="color:#6272A4">     */</span></span>
+<span class="line"><span style="color:#F8F8F2">    [</span><span style="color:#BD93F9">0</span><span style="color:#F8F8F2"> ... __NR_syscall_max] </span><span style="color:#FF79C6">=</span><span style="color:#FF79C6"> &amp;</span><span style="color:#F8F8F2">sys_ni_syscall,</span></span>
+<span class="line"><span style="color:#FF79C6">#include</span><span style="color:#E9F284"> &lt;</span><span style="color:#F1FA8C">asm/syscalls_64.h</span><span style="color:#E9F284">&gt;</span></span>
+<span class="line"><span style="color:#F8F8F2">};</span></span></code></pre>
+<p>代码中 <code>#include &lt;asm/syscalls_64.h&gt;</code> 对应的文件是 <code>arch/x86/include/generated/asm/syscalls_64.h</code> ：</p>
+<pre class="astro-code dracula" style="background-color:#282A36;color:#F8F8F2; overflow-x: auto;" tabindex="0" data-language="c"><code><span class="line"><span style="color:#6272A4">// file: arch/x86/include/generated/asm/syscalls_64.h</span></span>
+<span class="line"><span style="color:#FF79C6">#ifdef</span><span style="color:#50FA7B"> CONFIG_X86</span></span>
+<span class="line"><span style="color:#50FA7B">__SYSCALL_64</span><span style="color:#F8F8F2">(</span><span style="color:#BD93F9">41</span><span style="color:#F8F8F2">, __x64_sys_socket, )</span></span>
+<span class="line"><span style="color:#FF79C6">#else</span><span style="color:#6272A4"> /* CONFIG_UML */</span></span>
+<span class="line"><span style="color:#50FA7B">__SYSCALL_64</span><span style="color:#F8F8F2">(</span><span style="color:#BD93F9">41</span><span style="color:#F8F8F2">, sys_socket, )</span></span>
+<span class="line"><span style="color:#FF79C6">#endif</span></span></code></pre>
+<blockquote>
+<p><code>arch/x86/include/generated/asm/syscalls_64.h</code> 文件由 <code>arch/x86/entry/syscalls/syscall_64.tbl</code> 文件生成而来。</p>
+</blockquote>
+<p>根据 <a href="#2-%E5%88%86%E6%9E%90%E7%BC%96%E8%AF%91%E6%97%B6%E7%9A%84%E5%AE%8F%E5%AE%9A%E4%B9%89">分析编译时的宏定义</a> 的结果，可以确定宏 <code>CONFIG_X86</code> 是定义了的，所以调用号41对应的实现为 <code>__x64_sys_socket</code> 。</p>
+<p>在源码中却找不到 <code>__x64_sys_socket</code> 的定义，但能在文件 <code>net/socket.c</code> 中找到 <code>__sys_socket</code> 函数的定义：</p>
+<pre class="astro-code dracula" style="background-color:#282A36;color:#F8F8F2; overflow-x: auto;" tabindex="0" data-language="c"><code><span class="line"><span style="color:#6272A4">// file: net/socket.c</span></span>
+<span class="line"><span style="color:#50FA7B">SYSCALL_DEFINE3</span><span style="color:#F8F8F2">(socket, </span><span style="color:#FF79C6">int</span><span style="color:#F8F8F2">, family, </span><span style="color:#FF79C6">int</span><span style="color:#F8F8F2">, type, </span><span style="color:#FF79C6">int</span><span style="color:#F8F8F2">, protocol)</span></span>
+<span class="line"><span style="color:#F8F8F2">{</span></span>
+<span class="line"><span style="color:#FF79C6">    return</span><span style="color:#50FA7B"> __sys_socket</span><span style="color:#F8F8F2">(family, type, protocol);</span></span>
+<span class="line"><span style="color:#F8F8F2">}</span></span></code></pre>
+<p>分析宏 <code>SYSCALL_DEFINE3</code> 的定义：</p>
+<pre class="astro-code dracula" style="background-color:#282A36;color:#F8F8F2; overflow-x: auto;" tabindex="0" data-language="c"><code><span class="line"><span style="color:#6272A4">// file: include/linux/syscalls.h</span></span>
+<span class="line"><span style="color:#FF79C6">#define</span><span style="color:#50FA7B"> SYSCALL_DEFINE3</span><span style="color:#F8F8F2">(</span><span style="color:#FFB86C;font-style:italic">name</span><span style="color:#F8F8F2">, ...) </span><span style="color:#50FA7B">SYSCALL_DEFINEx</span><span style="color:#F8F8F2">(</span><span style="color:#BD93F9">3</span><span style="color:#F8F8F2">, _##name, __VA_ARGS__)</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#FF79C6">#define</span><span style="color:#50FA7B"> SYSCALL_DEFINEx</span><span style="color:#F8F8F2">(</span><span style="color:#FFB86C;font-style:italic">x</span><span style="color:#F8F8F2">, </span><span style="color:#FFB86C;font-style:italic">sname</span><span style="color:#F8F8F2">, ...)              </span><span style="color:#FF79C6">\</span></span>
+<span class="line"><span style="color:#50FA7B">    SYSCALL_METADATA</span><span style="color:#F8F8F2">(sname, x, __VA_ARGS__)         </span><span style="color:#FF79C6">\</span></span>
+<span class="line"><span style="color:#50FA7B">    __SYSCALL_DEFINEx</span><span style="color:#F8F8F2">(x, sname, __VA_ARGS__)</span></span></code></pre>
+<p>接着分析宏 <code>__SYSCALL_DEFINEx</code> 的定义：</p>
+<pre class="astro-code dracula" style="background-color:#282A36;color:#F8F8F2; overflow-x: auto;" tabindex="0" data-language="c"><code><span class="line"><span style="color:#6272A4">// file: arch/x86/include/asm/syscall_wrapper.h</span></span>
+<span class="line"><span style="color:#FF79C6">#define</span><span style="color:#50FA7B"> __SYSCALL_DEFINEx</span><span style="color:#F8F8F2">(</span><span style="color:#FFB86C;font-style:italic">x</span><span style="color:#F8F8F2">, </span><span style="color:#FFB86C;font-style:italic">name</span><span style="color:#F8F8F2">, ...)                 </span><span style="color:#FF79C6">\</span></span>
+<span class="line"><span style="color:#F8F8F2">    asmlinkage </span><span style="color:#FF79C6">long</span><span style="color:#F8F8F2"> __x64_sys##</span><span style="color:#50FA7B">name</span><span style="color:#F8F8F2">(</span><span style="color:#FF79C6">const</span><span style="color:#FF79C6"> struct</span><span style="color:#F8F8F2"> pt_regs </span><span style="color:#FF79C6">*</span><span style="color:#F8F8F2">regs);    </span><span style="color:#FF79C6">\</span></span>
+<span class="line"><span style="color:#50FA7B">    ALLOW_ERROR_INJECTION</span><span style="color:#F8F8F2">(__x64_sys##name, ERRNO);          </span><span style="color:#FF79C6">\</span></span>
+<span class="line"><span style="color:#FF79C6">    static</span><span style="color:#FF79C6"> long</span><span style="color:#F8F8F2"> __se_sys##</span><span style="color:#50FA7B">name</span><span style="color:#F8F8F2">(</span><span style="color:#50FA7B">__MAP</span><span style="color:#F8F8F2">(x,__SC_LONG,__VA_ARGS__)); </span><span style="color:#FF79C6">\</span></span>
+<span class="line"><span style="color:#FF79C6">    static</span><span style="color:#FF79C6"> inline</span><span style="color:#FF79C6"> long</span><span style="color:#F8F8F2"> __do_sys##</span><span style="color:#50FA7B">name</span><span style="color:#F8F8F2">(</span><span style="color:#50FA7B">__MAP</span><span style="color:#F8F8F2">(x,__SC_DECL,__VA_ARGS__));</span><span style="color:#FF79C6">\</span></span>
+<span class="line"><span style="color:#F8F8F2">    asmlinkage </span><span style="color:#FF79C6">long</span><span style="color:#F8F8F2"> __x64_sys##</span><span style="color:#50FA7B">name</span><span style="color:#F8F8F2">(</span><span style="color:#FF79C6">const</span><span style="color:#FF79C6"> struct</span><span style="color:#F8F8F2"> pt_regs </span><span style="color:#FF79C6">*</span><span style="color:#F8F8F2">regs) </span><span style="color:#FF79C6">\</span></span>
+<span class="line"><span style="color:#F8F8F2">    {                               </span><span style="color:#FF79C6">\</span></span>
+<span class="line"><span style="color:#FF79C6">        return</span><span style="color:#F8F8F2"> __se_sys##</span><span style="color:#50FA7B">name</span><span style="color:#F8F8F2">(</span><span style="color:#50FA7B">SC_X86_64_REGS_TO_ARGS</span><span style="color:#F8F8F2">(x,__VA_ARGS__));</span><span style="color:#FF79C6">\</span></span>
+<span class="line"><span style="color:#F8F8F2">    }                               </span><span style="color:#FF79C6">\</span></span>
+<span class="line"><span style="color:#50FA7B">    __IA32_SYS_STUBx</span><span style="color:#F8F8F2">(x, name, __VA_ARGS__)              </span><span style="color:#FF79C6">\</span></span>
+<span class="line"><span style="color:#FF79C6">    static</span><span style="color:#FF79C6"> long</span><span style="color:#F8F8F2"> __se_sys##</span><span style="color:#50FA7B">name</span><span style="color:#F8F8F2">(</span><span style="color:#50FA7B">__MAP</span><span style="color:#F8F8F2">(x,__SC_LONG,__VA_ARGS__))  </span><span style="color:#FF79C6">\</span></span>
+<span class="line"><span style="color:#F8F8F2">    {                               </span><span style="color:#FF79C6">\</span></span>
+<span class="line"><span style="color:#FF79C6">        long</span><span style="color:#F8F8F2"> ret </span><span style="color:#FF79C6">=</span><span style="color:#F8F8F2"> __do_sys##</span><span style="color:#50FA7B">name</span><span style="color:#F8F8F2">(</span><span style="color:#50FA7B">__MAP</span><span style="color:#F8F8F2">(x,__SC_CAST,__VA_ARGS__));</span><span style="color:#FF79C6">\</span></span>
+<span class="line"><span style="color:#50FA7B">        __MAP</span><span style="color:#F8F8F2">(x,__SC_TEST,__VA_ARGS__);             </span><span style="color:#FF79C6">\</span></span>
+<span class="line"><span style="color:#50FA7B">        __PROTECT</span><span style="color:#F8F8F2">(x, ret,</span><span style="color:#50FA7B">__MAP</span><span style="color:#F8F8F2">(x,__SC_ARGS,__VA_ARGS__));   </span><span style="color:#FF79C6">\</span></span>
+<span class="line"><span style="color:#FF79C6">        return</span><span style="color:#F8F8F2"> ret;                     </span><span style="color:#FF79C6">\</span></span>
+<span class="line"><span style="color:#F8F8F2">    }                               </span><span style="color:#FF79C6">\</span></span>
+<span class="line"><span style="color:#FF79C6">    static</span><span style="color:#FF79C6"> inline</span><span style="color:#FF79C6"> long</span><span style="color:#F8F8F2"> __do_sys##</span><span style="color:#50FA7B">name</span><span style="color:#F8F8F2">(</span><span style="color:#50FA7B">__MAP</span><span style="color:#F8F8F2">(x,__SC_DECL,__VA_ARGS__))</span></span></code></pre>
+<p>可以确定，宏 <code>SYSCALL_DEFINE3(socket, int, family, int, type, int, protocol)</code> 展开后，定义了 <code>__x64_sys_socket</code>。</p>
+<p>即 <code>__x64_sys_socket</code> 函数的本体就是 <code>net/socket.c</code> 文件中的 <code>__sys_socket</code> 函数。</p>
+<h2 id="三分析tcp协议状态机">三、分析TCP协议状态机</h2>
+<h3 id="1-socket">1. socket</h3>
+<p>调用流程如下：</p>
+<pre class="astro-code dracula" style="background-color:#282A36;color:#F8F8F2; overflow-x: auto;" tabindex="0" data-language="text"><code><span class="line"><span>__sys_socket                // net/socket.c:1355</span></span>
+<span class="line"><span>    |- sock_create          // net/socket.c:1346</span></span>
+<span class="line"><span>        |- __sock_create    // net/socket.c:1316</span></span></code></pre>
+<p><code>socket</code> 函数最后会调用函数 <code>__sock_create</code> ，其主要代码如下：</p>
+<pre class="astro-code dracula" style="background-color:#282A36;color:#F8F8F2; overflow-x: auto;" tabindex="0" data-language="c"><code><span class="line"><span style="color:#FF79C6">int</span><span style="color:#50FA7B"> __sock_create</span><span style="color:#F8F8F2">(</span><span style="color:#FF79C6">struct</span><span style="color:#F8F8F2"> net </span><span style="color:#FF79C6">*</span><span style="color:#FFB86C;font-style:italic">net</span><span style="color:#F8F8F2">, </span><span style="color:#FF79C6">int</span><span style="color:#FFB86C;font-style:italic"> family</span><span style="color:#F8F8F2">, </span><span style="color:#FF79C6">int</span><span style="color:#FFB86C;font-style:italic"> type</span><span style="color:#F8F8F2">, </span><span style="color:#FF79C6">int</span><span style="color:#FFB86C;font-style:italic"> protocol</span><span style="color:#F8F8F2">,</span></span>
+<span class="line"><span style="color:#FF79C6">            struct</span><span style="color:#F8F8F2"> socket </span><span style="color:#FF79C6">**</span><span style="color:#FFB86C;font-style:italic">res</span><span style="color:#F8F8F2">, </span><span style="color:#FF79C6">int</span><span style="color:#FFB86C;font-style:italic"> kern</span><span style="color:#F8F8F2">)</span></span>
+<span class="line"><span style="color:#F8F8F2">{</span></span>
+<span class="line"><span style="color:#FF79C6">    struct</span><span style="color:#F8F8F2"> socket </span><span style="color:#FF79C6">*</span><span style="color:#F8F8F2">sock;</span></span>
+<span class="line"><span style="color:#FF79C6">    const</span><span style="color:#FF79C6"> struct</span><span style="color:#F8F8F2"> net_proto_family </span><span style="color:#FF79C6">*</span><span style="color:#F8F8F2">pf;</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#F8F8F2">    sock </span><span style="color:#FF79C6">=</span><span style="color:#50FA7B"> sock_alloc</span><span style="color:#F8F8F2">();</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#F8F8F2">    pf </span><span style="color:#FF79C6">=</span><span style="color:#50FA7B"> rcu_dereference</span><span style="color:#F8F8F2">(net_families[family]);</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#F8F8F2">    pf</span><span style="color:#FF79C6">-&gt;</span><span style="color:#50FA7B">create</span><span style="color:#F8F8F2">(net, sock, protocol, kern);</span></span>
+<span class="line"><span style="color:#F8F8F2">}</span></span></code></pre>
+<p><code>sock_alloc()</code> 函数分配套接字的一些资源后，再从 <code>net_families</code> 取出网络协议簇对应的处理函数，最后创建对应网络协议簇的套接字。</p>
+<p><code>net_families</code> 是一个数组，里面存放了不同的协议簇对应的处理函数。通过函数 <code>sock_register</code> 可以注册到此数组中。</p>
+<pre class="astro-code dracula" style="background-color:#282A36;color:#F8F8F2; overflow-x: auto;" tabindex="0" data-language="c"><code><span class="line"><span style="color:#6272A4">// file: net/ipv4/af_inet.c</span></span>
+<span class="line"><span style="color:#FF79C6">static</span><span style="color:#FF79C6"> const</span><span style="color:#FF79C6"> struct</span><span style="color:#F8F8F2"> net_proto_family inet_family_ops </span><span style="color:#FF79C6">=</span><span style="color:#F8F8F2"> {</span></span>
+<span class="line"><span style="color:#F8F8F2">    .family </span><span style="color:#FF79C6">=</span><span style="color:#F8F8F2"> PF_INET,</span></span>
+<span class="line"><span style="color:#F8F8F2">    .create </span><span style="color:#FF79C6">=</span><span style="color:#F8F8F2"> inet_create,</span></span>
+<span class="line"><span style="color:#F8F8F2">    .owner </span><span style="color:#FF79C6">=</span><span style="color:#F8F8F2"> THIS_MODULE,</span></span>
+<span class="line"><span style="color:#F8F8F2">};</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#FF79C6">static</span><span style="color:#FF79C6"> int</span><span style="color:#F8F8F2"> __init </span><span style="color:#50FA7B">inet_init</span><span style="color:#F8F8F2">(</span><span style="color:#FF79C6">void</span><span style="color:#F8F8F2">)</span></span>
+<span class="line"><span style="color:#F8F8F2">{</span></span>
+<span class="line"><span style="color:#F8F8F2">    (</span><span style="color:#FF79C6">void</span><span style="color:#F8F8F2">)</span><span style="color:#50FA7B">sock_register</span><span style="color:#F8F8F2">(</span><span style="color:#FF79C6">&amp;</span><span style="color:#F8F8F2">inet_family_ops);</span></span>
+<span class="line"><span style="color:#F8F8F2">}</span></span></code></pre>
+<p>对于 TCP/IPv4 来说，上面代码中的 <code>err = pf-&gt;create(net, sock, protocol, kern)</code> 调用的其实是 <code>inet_create(net, sock, protocol, kern)</code> 。</p>
+<pre class="astro-code dracula" style="background-color:#282A36;color:#F8F8F2; overflow-x: auto;" tabindex="0" data-language="text"><code><span class="line"><span>inet_create                             // net/ipv4/af_inet.c:1075</span></span>
+<span class="line"><span>    |- sock_init_data                   // net/core/sock.c:347</span></span>
+<span class="line"><span>        |- sk-&gt;sk_state = TCP_CLOSE     // net/core/sock.c:2790</span></span></code></pre>
+<p>综上，调用 <code>socket()</code> 函数后，套接字的默认状态为 <code>TCP_CLOSE</code> 。</p>
+<h3 id="2-listen">2. listen</h3>
+<p>调用流程如下：</p>
+<pre class="astro-code dracula" style="background-color:#282A36;color:#F8F8F2; overflow-x: auto;" tabindex="0" data-language="text"><code><span class="line"><span>__sys_listen                    // net/socket.c:1525</span></span>
+<span class="line"><span>    |- sock-&gt;ops-&gt;listen()      // net/socket.c:1516</span></span></code></pre>
+<p>对于 TCP/IPv4 来说，上面代码中的 <code>sock-&gt;ops-&gt;listen()</code> 调用的其实是 <code>net/ipv4/af_inet.c</code> 文件中的 <code>inet_listen</code> 函数。</p>
+<pre class="astro-code dracula" style="background-color:#282A36;color:#F8F8F2; overflow-x: auto;" tabindex="0" data-language="text"><code><span class="line"><span>inet_listen                                     // net/ipv4/af_inet.c:991</span></span>
+<span class="line"><span>    |- inet_csk_listen_start                    // net/ipv4/af_inet.c:229</span></span>
+<span class="line"><span>        |- inet_sk_state_store(sk, TCP_LISTEN)  // net/ipv4/inet_connection_sock.c:923</span></span></code></pre>
+<p>综上，调用 <code>listen()</code> 函数后，套接字的状态由 <code>TCP_CLOSE</code> 变为 <code>TCP_LISTEN</code> 。</p>
+<h3 id="3-connect">3. connect</h3>
+<p>调用流程如下：</p>
+<pre class="astro-code dracula" style="background-color:#282A36;color:#F8F8F2; overflow-x: auto;" tabindex="0" data-language="text"><code><span class="line"><span>__sys_connect                // net/socket.c:1674</span></span>
+<span class="line"><span>    |- sock-&gt;ops-&gt;connect()  // net/socket.c:1663</span></span></code></pre>
+<p>同理，对于 TCP/IPv4 来说，上面代码中的 <code>sock-&gt;ops-&gt;connect()</code> 调用的其实是 <code>net/ipv4/af_inet.c</code> 文件中的 <code>inet_stream_connect</code> 函数。</p>
+<pre class="astro-code dracula" style="background-color:#282A36;color:#F8F8F2; overflow-x: auto;" tabindex="0" data-language="text"><code><span class="line"><span>inet_stream_connect                 // net/ipv4/af_inet.c:985</span></span>
+<span class="line"><span>    |- __inet_stream_connect        // net/ipv4/af_inet.c:719</span></span>
+<span class="line"><span>        |- sk-&gt;sk_prot-&gt;connect()   // net/ipv4/af_inet.c:655</span></span></code></pre>
+<p>上面代码中的 <code>sk-&gt;sk_prot-&gt;connect()</code> 调用的其实是 <code>net/ipv4/tcp_ipv4.c</code> 文件中的 <code>tcp_v4_connect</code> 函数。</p>
+<h4 id="1-发送syn">1. 发送SYN</h4>
+<pre class="astro-code dracula" style="background-color:#282A36;color:#F8F8F2; overflow-x: auto;" tabindex="0" data-language="text"><code><span class="line"><span>tcp_v4_connect                                      // net/ipv4/tcp_ipv4.c:2460</span></span>
+<span class="line"><span>    |- tcp_set_state(sk, TCP_SYN_SENT)              // net/ipv4/tcp_ipv4.c:280</span></span>
+<span class="line"><span>    |- tcp_connect                                  // net/ipv4/tcp_ipv4.c:318</span></span>
+<span class="line"><span>        |- tcp_transmit_skb                         // net/ipv4/tcp_output.c:3529</span></span>
+<span class="line"><span>            |- __tcp_transmit_skb                   // net/ipv4/tcp_output.c:1164</span></span>
+<span class="line"><span>                |- icsk-&gt;icsk_af_ops-&gt;queue_xmit()  // net/ipv4/tcp_output.c:1148</span></span></code></pre>
+<p><code>tcp_v4_connect</code> 函数先将套接字的状态设置为 <code>TCP_SYN_SENT</code> ，然后再调用 <code>tcp_connect</code> 发送实际的SYN包。</p>
+<p>在函数 <code>__tcp_transmit_skb</code> 中构建网络包的TCP头。构建好后，调用 <code>icsk-&gt;icsk_af_ops-&gt;queue_xmit()</code> 发送TCP包，而函数 <code>icsk-&gt;icsk_af_ops-&gt;queue_xmit()</code> 实际就是 <code>include/net/ip.h</code> 文件中的 <code>ip_queue_xmit</code> 函数。</p>
+<pre class="astro-code dracula" style="background-color:#282A36;color:#F8F8F2; overflow-x: auto;" tabindex="0" data-language="text"><code><span class="line"><span>ip_queue_xmit                                   // net/ipv4/tcp_ipv4.c:1931</span></span>
+<span class="line"><span>    |- __ip_queue_xmit                          // include/net/ip.h:197</span></span>
+<span class="line"><span>        |- skb_dst_set_noref(skb, &amp;rt-&gt;dst)     // net/ipv4/ip_output.c:473</span></span>
+<span class="line"><span>        |- ip_local_out                         // net/ipv4/ip_output.c:506</span></span></code></pre>
+<p>首先在函数 <code>__ip_queue_xmit</code> 中调用 <code>skb_dst_set_noref(skb, &amp;rt-&gt;dst)</code> 设置发送的目标，然后构建 IP 头并调用函数 <code>ip_local_out</code> 将包含有 SYN 标志的 TCP 包发送出去。</p>
+<h4 id="2-接收到syn和ack并回复ack">2. 接收到SYN和ACK，并回复ACK</h4>
+<p>当 IP 层接收到 TCPv4 的包时，会调用函数 <code>tcp_v4_rcv</code> 来处理。</p>
+<pre class="astro-code dracula" style="background-color:#282A36;color:#F8F8F2; overflow-x: auto;" tabindex="0" data-language="text"><code><span class="line"><span>tcp_v4_rcv                                                  // net/ipv4/af_inet.c:1684</span></span>
+<span class="line"><span>    |- tcp_v4_do_rcv                                        // net/ipv4/tcp_ipv4.c:1832</span></span>
+<span class="line"><span>        |- tcp_rcv_state_process                            // net/ipv4/tcp_ipv4.c:1569</span></span>
+<span class="line"><span>            |- tcp_rcv_synsent_state_process                // net/ipv4/tcp_input.c:6065</span></span>
+<span class="line"><span>                |- tcp_finish_connect                       // net/ipv4/tcp_input.c:5898</span></span>
+<span class="line"><span>                    |- tcp_set_state(sk, TCP_ESTABLISHED)   // net/ipv4/tcp_input.c:5695</span></span>
+<span class="line"><span>                |- tcp_send_ack                             // net/ipv4/tcp_input.c:5928</span></span></code></pre>
+<p>在 <code>tcp_rcv_synsent_state_process</code> 中，先将套接字的状态设置为 <code>TCP_ESTABLISHED</code> ，然后再调用 <code>tcp_send_ack</code> 发送 ACK 完成 TCP 的三次握手。</p>
+<p>综上，调用 <code>connect()</code> 函数后，套接字的状态由 <code>TCP_CLOSE</code> 变为 <code>TCP_SYN_SENT</code> ，在成功收到 ACK 后，状态再变为 <code>TCP_ESTABLISHED</code> 。</p>
+<h3 id="4-accept">4. accept</h3>
+<p>调用流程如下：</p>
+<pre class="astro-code dracula" style="background-color:#282A36;color:#F8F8F2; overflow-x: auto;" tabindex="0" data-language="text"><code><span class="line"><span>__sys_accept4                               // net/socket.c:1630</span></span>
+<span class="line"><span>    |- sock-&gt;ops-&gt;accept(sock, newsock)     // net/socket.c:1589</span></span></code></pre>
+<p>对于 TCP/IPv4 来说， <code>sock-&gt;ops-&gt;accept()</code> 实际调用的是 <code>net/ipv4/af_inet.c</code> 文件中的 <code>inet_accept</code> 。</p>
+<pre class="astro-code dracula" style="background-color:#282A36;color:#F8F8F2; overflow-x: auto;" tabindex="0" data-language="text"><code><span class="line"><span>inet_accept                     // net/ipv4/af_inet.c:987</span></span>
+<span class="line"><span>    |- sk1-&gt;sk_prot-&gt;accept()   // net/ipv4/af_inet.c:734</span></span></code></pre>
+<p>对于 TCP/IPv4 来说， <code>sk1-&gt;sk_prot-&gt;accept()</code> 实际调用的是 <code>net/ipv4/inet_connection_sock.c</code> 文件中的 <code>inet_csk_accept</code> 。</p>
+<pre class="astro-code dracula" style="background-color:#282A36;color:#F8F8F2; overflow-x: auto;" tabindex="0" data-language="c"><code><span class="line"><span style="color:#FF79C6">struct</span><span style="color:#F8F8F2"> sock </span><span style="color:#FF79C6">*</span><span style="color:#50FA7B">inet_csk_accept</span><span style="color:#F8F8F2">(</span><span style="color:#FF79C6">struct</span><span style="color:#F8F8F2"> sock </span><span style="color:#FF79C6">*</span><span style="color:#FFB86C;font-style:italic">sk</span><span style="color:#F8F8F2">, </span><span style="color:#FF79C6">int</span><span style="color:#FFB86C;font-style:italic"> flags</span><span style="color:#F8F8F2">, </span><span style="color:#FF79C6">int</span><span style="color:#FF79C6"> *</span><span style="color:#FFB86C;font-style:italic">err</span><span style="color:#F8F8F2">, </span><span style="color:#FF79C6">bool</span><span style="color:#FFB86C;font-style:italic"> kern</span><span style="color:#F8F8F2">)</span></span>
+<span class="line"><span style="color:#F8F8F2">{</span></span>
+<span class="line"><span style="color:#FF79C6">    if</span><span style="color:#F8F8F2"> (</span><span style="color:#50FA7B">reqsk_queue_empty</span><span style="color:#F8F8F2">(queue)) {</span></span>
+<span class="line"><span style="color:#FF79C6">        long</span><span style="color:#F8F8F2"> timeo </span><span style="color:#FF79C6">=</span><span style="color:#50FA7B"> sock_rcvtimeo</span><span style="color:#F8F8F2">(sk, flags </span><span style="color:#FF79C6">&amp;</span><span style="color:#F8F8F2"> O_NONBLOCK);</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#6272A4">        /* If this is a non blocking socket don't sleep */</span></span>
+<span class="line"><span style="color:#F8F8F2">        error </span><span style="color:#FF79C6">=</span><span style="color:#FF79C6"> -</span><span style="color:#F8F8F2">EAGAIN;</span></span>
+<span class="line"><span style="color:#FF79C6">        if</span><span style="color:#F8F8F2"> (</span><span style="color:#FF79C6">!</span><span style="color:#F8F8F2">timeo)</span></span>
+<span class="line"><span style="color:#FF79C6">            goto</span><span style="color:#F8F8F2"> out_err;</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#50FA7B">        inet_csk_wait_for_connect</span><span style="color:#F8F8F2">(sk, timeo);</span></span>
+<span class="line"><span style="color:#F8F8F2">    }</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#F8F8F2">    req </span><span style="color:#FF79C6">=</span><span style="color:#50FA7B"> reqsk_queue_remove</span><span style="color:#F8F8F2">(queue, sk);</span></span>
+<span class="line"><span style="color:#F8F8F2">    newsk </span><span style="color:#FF79C6">=</span><span style="color:#F8F8F2"> req</span><span style="color:#FF79C6">-&gt;</span><span style="color:#F8F8F2">sk;</span></span>
+<span class="line"><span style="color:#FF79C6">    return</span><span style="color:#F8F8F2"> newsk;</span></span>
+<span class="line"><span style="color:#F8F8F2">}</span></span></code></pre>
+<p><code>inet_csk_accept</code> 首先检查监听套接字上的连接队列是否为空，为空且设置了 <code>O_NONBLOCK</code> 标志的话就返回错误 <code>EAGAIN</code> ，否则就等待直到有连接到来。</p>
+<h4 id="1-接收到syn发送syn和ack">1. 接收到SYN，发送SYN和ACK</h4>
+<pre class="astro-code dracula" style="background-color:#282A36;color:#F8F8F2; overflow-x: auto;" tabindex="0" data-language="text"><code><span class="line"><span>tcp_v4_rcv                                          // net/ipv4/af_inet.c:1684</span></span>
+<span class="line"><span>    |- tcp_v4_do_rcv                                // net/ipv4/tcp_ipv4.c:1822</span></span>
+<span class="line"><span>        |- tcp_rcv_state_process                    // net/ipv4/tcp_ipv4.c:1569</span></span>
+<span class="line"><span>            |- icsk-&gt;icsk_af_ops-&gt;conn_request()    // net/ipv4/tcp_input.c:6051</span></span></code></pre>
+<p>对于 TCP/IPv4 来说，调用 <code>icsk-&gt;icsk_af_ops-&gt;conn_request()</code> 其实是调用 <code>net/ipv4/tcp_ipv4.c</code> 文件中的 <code>tcp_v4_conn_request</code>：</p>
+<pre class="astro-code dracula" style="background-color:#282A36;color:#F8F8F2; overflow-x: auto;" tabindex="0" data-language="text"><code><span class="line"><span>tcp_v4_conn_request                                 // net/ipv4/tcp_ipv4.c:1935</span></span>
+<span class="line"><span>    |- tcp_conn_request                             // net/ipv4/tcp_ipv4.c:1397</span></span>
+<span class="line"><span>        |- inet_reqsk_alloc                         // net/ipv4/tcp_input.c:6461</span></span>
+<span class="line"><span>            |- ireq-&gt;ireq_state = TCP_NEW_SYN_RECV  // net/ipv4/tcp_input.c:6374</span></span>
+<span class="line"><span>        |- af_ops-&gt;send_synack()                    // net/ipv4/tcp_input.c:6556</span></span></code></pre>
+<p>在连接请求处理函数 <code>tcp_conn_request</code> 中，首先把新分配的套接字的 <code>request_sock</code> 设置为 <code>TCP_NEW_SYN_RECV</code> 状态。然后调用 <code>af_ops-&gt;send_synack()</code> 来发送 SYN 和 ACK 。对于 TCP/IPv4 来说，调用 <code>af_ops-&gt;send_synack()</code> 其实是调用 <code>net/ipv4/tcp_ipv4.c</code> 文件中的 <code>tcp_v4_send_synack</code> 。而函数 <code>tcp_v4_send_synack</code> 做的也确实是发送一个带有 SYN 和 ACK 标志的包。</p>
+<h4 id="2-接收到ack">2. 接收到ACK</h4>
+<pre class="astro-code dracula" style="background-color:#282A36;color:#F8F8F2; overflow-x: auto;" tabindex="0" data-language="text"><code><span class="line"><span>tcp_v4_rcv                                              // net/ipv4/af_inet.c:1684</span></span>
+<span class="line"><span>    |- tcp_check_req                                    // net/ipv4/tcp_ipv4.c:1773</span></span>
+<span class="line"><span>        |- inet_csk(sk)-&gt;icsk_af_ops-&gt;syn_recv_sock()   // net/ipv4/tcp_minisocks.c:789</span></span>
+<span class="line"><span>        |- inet_csk_complete_hashdance                  // net/ipv4/tcp_minisocks.c:797</span></span>
+<span class="line"><span>    |- tcp_child_process                                // net/ipv4/tcp_ipv4.c:1792</span></span></code></pre>
+<ol>
+<li>
+<p>对于 TCP/IPv4 来说，调用 <code>inet_csk(sk)-&gt;icsk_af_ops-&gt;syn_recv_sock()</code> 其实是调用 <code>net/ipv4/tcp_ipv4.c</code> 文件中的 <code>tcp_v4_syn_recv_sock</code>：</p>
+<pre class="astro-code dracula" style="background-color:#282A36;color:#F8F8F2; overflow-x: auto;" tabindex="0" data-language="text"><code><span class="line"><span>tcp_v4_syn_recv_sock                                    // net/ipv4/tcp_ipv4.c:1936</span></span>
+<span class="line"><span>    |- tcp_create_openreq_child                         // net/ipv4/tcp_ipv4.c:1429</span></span>
+<span class="line"><span>        |- inet_csk_clone_lock                          // net/ipv4/tcp_minisocks.c:452</span></span>
+<span class="line"><span>            |- inet_sk_set_state(newsk, TCP_SYN_RECV)   // net/ipv4/inet_connection_sock.c:829</span></span></code></pre>
+<p>需要注意的是，新创建的套接字的状态为 <code>TCP_SYN_RECV</code> 。</p>
+</li>
+<li>
+<p>函数 <code>inet_csk_complete_hashdance</code> 主要做的是将请求控制块从未完成连接队列中删除，加入到已完成连接队列中：</p>
+<pre class="astro-code dracula" style="background-color:#282A36;color:#F8F8F2; overflow-x: auto;" tabindex="0" data-language="text"><code><span class="line"><span>inet_csk_complete_hashdance                 // net/ipv4/tcp_minisocks.c:797</span></span>
+<span class="line"><span>    |- inet_csk_reqsk_queue_drop            // net/ipv4/inet_connection_sock.c:992</span></span>
+<span class="line"><span>        |- reqsk_queue_unlink               // net/ipv4/inet_connection_sock.c:703</span></span>
+<span class="line"><span>    |- inet_csk_reqsk_queue_add             // net/ipv4/inet_connection_sock.c:994</span></span></code></pre>
+</li>
+<li>
+<p>函数 <code>tcp_child_process</code> 进一步对新创建的套接字进行处理并把状态更新为 <code>TCP_ESTABLISHED</code> ：</p>
+<pre class="astro-code dracula" style="background-color:#282A36;color:#F8F8F2; overflow-x: auto;" tabindex="0" data-language="text"><code><span class="line"><span>tcp_child_process                               // net/ipv4/tcp_ipv4.c:1792</span></span>
+<span class="line"><span>    |- tcp_rcv_state_process                    // net/ipv4/tcp_minisocks.c:851</span></span>
+<span class="line"><span>        |- tcp_set_state(sk, TCP_ESTABLISHED)   // net/ipv4/tcp_input.c:6132</span></span></code></pre>
+</li>
+</ol>
+
+<h3 id="5-close">5. close</h3>
+<h4 id="1-发送fin">1. 发送FIN</h4>
+<pre class="astro-code dracula" style="background-color:#282A36;color:#F8F8F2; overflow-x: auto;" tabindex="0" data-language="text"><code><span class="line"><span>tcp_close                                               // net/ipv4/tcp_ipv4.c:2458</span></span>
+<span class="line"><span>    |- tcp_close_state                                  // net/ipv4/tcp.c:2393</span></span>
+<span class="line"><span>        |- tcp_set_state(sk, ns)                        // net/ipv4/tcp.c:2294</span></span>
+<span class="line"><span>    |- tcp_send_fin                                     // net/ipv4/tcp.c:2423</span></span>
+<span class="line"><span>        |- TCP_SKB_CB(tskb)-&gt;tcp_flags |= TCPHDR_FIN    // net/ipv4/tcp_output.c:3087</span></span>
+<span class="line"><span>    |- sk_stream_wait_close                             // net/ipv4/tcp.c:2426</span></span></code></pre>
+<p>对于状态是 <code>TCP_ESTABLISHED</code> 的套接字，函数 <code>tcp_close_state</code> 会把套接字的状态更新为 <code>TCP_FIN_WAIT1</code> 。 <code>tcp_send_fin</code> 函数则发送带有 FIN 标记的包给对方。</p>
+<h4 id="2-接收ack">2. 接收ACK</h4>
+<pre class="astro-code dracula" style="background-color:#282A36;color:#F8F8F2; overflow-x: auto;" tabindex="0" data-language="text"><code><span class="line"><span>tcp_v4_rcv                                              // net/ipv4/af_inet.c:1684</span></span>
+<span class="line"><span>    |- tcp_v4_do_rcv                                    // net/ipv4/tcp_ipv4.c:1832</span></span>
+<span class="line"><span>        |- tcp_rcv_state_process                        // net/ipv4/tcp_ipv4.c:1569</span></span>
+<span class="line"><span>            |- tcp_set_state(sk, TCP_FIN_WAIT2)         // net/ipv4/tcp_input.c:6175</span></span></code></pre>
+
+<h4 id="3-等待fin并发送ack">3. 等待FIN并发送ACK</h4>
+<pre class="astro-code dracula" style="background-color:#282A36;color:#F8F8F2; overflow-x: auto;" tabindex="0" data-language="text"><code><span class="line"><span>tcp_v4_rcv                                                      // net/ipv4/af_inet.c:1684</span></span>
+<span class="line"><span>    |- tcp_v4_do_rcv                                            // net/ipv4/tcp_ipv4.c:1832</span></span>
+<span class="line"><span>        |- tcp_rcv_state_process                                // net/ipv4/tcp_ipv4.c:1569</span></span>
+<span class="line"><span>            |- tcp_data_queue                                   // net/ipv4/tcp_input.c:6262</span></span>
+<span class="line"><span>                |- tcp_fin                                      // net/ipv4/tcp_input.c:4756</span></span>
+<span class="line"><span>                    |- tcp_send_ack(sk)                         // net/ipv4/tcp_input.c:4139</span></span>
+<span class="line"><span>                    |- tcp_time_wait(TCP_TIME_WAIT)             // net/ipv4/tcp_input.c:4140</span></span>
+<span class="line"><span>                        |- inet_twsk_alloc                      // net/ipv4/tcp_minisocks.c:259</span></span>
+<span class="line"><span>                            |- tw-&gt;tw_state = TCP_TIME_WAIT     // net/ipv4/inet_timewait_sock.c:175</span></span>
+<span class="line"><span>                            |- timer_setup(tw_timer_handler)    // net/ipv4/inet_timewait_sock.c:188</span></span>
+<span class="line"><span>                        |- inet_twsk_schedule()                 // net/ipv4/tcp_minisocks.c:319</span></span></code></pre>
+<p>在函数 <code>tcp_fin</code> 中，发送了 ACK 后，并进入 <code>TCP_TIME_WAIT</code> 状态。同时注册一个超时的定时器。</p>
+<blockquote>
+<p>注意，虽然在 <code>inet_twsk_alloc</code> 函数中，修改的是 <code>tw-&gt;tw_state</code> 字段为 <code>TCP_TIME_WAIT</code> 状态。但是查看宏 <code>tw_state</code> 的定义可以知道，<code>tw_state</code> 指向的依旧是结构体 <code>sock_common</code> 中的字段 <code>skc_state</code> 。</p>
+</blockquote>
+<h3 id="6-shutdown">6. shutdown</h3>
+<p>调用流程如下：</p>
+<pre class="astro-code dracula" style="background-color:#282A36;color:#F8F8F2; overflow-x: auto;" tabindex="0" data-language="text"><code><span class="line"><span>__sys_shutdown                                  // net/socket.c:1973</span></span>
+<span class="line"><span>    |- sock-&gt;ops-&gt;shutdown()                    // net/socket.c:1965</span></span></code></pre>
+<p>对于 TCP/IPv4 来说，调用 <code>sock-&gt;ops-&gt;shutdown()</code> 其实是调用 <code>net/ipv4/tcp_ipv4.c</code> 文件中的 <code>tcp_shutdown</code>：</p>
+<pre class="astro-code dracula" style="background-color:#282A36;color:#F8F8F2; overflow-x: auto;" tabindex="0" data-language="c"><code><span class="line"><span style="color:#FF79C6">void</span><span style="color:#50FA7B"> tcp_shutdown</span><span style="color:#F8F8F2">(</span><span style="color:#FF79C6">struct</span><span style="color:#F8F8F2"> sock </span><span style="color:#FF79C6">*</span><span style="color:#FFB86C;font-style:italic">sk</span><span style="color:#F8F8F2">, </span><span style="color:#FF79C6">int</span><span style="color:#FFB86C;font-style:italic"> how</span><span style="color:#F8F8F2">)</span></span>
+<span class="line"><span style="color:#F8F8F2">{</span></span>
+<span class="line"><span style="color:#FF79C6">    if</span><span style="color:#F8F8F2"> (</span><span style="color:#FF79C6">!</span><span style="color:#F8F8F2">(how </span><span style="color:#FF79C6">&amp;</span><span style="color:#F8F8F2"> SEND_SHUTDOWN))</span></span>
+<span class="line"><span style="color:#FF79C6">        return</span><span style="color:#F8F8F2">;</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#6272A4">    /* If we've already sent a FIN, or it's a closed state, skip this. */</span></span>
+<span class="line"><span style="color:#FF79C6">    if</span><span style="color:#F8F8F2"> ((</span><span style="color:#BD93F9">1</span><span style="color:#FF79C6"> &lt;&lt;</span><span style="color:#F8F8F2"> sk</span><span style="color:#FF79C6">-&gt;</span><span style="color:#F8F8F2">sk_state) </span><span style="color:#FF79C6">&amp;</span></span>
+<span class="line"><span style="color:#F8F8F2">        (TCPF_ESTABLISHED </span><span style="color:#FF79C6">|</span><span style="color:#F8F8F2"> TCPF_SYN_SENT </span><span style="color:#FF79C6">|</span></span>
+<span class="line"><span style="color:#F8F8F2">            TCPF_SYN_RECV </span><span style="color:#FF79C6">|</span><span style="color:#F8F8F2"> TCPF_CLOSE_WAIT)) {</span></span>
+<span class="line"><span style="color:#6272A4">        /* Clear out any half completed packets.  FIN if needed. */</span></span>
+<span class="line"><span style="color:#FF79C6">        if</span><span style="color:#F8F8F2"> (</span><span style="color:#50FA7B">tcp_close_state</span><span style="color:#F8F8F2">(sk))</span></span>
+<span class="line"><span style="color:#50FA7B">            tcp_send_fin</span><span style="color:#F8F8F2">(sk);</span></span>
+<span class="line"><span style="color:#F8F8F2">    }</span></span>
+<span class="line"><span style="color:#F8F8F2">}</span></span></code></pre>
+<p>与调用 <code>close</code> 类似，</p>
+<h2 id="四ip层及以下层的工作">四、IP层及以下层的工作</h2>
+<h3 id="1-ip层发送包">1. IP层发送包</h3>
+<p>上层想要发送 IP 包，都会调用函数 <code>ip_local_out</code> 来发送。</p>
+<pre class="astro-code dracula" style="background-color:#282A36;color:#F8F8F2; overflow-x: auto;" tabindex="0" data-language="text"><code><span class="line"><span>ip_local_out                            // include/net/ip.h:165</span></span>
+<span class="line"><span>    |- dst_output                       // net/ipv4/ip_output.c:125</span></span>
+<span class="line"><span>        |- skb_dst(skb)-&gt;output()       // include/net/dst.h:455</span></span></code></pre>
+<p>对 IP 协议来说， <code>skb_dst(skb)-&gt;output()</code> 实际调用的是 <code>net/ipv4/ip_output.c</code> 文件中的 <code>ip_output</code> 函数。</p>
+<pre class="astro-code dracula" style="background-color:#282A36;color:#F8F8F2; overflow-x: auto;" tabindex="0" data-language="text"><code><span class="line"><span>ip_output                               // net/ipv4/route.c:1636</span></span>
+<span class="line"><span>    |- ip_finish_output                 // net/ipv4/ip_output.c:408</span></span>
+<span class="line"><span>        |- ip_finish_output2            // net/ipv4/ip_output.c:318</span></span>
+<span class="line"><span>            |- neigh_output             // net/ipv4/ip_output.c:230</span></span>
+<span class="line"><span>                |- neigh_hh_output      // include/net/neighbour.h:499</span></span>
+<span class="line"><span>                    |- dev_queue_xmit   // include/net/neighbour.h:491</span></span></code></pre>
+<p>调用 <code>dev_queue_xmit</code> 是将 IP 包交给网络设备子系统来发送，而 <code>dev_queue_xmit</code> 直接调用的函数 <code>__dev_queue_xmit</code> 。</p>
+<pre class="astro-code dracula" style="background-color:#282A36;color:#F8F8F2; overflow-x: auto;" tabindex="0" data-language="c"><code><span class="line"><span style="color:#FF79C6">int</span><span style="color:#50FA7B"> dev_queue_xmit</span><span style="color:#F8F8F2">(</span><span style="color:#FF79C6">struct</span><span style="color:#F8F8F2"> sk_buff </span><span style="color:#FF79C6">*</span><span style="color:#FFB86C;font-style:italic">skb</span><span style="color:#F8F8F2">)</span></span>
+<span class="line"><span style="color:#F8F8F2">{</span></span>
+<span class="line"><span style="color:#FF79C6">    return</span><span style="color:#50FA7B"> __dev_queue_xmit</span><span style="color:#F8F8F2">(skb, </span><span style="color:#BD93F9">NULL</span><span style="color:#F8F8F2">);</span></span>
+<span class="line"><span style="color:#F8F8F2">}</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#FF79C6">static</span><span style="color:#FF79C6"> int</span><span style="color:#50FA7B"> __dev_queue_xmit</span><span style="color:#F8F8F2">(</span><span style="color:#FF79C6">struct</span><span style="color:#F8F8F2"> sk_buff </span><span style="color:#FF79C6">*</span><span style="color:#FFB86C;font-style:italic">skb</span><span style="color:#F8F8F2">, </span><span style="color:#FF79C6">struct</span><span style="color:#F8F8F2"> net_device </span><span style="color:#FF79C6">*</span><span style="color:#FFB86C;font-style:italic">sb_dev</span><span style="color:#F8F8F2">)</span></span>
+<span class="line"><span style="color:#F8F8F2">{</span></span>
+<span class="line"><span style="color:#F8F8F2">    txq </span><span style="color:#FF79C6">=</span><span style="color:#50FA7B"> netdev_pick_tx</span><span style="color:#F8F8F2">(dev, skb, sb_dev);</span></span>
+<span class="line"><span style="color:#F8F8F2">    q </span><span style="color:#FF79C6">=</span><span style="color:#50FA7B"> rcu_dereference_bh</span><span style="color:#F8F8F2">(txq</span><span style="color:#FF79C6">-&gt;</span><span style="color:#F8F8F2">qdisc);</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#FF79C6">    if</span><span style="color:#F8F8F2"> (q</span><span style="color:#FF79C6">-&gt;</span><span style="color:#F8F8F2">enqueue) {</span></span>
+<span class="line"><span style="color:#50FA7B">        __dev_xmit_skb</span><span style="color:#F8F8F2">(skb, q, dev, txq);</span></span>
+<span class="line"><span style="color:#FF79C6">        goto</span><span style="color:#F8F8F2"> out;</span></span>
+<span class="line"><span style="color:#F8F8F2">    }</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#6272A4">    /* The device has no queue. Common case for software devices:</span></span>
+<span class="line"><span style="color:#6272A4">     * loopback, all the sorts of tunnels...</span></span>
+<span class="line"><span style="color:#6272A4">     */</span></span>
+<span class="line"><span style="color:#FF79C6">    if</span><span style="color:#F8F8F2"> (dev</span><span style="color:#FF79C6">-&gt;</span><span style="color:#F8F8F2">flags </span><span style="color:#FF79C6">&amp;</span><span style="color:#F8F8F2"> IFF_UP) {</span></span>
+<span class="line"><span style="color:#50FA7B">        dev_hard_start_xmit</span><span style="color:#F8F8F2">(skb, dev, txq, </span><span style="color:#FF79C6">&amp;</span><span style="color:#F8F8F2">rc);</span></span>
+<span class="line"><span style="color:#F8F8F2">    }</span></span>
+<span class="line"><span style="color:#F8F8F2">}</span></span></code></pre>
+<p>在函数 <code>__dev_queue_xmit</code> 内部：</p>
+<ol>
+<li>
+<p>针对有发送队列的设备</p>
+<p>首先调用 <code>netdev_pick_tx</code> 选择一个发送队列（现在的网卡一般都支持多个发送队列），然后再调用 <code>__dev_xmit_skb</code> 进行发送。在经过层层调用后，最后会调用的函数 <code>dev_hard_start_xmit</code> 发送包。</p>
+<pre class="astro-code dracula" style="background-color:#282A36;color:#F8F8F2; overflow-x: auto;" tabindex="0" data-language="text"><code><span class="line"><span>|- __dev_xmit_skb                               // net/core/dev.c:3807</span></span>
+<span class="line"><span>    |- q-&gt;enqueue(skb, q, &amp;to_free)             // net/core/dev.c:3450</span></span>
+<span class="line"><span>    |- qdisc_run                                // net/core/dev.c:3451</span></span>
+<span class="line"><span>        |- __qdisc_run                          // include/net/pkt_sched.h:120</span></span>
+<span class="line"><span>            |- qdisc_restart                    // net/sched/sch_generic.c:403</span></span>
+<span class="line"><span>                |- sch_direct_xmit              // net/sched/sch_generic.c:395</span></span>
+<span class="line"><span>                    |- dev_hard_start_xmit      // net/sched/sch_generic.c:332</span></span></code></pre>
+<p>需要注意函数 <code>__qdisc_run</code> 的实现：</p>
+<pre class="astro-code dracula" style="background-color:#282A36;color:#F8F8F2; overflow-x: auto;" tabindex="0" data-language="c"><code><span class="line"><span style="color:#FF79C6">void</span><span style="color:#50FA7B"> __qdisc_run</span><span style="color:#F8F8F2">(</span><span style="color:#FF79C6">struct</span><span style="color:#F8F8F2"> Qdisc </span><span style="color:#FF79C6">*</span><span style="color:#FFB86C;font-style:italic">q</span><span style="color:#F8F8F2">)</span></span>
+<span class="line"><span style="color:#F8F8F2">{</span></span>
+<span class="line"><span style="color:#FF79C6">    int</span><span style="color:#F8F8F2"> quota </span><span style="color:#FF79C6">=</span><span style="color:#F8F8F2"> dev_tx_weight;</span></span>
+<span class="line"><span style="color:#FF79C6">    int</span><span style="color:#F8F8F2"> packets;</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#FF79C6">    while</span><span style="color:#F8F8F2"> (</span><span style="color:#50FA7B">qdisc_restart</span><span style="color:#F8F8F2">(q, </span><span style="color:#FF79C6">&amp;</span><span style="color:#F8F8F2">packets)) {</span></span>
+<span class="line"><span style="color:#6272A4">        /*</span></span>
+<span class="line"><span style="color:#6272A4">        * Ordered by possible occurrence: Postpone processing if</span></span>
+<span class="line"><span style="color:#6272A4">        * 1. we've exceeded packet quota</span></span>
+<span class="line"><span style="color:#6272A4">        * 2. another process needs the CPU;</span></span>
+<span class="line"><span style="color:#6272A4">        */</span></span>
+<span class="line"><span style="color:#F8F8F2">        quota </span><span style="color:#FF79C6">-=</span><span style="color:#F8F8F2"> packets;</span></span>
+<span class="line"><span style="color:#FF79C6">        if</span><span style="color:#F8F8F2"> (quota </span><span style="color:#FF79C6">&lt;=</span><span style="color:#BD93F9"> 0</span><span style="color:#FF79C6"> ||</span><span style="color:#50FA7B"> need_resched</span><span style="color:#F8F8F2">()) {</span></span>
+<span class="line"><span style="color:#50FA7B">            __netif_schedule</span><span style="color:#F8F8F2">(q);</span></span>
+<span class="line"><span style="color:#FF79C6">            break</span><span style="color:#F8F8F2">;</span></span>
+<span class="line"><span style="color:#F8F8F2">        }</span></span>
+<span class="line"><span style="color:#F8F8F2">    }</span></span>
+<span class="line"><span style="color:#F8F8F2">}</span></span></code></pre>
+<p>如果系统态 CPU 发送网络包不够用的时候，会调用函数 <code>__netif_schedule</code> 进而调用函数 <code>__netif_reschedule</code> 触发一个软中断 <code>NET_TX_SOFTIRQ</code> 。而对应的中断处理函数 <code>net_tx_action</code> 会重新调用 <code>qdisc_run</code> 继续发送剩余的网络包。</p>
+</li>
+<li>
+<p>针对没有发送队列的设备</p>
+<p>如注释里说的回环地址，隧道网络等，就直接调用 <code>dev_hard_start_xmit</code> 发送包。</p>
+</li>
+</ol>
+<p>所以，不管设备有无发送队列，最后都会调用函数 <code>dev_hard_start_xmit</code> ：</p>
+<pre class="astro-code dracula" style="background-color:#282A36;color:#F8F8F2; overflow-x: auto;" tabindex="0" data-language="text"><code><span class="line"><span>|- dev_hard_start_xmit                      // net/core/dev.c:3262</span></span>
+<span class="line"><span>    |- xmit_one                             // net/core/dev.c:3272</span></span>
+<span class="line"><span>        |- netdev_start_xmit                // net/core/dev.c:3256</span></span>
+<span class="line"><span>            |- __netdev_start_xmit          // include/linux/netdevice.h:4359</span></span>
+<span class="line"><span>                |- ops-&gt;ndo_start_xmit      // include/linux/netdevice.h:4345</span></span></code></pre>
+<p>在经过层层调用后，最后调用的 <code>ops-&gt;ndo_start_xmit()</code> 其实是各个网卡驱动的实现了。</p>
+<h3 id="2-intel的igb网卡驱动的发送流程">2. Intel的igb网卡驱动的发送流程</h3>
+<p>对网卡驱动 <code>drivers/net/ethernet/intel/igb</code> 来说， 函数 <code>ops-&gt;ndo_start_xmit</code> 调用的其实就是 <code>igb_netdev_ops</code> 中的 <code>ndo_start_xmit</code> 的值，即 <code>drivers/net/ethernet/intel/igb/igb_main.c</code> 文件中的 <code>igb_xmit_frame</code> 函数。</p>
+<pre class="astro-code dracula" style="background-color:#282A36;color:#F8F8F2; overflow-x: auto;" tabindex="0" data-language="text"><code><span class="line"><span>igb_xmit_frame              // drivers/net/ethernet/intel/igb/igb_main.c:2865</span></span>
+<span class="line"><span>    |- igb_xmit_frame_ring  // drivers/net/ethernet/intel/igb/igb_main.c:6201</span></span>
+<span class="line"><span>        |- igb_tx_map       // drivers/net/ethernet/intel/igb/igb_main.c:6157</span></span></code></pre>
+<p>函数 <code>igb_tx_map</code> 做的主要的工作就是把网络包数据映射到 RAM 的 DMA 区域，然后唤醒设备发送数据。</p>
+<h3 id="3-intel的igb网卡驱动的初始化">3. Intel的igb网卡驱动的初始化</h3>
+<ol>
+<li>
+<p>模块加载</p>
+<pre class="astro-code dracula" style="background-color:#282A36;color:#F8F8F2; overflow-x: auto;" tabindex="0" data-language="text"><code><span class="line"><span>igb_init_module                                         // drivers/net/ethernet/intel/igb/igb_main.c:680</span></span>
+<span class="line"><span>    |- pci_register_driver(&amp;igb_driver)                 // drivers/net/ethernet/intel/igb/igb_main.c:676</span></span>
+<span class="line"><span>        |- __pci_register_driver                        // include/linux/pci.h:1289</span></span>
+<span class="line"><span>            |- driver_register                          // drivers/pci/pci-driver.c:1409</span></span>
+<span class="line"><span>                |- bus_add_driver                       // drivers/base/driver.c:170</span></span>
+<span class="line"><span>                    |- driver_attach                    // drivers/base/bus.c:672</span></span>
+<span class="line"><span>                        |- __driver_attach              // drivers/base/dd.c:922</span></span>
+<span class="line"><span>                            |- driver_probe_device      // drivers/base/dd.c:903</span></span>
+<span class="line"><span>                                |- really_probe         // drivers/base/dd.c:667</span></span>
+<span class="line"><span>                                    |- drv-&gt;probe(dev)  // drivers/base/dd.c:510</span></span></code></pre>
+<p>最后调用的 <code>drv-&gt;probe(dev)</code> 其实就是 <code>igb_driver</code> 中的 <code>probe</code> 的值，即 <code>drivers/net/ethernet/intel/igb/igb_main.c</code> 文件中的 <code>igb_probe</code> 函数。</p>
+<pre class="astro-code dracula" style="background-color:#282A36;color:#F8F8F2; overflow-x: auto;" tabindex="0" data-language="text"><code><span class="line"><span>igb_probe                                       // drivers/net/ethernet/intel/igb/igb_main.c:230</span></span>
+<span class="line"><span>    |- netdev-&gt;netdev_ops = &amp;igb_netdev_ops     // drivers/net/ethernet/intel/igb/igb_main.c:3095</span></span>
+<span class="line"><span>    |- igb_sw_init                              // drivers/net/ethernet/intel/igb/igb_main.c:3121</span></span>
+<span class="line"><span>        |- igb_init_interrupt_scheme            // drivers/net/ethernet/intel/igb/igb_main.c:3888</span></span>
+<span class="line"><span>            |- igb_alloc_q_vectors              // drivers/net/ethernet/intel/igb/igb_main.c:1387</span></span>
+<span class="line"><span>                |- igb_alloc_q_vector           // drivers/net/ethernet/intel/igb/igb_main.c:1331</span></span>
+<span class="line"><span>                    |- netif_napi_add(igb_poll) // drivers/net/ethernet/intel/igb/igb_main.c:1216</span></span>
+<span class="line"><span>                        |- napi-&gt;poll = poll    // net/core/dev.c:6194</span></span></code></pre>
+<p>对 Intel 的 igb 网卡来说，模块加载函数 <code>igb_probe</code> 做了：</p>
+<ul>
+<li>初始化了设备相关的操作回调函数信息 <code>igb_netdev_ops</code> 。</li>
+<li>注册了 napi 的轮询回调函数 <code>igb_poll</code> 。</li>
+</ul>
+</li>
+<li>
+<p>启动设备</p>
+<p>在函数 <code>igb_probe</code> 中，通过语句 <code>netdev-&gt;netdev_ops = &amp;igb_netdev_ops</code> 初始化了网卡相关的操作回调。在网卡启用时，比如执行命令 <code>ifconfig eth0 up</code> 时，系统会依次调用：</p>
+<pre class="astro-code dracula" style="background-color:#282A36;color:#F8F8F2; overflow-x: auto;" tabindex="0" data-language="text"><code><span class="line"><span>dev_open                        // net/core/dev.c:1430</span></span>
+<span class="line"><span>    |- __dev_open               // net/core/dev.c:1437</span></span>
+<span class="line"><span>        |- ops-&gt;ndo_open(dev)   // net/core/dev.c:1402</span></span></code></pre>
+<p>对于网卡驱动 <code>drivers/net/ethernet/intel/igb</code> 来说，函数 <code>ops-&gt;ndo_open(dev)</code> 调用的就是函数 <code>igb_open</code> 。</p>
+<pre class="astro-code dracula" style="background-color:#282A36;color:#F8F8F2; overflow-x: auto;" tabindex="0" data-language="text"><code><span class="line"><span>igb_open                                        // drivers/net/ethernet/intel/igb/igb_main.c:2863</span></span>
+<span class="line"><span>    |- __igb_open                               // drivers/net/ethernet/intel/igb/igb_main.c:4017</span></span>
+<span class="line"><span>        |- igb_request_irq                      // drivers/net/ethernet/intel/igb/igb_main.c:3953</span></span>
+<span class="line"><span>            |- igb_request_msix                 // drivers/net/ethernet/intel/igb/igb_main.c:1416</span></span>
+<span class="line"><span>                |- request_irq(igb_msix_ring)   // drivers/net/ethernet/intel/igb/igb_main.c:968</span></span>
+<span class="line"><span>        |- igb_irq_enable(adapter)              // drivers/net/ethernet/intel/igb/igb_main.c:3978</span></span></code></pre>
+<p>在 <code>igb_open</code> 函数调用的深处，对于多队列网卡，通过 <code>request_irq(igb_msix_ring)</code> 为每个队列都注册了中断处理函数 <code>igb_msix_ring</code> 。设置好中断处理程序后，再调用 <code>igb_irq_enable(adapter)</code> 来开启中断。</p>
+</li>
+</ol>
+<h3 id="4-intel的igb网卡驱动的接收流程">4. Intel的igb网卡驱动的接收流程</h3>
+<p>当网卡的某个队列中收到网络数据后，会触发一个中断，这个中断的处理函数就是在启动设备时设置的 <code>igb_msix_ring</code> 函数：</p>
+<pre class="astro-code dracula" style="background-color:#282A36;color:#F8F8F2; overflow-x: auto;" tabindex="0" data-language="text"><code><span class="line"><span>igb_msix_ring                                   // drivers/net/ethernet/intel/igb/igb_main.c:6621</span></span>
+<span class="line"><span>    |- napi_schedule                            // drivers/net/ethernet/intel/igb/igb_main.c:6628</span></span>
+<span class="line"><span>        |- __napi_schedule                      // include/linux/netdevice.h:445</span></span>
+<span class="line"><span>            |- ____napi_schedule                // net/core/dev.c:5892</span></span></code></pre>
+<p>网卡队列中断处理函数最深处的调用 <code>____napi_schedule</code> 主要做两件事：</p>
+<ul>
+<li>保存待处理的数据。</li>
+<li>触发中断 <code>NET_RX_SOFTIRQ</code> 。</li>
+</ul>
+<pre class="astro-code dracula" style="background-color:#282A36;color:#F8F8F2; overflow-x: auto;" tabindex="0" data-language="c"><code><span class="line"><span style="color:#FF79C6">static</span><span style="color:#FF79C6"> inline</span><span style="color:#FF79C6"> void</span><span style="color:#50FA7B"> ____napi_schedule</span><span style="color:#F8F8F2">(</span><span style="color:#FF79C6">struct</span><span style="color:#F8F8F2"> softnet_data </span><span style="color:#FF79C6">*</span><span style="color:#FFB86C;font-style:italic">sd</span><span style="color:#F8F8F2">,</span></span>
+<span class="line"><span style="color:#FF79C6">                    struct</span><span style="color:#F8F8F2"> napi_struct </span><span style="color:#FF79C6">*</span><span style="color:#FFB86C;font-style:italic">napi</span><span style="color:#F8F8F2">)</span></span>
+<span class="line"><span style="color:#F8F8F2">{</span></span>
+<span class="line"><span style="color:#50FA7B">    list_add_tail</span><span style="color:#F8F8F2">(</span><span style="color:#FF79C6">&amp;</span><span style="color:#F8F8F2">napi</span><span style="color:#FF79C6">-&gt;</span><span style="color:#F8F8F2">poll_list, </span><span style="color:#FF79C6">&amp;</span><span style="color:#F8F8F2">sd</span><span style="color:#FF79C6">-&gt;</span><span style="color:#F8F8F2">poll_list);</span></span>
+<span class="line"><span style="color:#50FA7B">    __raise_softirq_irqoff</span><span style="color:#F8F8F2">(NET_RX_SOFTIRQ);</span></span>
+<span class="line"><span style="color:#F8F8F2">}</span></span></code></pre>
+<p>而中断 <code>NET_RX_SOFTIRQ</code> 的处理函数是 <code>net_rx_action</code> ：</p>
+<pre class="astro-code dracula" style="background-color:#282A36;color:#F8F8F2; overflow-x: auto;" tabindex="0" data-language="text"><code><span class="line"><span>net_rx_action           // net/core/dev.c:9874</span></span>
+<span class="line"><span>    |- napi_poll        // net/core/dev.c:6338</span></span>
+<span class="line"><span>        |- n-&gt;poll()    // net/core/dev.c:6272</span></span></code></pre>
+<p>中断处理函数 <code>net_rx_action</code> ，最终的会调用函数 <code>n-&gt;poll()</code> 。这函数就是网卡驱动模块加载时注册的处理回调函数 <code>igb_poll</code> ：</p>
+<pre class="astro-code dracula" style="background-color:#282A36;color:#F8F8F2; overflow-x: auto;" tabindex="0" data-language="text"><code><span class="line"><span>igb_poll                                                // drivers/net/ethernet/intel/igb/igb_main.c:1216</span></span>
+<span class="line"><span>    |- igb_clean_rx_irq                                 // drivers/net/ethernet/intel/igb/igb_main.c:7759</span></span>
+<span class="line"><span>        |- napi_gro_receive                             // drivers/net/ethernet/intel/igb/igb_main.c:8408</span></span>
+<span class="line"><span>            |- napi_skb_finish                          // net/core/dev.c:5631</span></span>
+<span class="line"><span>                |- netif_receive_skb_internal           // net/core/dev.c:5600</span></span>
+<span class="line"><span>                    |- __netif_receive_skb              // net/core/dev.c:5156</span></span>
+<span class="line"><span>                        |- __netif_receive_skb_one_core // net/core/dev.c:5066</span></span>
+<span class="line"><span>                            |- __netif_receive_skb_core // net/core/dev.c:4952</span></span></code></pre>
+<p>在函数 <code>__netif_receive_skb_core</code> 中：</p>
+<pre class="astro-code dracula" style="background-color:#282A36;color:#F8F8F2; overflow-x: auto;" tabindex="0" data-language="c"><code><span class="line"><span style="color:#FF79C6">static</span><span style="color:#FF79C6"> int</span><span style="color:#50FA7B"> __netif_receive_skb_core</span><span style="color:#F8F8F2">(</span><span style="color:#FF79C6">struct</span><span style="color:#F8F8F2"> sk_buff </span><span style="color:#FF79C6">**</span><span style="color:#FFB86C;font-style:italic">pskb</span><span style="color:#F8F8F2">, </span><span style="color:#FF79C6">bool</span><span style="color:#FFB86C;font-style:italic"> pfmemalloc</span><span style="color:#F8F8F2">,</span></span>
+<span class="line"><span style="color:#FF79C6">                    struct</span><span style="color:#F8F8F2"> packet_type </span><span style="color:#FF79C6">**</span><span style="color:#FFB86C;font-style:italic">ppt_prev</span><span style="color:#F8F8F2">)</span></span>
+<span class="line"><span style="color:#F8F8F2">{</span></span>
+<span class="line"><span style="color:#50FA7B">    list_for_each_entry_rcu</span><span style="color:#F8F8F2">(ptype, </span><span style="color:#FF79C6">&amp;</span><span style="color:#F8F8F2">ptype_all, list) {</span></span>
+<span class="line"><span style="color:#FF79C6">        if</span><span style="color:#F8F8F2"> (pt_prev)</span></span>
+<span class="line"><span style="color:#F8F8F2">            ret </span><span style="color:#FF79C6">=</span><span style="color:#50FA7B"> deliver_skb</span><span style="color:#F8F8F2">(skb, pt_prev, orig_dev);</span></span>
+<span class="line"><span style="color:#F8F8F2">        pt_prev </span><span style="color:#FF79C6">=</span><span style="color:#F8F8F2"> ptype;</span></span>
+<span class="line"><span style="color:#F8F8F2">    }</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#50FA7B">    list_for_each_entry_rcu</span><span style="color:#F8F8F2">(ptype, </span><span style="color:#FF79C6">&amp;</span><span style="color:#F8F8F2">skb</span><span style="color:#FF79C6">-&gt;</span><span style="color:#F8F8F2">dev</span><span style="color:#FF79C6">-&gt;</span><span style="color:#F8F8F2">ptype_all, list) {</span></span>
+<span class="line"><span style="color:#FF79C6">        if</span><span style="color:#F8F8F2"> (pt_prev)</span></span>
+<span class="line"><span style="color:#F8F8F2">            ret </span><span style="color:#FF79C6">=</span><span style="color:#50FA7B"> deliver_skb</span><span style="color:#F8F8F2">(skb, pt_prev, orig_dev);</span></span>
+<span class="line"><span style="color:#F8F8F2">        pt_prev </span><span style="color:#FF79C6">=</span><span style="color:#F8F8F2"> ptype;</span></span>
+<span class="line"><span style="color:#F8F8F2">    }</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#50FA7B">    deliver_ptype_list_skb</span><span style="color:#F8F8F2">(skb, </span><span style="color:#FF79C6">&amp;</span><span style="color:#F8F8F2">pt_prev, orig_dev, type,</span></span>
+<span class="line"><span style="color:#FF79C6">                    &amp;</span><span style="color:#F8F8F2">ptype_base[</span><span style="color:#50FA7B">ntohs</span><span style="color:#F8F8F2">(type) </span><span style="color:#FF79C6">&amp;</span></span>
+<span class="line"><span style="color:#F8F8F2">                        PTYPE_HASH_MASK]);</span></span>
+<span class="line"><span style="color:#F8F8F2">}</span></span></code></pre>
+<p>第一个循环 <code>list_for_each_entry_rcu(ptype, &amp;ptype_all, list)</code> 中的 <code>ptype_all</code> 是一个设备无关的保存有所有协议处理回调的地方，而第二个循环 <code>list_for_each_entry_rcu(ptype, &amp;skb-&gt;dev-&gt;ptype_all, list)</code> 中的 <code>skb-&gt;dev-&gt;ptype_all</code> 是一个设备有关的保存有所有协议处理回调的地方。这两个循环就能让像 tcpdump 这样的程序监听处理到收到的所有的网络包。</p>
+<p>后面代码 <code>deliver_ptype_list_skb</code> 中的 <code>ptype_base</code> 是保存所有支持的3层协议处理函数的地方。才是将包转发给对应L3处理函数。函数 <code>deliver_ptype_list_skb</code> 的调用流程如下：</p>
+<pre class="astro-code dracula" style="background-color:#282A36;color:#F8F8F2; overflow-x: auto;" tabindex="0" data-language="text"><code><span class="line"><span>deliver_ptype_list_skb      // net/core/dev.c:4905</span></span>
+<span class="line"><span>    |- deliver_skb          // net/core/dev.c:1971</span></span>
+<span class="line"><span>        |- pt_prev-&gt;func()  // net/core/dev.c:1956</span></span></code></pre>
+<p>对于 IP 协议来说，其注册到 <code>ptype_base</code> 的流程如下：</p>
+<pre class="astro-code dracula" style="background-color:#282A36;color:#F8F8F2; overflow-x: auto;" tabindex="0" data-language="text"><code><span class="line"><span>inet_init                               // net/ipv4/af_inet.c:1890</span></span>
+<span class="line"><span>    |- dev_add_pack(&amp;ip_packet_type)    // net/core/dev.c:408</span></span></code></pre>
+<p><code>dev_add_pack(&amp;ip_packet_type)</code> 函数内部就是把 <code>ip_packet_type</code> 添加到处理 <code>ETH_P_IP</code> 的协议链中。</p>
+<pre class="astro-code dracula" style="background-color:#282A36;color:#F8F8F2; overflow-x: auto;" tabindex="0" data-language="c"><code><span class="line"><span style="color:#FF79C6">static</span><span style="color:#FF79C6"> struct</span><span style="color:#F8F8F2"> packet_type ip_packet_type __read_mostly </span><span style="color:#FF79C6">=</span><span style="color:#F8F8F2"> {</span></span>
+<span class="line"><span style="color:#F8F8F2">    .type </span><span style="color:#FF79C6">=</span><span style="color:#50FA7B"> cpu_to_be16</span><span style="color:#F8F8F2">(ETH_P_IP),</span></span>
+<span class="line"><span style="color:#F8F8F2">    .func </span><span style="color:#FF79C6">=</span><span style="color:#F8F8F2"> ip_rcv,</span></span>
+<span class="line"><span style="color:#F8F8F2">    .list_func </span><span style="color:#FF79C6">=</span><span style="color:#F8F8F2"> ip_list_rcv,</span></span>
+<span class="line"><span style="color:#F8F8F2">};</span></span></code></pre>
+
+<h3 id="5-接收ip包">5. 接收IP包</h3>
+<p>所以对 IP 来说 <code>pt_prev-&gt;func()</code> 实际调用的是 <code>ip_rcv</code> 函数。</p>
+<pre class="astro-code dracula" style="background-color:#282A36;color:#F8F8F2; overflow-x: auto;" tabindex="0" data-language="text"><code><span class="line"><span>ip_rcv                                  // ip_packet_type:1886</span></span>
+<span class="line"><span>    |- ip_rcv_finish                    // net/ipv4/ip_input.c:526</span></span>
+<span class="line"><span>        |- dst_input                    // net/ipv4/ip_input.c:414</span></span>
+<span class="line"><span>            |- skb_dst(skb)-&gt;input(skb) // include/net/dst.h:461</span></span></code></pre>
+<p>对 TCP/IPv4 来说 <code>skb_dst(skb)-&gt;input(skb)</code> 调用的其实是 <code>net/ipv4/ip_input.c</code> 文件中的 <code>ip_local_deliver</code> 。</p>
+<pre class="astro-code dracula" style="background-color:#282A36;color:#F8F8F2; overflow-x: auto;" tabindex="0" data-language="text"><code><span class="line"><span>ip_local_deliver                // net/ipv4/route.c:1638</span></span>
+<span class="line"><span>    |- ip_local_deliver_finish  // net/ipv4/ip_input.c:258</span></span>
+<span class="line"><span>        |- ipprot-&gt;handler(skb) // net/ipv4/ip_input.c:215</span></span></code></pre>
+<p>这里调用的 <code>ipprot-&gt;handler(skb)</code> 就是传输层的处理回调了。 在文件 <code>net/ipv4/af_inet.c</code> 中的函数 <code>inet_init</code> 内初始化：</p>
+<pre class="astro-code dracula" style="background-color:#282A36;color:#F8F8F2; overflow-x: auto;" tabindex="0" data-language="c"><code><span class="line"><span style="color:#FF79C6">static</span><span style="color:#FF79C6"> int</span><span style="color:#F8F8F2"> __init </span><span style="color:#50FA7B">inet_init</span><span style="color:#F8F8F2">(</span><span style="color:#FF79C6">void</span><span style="color:#F8F8F2">)</span></span>
+<span class="line"><span style="color:#F8F8F2">{</span></span>
+<span class="line"><span style="color:#50FA7B">    inet_add_protocol</span><span style="color:#F8F8F2">(</span><span style="color:#FF79C6">&amp;</span><span style="color:#F8F8F2">icmp_protocol, IPPROTO_ICMP);</span></span>
+<span class="line"><span style="color:#50FA7B">    inet_add_protocol</span><span style="color:#F8F8F2">(</span><span style="color:#FF79C6">&amp;</span><span style="color:#F8F8F2">udp_protocol, IPPROTO_UDP);</span></span>
+<span class="line"><span style="color:#50FA7B">    inet_add_protocol</span><span style="color:#F8F8F2">(</span><span style="color:#FF79C6">&amp;</span><span style="color:#F8F8F2">tcp_protocol, IPPROTO_TCP);</span></span>
+<span class="line"><span style="color:#50FA7B">    inet_add_protocol</span><span style="color:#F8F8F2">(</span><span style="color:#FF79C6">&amp;</span><span style="color:#F8F8F2">igmp_protocol, IPPROTO_IGMP)</span></span>
+<span class="line"><span style="color:#F8F8F2">}</span></span></code></pre>
+
+<h2 id="五参考资料">五、参考资料</h2>
+<blockquote>
+<p><a href="https://cloud.tencent.com/developer/article/1492374">Linux syscall过程分析（万字长文）</a>
+<a href="https://xinqiu.gitbooks.io/linux-insides-cn/content/SysCall/linux-syscall-2.html">Linux 内核如何处理系统调用</a>
+<a href="https://blog.packagecloud.io/eng/2017/02/06/monitoring-tuning-linux-networking-stack-sending-data/">Monitoring and Tuning the Linux Networking Stack: Sending Data</a>
+<a href="https://blog.packagecloud.io/eng/2016/06/22/monitoring-tuning-linux-networking-stack-receiving-data/">Monitoring and Tuning the Linux Networking Stack: Receiving Data</a></p>
+</blockquote></article></main><aside class="desktop-toc" aria-label="本文目录" data-desktop-toc=""><div class="toc-title"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M8.5 6h12M8.5 12h12M8.5 18h12M3.6 6h.01M3.6 12h.01M3.6 18h.01"></path></svg>本文目录</div><nav data-toc-root=""><ul class="toc-list"><li><details class="toc-branch" open=""><summary><a href="#一准备环境" data-toc-link="一准备环境">一、准备环境</a></summary><ul class="toc-list"><li><a class="toc-link" href="#1-下载编译内核源码" data-toc-link="1-下载编译内核源码">1. 下载编译内核源码</a></li><li><a class="toc-link" href="#2-分析编译时的宏定义" data-toc-link="2-分析编译时的宏定义">2. 分析编译时的宏定义</a></li></ul></details></li><li><details class="toc-branch" open=""><summary><a href="#二确定套接字调用对应的内核实现函数" data-toc-link="二确定套接字调用对应的内核实现函数">二、确定套接字调用对应的内核实现函数</a></summary><ul class="toc-list"><li><a class="toc-link" href="#1-确定socket调用的syscall号" data-toc-link="1-确定socket调用的syscall号">1. 确定socket调用的syscall号</a></li><li><a class="toc-link" href="#2-确定socket对应的内核实现" data-toc-link="2-确定socket对应的内核实现">2. 确定socket对应的内核实现</a></li></ul></details></li><li><details class="toc-branch" open=""><summary><a href="#三分析tcp协议状态机" data-toc-link="三分析tcp协议状态机">三、分析TCP协议状态机</a></summary><ul class="toc-list"><li><a class="toc-link" href="#1-socket" data-toc-link="1-socket">1. socket</a></li><li><a class="toc-link" href="#2-listen" data-toc-link="2-listen">2. listen</a></li><li><a class="toc-link" href="#3-connect" data-toc-link="3-connect">3. connect</a></li><li><a class="toc-link" href="#4-accept" data-toc-link="4-accept">4. accept</a></li><li><a class="toc-link" href="#5-close" data-toc-link="5-close">5. close</a></li><li><a class="toc-link" href="#6-shutdown" data-toc-link="6-shutdown">6. shutdown</a></li></ul></details></li><li><details class="toc-branch" open=""><summary><a href="#四ip层及以下层的工作" data-toc-link="四ip层及以下层的工作">四、IP层及以下层的工作</a></summary><ul class="toc-list"><li><a class="toc-link" href="#1-ip层发送包" data-toc-link="1-ip层发送包">1. IP层发送包</a></li><li><a class="toc-link" href="#2-intel的igb网卡驱动的发送流程" data-toc-link="2-intel的igb网卡驱动的发送流程">2. Intel的igb网卡驱动的发送流程</a></li><li><a class="toc-link" href="#3-intel的igb网卡驱动的初始化" data-toc-link="3-intel的igb网卡驱动的初始化">3. Intel的igb网卡驱动的初始化</a></li><li><a class="toc-link" href="#4-intel的igb网卡驱动的接收流程" data-toc-link="4-intel的igb网卡驱动的接收流程">4. Intel的igb网卡驱动的接收流程</a></li><li><a class="toc-link" href="#5-接收ip包" data-toc-link="5-接收ip包">5. 接收IP包</a></li></ul></details></li><li><a class="toc-link" href="#五参考资料" data-toc-link="五参考资料">五、参考资料</a></li></ul></nav></aside></div><section class="recommendations"><div class="section-heading"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m11.6 3.2 1.7 5 5 1.8-5 1.8-1.7 5-1.7-5-5-1.8 5-1.8zM18.6 3.4l.6 1.8 1.8.6-1.8.6-.6 1.8-.6-1.8-1.8-.6 1.8-.6z"></path></svg><h2>同主题推荐</h2><span></span></div><div class="article-list"><article class="article-row"><time class="article-row-date" datetime="2024-08-26">2024.08.26</time><div class="article-row-content"><h3><a href="/notes/study/toushi-http-xieyi/">《透视HTTP协议》学习笔记</a></h3><div class="article-meta"><span class="meta-type"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m22 10-10-5-10 5 10 5zM6 12.2V17c0 1.7 2.7 3 6 3s6-1.3 6-3v-4.8"></path></svg><a href="/notes/study/">学习笔记</a></span><span class="meta-dot" aria-hidden="true">•</span><a class="meta-topic topic-networking" data-topic="networking-and-protocols" href="/topics/networking-and-protocols/"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="2.6"></circle><circle cx="5" cy="5" r="2.2"></circle><circle cx="19" cy="5" r="2.2"></circle><circle cx="5" cy="19" r="2.2"></circle><circle cx="19" cy="19" r="2.2"></circle><path d="m6.6 6.6 3.5 3.5m7.3-3.5-3.5 3.5m-7.3 7.3 3.5-3.5m7.3 3.5-3.5-3.5"></path></svg>网络与协议</a><span class="meta-dot" aria-hidden="true">•</span><span class="password-badge"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="4.5" y="10.5" width="15" height="10.5" rx="2.5"></rect><path d="M8 10.5V7.4a4 4 0 0 1 8 0v3.1"></path></svg>需密码</span></div></div></article><article class="article-row"><time class="article-row-date" datetime="2022-02-11">2022.02.11</time><div class="article-row-content"><h3><a href="/posts/ip-guojia-diqu-xianzhi-linux-fangwen/">根据IP所属的国家地区限制对Linux的访问</a></h3><div class="article-meta"><span class="meta-type"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M14 3.5H7.5a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h9a2 2 0 0 0 2-2V8z"></path><path d="M14 3.5V8.5h5M9.2 13h5.6M9.2 16.5h3.6"></path></svg>普通文章</span><span class="meta-dot" aria-hidden="true">•</span><a class="meta-topic topic-networking" data-topic="networking-and-protocols" href="/topics/networking-and-protocols/"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="2.6"></circle><circle cx="5" cy="5" r="2.2"></circle><circle cx="19" cy="5" r="2.2"></circle><circle cx="5" cy="19" r="2.2"></circle><circle cx="19" cy="19" r="2.2"></circle><path d="m6.6 6.6 3.5 3.5m7.3-3.5-3.5 3.5m-7.3 7.3 3.5-3.5m7.3 3.5-3.5-3.5"></path></svg>网络与协议</a></div></div></article><article class="article-row"><time class="article-row-date" datetime="2022-02-06">2022.02.06</time><div class="article-row-content"><h3><a href="/notes/study/qutan-wangluo-xieyi/">《趣谈网络协议》学习笔记</a></h3><div class="article-meta"><span class="meta-type"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m22 10-10-5-10 5 10 5zM6 12.2V17c0 1.7 2.7 3 6 3s6-1.3 6-3v-4.8"></path></svg><a href="/notes/study/">学习笔记</a></span><span class="meta-dot" aria-hidden="true">•</span><a class="meta-topic topic-networking" data-topic="networking-and-protocols" href="/topics/networking-and-protocols/"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="2.6"></circle><circle cx="5" cy="5" r="2.2"></circle><circle cx="19" cy="5" r="2.2"></circle><circle cx="5" cy="19" r="2.2"></circle><circle cx="19" cy="19" r="2.2"></circle><path d="m6.6 6.6 3.5 3.5m7.3-3.5-3.5 3.5m-7.3 7.3 3.5-3.5m7.3 3.5-3.5-3.5"></path></svg>网络与协议</a><span class="meta-dot" aria-hidden="true">•</span><span class="password-badge"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="4.5" y="10.5" width="15" height="10.5" rx="2.5"></rect><path d="M8 10.5V7.4a4 4 0 0 1 8 0v3.1"></path></svg>需密码</span></div></div></article></div></section><button class="back-to-top" type="button" aria-label="回到顶部" data-back-to-top="" hidden=""><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 19V5m-7 7 7-7 7 7"></path></svg></button><script type="module">var e=document.querySelector(`[data-back-to-top]`);if(e){let t=document.querySelector(`.article-header h1, .page-heading .page-title`);document.body.append(e);let n=()=>{e.hidden=window.scrollY<=400};window.addEventListener(`scroll`,n,{passive:!0}),e.addEventListener(`click`,()=>{t?.focus({preventScroll:!0});let e=window.matchMedia(`(prefers-reduced-motion: reduce)`).matches?`auto`:`smooth`;window.scrollTo({top:0,behavior:e})}),n()}</script></div><script type="module" src="/_astro/ArticleView.astro_astro_type_script_index_1_lang.CfwLsCvq.js"></script><script type="module" src="/_astro/ArticleView.astro_astro_type_script_index_2_lang.CIZiTr3q.js"></script></main><footer class="site-footer"><div class="footer-inner"><a class="footer-brand" href="/"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10z"></path><path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12"></path></svg>木叶禅 <span>·</span> Kiba Amor</a><nav aria-label="页脚导航"><a href="/atom.xml"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4.4 11.2a8.4 8.4 0 0 1 8.4 8.4M4.4 4.4a15.2 15.2 0 0 1 15.2 15.2"></path><circle cx="5.2" cy="18.8" r="1.4"></circle></svg>订阅</a><span aria-hidden="true"></span><a href="/about/#contact"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="2.5" y="4.5" width="19" height="15" rx="2.5"></rect><path d="M3.2 6.6 12 13l8.8-6.4"></path></svg>联系</a></nav></div></footer></div></div><dialog class="search-dialog" aria-labelledby="search-title" data-search-dialog=""><div class="search-dialog-inner"><header class="search-dialog-header"><h2 id="search-title"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="11" cy="11" r="7.4"></circle><path d="m20.8 20.8-4.2-4.2"></path></svg>搜索</h2><button class="dialog-close" type="button" aria-label="关闭搜索" data-search-close=""><span aria-hidden="true">×</span></button></header><form class="search-form" data-search-form=""><label class="visually-hidden" for="site-search-input">搜索页面或章节标题</label><input id="site-search-input" type="search" placeholder="输入页面或章节标题中的关键字" autocomplete="off" data-search-input=""><button class="button button-primary" type="submit"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="11" cy="11" r="7.4"></circle><path d="m20.8 20.8-4.2-4.2"></path></svg>搜索</button></form><div class="search-status"><p class="search-scope"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="9.2"></circle><path d="M12 11.2v5.2m0-8.8h.01"></path></svg>标题包含完整输入的关键字即可找到，每个命中单独显示。</p><p class="search-count" data-search-count="" hidden=""></p></div><div class="search-empty-state" data-search-empty=""><p>可搜索已发布文章、笔记和备忘的页面与章节标题，包括需密码文章。</p></div><ol class="search-results" data-search-results="" hidden=""></ol></div></dialog><script type="module" src="/_astro/SiteLayout.astro_astro_type_script_index_0_lang.DHLnwOGe.js"></script></body></html>
